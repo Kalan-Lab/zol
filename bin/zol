@@ -1,0 +1,251 @@
+#!/usr/bin/env python3
+
+### Program: zol
+### Author: Rauf Salamzade
+### Kalan Lab
+### UW Madison, Department of Medical Microbiology and Immunology
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import sys
+import argparse
+from Bio import SeqIO
+from time import sleep
+from zol import util, zol
+import subprocess
+
+zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
+
+def create_parser():
+	""" Parse arguments """
+	parser = argparse.ArgumentParser(description="""
+	Program: zol
+	Author: Rauf Salamzade
+	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+	
+	zol is a lightweight alternative that can generate reports on conservation, annotation, and evolutionary 
+	statistics for defined orthologous/homologous loci (e.g. BGCs, phages, MGEs, or any genomic island / operon!).
+	""", formatter_class=argparse.RawTextHelpFormatter)
+
+	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Files must end with ".gbk" or ".genbank".', required=False, default=None)
+	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
+	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
+	parser.add_argument('-s', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
+
+	args = parser.parse_args()
+	return args
+
+def zolMain():
+	"""
+	Void function which runs primary workflow for program.
+	"""
+
+	"""
+	PARSE INPUTS
+	"""
+	myargs = create_parser()
+
+	input_dir = os.path.abspath(myargs.input_dir) + '/'
+	outdir = os.path.abspath(myargs.output_dir) + '/'
+	type = myargs.type
+	cpus = myargs.cpus
+	use_super5 = myargs.use_super5
+
+	try:
+		assert (os.path.isdir(input_dir))
+	except:
+		sys.stderr.write('Input .\n')
+		sys.exit(1)
+
+	if os.path.isdir(outdir):
+		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
+		sleep(5)
+	else:
+		os.mkdir(outdir)
+
+	fin_outdir = outdir + 'Final_Results/'
+	check_dir = outdir + 'Checkpoint_Files/'
+	if not os.path.isdir(fin_outdir):
+		util.setupReadyDirectory([fin_outdir])
+	if not os.path.isdir(check_dir):
+		util.setupReadyDirectory([check_dir])
+
+	""" 
+	PARSE OPTIONAL INPUTS
+	"""
+
+	"""
+	START WORKFLOW
+	"""
+
+	# create logging object
+	log_file = outdir + 'Progress.log'
+	logObject = util.createLoggerObject(log_file)
+	version_string = util.parseVersionFromSetupPy()
+	logObject.info('Running zol version %s' % version_string)
+	sys.stdout.write('Running zol version %s\n' % version_string)
+
+	logObject.info("Saving parameters for future records.")
+	parameters_file = outdir + 'Parameter_Inputs.txt'
+	parameter_values = [input_dir, outdir, type, cpus]
+	parameter_names = ["Input directory with Loci GenBanks/FASTAs", "Output directory", "Locus type", "Number of CPUs Requested"]
+	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
+	logObject.info("Done saving parameters!")
+
+	# Step 1: Gather Genbanks in Input Directory
+	logObject.info('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the Input Directory')
+	sys.stdout.write('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the Input Directory\n')
+
+	genbanks = set([])
+	try:
+		for dirpath, dirnames, files in os.walk(input_dir):
+			for filename in files:
+				if filename.endswith(".gbk") or filename.endswith(".genbank"):
+					genbank_file = os.path.join(dirpath, filename)
+					genbanks.add(genbank_file)
+	except Exception as e:
+		sys.stderr.write('Issues with parsing input directory of GenBanks!\n')
+		logObject.error('Issues with parsing input directory of GenBanks!')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+
+	num_gbk = len(genbanks)
+	if num_gbk == 0:
+		sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\n')
+		logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...')
+	else:
+		sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
+		logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
+
+	# Step 2: Determine Orthologs
+	logObject.info('--------------------\nStep 2\n--------------------\nSearching for GenBanks in the Input Directory')
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nSearching for GenBanks in the Input Directory\n')
+
+	prot_dir = outdir + 'CDS_Protein/'
+	nucl_dir = outdir + 'CDS_Nucleotide/'
+	og_dir = outdir + 'Determine_Orthogroups/'
+	ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+	step2_check_file = check_dir + 'step2.txt'
+	if not os.path.isfile(step2_check_file):
+		util.setupReadyDirectory([prot_dir, nucl_dir])
+		try:
+			for gbk in genbanks:
+				try:
+					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+					proteins, nucleotides = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
+					protein_outf = prot_dir + prefix + '.faa'
+					nucleotide_outf = nucl_dir + prefix + '.fna'
+					protein_handle = open(protein_outf, 'w')
+					nucleotide_handle = open(nucleotide_outf, 'w')
+					for lt in proteins:
+						protein_handle.write('>' + prefix + '|' + lt + '\n' + proteins[lt] + '\n')
+						nucleotide_handle.write('>' + prefix + '|' + lt + '\n' + nucleotides[lt] + '\n')
+					protein_handle.close()
+					nucleotide_handle.close()
+				except Exception as e:
+					sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
+					logObject.error('Issues with parsing the GenBank %s' % gbk)
+					sys.stderr.write(str(e) + '\n')
+					sys.exit(1)
+			fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-c', str(cpus)]
+			try:
+				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
+								stderr=subprocess.DEVNULL, executable='/bin/bash')
+				assert (os.path.isfile(ortho_matrix_file))
+			except Exception as e:
+				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
+				logObject.error(e)
+				raise RuntimeError(e)
+		except Exception as e:
+			sys.stderr.write('Issues with determining ortholog/homolog groups!\n')
+			logObject.error('Issues with determining ortholog/homolog groups!')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+		os.system('touch %s' % step2_check_file)
+
+	# Step 3: Create Alignments, Phylogenies and Consensus Sequences
+	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for homolog groups')
+	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for homolog groups\n')
+	step3_check_file = check_dir + 'step3.txt'
+	proc_dir = outdir + 'Homolog_Group_Processing/'
+	hg_prot_dir = proc_dir + 'HG_Protein_Sequences/'
+	hg_nucl_dir = proc_dir + 'HG_Nucleotide_Sequences/'
+	prot_algn_dir = proc_dir + 'HG_Protein_Alignments/'
+	prot_algn_trim_dir = proc_dir + 'HG_Protein_Alignments_Trimmed/'
+	codo_algn_dir = proc_dir + 'HG_Codon_Alignments/'
+	codo_algn_trim_dir = proc_dir + 'HG_Codon_Alignments_Trimmed/'
+	tree_dir = proc_dir + 'HG_Trees/'
+	phmm_dir = proc_dir + 'HG_Profile_HMMs/'
+	cons_dir = proc_dir + 'HG_Consensus_Sequences/'
+	consensus_prot_seqs_faa = outdir + 'HG_Consensus_Seqs.faa'
+	consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
+	if not os.path.isfile(step3_check_file):
+		util.setupReadyDirectory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir,
+								  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir])
+		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
+		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
+		zol.createCodonAlignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, logObject)
+		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1)
+		zol.createGeneTrees(prot_algn_trim_dir, tree_dir, logObject, cpus=1)
+		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
+		for f in os.listdir(cons_dir):
+			with open(cons_dir + f) as ocf:
+				for rec in SeqIO.parse(ocf, 'fasta'):
+					consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
+		os.system('touch %s' % step3_check_file)
+	consensus_prot_seqs_handle.close()
+
+	# Step 4: Perform annotations
+	step4_check_file = check_dir + 'step4.txt'
+	annotation_dir = outdir + 'Annotation_Results/'
+	if not os.path.isfile(step4_check_file):
+		util.setupReadyDirectory([annotation_dir])
+		zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=1)
+		os.system('touch %s' % step4_check_file)
+
+	# Step 5: Perform genetic/population/evolutionary statistics
+	step5_check_file = check_dir + 'step5.txt'
+	if not os.path.isfile(step5_check_file):
+		os.system('touch %s' % step5_check_file)
+
+	# Step 6: Put together report
+
+	# Step 7: Put together simple visualization
+
+
+	# Close logging object and exit
+	util.closeLoggerObject(logObject)
+	sys.exit(0)
+
+if __name__ == '__main__':
+	zolMain()

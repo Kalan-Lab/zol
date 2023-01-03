@@ -1,0 +1,55 @@
+If you use lsaBGC, please cite: https://www.biorxiv.org/content/10.1101/2022.04.20.488953v2
+
+lsaBGC is made possible by many other tools including:
+- BGC prediction software (can vary but please cite appropriately):
+    - antiSMASH: https://academic.oup.com/nar/article/49/W1/W29/6274535
+    - GECCO: https://www.biorxiv.org/content/10.1101/2021.05.03.442509v1
+    - DeepBGC: https://academic.oup.com/nar/article/47/18/e110/5545735
+
+- Phylogeny construction & diversity estimation:
+    - GToTree: https://academic.oup.com/bioinformatics/article/35/20/4162/5378708
+    - MASH: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-0997-x
+
+- Homolog group identification:
+    - OrthoFinder: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1832-y
+    - SwiftOrtho (if using lsaBGC-Mini.py specifically): https://academic.oup.com/gigascience/article/8/10/giz118/5606727
+
+- General processing of sequencing data and phylogenies:
+    - biopython: https://academic.oup.com/bioinformatics/article/25/11/1422/330687
+    - ete3: https://academic.oup.com/mbe/article/33/6/1635/2579822
+
+- Gene calling:
+    - prodigal: https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-11-119
+    - pyrodigal (optional - can be requested): https://joss.theoj.org/papers/10.21105/joss.04296
+
+- If using BiG-SCAPE for clustering BGCs into GCFs or If you use CORASON to visually explore
+  the context of multi-GCF homolog groups highlighted:
+    - BiG-SCAPE/CORASON: https://pubmed.ncbi.nlm.nih.gov/31768033/
+
+- Annotation databases:
+    - KOfam HMMs: https://academic.oup.com/bioinformatics/article/36/7/2251/5631907
+    - PGAP HMMs: https://pubmed.ncbi.nlm.nih.gov/27342282/
+    - CARD:
+    - PaperBlast:
+    - MI-BiG:
+
+- Protein alignment and profile HMM construction:
+    - MAFFT: https://academic.oup.com/mbe/article/30/4/772/1073398
+    - MAGUS: https://academic.oup.com/bioinformatics/article/37/12/1666/6012350
+    - MUSCLE (part of GToTree): https://www.biorxiv.org/content/10.1101/2021.06.20.449169v1.full
+    
+- Visualization software:
+    - ggplot2: https://ggplot2-book.org/
+    - ggtree: https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12628
+    - gggeenes: https://github.com/wilkox/gggenes
+    - cowplot: https://wilkelab.org/cowplot/articles/plot_grid.html
+    - iTol: https://pubmed.ncbi.nlm.nih.gov/30931475/
+
+- Identification of additional GCF instances:
+    - DIAMOND: https://www.nature.com/articles/nmeth.3176
+    - HMMER: https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1002195
+    - pomegranate: https://www.jmlr.org/papers/volume18/17-636/17-636.pdf
+
+- Metagenomics analysis in lsaBGC-DiscoVary:
+    - Bowtie2: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3322381/
+    - DESMAN: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-017-1309-9

@@ -14,5 +14,9 @@ setup(name='zol',
                'zol/orthologs/findOrthologs.py'],
       zip_safe=False)
 
+# compile RBH/InParanoid-esque programs written in C++
 os.system("g++ -o zol/orthologs/runRBH zol/orthologs/runRBH.cpp")
 os.system("g++ -o zol/orthologs/splitDiamondResults zol/orthologs/splitDiamondResults.cpp")
+# set up STAG by Emms and Kelly
+os.system("axel https://github.com/davidemms/STAG/releases/download/1.0.0/STAG_1.0.0.tar.gz")
+os.system("tar -zxvf STAG_1.0.0.tar.gz")

@@ -217,7 +217,7 @@ def zolMain():
 		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
 		zol.createCodonAlignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, logObject)
 		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1)
-		zol.createGeneTrees(prot_algn_trim_dir, tree_dir, logObject, cpus=1)
+		zol.createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1)
 		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
 		for f in os.listdir(cons_dir):
 			with open(cons_dir + f) as ocf:
@@ -250,9 +250,10 @@ def zolMain():
 	# Step 5: Perform genetic/population/evolutionary statistics
 	step5_check_file = check_dir + 'step5.txt'
 	if not os.path.isfile(step5_check_file):
-		zol.runTajimasDAnalysis()
-		zol.runFubarAnalysis()
-		zol.runGenePhlogenyCongruenceAnalysis()
+		tajimas_d = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
+		fubar = zol.runFubarAnalysis(codo_algn_dir, tree_dir, logObject, cpus=cpus)
+		gtc = zol.runGeneTreeCongruenceAnalysis(tree_dir)
+		popgen_statistics = {'tajimas_d': tajimas_d, 'fubar': fubar, 'gene_tree_congruence': gtc}
 		os.system('touch %s' % step5_check_file)
 
 	# Step 6: Put together report

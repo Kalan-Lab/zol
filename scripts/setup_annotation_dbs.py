@@ -265,7 +265,7 @@ def setup_annot_dbs():
         os.system(' '.join(['diamond', 'makedb', '--in', pb_faa_path, '-d', pb_faa_file]))
         paperblast_descriptions_file = download_path + 'paperblast_descriptions.txt'
         pbdf_handle = open(paperblast_descriptions_file, 'w')
-        with open(download_path + 'protein_fasta_protein_homolog_model.fasta') as opdf:
+        with open(download_path + 'uniq.faa') as opdf:
             for rec in SeqIO.parse(opdf, 'fasta'):
                 pbdf_handle.write(rec.id + '\t' + rec.description + '\n')
         pbdf_handle.close()

@@ -112,14 +112,14 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
-def createGeneTrees(prot_algn_trim_dir, tree_dir, logObject, cpus=1):
+def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
 	try:
 		fasttree_cmds = []
-		for patf in os.listdir(prot_algn_trim_dir):
+		for patf in os.listdir(codo_algn_trim_dir):
 			prefix = '.msa.faa'.join(patf.split('.msa.faa')[:-1])
-			prot_algn_trim_file = prot_algn_trim_dir + patf
+			prot_algn_trim_file = codo_algn_trim_dir + patf
 			tree_file = tree_dir + prefix + '.tre'
-			fasttree_cmds.append(['fasttree', prot_algn_trim_file, '>', tree_file, logObject])
+			fasttree_cmds.append(['fasttree', '-nt', prot_algn_trim_file, '>', tree_file, logObject])
 		p = multiprocessing.Pool(cpus)
 		p.map(util.multiProcess, fasttree_cmds)
 		p.close()
@@ -235,6 +235,8 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1):
 
 def runFubarAnalysis(cod):
 	pass
+
+def runTajimasDAnalysis():
 def calculateTajimasD(sequences):
 	"""
 	The code for this functionality was largely taken from Tom Whalley's Tajima's D implementation in Python and further

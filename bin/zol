@@ -42,6 +42,7 @@ from Bio import SeqIO
 from time import sleep
 from zol import util, zol
 import subprocess
+import pickle
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
@@ -228,14 +229,30 @@ def zolMain():
 	# Step 4: Perform annotations
 	step4_check_file = check_dir + 'step4.txt'
 	annotation_dir = outdir + 'Annotation_Results/'
+	annotations = None
+	annotations_pickle_file = outdir + 'Annotations.pkl'
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([annotation_dir])
-		zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=1)
+		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=1)
+		with open(annotations_pickle_file, 'wb') as pickle_file:
+			pickle.dump(annotations, pickle_file)
 		os.system('touch %s' % step4_check_file)
+
+	if annotations == None:
+		try:
+			annotations = pickle.load(annotations_pickle_file)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
+			logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
 
 	# Step 5: Perform genetic/population/evolutionary statistics
 	step5_check_file = check_dir + 'step5.txt'
 	if not os.path.isfile(step5_check_file):
+		zol.runTajimasDAnalysis()
+		zol.runFubarAnalysis()
+		zol.runGenePhlogenyCongruenceAnalysis()
 		os.system('touch %s' % step5_check_file)
 
 	# Step 6: Put together report

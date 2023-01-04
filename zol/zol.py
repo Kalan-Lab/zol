@@ -151,17 +151,6 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.exit(1)
 
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1):
-	"""
-	pfam	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/Pfam-A.hmm
-	ko	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/ko_list	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/profile.hmm
-	pgap	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/hmm_PGAP.tsv	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/PGAP.hmm
-	mibig	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/mibig.dmnd
-	vfdb	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/vfdb.dmnd
-	card	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/card.dmnd
-	vog	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/vog.annotations.tsv	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/vog.dmnd
-	paperblast	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/paperblast.dmnd
-	isfinder	NA	/home/rauf/Projects/KalanLab/Develop_zol/coding/zol/db/isfinder.dmnd
-	"""
 	db_locations = zol_main_directory + 'db/database_location_paths.txt'
 	try:
 		individual_cpus = 1
@@ -172,36 +161,17 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1):
 		assert(os.path.isfile(db_locations))
 		search_cmds = []
 		annotation_descriptions = defaultdict(lambda: defaultdict(lambda: 'NA'))
+		name_to_info_file = {}
+		hmm_based_annotations = set([])
 		with open(db_locations) as odls:
 			for line in odls:
 				line = line.strip()
 				name, annot_info_file, db_file = line.split('\t')
-
-				if annot_info_file != 'NA':
-					if name == 'ko':
-						with open(annot_info_file) as oaif:
-							for i, line in enumerate(oaif):
-								if i == 0: continue
-								line = line.strip()
-								ls = line.split('\t')
-								ko = ls[0]
-								if ls[1] == '-': continue
-								description = ls[-1]
-								annotation_descriptions['ko'][ko] = description
-					elif name == 'pgap':
-						with open(annot_info_file) as opil:
-							for i, line in enumerate(opil):
-								if i == 0: continue
-								line = line.strip()
-								ls = line.split('\t')
-								label = ls[2]
-								description = ls[10]
-								annotation_descriptions['pgap'][label] = description
-					elif name == 'vog':
-
+				name_to_info_file[name] = annot_info_file
 				annotation_result_file = annotation_dir + name + '.txt'
 				if db_file.endswith('.hmm'):
-					search_cmd = ['hmmsearch', '--cpu', str(individual_cpus), '--tblout', annotation_result_file,
+					hmm_based_annotations.add(name)
+					search_cmd = ['hmmscan', '--cpu', str(individual_cpus), '--tblout', annotation_result_file,
 								  db_file, protein_faa, logObject]
 				elif db_file.endswith('.dmnd'):
 					search_cmd = ['diamond', 'blastp', '-d', db_file, '-q', protein_faa, '-o', annotation_result_file,
@@ -212,9 +182,51 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1):
 		p.map(util.multiProcess, search_cmds)
 		p.close()
 
+		annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA'])) # db -> query -> [hit descriptions, evalue]
 		for rf in os.listdir(annotation_dir):
-			with open(annotation_dir) +
+			db_name = rf.split('.txt')
+			annot_info_file = name_to_info_file[db_name]
 
+			id_to_description = {}
+			with open(annot_info_file) as oaif:
+				for line in oaif:
+					line = line.strip()
+					ls = line.split('\t')
+					id_to_description[ls[0]] = ls[1]
+
+			best_hits_by_evalue = defaultdict(lambda: [[], 1000000.0])
+			if db_name in hmm_based_annotations:
+				# parse HMM based results from HMMER3
+				with open(annotation_dir + rf) as oarf:
+					for line in oarf:
+						line = line.rstrip('\n')
+						if line.startswith('#'): continue
+						ls = line.split()
+						query = ls[2]
+						hit = ls[0]
+						evalue = float(ls[4])
+						if evalue < best_hits_by_evalue[query][1]:
+							best_hits_by_evalue[query] = [[hit], evalue]
+						elif evalue == best_hits_by_evalue[query][1]:
+							best_hits_by_evalue[query][0].append(hit)
+			else:
+				# parse DIAMOND BLASTp based results
+				with open(annotation_dir + rf) as oarf:
+					for line in oarf:
+						line = line.strip()
+						ls = line.split('\t')
+						query = ls[0]
+						hit = ls[1]
+						evalue = float(ls[-2])
+						if evalue < best_hits_by_evalue[query][1]:
+							best_hits_by_evalue[query] = [[hit], evalue]
+						elif evalue == best_hits_by_evalue[query][1]:
+							best_hits_by_evalue[query][0].append(hit)
+			with open(protein_faa) as opf:
+				for rec in SeqIO.parse(opf, 'fasta'):
+					if rec.id in best_hits_by_evalue:
+						annotations[db_name][rec.id] = [[id_to_description[x] for x in best_hits_by_evalue[rec.id][0]], best_hits_by_evalue[rec.id][1]]
+		return(annotations)
 	except Exception as e:
 		sys.stderr.write('Issues with creating profile HMMs and consensus sequences.\n')
 		logObject.error('Issues with creating profile HMMs and consensus sequences.')

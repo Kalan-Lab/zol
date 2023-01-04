@@ -53,10 +53,10 @@ def setup_annot_dbs():
     ko_annot_info_file = download_path + 'ko_list'
     ko_phmm_file = download_path + 'profile.hmm'
     pgap_info_file = download_path + 'hmm_PGAP.tsv'
-    pgap_hmm_file = download_path + 'PGAP.hmm'
+    pgap_phmm_file = download_path + 'PGAP.hmm'
     pb_faa_file = download_path + 'paperblast.dmnd'
     #pb_sql_file = download_path + 'litsearch.db'
-    vog_hmm_file = download_path + 'vog.hmm'
+    vog_phmm_file = download_path + 'vog.hmm'
     vog_info_file = download_path + 'vog.annotations.tsv'
     is_faa_file = download_path + 'isfinder.dmnd'
     mb_faa_file = download_path + 'mibig.dmnd'
@@ -91,7 +91,7 @@ def setup_annot_dbs():
 
     try:
         print('Setting up Pfam database!')
-        os.system(' '.join(['gunzip', 'Pfam-A.hmm']))
+        os.system(' '.join(['gunzip', 'Pfam-A.hmm.gz']))
         assert(os.path.isfile(pfam_phmm_file))
         name = None
         desc = None
@@ -102,11 +102,12 @@ def setup_annot_dbs():
                 line = line.strip()
                 ls = line.split()
                 if ls[0].strip() == 'NAME':
-                    name = ' '.join(name.strip())
+                    name = ' '.join(ls[1:]).strip()
                 elif ls[0].strip() == 'DESC':
-                    desc = ' '.join(name.strip())
+                    desc = ' '.join(ls[1:]).strip()
                     pdf_handle.write(name + '\t' + desc + '\n')
         pdf_handle.close()
+        os.system(' '.join(['hmmpress', pfam_phmm_file]))
         listing_handle.write('pfam\t' + pfam_descriptions_file + '\t' + pfam_phmm_file + '\n')
     except Exception as e:
         sys.stderr.write('Issues setting up Pfam database.\n')
@@ -126,6 +127,7 @@ def setup_annot_dbs():
         for f in os.listdir(download_path + 'profiles/'):
             os.system(' '.join(['cat', download_path + 'profiles/' + f, '>>', ko_phmm_file]))
         assert(os.path.isfile(ko_phmm_file))
+        os.system(' '.join(['hmmpress', ko_phmm_file]))
 
         ko_descriptions_file = download_path + 'ko_descriptions.txt'
         kdf_handle = open(ko_descriptions_file, 'w')
@@ -152,7 +154,7 @@ def setup_annot_dbs():
         assert(os.path.isfile(pgap_info_file))
         assert(os.path.isdir(download_path + 'hmm_PGAP/'))
         for f in os.listdir(download_path + 'hmm_PGAP/'):
-            os.system(' '.join(['cat', download_path + 'hmm_PGAP/' + f, '>>', pgap_hmm_file]))
+            os.system(' '.join(['cat', download_path + 'hmm_PGAP/' + f, '>>', pgap_phmm_file]))
         pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
         pdf_handle = open(pgap_descriptions_file, 'w')
         with open(pgap_info_file) as opil:
@@ -164,8 +166,9 @@ def setup_annot_dbs():
                 description = ls[10]
                 pdf_handle.write(label + '\t' + description + '\n')
         pdf_handle.close()
-        assert(os.path.isfile(ko_phmm_file))
-        listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_hmm_file + '\n')
+        assert(os.path.isfile(pgap_phmm_file))
+        os.system(' '.join(['hmmpress', pgap_phmm_file]))
+        listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\n')
         os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
     except Exception as e:
         sys.stderr.write('Issues setting up PGAP database.\n')
@@ -236,7 +239,7 @@ def setup_annot_dbs():
         os.system(' '.join(['gunzip', download_path + 'vog.annotations.tsv.gz']))
         vog_db_dir = download_path + 'VOG_HMM_Files/'
         for f in os.listdir(vog_db_dir):
-            os.system('cat %s >> %s' % (vog_db_dir + f, vog_hmm_file))
+            os.system('cat %s >> %s' % (vog_db_dir + f, vog_phmm_file))
         vog_descriptions_file = download_path + 'vog_descriptions.txt'
         vdf_handle = open(vog_descriptions_file, 'w')
         with open(download_path + 'vog.annotations.tsv') as ovf:
@@ -247,9 +250,10 @@ def setup_annot_dbs():
                 vdf_handle.write(ls[0] + '\t' + ls[4] + '[' + ls[3] + ']\n')
         vdf_handle.close()
         os.system(' '.join(['rm', '-rf', download_path + 'VOG_DB_Files/', vog_info_file]))
-        assert(os.path.isfile(vog_hmm_file))
+        assert(os.path.isfile(vog_phmm_file))
         assert(os.path.isfile(vog_descriptions_file))
-        listing_handle.write('vog\t' + vog_descriptions_file + '\t' + vog_hmm_file + '\n')
+        os.system(' '.join(['hmmpress', vog_phmm_file]))
+        listing_handle.write('vog\t' + vog_descriptions_file + '\t' + vog_phmm_file + '\n')
     except Exception as e:
         sys.stderr.write('Issues setting up VOG database.\n')
         sys.stderr.write(str(e) + '\n')

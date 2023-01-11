@@ -96,26 +96,21 @@ int main (int argc, char* argv[]) {
                     for (auto i: v) {
                          if (split_counter == 0) {
                              query = i;
-			     query_sample = i.substr(0, i.find('|'));
-
+			                 query_sample = i.substr(0, i.find('|'));
                          } else if (split_counter == 1) {
-		             subject = i;
+		                     subject = i;
                              subject_sample = i.substr(0, i.find('|'));
                          }
                          split_counter++;
                     }
                     line_with_newline = line + '\n';
-		    if (query.compare(subject) == 0) {
-			for (auto& pair : sample_to_outfile) {
-		             *sample_to_outfile[pair.first] << line_with_newline;
-			}
-		    } else if (query_sample.compare(subject_sample) == 0) {
-	                *sample_to_outfile[query_sample] << line_with_newline;
-	            } else {
+		            if (query_sample.compare(subject_sample) == 0) {
+	                    *sample_to_outfile[query_sample] << line_with_newline;
+    	            } else {
                         *sample_to_outfile[query_sample] << line_with_newline;
-		        *sample_to_outfile[subject_sample] << line_with_newline;
-		    }
-		}
+		                *sample_to_outfile[subject_sample] << line_with_newline;
+	    	        }
+		        }
             }
         } else {
   	        cout << "ERROR: Unable to open file " + (string)argv[1] << endl;

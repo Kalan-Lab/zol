@@ -2,15 +2,11 @@ import os
 import sys
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.SeqFeature import SeqFeature, FeatureLocation
 import logging
 import subprocess
-import statistics
 from operator import itemgetter
 from collections import defaultdict
 import traceback
-import multiprocessing
-import copy
 from scipy import stats
 from ete3 import Tree
 import itertools
@@ -18,7 +14,6 @@ import math
 import numpy as np
 import gzip
 import pathlib
-import operator
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
@@ -122,6 +117,26 @@ def is_genbank(gbk):
 	except:
 		return False
 
+def checkValidGenBank(genbank_file):
+	try:
+		number_of_cds = 0
+		lt_has_comma = False
+		with open(genbank_file) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				for feature in rec.features:
+					if feature.type == 'CDS':
+						number_of_cds += 1
+						lt = feature.qualifiers.get('locus_tag')[0]
+						if ',' in lt:
+							lt_has_comma = True
+
+		if number_of_cds > 0 and not lt_has_comma:
+			return True
+		else:
+			return False
+	except:
+		return False
+
 def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
 	try:
 		proteins = {}
@@ -162,6 +177,8 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
 							nucl_seq += full_sequence[sc - 1:]
 						else:
 							nucl_seq += full_sequence[sc - 1:ec]
+					if direction == '-':
+						nucl_seq = str(Seq(nucl_seq).reverse_complement())
 					proteins[lt] = prot_seq
 					nucleotides[lt] = nucl_seq
 		return([proteins, nucleotides])
@@ -176,7 +193,6 @@ def parseVersionFromSetupPy():
 	"""
 	Parses version from setup.py program.
 	"""
-
 	setup_py_prog = main_dir + 'setup.py'
 	version = 'NA'
 	with open(setup_py_prog) as osppf:
@@ -243,66 +259,6 @@ def logParametersToObject(logObject, parameter_names, parameter_values):
 		logObject.info(pn + ': ' + str(pv))
 
 
-def calculateTajimasD(sequences):
-	"""
-	The code for this functionality was largely taken from Tom Whalley's Tajima's D implementation in Python and further
-	modified/corrected based on Wikipedia's page for Tajima's D (Mathematical details).
-	"""
-
-	"""Calculate pi"""
-	numseqs = len(sequences)
-	divisor = math.comb(numseqs, 2)
-	combos = itertools.combinations(sequences, 2)
-	differences = 0
-	for pair in combos:
-		seqA = pair[0]
-		seqB = pair[1]
-		for p, a in enumerate(seqA):
-			b = seqB[p]
-			if a != b and a != '-' and b != '-':
-				differences += 1
-	pi = float(differences) / divisor
-
-	"""Calculate s, number of segregation sites)."""
-	# Assume if we're in here seqs have already been checked
-	combos = itertools.combinations(sequences, 2)
-	indexes = set([])
-	for pair in combos:
-		seqA = pair[0]
-		seqB = pair[1]
-		for idx, (i, j) in enumerate(zip(seqA, seqB)):
-			if i != j and i != '-' and j != '-':
-				indexes.add(idx)
-
-	indexes = list(indexes)
-	S = len(indexes)
-
-	"""
-	Now we have pi (pairwise differences) and s (number
-	of segregating sites). This gives us 'little d', so
-	now we need to divide it by sqrt of variance.
-	"""
-	l = len(sequences)
-
-	# calculate D
-	a1 = sum([(1.0 / float(i)) for i in range(1, l)])
-	a2 = sum([(1.0 / (i ** 2)) for i in range(1, l)])
-
-	b1 = float(l + 1) / (3 * (l - 1))
-	b2 = float(2 * ((l ** 2) + l + 3)) / (9 * l * (l - 1))
-
-	c1 = b1 - (1.0 / a1)
-	c2 = b2 - (float(l + 2) / (a1 * l)) + (float(a2) / (a1 ** 2.0))
-
-	e1 = float(c1) / a1
-	e2 = float(c2) / ((a1 ** 2) + a2)
-	if S >= 3:
-		D = (float(pi - (float(S) / a1)) / math.sqrt((e1 * S) + ((e2 * S) * (S - 1))))
-		return (D)
-	else:
-		return ("NA")
-
-
 def is_numeric(x):
 	try:
 		x = float(x)
@@ -359,6 +315,78 @@ def loadSampleToGCFIntoPandaDataFrame(gcf_listing_dir):
 		raise RuntimeError(traceback.format_exc())
 	return panda_df
 
+def calculateSelectDistances(newick_file, selected_pairs):
+	try:
+		t = Tree(newick_file)
+		leafs = set([])
+		for node in t.traverse('postorder'):
+			if node.is_leaf():
+				leafs.add(node.name)
+		pw_info = defaultdict(lambda: "nan")
+		for i, n1 in enumerate(sorted(leafs)):
+			for j, n2 in enumerate(sorted(leafs)):
+				if i >= j: continue
+				if n1 == n2: continue
+				gn1 = n1.split('|')[0]
+				gn2 = n2.split('|')[0]
+				pw_key = tuple([gn1, gn2])
+				pw_dist = t.get_distance(n1, n2)
+				if pw_key in selected_pairs:
+					if pw_key in pw_info and pw_dist < pw_info[pw_key]:
+						pw_info[pw_key] = pw_dist
+					else:
+						pw_info[pw_key] = pw_dist
+		return (pw_info)
+	except Exception as e:
+		sys.stderr.write('Issues with calculating pairwise distances for tree: %s.\n' % newick_file)
+		sys.stderr.write(str(e) + '\n')
+		raise RuntimeError(traceback.format_exc())
+		sys.exit(1)
+
+def computeCongruence(hg, gene_tree, gc_pw_info, selected_pairs, outf, logObject):
+	try:
+		hg_pw_info = calculateSelectDistances(gene_tree, selected_pairs)
+		hg_pw_dists_filt = []
+		gc_pw_dists_filt = []
+		for pair in selected_pairs:
+			if hg_pw_info[pair] != 'nan' and gc_pw_info[pair] != 'nan':
+				hg_pw_dists_filt.append(hg_pw_info[pair])
+				gc_pw_dists_filt.append(gc_pw_info[pair])
+
+		congruence_stat = 'NA'
+		if len(hg_pw_dists_filt) >= 3:
+			stat, pval = stats.pearsonr(hg_pw_dists_filt, gc_pw_dists_filt)
+			if stat != 'nan':
+				congruence_stat = stat
+		out_handle = open(outf, 'w')
+		out_handle.write(str(congruence_stat) + '\n')
+		out_handle.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with computing congruence of gene tree for homolog group %s to gene-cluster consensus tree.\n' % hg)
+		logObject.error('Issues with computing congruence of gene tree for homolog group %s to gene-cluster consensus tree.' % hg)
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+
+def checkCoreHomologGroupsExist(ortho_matrix_file):
+	try:
+		core_hgs = set([])
+		with open(ortho_matrix_file) as omf:
+			for i, line in enumerate(omf):
+				if i == 0: continue
+				line = line.rstrip('\n')
+				ls = line.split('\t')
+				hg = ls[0]
+				sample_count = 0
+				for lts in ls[1:]:
+					if not lts.strip() == '':
+						sample_count += 1
+				if sample_count / float(len(ls[1:])) == 1.0:
+					core_hgs.add(hg)
+		assert(len(core_hgs) != 0)
+		return True
+	except:
+		return False
 
 def loadSamplesIntoPandaDataFrame(sample_annot_file, pop_spec_file=None):
 	import pandas as pd
@@ -398,8 +426,63 @@ def loadSamplesIntoPandaDataFrame(sample_annot_file, pop_spec_file=None):
 		raise RuntimeError(traceback.format_exc())
 	return panda_df
 
+def parseGbk(gbk_path, prefix, logObject):
+	try:
+		gc_gene_locations = {}
+		with open(gbk_path) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				for feature in rec.features:
+					if feature.type != 'CDS': continue
+					lt = feature.qualifiers.get('locus_tag')[0]
+					all_coords = []
+					if not 'join' in str(feature.location):
+						start = min([int(x.strip('>').strip('<')) for x in
+									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
+						end = max([int(x.strip('>').strip('<')) for x in
+								   str(feature.location)[1:].split(']')[0].split(':')])
+						direction = str(feature.location).split('(')[1].split(')')[0]
+						all_coords.append([start, end, direction])
+					else:
+						for exon_coord in str(feature.location)[5:-1].split(', '):
+							start = min([int(x.strip('>').strip('<')) for x in
+										 exon_coord[1:].split(']')[0].split(':')]) + 1
+							end = max([int(x.strip('>').strip('<')) for x in
+									   exon_coord[1:].split(']')[0].split(':')])
+							direction = exon_coord.split('(')[1].split(')')[0]
+							all_coords.append([start, end, direction])
+					start = 1e16
+					end = -1
+					dir = all_coords[0][2]
+					for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
+						if sc < start:
+							start = sc
+						if ec > end:
+							end = ec
+					location = {'start': start, 'end': end, 'direction': dir}
+					gc_gene_locations[prefix + '|' + lt] = location
+		return gc_gene_locations
+	except Exception as e:
+		sys.stderr.write('Issue parsing GenBank %s\n' % gbk_path)
+		logObject.error('Issue parsing GenBank %s' % gbk_path)
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
 
-def loadTableInPandaDataFrame(input_file):
+def gatherAnnotationFromDictForHomoloGroup(hg, dict):
+	try:
+		annot_set_filt = set([x for x in dict[hg][0] if x.strip() != ''])
+		assert(len(annot_set_filt) > 0)
+		return('; '.join(annot_set_filt) + ' (' + str(dict[hg][1]) + ')')
+	except:
+		return('NA')
+
+def gatherValueFromDictForHomologGroup(hg, dict):
+	try:
+		return (dict[hg])
+	except:
+		return ("NA")
+
+
+def loadTableInPandaDataFrame(input_file, numeric_columns):
 	import pandas as pd
 	panda_df = None
 	try:
@@ -412,7 +495,7 @@ def loadTableInPandaDataFrame(input_file):
 
 		panda_dict = {}
 		for ls in zip(*data):
-			key = ' '.join(ls[0].split('_'))
+			key = ls[0]
 			cast_vals = ls[1:]
 			if key in numeric_columns:
 				cast_vals = []
@@ -424,62 +507,3 @@ def loadTableInPandaDataFrame(input_file):
 	except Exception as e:
 		raise RuntimeError(traceback.format_exc())
 	return panda_df
-
-
-def loadCustomPopGeneTableInPandaDataFrame(input_file):
-	import pandas as pd
-	panda_df = None
-	try:
-		ignore_data_cats = {'hg_median_copy_count', 'proportion_of_total_populations_with_hg',
-							'proportion_variable_sites', 'proportion_nondominant_major_allele', 'median_dn_ds',
-							'mad_dn_ds', 'all_domains', 'most_significant_Fisher_exact_pvalues_presence_absence',
-							'median_Tajimas_D_per_population', 'mad_Tajimas_D_per_population',
-							'most_negative_population_Tajimas_D', 'most_positive_population_Tajimas_D',
-							'population_entropy', 'median_fst_like_estimate'}
-		data = []
-		with open(input_file) as oif:
-			for line in oif:
-				line = line.strip('\n')
-				ls = line.split('\t')
-				data.append(ls)
-
-		panda_dict = {}
-		for ls in zip(*data):
-			if ls[0] in ignore_data_cats: continue
-			if ls[0] == 'gcf_annotation':
-				updated_ans = []
-				for ans in ls[1:]:
-					upans = []
-					for an in ans.split('; '):
-						if not an.startswith('NA:'):
-							upans.append(an)
-					updated_ans.append('|'.join(upans))
-				panda_dict[' '.join(ls[0].split('_'))] = updated_ans
-			elif ls[0] == 'annotation':
-				key = ' '.join(ls[0].split('_'))
-				cleaned_annots = []
-				for val in ls[1:]:
-					ca = []
-					for a in val.split('; '):
-						if a != 'hypothetical protein':
-							ca.append(a)
-					if len(ca) == 0:
-						cleaned_annots.append('hypothetical protein')
-					else:
-						cleaned_annots.append('; '.join(ca))
-				panda_dict[key] = cleaned_annots
-			else:
-				key = ' '.join(ls[0].split('_'))
-				cast_vals = ls[1:]
-				if key in numeric_columns:
-					cast_vals = []
-					for val in ls[1:]:
-						cast_vals.append(castToNumeric(val))
-				panda_dict[key] = cast_vals
-		panda_df = pd.DataFrame(panda_dict)
-
-	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
-	return panda_df
-
-

@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+### Program: zol
+### Author: Rauf Salamzade
+### Kalan Lab
+### UW Madison, Department of Medical Microbiology and Immunology
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import sys
+import argparse
+from Bio import SeqIO
+from time import sleep
+from zol import util, zol
+import subprocess
+import pickle
+
+zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
+
+def create_parser():
+	""" Parse arguments """
+	parser = argparse.ArgumentParser(description="""
+	Program: zol
+	Author: Rauf Salamzade
+	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+
+ .o88o.            o8o  
+ 888 `"            `"'  
+o888oo   .oooo.   oooo  
+ 888    `P  )88b  `888  
+ 888     .oP"888   888  
+ 888    d8(  888   888  
+o888o   `Y888""8o o888o 
+                        
+                        
+    CONSIDERATIONS:
+	- Unlike zol, fai only works for bacterial genomes. Sorry Eukaryotic folks! 
+	- FASTA sequences should be nucleotides and correspond to scaffolds/contigs/sub-regions, not ORFs.
+	- If FASTA provided for --input_dir argument, it must >20,000 to allow Prodigal based gene-calling.
+	""", formatter_class=argparse.RawTextHelpFormatter)
+	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks/FASTA sequences. Will use to build a profile to search additional genomes with. Directory can contain just a single reference GenBank for the cluster. Files must end with ".gbk" or ".genbank".', required=False, default=None)
+	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
+	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region of interest.', required=False, default=None)
+	parser.add_argument('-rs', '--reference_start', type=int, help='Scaffold name ')
+	parser.add_argument('-re', '--reference_end', type=int, help='Scaffold')
+	parser.add_argument('-g', '--genomes', help='Directory with genomes in FASTA format.', required=True)
+	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
+	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
+	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
+	parser.add_argument('-s', '--hyphy_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
+
+	args = parser.parse_args()
+	return args
+
+def zolMain():
+	"""
+	Void function which runs primary workflow for program.
+	"""
+
+	"""
+	PARSE INPUTS
+	"""
+	myargs = create_parser()
+
+	input_dir = os.path.abspath(myargs.input_dir) + '/'
+	outdir = os.path.abspath(myargs.output_dir) + '/'
+	type = myargs.type
+	cpus = myargs.cpus
+	use_super5 = myargs.use_super5
+	hyphy_selection = myargs.hyphy_selection
+
+# make sure multi-record genbanks are created from lsaBGC conversion to properly account for gene cluster fragmentation.

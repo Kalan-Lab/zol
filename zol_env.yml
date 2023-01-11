@@ -37,5 +37,6 @@ dependencies:
   - conda-forge::scikit-learn
   - conda-forge::axel
   - bioconda::hyphy
+  - bioconda::fastme
   - pip:
       - magus-msa

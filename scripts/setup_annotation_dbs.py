@@ -125,6 +125,7 @@ def setup_annot_dbs():
         if os.path.isfile(ko_phmm_file):
             os.system(' '.join(['rm', '-f', ko_phmm_file]))
         for f in os.listdir(download_path + 'profiles/'):
+            if not f.endswith('.hmm'): continue
             os.system(' '.join(['cat', download_path + 'profiles/' + f, '>>', ko_phmm_file]))
         assert(os.path.isfile(ko_phmm_file))
         os.system(' '.join(['hmmpress', ko_phmm_file]))
@@ -249,7 +250,7 @@ def setup_annot_dbs():
                 if i == 0: continue
                 vdf_handle.write(ls[0] + '\t' + ls[4] + '[' + ls[3] + ']\n')
         vdf_handle.close()
-        os.system(' '.join(['rm', '-rf', download_path + 'VOG_DB_Files/', vog_info_file]))
+        os.system(' '.join(['rm', '-rf', download_path + 'VOG_HMM_Files/', vog_info_file]))
         assert(os.path.isfile(vog_phmm_file))
         assert(os.path.isfile(vog_descriptions_file))
         os.system(' '.join(['hmmpress', vog_phmm_file]))
@@ -271,7 +272,7 @@ def setup_annot_dbs():
         pbdf_handle.close()
         os.system(' '.join(['rm', '-rf', pb_faa_path]))
         assert(os.path.isfile(paperblast_descriptions_file))
-        assert(os.pat.isfile(pb_faa_file))
+        assert(os.path.isfile(pb_faa_file))
         listing_handle.write('paperblast\t' + paperblast_descriptions_file + '\t' + pb_faa_file + '\n')
 
     except Exception as e:

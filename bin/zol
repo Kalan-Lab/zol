@@ -52,16 +52,37 @@ def create_parser():
 	Program: zol
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+		
+	*******************************************************************************************************************								
+		
+                      oooooooooooo           ooooo        
+                     d'''''''d888'           `888'        
+                           .888P    .ooooo.   888         
+                          d888'    d88' `88b  888         
+                        .888P      888   888  888         
+                       d888'    .P 888   888  888       o 
+                     .8888888888P  `Y8bod8P' o888ooooood8 
+				
+	*******************************************************************************************************************								
 	
 	zol is a lightweight alternative that can generate reports on conservation, annotation, and evolutionary 
 	statistics for defined orthologous/homologous loci (e.g. BGCs, phages, MGEs, or any genomic island / operon!).
+	
+	CONSIDERATIONS:
+
+	- It is advised that multiple GenBanks from the same genome/sample be concatenated into a multi-record
+	  GenBank to account for fragmentation of gene-clusters and properly calculate copy count of homolog groups.
+	- Locus tags cannot contain commas!
+	- Selection analyses will only be performed for homolog groups which are present in at least 4 input GenBanks.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Files must end with ".gbk" or ".genbank".', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
 	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
 	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
-	parser.add_argument('-s', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
+	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
+	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
+	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints prior to running FUBAR selection analysis. Less accurate than running with GARD preliminary analysis, but much faster. Default is False because these are computationally intensive.", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -81,6 +102,8 @@ def zolMain():
 	type = myargs.type
 	cpus = myargs.cpus
 	use_super5 = myargs.use_super5
+	fubar_selection = myargs.fubar_selection
+	skip_gard = myargs.skip_gard
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -101,10 +124,6 @@ def zolMain():
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])
 
-	""" 
-	PARSE OPTIONAL INPUTS
-	"""
-
 	"""
 	START WORKFLOW
 	"""
@@ -118,14 +137,16 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, type, cpus]
-	parameter_names = ["Input directory with Loci GenBanks/FASTAs", "Output directory", "Locus type", "Number of CPUs Requested"]
+	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, cpus]
+	parameter_names = ["Input directory with Loci GenBanks/FASTAs", "Output directory", "Locus type",
+					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
+					   "Skip GARD Partitioning by Recombination Breakpoints?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
 	# Step 1: Gather Genbanks in Input Directory
-	logObject.info('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the Input Directory')
-	sys.stdout.write('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the Input Directory\n')
+	logObject.info('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory')
+	sys.stdout.write('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory\n')
 
 	genbanks = set([])
 	try:
@@ -133,7 +154,11 @@ def zolMain():
 			for filename in files:
 				if filename.endswith(".gbk") or filename.endswith(".genbank"):
 					genbank_file = os.path.join(dirpath, filename)
-					genbanks.add(genbank_file)
+					if util.checkValidGenBank(genbank_file):
+						genbanks.add(genbank_file)
+					else:
+						sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
+						logObject.warning('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
 	except Exception as e:
 		sys.stderr.write('Issues with parsing input directory of GenBanks!\n')
 		logObject.error('Issues with parsing input directory of GenBanks!')
@@ -149,8 +174,8 @@ def zolMain():
 		logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
 
 	# Step 2: Determine Orthologs
-	logObject.info('--------------------\nStep 2\n--------------------\nSearching for GenBanks in the Input Directory')
-	sys.stdout.write('--------------------\nStep 2\n--------------------\nSearching for GenBanks in the Input Directory\n')
+	logObject.info('--------------------\nStep 2\n--------------------\nDetermining orthogroups')
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nDetermining orthogroups\n')
 
 	prot_dir = outdir + 'CDS_Protein/'
 	nucl_dir = outdir + 'CDS_Nucleotide/'
@@ -183,6 +208,7 @@ def zolMain():
 				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
 				assert (os.path.isfile(ortho_matrix_file))
+				assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
 			except Exception as e:
 				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
 				logObject.error(e)
@@ -209,7 +235,6 @@ def zolMain():
 	phmm_dir = proc_dir + 'HG_Profile_HMMs/'
 	cons_dir = proc_dir + 'HG_Consensus_Sequences/'
 	consensus_prot_seqs_faa = outdir + 'HG_Consensus_Seqs.faa'
-	consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
 	if not os.path.isfile(step3_check_file):
 		util.setupReadyDirectory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir,
 								  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir])
@@ -219,47 +244,118 @@ def zolMain():
 		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1)
 		zol.createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1)
 		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
+		consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
 		for f in os.listdir(cons_dir):
 			with open(cons_dir + f) as ocf:
 				for rec in SeqIO.parse(ocf, 'fasta'):
 					consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
+		consensus_prot_seqs_handle.close()
 		os.system('touch %s' % step3_check_file)
-	consensus_prot_seqs_handle.close()
 
 	# Step 4: Perform annotations
+	logObject.info('--------------------\nStep 4\n--------------------\nPerforming annotations')
+	sys.stdout.write('--------------------\nStep 4\n--------------------\nPerforming annotations\n')
 	step4_check_file = check_dir + 'step4.txt'
 	annotation_dir = outdir + 'Annotation_Results/'
 	annotations = None
 	annotations_pickle_file = outdir + 'Annotations.pkl'
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([annotation_dir])
-		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=1)
+		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=cpus)
 		with open(annotations_pickle_file, 'wb') as pickle_file:
-			pickle.dump(annotations, pickle_file)
+			pickle.dump(annotations, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step4_check_file)
 
 	if annotations == None:
 		try:
-			annotations = pickle.load(annotations_pickle_file)
+			with open(annotations_pickle_file, 'rb') as handle:
+				annotations = pickle.load(handle)
 		except Exception as e:
 			sys.stderr.write('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
 			logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
+	print(annotations.keys())
 
-	# Step 5: Perform genetic/population/evolutionary statistics
+	# Step 5: Determine consensus order, conservation, and median homolog group lengths
+	logObject.info('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of homolog groups')
+	sys.stdout.write('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of homolog groups\n')
 	step5_check_file = check_dir + 'step5.txt'
+	hg_stats_pickle_file = outdir + 'HG_Statistics.pkl'
+	hg_stats = None
 	if not os.path.isfile(step5_check_file):
-		tajimas_d = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
-		fubar = zol.runFubarAnalysis(codo_algn_dir, tree_dir, logObject, cpus=cpus)
-		gtc = zol.runGeneTreeCongruenceAnalysis(tree_dir)
-		popgen_statistics = {'tajimas_d': tajimas_d, 'fubar': fubar, 'gene_tree_congruence': gtc}
+		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_lts  = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject)
+		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject)
+		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
+					'hg_median_lengths': hg_median_lengths, 'hg_order_scores': hg_order_scores, 'hg_locus_tags': hg_lts}
+		with open(hg_stats_pickle_file, 'wb') as pickle_file:
+			pickle.dump(hg_stats, pickle_file)
 		os.system('touch %s' % step5_check_file)
 
-	# Step 6: Put together report
+	if hg_stats == None:
+		try:
+			with open(hg_stats_pickle_file, 'rb') as handle:
+				hg_stats = pickle.load(handle)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in homolog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+			logObject.error('Issues with reading in homolog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
 
-	# Step 7: Put together simple visualization
+	print(hg_stats.keys())
+	# Step 6: Perform genetic/population/evolutionary statistics
+	logObject.info('--------------------\nStep 6\n--------------------\nRunning evolutionary analyses')
+	sys.stdout.write('--------------------\nStep 6\n--------------------\nRunning evolutionary analyses\n')
+	step6_check_file = check_dir + 'step6.txt'
+	evo_stats = None
+	evo_stats_pickle_file = outdir + 'Evolutionary_Statistics.pkl'
+	evo_results_dir = outdir + 'Evolutionary_Analyses/'
+	gard_results_dir = evo_results_dir + 'GARD_Results/'
+	fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
+	gtc_results_dir = evo_results_dir + 'Gene_Tree_Congruence_Results/'
+	if not os.path.isfile(step6_check_file):
+		util.setupReadyDirectory([evo_results_dir, gard_results_dir, fubar_results_dir, gtc_results_dir])
+		tajimas_d = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
+		gard_partitions = {}
+		fubar_sel_props = {}
+		fubar_sel_sites = {}
+		if fubar_selection:
+			gard_partitions, fubar_sel_props, fubar_sel_sites = zol.runHyphyAnalyses(codo_algn_dir, tree_dir,
+																					 gard_results_dir,
+																					 fubar_results_dir, logObject,
+																				  	 gard_mode='Faster',
+																					 skip_gard=skip_gard, cpus=cpus)
+		gtc_score = zol.runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject)
+		evo_stats = {'tajimas_d': tajimas_d, 'gard_partitions': gard_partitions,
+							 'fubar_sel_props': fubar_sel_props, 'fubar_sel_sites': fubar_sel_sites,
+							 'gene_tree_congruence': gtc_score}
+		with open(evo_stats_pickle_file, 'wb') as pickle_file:
+			pickle.dump(evo_stats, pickle_file)
+		os.system('touch %s' % step6_check_file)
 
+	if evo_stats == None:
+		try:
+			with open(evo_stats_pickle_file, 'rb') as handle:
+				evo_stats = pickle.load(handle)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in homolog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+			logObject.error('Issues with reading in homolog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+	print(evo_stats.keys())
+
+	# Step 7: Put together report
+	logObject.info('--------------------\nStep 7\n--------------------\nPutting together final report')
+	sys.stdout.write('--------------------\nStep 7\n--------------------\nPutting together final report\n')
+	step7_check_file = check_dir + 'step7.txt'
+	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
+	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
+	if not os.path.isfile(step7_check_file):
+		zol.consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
+		#os.system('touch %s' % step7_check_file)
+
+	# Step 8: Put together simple visualization
+	# FUTURE TODO!
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

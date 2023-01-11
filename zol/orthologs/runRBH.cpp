@@ -233,7 +233,7 @@ int main (int argc, char* argv[]) {
                             if (accounted.find(qh_pair) == accounted.end() && accounted.find(hq_pair) == accounted.end()) {
                                 bidir_bs = 50.0*(paired_normalized_bitscores[qh_pair] + paired_normalized_bitscores[hq_pair]);
                                 cout <<  qid + '\t' + qs + '\t' + hid + '\t' + hs + '\t' + doubleToString(bidir_bs) << endl;
-                                if (bidir_bs >= 50.0) {
+                                if (bidir_bs >= 0.0) {
                                     rbh_found = true;
                                     accounted.insert(qh_pair);
                                 }

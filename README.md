@@ -1,7 +1,8 @@
 # *zol*
 ### Zoom on Locus
 
-If you find zol useful, please cite our manuscript on lsaBGC, from which we borrow a lot of code:
+If you find zol useful, please cite:
+
 
 ### Installation:
 
@@ -11,21 +12,22 @@ If you find zol useful, please cite our manuscript on lsaBGC, from which we borr
 zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
 ```
 
-Also consider citing:
+Please also cite:
 
-* BiG-SCAPE/CORASON study
-* 
-
-## Acknowledgements:
-
-We would like to thank members of the Kalan lab, Currie lab, Kwan lab, and Anantharaman lab at UW Madison for feedback on the development of lsaBGC.
+* MUSCLE5 for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
+* DIAMOND for alignments in determining homolog groups and FastTree2 for subsequent phylogeny construction.
+* HyPhy and FASTME for selection analyses.
+* STAG for consensus tree construction used in gene tree congruence statistic (and in the near future visualizations).
+* antiSMASH, GECCO, DeepBGC, VIBRANT, or ICEfinder if you used to identify a BGC, phage, or ICEs.
+* PFAM, KEGG, NCBI's PGAP, MIBIG, VOG, VFDB, CARD, and ISFinder databases used for annotation. 
+* lsaBGC, BiG-SCAPE/CORASON or BiG-SLICE studies if you used them to identify homologous BGCs.
 
 ## License:
 
 ```
 BSD 3-Clause License
 
-Copyright (c) 2021, Kalan-Lab
+Copyright (c) 2023, Kalan-Lab
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

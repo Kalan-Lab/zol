@@ -83,7 +83,7 @@ def create_parser():
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
 	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
 	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints prior to running FUBAR selection analysis. Less accurate than running with GARD preliminary analysis, but much faster. Default is False because these are computationally intensive.", required=False, default=False)
-
+	parser.add_argument('-m', '--max_for_visualization', 'Maximum number of sequences to keep for clinker visualization. If more sequences are provided then this number Treemer will be used to dereplicate based on gene-cluster wide tree.', required=False, default=10)
 	args = parser.parse_args()
 	return args
 
@@ -138,7 +138,7 @@ def zolMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, cpus]
-	parameter_names = ["Input directory with Loci GenBanks/FASTAs", "Output directory", "Locus type",
+	parameter_names = ["Input directory with Loci GenBanks", "Output directory", "Locus type",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
 					   "Skip GARD Partitioning by Recombination Breakpoints?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
@@ -354,8 +354,8 @@ def zolMain():
 		zol.consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
 		#os.system('touch %s' % step7_check_file)
 
-	# Step 8: Put together simple visualization
-	# FUTURE TODO!
+	# Step 8: Create interactive visualization using clinker!
+
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

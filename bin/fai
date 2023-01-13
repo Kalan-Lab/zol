@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+#TODO make sure multi-record genbanks are created from lsaBGC conversion to properly account for gene cluster fragmentation.
 
-### Program: zol
+### Program: fai
 ### Author: Rauf Salamzade
 ### Kalan Lab
 ### UW Madison, Department of Medical Microbiology and Immunology
@@ -40,7 +41,7 @@ import sys
 import argparse
 from Bio import SeqIO
 from time import sleep
-from zol import util, zol
+from zol import util, fai
 import subprocess
 import pickle
 
@@ -53,36 +54,64 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 
- .o88o.            o8o  
- 888 `"            `"'  
-o888oo   .oooo.   oooo  
- 888    `P  )88b  `888  
- 888     .oP"888   888  
- 888    d8(  888   888  
-o888o   `Y888""8o o888o 
-                        
-                        
+		 .o88o.            o8o  
+		 888 `"            `"'  
+		o888oo   .oooo.   oooo  
+		 888    `P  )88b  `888  
+		 888     .oP"888   888  
+		 888    d8(  888   888  
+		o888o   `Y888""8o o888o 
+                                               
+    MODES OF INPUT:
+    *******************************************************************************************************************
+
+    Type 1: Directory of Homologous Gene-Cluster GenBanks                      
+	-----------------------------------------------------	    
+    fai -i Known_GeneCluster_Genbanks/ -sg Search_Genomes/ -o fai_Results/
+    
+    Type 2: Reference Genome with Gene-Cluster/Locus Coordinates (proteins are collapsed for high-similarity using cd-hit)
+    -----------------------------------------------------
+    fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -o fai_Results/
+
+    Type 3: Set of Query Proteins (not compatible with the syntenic similarity cutoff) (proteins are collapsed for high-similarity using cd-hit)
+    -----------------------------------------------------
+    fai -pq Gene-Cluster_Query_Proteins.faa -o fai_Results/
+	    	    
     CONSIDERATIONS:
+    *******************************************************************************************************************                                       
 	- Unlike zol, fai only works for bacterial genomes. Sorry Eukaryotic folks! 
-	- FASTA sequences should be nucleotides and correspond to scaffolds/contigs/sub-regions, not ORFs.
+		- In the future I will let you provide your own full-GenBanks so this should make it usable for Eukaryotic 
+		  genomes, but trying to avoid getting into the complexities of Eukaryotic gene-calliing! 
+	- fai is a generalizable and simplified (in terms of probability determination) variant of lsaBGC-Expansion.py and 
+	  features a very similar algorithm. It is inspired by ClusterFinder, cblaster, and other similar tools. 
+	- FASTA sequences of genomes to search should be nucleotides and correspond to scaffolds/contigs/sub-regions, not 
+	  ORFs.
 	- If FASTA provided for --input_dir argument, it must >20,000 to allow Prodigal based gene-calling.
 	""", formatter_class=argparse.RawTextHelpFormatter)
-	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks/FASTA sequences. Will use to build a profile to search additional genomes with. Directory can contain just a single reference GenBank for the cluster. Files must end with ".gbk" or ".genbank".', required=False, default=None)
+	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Will use to build a profile to search additional genomes with. Directory can contain just a single reference GenBank for the cluster. Files must end with ".gbk" or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
 	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region of interest.', required=False, default=None)
-	parser.add_argument('-rs', '--reference_start', type=int, help='Scaffold name ')
-	parser.add_argument('-re', '--reference_end', type=int, help='Scaffold')
-	parser.add_argument('-g', '--genomes', help='Directory with genomes in FASTA format.', required=True)
+	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
+	parser.add_argument('-re', '--reference_end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
+	parser.add_argument('-pq', '--protein_queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
+	parser.add_argument('-tg', '--target_genomes_dir', help='Directory with genomes in FASTA format to search for additional instances of the query gene-cluster.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
-	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
+	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein.", required=False, default=False)
+	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
+	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun.', required=False, default=1e-20)
+	parser.add_argument('-kpm', '--key_protein_min_hits', type=int, help='The minimum number of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.', required=False, default=0)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-s', '--hyphy_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
-
+	parser.add_argument('-ms', '--min_segment_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
+	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment.", required=False, default=0.8)
+	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
+	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
+	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is found at the e-value cutoff. Default is 0.95.", required=False, default=0.95)
+	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog gis found at the e-value cutoff. Default is 0.2.", required=False, default=0.2)
+	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use.", required=False, default=1)
 	args = parser.parse_args()
 	return args
 
-def zolMain():
+def faiMain():
 	"""
 	Void function which runs primary workflow for program.
 	"""
@@ -92,11 +121,292 @@ def zolMain():
 	"""
 	myargs = create_parser()
 
-	input_dir = os.path.abspath(myargs.input_dir) + '/'
+	input_dir = myargs.input_dir
+	reference_genome = myargs.reference_genome
+	reference_contig = myargs.reference_contig
+	reference_start = myargs.refernece_start
+	reference_end = myargs.reference_end
+	protein_queries_fasta = myargs.protein_queries
+	search_genomes_dir = os.path.abspath(myargs.search_genomes_dir) + '/'
 	outdir = os.path.abspath(myargs.output_dir) + '/'
-	type = myargs.type
-	cpus = myargs.cpus
 	use_super5 = myargs.use_super5
-	hyphy_selection = myargs.hyphy_selection
+	evalue_cutoff = myargs.evalue_cutoff
+	min_segment_size = myargs.min_segment_size
+	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
+	gc_transition = myargs.gc_transition
+	bg_transition = myargs.bg_transition
+	ge_emission = myargs.ge_emission
+	be_emission = myargs.be_emission
+	key_protein_queries_fasta = myargs.key_protein_queries
+	key_protein_evalue_cutoff = myargs.key_protein_evalue_cutoff
+	key_protein_min_hits = myargs.key_protein_min_hits
+	cpus = myargs.cpus
 
-# make sure multi-record genbanks are created from lsaBGC conversion to properly account for gene cluster fragmentation.
+	# create output directory if needed, or warn of over-writing
+	if os.path.isdir(outdir):
+		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
+		sleep(5)
+	else:
+		os.mkdir(outdir)
+
+	fin_outdir = outdir + 'Additional_Gene_Cluster_Instances_Identified/'
+	check_dir = outdir + 'Checkpoint_Files/'
+	if not os.path.isdir(fin_outdir):
+		util.setupReadyDirectory([fin_outdir])
+	if not os.path.isdir(check_dir):
+		util.setupReadyDirectory([check_dir])
+
+	# create logging object
+	log_file = outdir + 'Progress.log'
+	logObject = util.createLoggerObject(log_file)
+	version_string = util.parseVersionFromSetupPy()
+	logObject.info('Running fai version %s' % version_string)
+	sys.stdout.write('Running fai version %s\n' % version_string)
+
+	logObject.info("Saving parameters for future records.")
+	parameters_file = outdir + 'Parameter_Inputs.txt'
+	parameter_values = [input_dir, outdir,  use_super5, cpus]
+	parameter_names = ["Input directory with Gene-Cluster GenBanks", "Output directory", "Locus type",
+					   "Use super5 Mode in MUSCLE Alignments?", "",
+					   "Skip GARD Partitioning by Recombination Breakpoints?", "Number of CPUs Requested"]
+	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
+	logObject.info("Done saving parameters!")
+
+	input_type_1_observed = False
+	input_type_2_observed = False
+	input_type_3_observed = False
+	if os.path.isdir(input_dir):
+		input_type_1_observed = True
+	if os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None:
+		input_type_2_observed = True
+	if os.path.isfile(protein_queries_fasta):
+		input_type_3_observed = True
+
+	if input_type_1_observed and not (input_type_2_observed or input_type_3_observed):
+		sys.stdout.write('Beginning fai searches using input directory of GenBanks at: %s\n' % input_dir)
+		logObject.info('Beginning fai searches using input directory of GenBanks at: %s' % input_dir)
+	elif input_type_2_observed and not (input_type_1_observed or input_type_3_observed):
+		sys.stdout.write('Beginning fai searches using coordinates %s:%d-%d in reference genome %s\n' % (reference_contig,
+																									   reference_start,
+																									   reference_end,
+	     																							   reference_genome))
+		logObject.info('Beginning fai searches using coordinates %s:%d-%d in reference genome %s' % (reference_contig,
+																							reference_start,
+																							reference_end,
+																							reference_genome))
+
+	elif input_type_3_observed and not (input_type_1_observed or input_type_2_observed):
+		sys.stdout.write('Beginning fai searches using protein queries FASTA file at: %s\n' % protein_queries_fasta)
+		logObject.info('Beginning fai searches using protein queries FASTA file at: %s' % protein_queries_fasta)
+	elif input_type_1_observed or input_type_2_observed or input_type_3_observed:
+		sys.stderr.write('Only one type of input mode can currently be accepted!\n')
+		logObject.error('Only one type of input mode can currently be accepted!')
+	elif not (input_type_1_observed or input_type_2_observed or input_type_3_observed):
+		sys.stderr.write('Required input(s) not provided!\n')
+		logObject.error('Required input(s) not provided!')
+
+	logObject.info('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).')
+	sys.stdout.write('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).\n')
+
+	query_information = None
+	work_dir = outdir + 'Processing_Queries/'
+	query_info_pickle_file = outdir + 'Query_Information.pkl'
+	step1_check_file = check_dir + 'Step1.txt'
+	if os.path.isfile(step1_check_file):
+		util.setupReadyDirectory(work_dir)
+		query_fasta = None
+		comp_gene_info = None
+		protein_to_hg = None
+		if input_type_1_observed:
+			# construct consensus sequences of homolog groups to use for downstream searching
+			input_dir = os.path.abspath(input_dir) + '/'
+			# get paths	to individual genbank files
+			genbanks = set([])
+			try:
+				for dirpath, dirnames, files in os.walk(input_dir):
+					for filename in files:
+						if filename.endswith(".gbk") or filename.endswith(".genbank"):
+							genbank_file = os.path.join(dirpath, filename)
+							if util.checkValidGenBank(genbank_file):
+								genbanks.add(genbank_file)
+							else:
+								sys.stderr.write(
+									'Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
+								logObject.warning(
+									'Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
+			except Exception as e:
+				sys.stderr.write('Issues with parsing input directory of GenBanks!\n')
+				logObject.error('Issues with parsing input directory of GenBanks!')
+				sys.stderr.write(str(e) + '\n')
+				sys.exit(1)
+
+			num_gbk = len(genbanks)
+			if num_gbk == 0:
+				sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\n')
+				logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...')
+			else:
+				sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
+				logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
+
+			query_fasta, ortho_matrix_file = fai.genConsensusSequecnes(genbanks, outdir, check_dir, logObject, cpus=cpus)
+			comp_gene_info = fai.parseCoordsFromGenbank(genbanks, logObject)
+			protein_to_hg = fai.parseHomologGroupMatrix(ortho_matrix_file, logObject)
+
+		elif input_type_2_observed:
+			reference_genome = os.path.abspath(reference_genome)
+
+			reference_genome_gbk = reference_genome
+			if not util.is_genbank(reference_genome) and util.is_fasta(reference_genome):
+				reference_genome_gbk = work_dir + 'reference.gbk'
+				gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', '-s', 'reference', '-l', 'REF', '-o',
+								 work_dir]
+				try:
+					subprocess.call(' '.join(gene_call_cmd), shell=True, stdout=subprocess.DEVNULL,
+									stderr=subprocess.DEVNULL,
+									executable='/bin/bash')
+					assert(os.path.isfile(reference_genome_gbk))
+					logObject.info('Successfully ran: %s' % ' '.join(gene_call_cmd))
+				except Exception as e:
+					logObject.error('Had an issue running runProdigalAndMakeProperGenbank.py: %s' % ' '.join(gene_call_cmd))
+					sys.stderr.write('Had an issue running runProdigalAndMakePRoperGenbank.py: %s\n' % ' '.join(gene_call_cmd))
+					logObject.error(e)
+					sys.exit(1)
+			locus_genbank = work_dir + 'Query.gbk'
+			locus_proteome = work_dir + 'Query.faa'
+			fai.subsetGenBankForQueryLocus(reference_genome_gbk, locus_genbank, locus_proteome, reference_contig,
+										   reference_start, reference_end, logObject)
+			comp_gene_info = fai.parseCoordsFromGenbank([locus_genbank], logObject)
+			query_fasta = work_dir + 'Query.faa'
+			protein_to_hg = fai.collapseProteinsUsingCDHit(locus_proteome, query_fasta, logObject)
+		elif input_type_3_observed:
+			# simplest case - just take the protein queries provided by the user. Unfortunately, syntenic information is
+			# not present for such inputs.
+			protein_queries_fasta = os.path.abspath(protein_queries_fasta)
+			query_fasta = work_dir + 'Query.faa'
+			protein_to_hg = fai.createDummyProteinToHomologGroupMapping(protein_queries_fasta, query_fasta, logObject)
+
+		key_hgs = set([])
+		if key_protein_queries_fasta != None:
+			key_hgs = fai.mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, cpus=cpus)
+		query_information = {'protein_to_hg': protein_to_hg, 'query_fasta': query_fasta,
+							 'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs}
+		with open(query_info_pickle_file, 'wb') as pickle_file:
+			pickle.dump(query_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+		os.system('touch %s' % step1_check_file)
+
+	if query_information == None:
+		try:
+			with open(query_info_pickle_file, 'rb') as handle:
+				query_information = pickle.load(handle)
+			assert(os.path.isfile(query_information['query_fasta']))
+		except Exception as e:
+			sys.stderr.write('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
+			logObject.error('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+	logObject.info('--------------------\nStep 2\n--------------------\nGene-calling using prodigal on set of genomes to search.')
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nGene-calling using prodigal on set of genomes to search.\n')
+
+	step2_check_file = check_dir + 'Step2.txt'
+	target_work_dir = outdir + 'Processing_Targets/'
+	target_information = None
+	target_info_pickle_file = outdir + 'Target_Information.pkl'
+	if os.path.isfile(step2_check_file):
+		search_genomes_dir = os.path.abspath(search_genomes_dir) + '/'
+		util.setupReadyDirectory([target_work_dir])
+		target_listing_file = target_work_dir + 'Target_Genomes.txt'
+		target_listing_handle = open(target_listing_file, 'w')
+		for f in os.listdir(search_genomes_dir):
+			sample_id = f.split('.fasta')[0].split('.fna')[0].split('.fa')[0]
+			target_listing_handle.write(sample_id + '\t' + search_genomes_dir + f + '\n')
+		target_listing_handle.close()
+
+		target_annot_listing_file = target_work_dir + 'Target_Sample_Annotation_Files.txt'
+		add_gen_gene_call_cmds = ['readifyAdditionalGenomes.py', '-d', target_listing_file, '-o', target_work_dir,
+								  '-c', str(cpus)]
+		try:
+			subprocess.call(' '.join(add_gen_gene_call_cmds), shell=True, stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(target_annot_listing_file))
+			logObject.info('Successfully ran: %s' % ' '.join(add_gen_gene_call_cmds))
+		except Exception as e:
+			logObject.error('Had an issue running readifyAddtionalGenomes.py: %s' % ' '.join(add_gen_gene_call_cmds))
+			sys.stderr.write('Had an issue running readifyAdditionalGenomes.py: %s\n' % ' '.join(add_gen_gene_call_cmds))
+			logObject.error(e)
+			sys.exit(1)
+
+		target_annotation_information = {}
+		with open(target_annot_listing_file) as otalf:
+			for line in otalf:
+				line = line.strip()
+				sample, gbk, faa = line.split('\t')
+				target_annotation_information[sample] = {}
+				target_annotation_information[sample]['predicted_proteome'] = faa
+				target_annotation_information[sample]['genbank'] = gbk
+
+		target_genome_gene_info = fai.processGenomeWideGenbanks(target_annot_listing_file, logObject, cpus=cpus)
+
+		target_information = {'target_annotation_information': target_annotation_information,
+							  'target_genome_gene_info': target_genome_gene_info}
+		with open(target_info_pickle_file, 'wb') as pickle_file:
+			pickle.dump(target_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+		os.system('touch %s' % step2_check_file)
+
+	if target_information == None:
+		try:
+			with open(target_info_pickle_file, 'rb') as handle:
+				target_information = pickle.load(handle)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in target information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			logObject.error('Issues with reading in target information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+
+	logObject.info('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
+	sys.stdout.write('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.\n')
+
+	step3_check_file = check_dir + 'Step3.txt'
+	diamond_work_dir = outdir + 'DIAMOND_Analysis/'
+	diamond_results = None
+	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
+	if os.path.isfile(step3_check_file):
+		util.setupReadyDirectory([diamond_work_dir])
+		fai.runDiamondBlastp(target_information['target_annotation_information'], query_fasta, diamond_work_dir, logObject, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		with open(diamond_results_pickle_file, 'wb') as pickle_file:
+			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+		os.system('touch %s' % step3_check_file)
+
+	if diamond_results == None:
+		try:
+			with open(diamond_results_pickle_file, 'rb') as handle:
+				diamond_results = pickle.load(handle)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			logObject.error('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+	logObject.info('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.')
+	sys.stdout.write('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.\n')
+
+	step4_check_file = check_dir + 'Step4.txt'
+	hmm_work_dir = outdir + 'HMM_Processing/'
+	if os.path.isfile(step4_check_file):
+		util.setupReadyDirectory([hmm_work_dir])
+		fai.identifyGCFInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
+								 min_hits=5, min_core_size=3, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
+								 gc_emission_prob_with_hit=ge_emission, gc_emission_prob_without_hit=be_emission,
+								 syntenic_correlation_threshold=0.8, kq_evalue_threshold=key_protein_evalue_cutoff,
+								 min_key_hits=key_protein_min_hits, cpus=1, block_size=3000)
+		fai.concatenateBGCsIntoMultiRecordGenBanks(work_dir + 'BGC_Segments/', fin_outdir, logObject)
+		os.system('touch %s' % step4_check_file)
+
+	# Close logging object and exit
+	util.closeLoggerObject(logObject)
+	sys.exit(0)
+
+if __name__ == '__main__':
+	faiMain()

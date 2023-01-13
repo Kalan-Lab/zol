@@ -1,6 +1,7 @@
 import os
 import sys
 from Bio import SeqIO
+from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.Seq import Seq
 import logging
 import subprocess
@@ -9,15 +10,121 @@ from collections import defaultdict
 import traceback
 from scipy import stats
 from ete3 import Tree
-import itertools
-import math
 import numpy as np
 import gzip
 import pathlib
+import copy
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
 main_dir = '/'.join(curr_dir.split('/')[:-2]) + '/'
+
+def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
+	"""
+	Function to prune full genome-sized GenBank for only features in BGC of interest.
+	:param full_genbank_file: Prokka generated GenBank file for full genome.
+	:param new_genbank_file: Path to BGC specific Genbank to be created
+	:param scaffold: Scaffold identifier.
+	:param start_coord: Start coordinate.
+	:param end_coord: End coordinate.
+	"""
+	try:
+		ngf_handle = open(new_genbank_file, 'w')
+		pruned_coords = set(range(start_coord, end_coord + 1))
+		with open(full_genbank_file) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				if not rec.id == scaffold: continue
+				original_seq = str(rec.seq)
+				filtered_seq = ""
+				if end_coord == len(original_seq):
+					filtered_seq = original_seq[start_coord - 1:]
+				else:
+					filtered_seq = original_seq[start_coord - 1:end_coord]
+
+				new_seq_object = Seq(filtered_seq)
+
+				updated_rec = copy.deepcopy(rec)
+				updated_rec.seq = new_seq_object
+
+				updated_features = []
+				for feature in rec.features:
+					start = None
+					end = None
+					direction = None
+					all_coords = []
+
+					if not 'join' in str(feature.location) and not 'order' in str(feature.location):
+						start = min([int(x.strip('>').strip('<')) for x in
+									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
+						end = max(
+							[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
+						direction = str(feature.location).split('(')[1].split(')')[0]
+						all_coords.append([start, end, direction])
+					elif 'order' in str(feature.location):
+						all_starts = []
+						all_ends = []
+						all_directions = []
+						for exon_coord in str(feature.location)[6:-1].split(', '):
+							start = min(
+								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+							direction = exon_coord.split('(')[1].split(')')[0]
+							all_starts.append(start)
+							all_ends.append(end)
+							all_directions.append(direction)
+							all_coords.append([start, end, direction])
+						start = min(all_starts)
+						end = max(all_ends)
+					else:
+						all_starts = []
+						all_ends = []
+						all_directions = []
+						for exon_coord in str(feature.location)[5:-1].split(', '):
+							start = min(
+								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+							direction = exon_coord.split('(')[1].split(')')[0]
+							all_starts.append(start)
+							all_ends.append(end)
+							all_directions.append(direction)
+							all_coords.append([start, end, direction])
+						start = min(all_starts)
+						end = max(all_ends)
+
+					feature_coords = set(range(start, end + 1))
+					if len(feature_coords.intersection(pruned_coords)) > 0:
+						fls = []
+						for sc, ec, dc in all_coords:
+							updated_start = sc - start_coord + 1
+							updated_end = ec - start_coord + 1
+							if ec > end_coord:
+								# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
+								# with boundary proteins found by the HMM.
+								if feature.type == 'CDS':
+									continue
+								else:
+									updated_end = end_coord - start_coord + 1  # ; flag1 = True
+							if sc < start_coord:
+								if feature.type == 'CDS':
+									continue
+								else:
+									updated_start = 1  # ; flag2 = True
+
+							strand = 1
+							if dc == '-':
+								strand = -1
+							fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
+						if len(fls) > 0:
+							updated_location = fls[0]
+							if len(fls) > 1:
+								updated_location = sum(fls)
+							feature.location = updated_location
+							updated_features.append(feature)
+				updated_rec.features = updated_features
+				SeqIO.write(updated_rec, ngf_handle, 'genbank')
+		ngf_handle.close()
+	except Exception as e:
+		raise RuntimeError(traceback.format_exc())
 
 
 def multiProcess(input):
@@ -90,13 +197,19 @@ def is_fasta(fasta):
 	Function to validate if FASTA file is correctly formatted.
 	"""
 	try:
+		recs = 0
 		if fasta.endswith('.gz'):
 			with gzip.open(fasta, 'rt') as ogf:
-				SeqIO.parse(ogf, 'fasta')
+				for rec in SeqIO.parse(ogf, 'fasta'):
+					recs += 1
 		else:
 			with open(fasta) as of:
-				SeqIO.parse(of, 'fasta')
-		return True
+				for rec in SeqIO.parse(of, 'fasta'):
+					recs += 1
+		if recs > 0:
+			return True
+		else:
+			return False
 	except:
 		return False
 
@@ -106,14 +219,21 @@ def is_genbank(gbk):
 	Function to check in Genbank file is correctly formatted.
 	"""
 	try:
+		recs = 0
 		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz'))
 		if gbk.endswith('.gz'):
 			with gzip.open(gbk, 'rt') as ogf:
-				SeqIO.parse(ogf, 'genbank')
+				for rec in SeqIO.parse(ogf, 'genbank'):
+					recs += 1
 		else:
 			with open(gbk) as of:
 				SeqIO.parse(of, 'genbank')
-		return True
+				for rec in SeqIO.parse(ogf, 'genbank'):
+					recs += 1
+		if recs > 0:
+			return True
+		else:
+			return False
 	except:
 		return False
 
@@ -388,44 +508,6 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 	except:
 		return False
 
-def loadSamplesIntoPandaDataFrame(sample_annot_file, pop_spec_file=None):
-	import pandas as pd
-	panda_df = None
-	try:
-		if pop_spec_file != None:
-			sample_pops = {}
-			with open(pop_spec_file) as opsf:
-				for line in opsf:
-					line = line.strip()
-					ls = line.split('\t')
-					sample_pops[ls[0]] = ls[1]
-
-		data = []
-		if pop_spec_file != None:
-			data.append(['Sample', 'Population/Clade'])
-		else:
-			data.append(['Sample'])
-		with open(sample_annot_file) as saf:
-			for line in saf:
-				line = line.strip('\n')
-				ls = line.split('\t')
-				if pop_spec_file != None:
-					pop = sample_pops[ls[0]]
-					data.append([ls[0], pop])
-				else:
-					data.append([ls[0]])
-
-		panda_dict = {}
-		for ls in zip(*data):
-			key = ' '.join(ls[0].split('_'))
-			vals = ls[1:]
-			panda_dict[key] = vals
-		panda_df = pd.DataFrame(panda_dict)
-
-	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
-	return panda_df
-
 def parseGbk(gbk_path, prefix, logObject):
 	try:
 		gc_gene_locations = {}
@@ -507,3 +589,11 @@ def loadTableInPandaDataFrame(input_file, numeric_columns):
 	except Exception as e:
 		raise RuntimeError(traceback.format_exc())
 	return panda_df
+
+def chunks(lst, n):
+	"""
+    Yield successive n-sized chunks from lst.
+    Solution taken from: https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
+    """
+	for i in range(0, len(lst), n):
+		yield lst[i:i + n]

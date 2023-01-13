@@ -10,25 +10,13 @@ dependencies:
   - conda-forge::cxx-compiler
   - bioconda::bowtie2=2.4.5
   - bioconda::samtools=1.12
-  - bioconda::mafft=7.505
+  - bioconda::muscle
   - bioconda::mcl=14.137
   - bioconda::pal2nal=14.1
   - bioconda::hmmer=3.3.2
   - bioconda::fasttree=2.1.11
   - conda-forge::ete3=3.1.2
   - bioconda::diamond=2.0.15
-  - conda-forge::r-base=4.0.3
-  - conda-forge::r-ggplot2=3.3.5
-  - conda-forge::r-cowplot=1.1.1
-  - conda-forge::r-ape=5.5
-  - conda-forge::r-dplyr=1.0.4
-  - conda-forge::r-gggenes=0.4.1
-  - bioconda::bioconductor-ggtree=2.4.0
-  - conda-forge::r-ggalluvial=0.12.3
-  - conda-forge::r-rvcheck=0.1.8
-  - conda-forge::r-data.table=1.14.0
-  - conda-forge::r-plyr=1.8.6
-  - conda-forge::r-gridextra=2.3
   - bioconda::prodigal=2.6.3
   - bioconda::pyrodigal
   - conda-forge::pandas=1.4.2
@@ -38,5 +26,6 @@ dependencies:
   - conda-forge::axel
   - bioconda::hyphy
   - bioconda::fastme
-  - pip:
-      - magus-msa
+  - bioconda::clinker-py
+  - conda-forge::pomegranate=0.13.3
+  - bioconda::cd-hit

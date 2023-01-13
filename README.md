@@ -1,12 +1,23 @@
 # *zol*
-### Zoom on Locus
 
-If you find zol useful, please cite:
+### Zoom on Locus (zol) and Find Additional Instances (fai)
 
+**zol** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).
+
+**fai** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript.
 
 ### Installation:
 
+
+
 ### Usage:
+
+
+### fai (finding homologous instances)
+
+
+
+### zol (generating table reports)
 
 ```commandline
 zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
@@ -15,12 +26,13 @@ zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
 Please also cite:
 
 * MUSCLE5 for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
+* clinker and treemmer for visualization
 * DIAMOND for alignments in determining homolog groups and FastTree2 for subsequent phylogeny construction.
 * HyPhy and FASTME for selection analyses.
 * STAG for consensus tree construction used in gene tree congruence statistic (and in the near future visualizations).
 * antiSMASH, GECCO, DeepBGC, VIBRANT, or ICEfinder if you used to identify a BGC, phage, or ICEs.
 * PFAM, KEGG, NCBI's PGAP, MIBIG, VOG, VFDB, CARD, and ISFinder databases used for annotation. 
-* lsaBGC, BiG-SCAPE/CORASON or BiG-SLICE studies if you used them to identify homologous BGCs.
+* lsaBGC, BiG-SCAPE/CORASON, cblaster, or BiG-SLICE studies if you used them to identify homologous BGCs.
 
 ## License:
 

@@ -1,18 +1,16 @@
 If you use lsaBGC, please cite: https://www.biorxiv.org/content/10.1101/2022.04.20.488953v2
 
-lsaBGC is made possible by many other tools including:
+-
+
+- Phage/MGE prediction software:
+    - VIBRANT
+    - ICEfinder
+    - IslandViewer
+
 - BGC prediction software (can vary but please cite appropriately):
     - antiSMASH: https://academic.oup.com/nar/article/49/W1/W29/6274535
     - GECCO: https://www.biorxiv.org/content/10.1101/2021.05.03.442509v1
     - DeepBGC: https://academic.oup.com/nar/article/47/18/e110/5545735
-
-- Phylogeny construction & diversity estimation:
-    - GToTree: https://academic.oup.com/bioinformatics/article/35/20/4162/5378708
-    - MASH: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-0997-x
-
-- Homolog group identification:
-    - OrthoFinder: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1832-y
-    - SwiftOrtho (if using lsaBGC-Mini.py specifically): https://academic.oup.com/gigascience/article/8/10/giz118/5606727
 
 - General processing of sequencing data and phylogenies:
     - biopython: https://academic.oup.com/bioinformatics/article/25/11/1422/330687

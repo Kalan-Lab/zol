@@ -57,20 +57,14 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 
-	Prepares additional genomes for being searched for GCFs using zol-AutoExpansion/Expansion.
+	Prepares additional genomes for being searched for GCFs using fai.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-d', '--additional_genome_listing',
-						help='Tab-delimited, two column file for samples with additional/draft\ngenomes (same format as for the "--genome_listing" argument). The genomes/BGCs of these\nsamples won\'t be used in ortholog-grouping of proteins and clustering of BGCs, but will simply have gene\ncalling run for them. This will enable more sensitive/expanded detection of GCF instances later\nusing zol-Expansion/AutoExpansion.\nCheck note above about available scripts to automatically create this.',
-						required=True)
+	parser.add_argument('-d', '--additional_genome_listing', help='Tab-delimited, two column file for samples with additional/draft\ngenomes (same format as for the "--genome_listing" argument). The genomes/BGCs of these\nsamples won\'t be used in ortholog-grouping of proteins and clustering of BGCs, but will simply have gene\ncalling run for them. This will enable more sensitive/expanded detection of GCF instances later\nusing zol-Expansion/AutoExpansion.\nCheck note above about available scripts to automatically create this.', required=True)
 	parser.add_argument('-o', '--output_directory', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-pa', '--previous_annotation_listing', help='If this is not the first time zol-AutoExpansion will be run (including if zol-Ready.py was run with additional genoems), then please provide the previous sample annotation file to infer which locus tags to avoid.', required=False, default=None)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. 3 for primary genomes; 4 for additional genomes (default).', required=False, default=4)
-	parser.add_argument('-c', '--cpus', type=int,
-						help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.", required=False,
-						default=1)
-	parser.add_argument('-py', '--use_pyrodigal', action='store_true', help='Use pyrodigal instead of prodigal.',
-						required=False, default=False)
+	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.", required=False, default=1)
+	parser.add_argument('-py', '--use_pyrodigal', action='store_true', help='Use pyrodigal instead of prodigal.', required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -87,7 +81,6 @@ def readifyAdditionalGenomes():
 
 	outdir = os.path.abspath(myargs.output_directory) + '/'
 	additional_genome_listing_file = myargs.additional_genome_listing
-	previous_annotation_listing_file = myargs.previous_annotation_listing
 	locus_tag_length = myargs.locus_tag_length
 	cpus = myargs.cpus
 	use_pyrodigal = myargs.use_pyrodigal
@@ -103,11 +96,6 @@ def readifyAdditionalGenomes():
 	except:
 		raise RuntimeError('Issue with reading genome listing file for samples with additional genomic assemblies.')
 
-	if previous_annotation_listing_file:
-		try:
-			assert(os.path.isfile(previous_annotation_listing_file))
-		except:
-			raise RuntimeError('Issue validating the presence of the previous annotation listing file provided.')
 
 	"""
 	START WORKFLOW
@@ -136,7 +124,7 @@ def readifyAdditionalGenomes():
 							used_locus_tags.add(lt)
 
 	# Step 1: Process Additional Genomes
-	additional_sample_annotation_listing_file = outdir + 'Additional_Sample_Annotation_Files.txt'
+	additional_sample_annotation_listing_file = outdir + 'Target_Sample_Annotation_Files.txt'
 	
 	additional_sample_genomes, additional_format_prediction = util.parseSampleGenomes(additional_genome_listing_file, logObject)
 	if additional_format_prediction == 'mixed':

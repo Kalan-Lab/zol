@@ -83,7 +83,7 @@ def create_parser():
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
 	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
 	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints prior to running FUBAR selection analysis. Less accurate than running with GARD preliminary analysis, but much faster. Default is False because these are computationally intensive.", required=False, default=False)
-	parser.add_argument('-m', '--max_for_visualization', 'Maximum number of sequences to keep for clinker visualization. If more sequences are provided then this number Treemer will be used to dereplicate based on gene-cluster wide tree.', required=False, default=10)
+	parser.add_argument('-m', '--max_for_visualization', type=int, help='Maximum number of sequences to keep for clinker visualization. If more sequences are provided then this number Treemer will be used to dereplicate based on gene-cluster wide tree.', required=False, default=10)
 	args = parser.parse_args()
 	return args
 
@@ -104,6 +104,7 @@ def zolMain():
 	use_super5 = myargs.use_super5
 	fubar_selection = myargs.fubar_selection
 	skip_gard = myargs.skip_gard
+	max_for_visualization = myargs.max_for_visualization
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -137,10 +138,11 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, cpus]
+	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, max_for_visualization, cpus]
 	parameter_names = ["Input directory with Loci GenBanks", "Output directory", "Locus type",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
-					   "Skip GARD Partitioning by Recombination Breakpoints?", "Number of CPUs Requested"]
+					   "Skip GARD Partitioning by Recombination Breakpoints?",
+					   "Maximum Number of Gene Clusters to Visualize?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -325,10 +327,10 @@ def zolMain():
 																					 fubar_results_dir, logObject,
 																				  	 gard_mode='Faster',
 																					 skip_gard=skip_gard, cpus=cpus)
-		gtc_score = zol.runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject)
+		gc_tree, gtc_score = zol.runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject)
 		evo_stats = {'tajimas_d': tajimas_d, 'gard_partitions': gard_partitions,
 							 'fubar_sel_props': fubar_sel_props, 'fubar_sel_sites': fubar_sel_sites,
-							 'gene_tree_congruence': gtc_score}
+							 'gene_cluster_tree': gc_tree, 'gene_tree_congruence': gtc_score}
 		with open(evo_stats_pickle_file, 'wb') as pickle_file:
 			pickle.dump(evo_stats, pickle_file)
 		os.system('touch %s' % step6_check_file)
@@ -352,12 +354,20 @@ def zolMain():
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
 	if not os.path.isfile(step7_check_file):
 		zol.consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
-		#os.system('touch %s' % step7_check_file)
+		os.system('touch %s' % step7_check_file)
 
 	# Step 8: Create interactive visualization using clinker!
-
+	logObject.info('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker')
+	sys.stdout.write('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker\n')
+	step7_check_file = check_dir + 'step7.txt'
+	if not os.path.isfile(step7_check_file):
+		keep_set = zol.runTreemmer(evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
+		zol.runClinker(genbanks, keep_set, logObject)
+		os.system('touch %s' % step7_check_file)
 
 	# Close logging object and exit
+	logObject.info('zol finished! Final results can be found at: %s' % fin_outdir)
+	sys.stdout.write('zol finished! Final results can be found at: %s\n' % fin_outdir)
 	util.closeLoggerObject(logObject)
 	sys.exit(0)
 

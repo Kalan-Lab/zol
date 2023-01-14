@@ -10,8 +10,12 @@ setup(name='zol',
       license='BSD-3',
       packages=['zol'],
       scripts=['bin/zol',
+               'bin/fai',
+               'scripts/readifyAdditionalGenomes.py',
+               'scripts/runProdigalAndMakeProperGenbank.py',
                'scripts/setup_annotation_dbs.py',
-               'zol/orthologs/findOrthologs.py'],
+               'zol/orthologs/findOrthologs.py',
+               'external_tools/Treemmer_v0.3.py'],
       zip_safe=False)
 
 # compile RBH/InParanoid-esque programs written in C++

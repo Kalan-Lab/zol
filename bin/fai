@@ -97,11 +97,11 @@ def create_parser():
 	parser.add_argument('-tg', '--target_genomes_dir', help='Directory with genomes in FASTA format to search for additional instances of the query gene-cluster.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein.", required=False, default=False)
+	parser.add_argument('-ms', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
 	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_hits', type=int, help='The minimum number of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.', required=False, default=0)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-ms', '--min_segment_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment.", required=False, default=0.8)
 	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
@@ -131,7 +131,7 @@ def faiMain():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	use_super5 = myargs.use_super5
 	evalue_cutoff = myargs.evalue_cutoff
-	min_segment_size = myargs.min_segment_size
+	min_hits = myargs.min_segment_size
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
 	gc_transition = myargs.gc_transition
 	bg_transition = myargs.bg_transition
@@ -397,9 +397,10 @@ def faiMain():
 	if os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir])
 		fai.identifyGCFInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
-								 min_hits=5, min_core_size=3, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
+								 min_hits=min_hits, min_key_hits=key_protein_min_hits, gc_to_gc_transition_prob=gc_transition,
+								 bg_to_bg_transition_prob=bg_transition,
 								 gc_emission_prob_with_hit=ge_emission, gc_emission_prob_without_hit=be_emission,
-								 syntenic_correlation_threshold=0.8, kq_evalue_threshold=key_protein_evalue_cutoff,
+								 syntenic_correlation_threshold=syntenic_correlation_threshold, kq_evalue_threshold=key_protein_evalue_cutoff,
 								 min_key_hits=key_protein_min_hits, cpus=1, block_size=3000)
 		fai.concatenateBGCsIntoMultiRecordGenBanks(work_dir + 'BGC_Segments/', fin_outdir, logObject)
 		os.system('touch %s' % step4_check_file)

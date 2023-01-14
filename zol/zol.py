@@ -682,7 +682,7 @@ def runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject
 				for line in ogf:
 					line = line.strip()
 					hg_to_gc_congruence[hg] = line
-		return(hg_to_gc_congruence)
+		return([result_gc_tree, hg_to_gc_congruence])
 	except Exception as e:
 		sys.stderr.write('Issues with running gene tree to gene-cluster tree congruence analysis.\n')
 		logObject.error('Issues with running gene tree to gene-cluster tree congruence analysis.')
@@ -844,3 +844,7 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 		logObject.error('Issues creating consolidated results files.')
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
+
+def runTreemmer(gene_cluster_tree, max_for_visualization, logObject):
+
+def runClinker(genbanks, protein_to_hg, keep_set, logObject):

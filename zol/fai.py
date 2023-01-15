@@ -545,7 +545,10 @@ def identify_gcf_instances(input_args):
 				if len(set(gc_state_hgs).difference('background')) >= 3:
 					boundary_lt_featured = False
 					features_key_hg = False
-					if len(key_hgs.intersection(set(gcf_state_hgs).difference('background'))) > 0: features_key_hg = True
+					if len(key_hgs.intersection(set(gcf_state_hgs).difference('background'))) > 0:
+						for j, lt in enumerate(gcf_state_lts):
+							if hg in key_hgs and sample_lt_to_evalue[lt] <= kq_evalue_threshold:
+								features_key_hg = True
 					if len(boundary_genes.intersection(set(gcf_state_lts).difference('background'))) > 0: boundary_lt_featured = True
 					sample_gc_predictions.append([gcf_state_lts, gcf_state_hgs, len(gcf_state_lts),
 												   len(set(gcf_state_hgs).difference("background")),

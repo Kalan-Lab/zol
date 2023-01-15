@@ -360,9 +360,11 @@ def zolMain():
 	logObject.info('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker')
 	sys.stdout.write('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker\n')
 	step7_check_file = check_dir + 'step7.txt'
+	clinker_workspace_dir = outdir + 'Clinker_Workspace/'
 	if not os.path.isfile(step7_check_file):
-		keep_set = zol.runTreemmer(evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
-		zol.runClinker(genbanks, keep_set, logObject)
+		util.setupReadyDirectory([clinker_workspace_dir])
+		representative_genbanks = zol.runTreemmer(evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
+		zol.runClinker(genbanks, hg_stats['hg_locus_tags'], representative_genbanks, fin_outdir, clinker_workspace_dir, logObject)
 		os.system('touch %s' % step7_check_file)
 
 	# Close logging object and exit

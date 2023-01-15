@@ -846,5 +846,72 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 		sys.exit(1)
 
 def runTreemmer(gene_cluster_tree, max_for_visualization, logObject):
+	representative_genbanks = set([])
+	try:
+		retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
+		treemmer_cmd = ['Treemmer_v0.3.py', '-X=' + str(max_for_visualization), gene_cluster_tree]
+		try:
+			subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(retain_listing_file))
+			logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
+			sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
+			logObject.error(e)
+			sys.exit(1)
+		with open(retain_listing_file) as orlf:
+			for line in orlf:
+				line = line.strip()
+				representative_genbanks.add(line)
+	except Exception as e:
+		sys.stderr.write('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.\n')
+		logObject.error('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+	return(representative_genbanks)
 
-def runClinker(genbanks, protein_to_hg, keep_set, logObject):
+def runClinker(genbanks, hg_lts, representative_genbanks, fin_dir, work_dir, logObject):
+	try:
+		renamed_lts_dir = work_dir + 'GenBanks_LTs_Renamed/'
+		input_gbks = []
+		for gbk in genbanks:
+			gbk_name = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+			if not gbk_name in representative_genbanks: continue
+			updated_gbk = renamed_lts_dir + gbk
+			ug_handle = open(updated_gbk, 'w')
+			with open(gbk) as ogbk:
+				for rec in SeqIO.parse(ogbk, 'fasta'):
+					for feature in rec.features:
+						if not feature.type == 'CDS': continue
+						lt = feature.qualifiers.get('locus_tag')[0]
+						feature.qualifiers.get('locus_tag')[0] = gbk_name + '|' + lt
+					SeqIO.write(rec, ug_handle, 'genbank')
+			ug_handle.close()
+			input_gbks.append(updated_gbk)
+
+		hg_mapping_file = work_dir + 'Locus_Tag_to_Homolog_Group_Mapping.csv'
+		hmf_handle = open(hg_mapping_file, 'w')
+		for hg in hg_lts:
+			for lt in hg_lts[hg]:
+				if lt.split('|')[0] in representative_genbanks:
+					hmf_handle.write(lt + ',' + hg + '\n')
+		hmf_handle.close()
+
+		result_html = fin_dir + 'clinker_Visual_of_Representative_Gene_Clusters.html'
+		clinker_cmd = ['clinker', '-gf', hg_mapping_file, '-p', result_html] + input_gbks
+		try:
+			subprocess.call(' '.join(clinker_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(result_html))
+			logObject.info('Successfully ran: %s' % ' '.join(clinker_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running clinker: %s' % ' '.join(clinker_cmd))
+			sys.stderr.write('Had an issue running clinker: %s\n' % ' '.join(clinker_cmd))
+			logObject.error(e)
+			sys.exit(1)
+	except Exception as e:
+		sys.stderr.write('Issues running clinker or creating inputs for clinker.\n')
+		logObject.error('Issues running clinker or creating inputs for clinker.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)

@@ -1,5 +1,4 @@
-Tremmer (downloaded) on 01/13/2023 was developed by Mernardo et al. 2018:
+Space to download dependencies of STAG and Treemmer 
 
-"Treemmer: a tool to reduce large phylogenetic datasets with minimal loss of diversity"
-
-Please consider citing it for reduction of gene clusters for representative set to use for clinker visualizations.
+Emms and Kelly 2018: "STAG: Species Tree Inference from All Genes"
+Mernardo et al. 2018: "Treemmer: a tool to reduce large phylogenetic datasets with minimal loss of diversity"

@@ -16,7 +16,8 @@ import pandas as pd
 import traceback
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-stag_prog = zol_main_directory + 'STAG_1.0.0/stag'
+stag_prog = zol_main_directory + 'external_tools/STAG_1.0.0/stag'
+treemmer_prog = zol_main_directory + 'external_tools/Treemmer_v0.3.py'
 def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject):
 	try:
 		g_to_hg = {}
@@ -849,7 +850,7 @@ def runTreemmer(gene_cluster_tree, max_for_visualization, logObject):
 	representative_genbanks = set([])
 	try:
 		retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
-		treemmer_cmd = ['Treemmer_v0.3.py', '-X=' + str(max_for_visualization), gene_cluster_tree]
+		treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
 		try:
 			subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')

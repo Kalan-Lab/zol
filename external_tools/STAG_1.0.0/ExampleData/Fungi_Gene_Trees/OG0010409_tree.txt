@@ -1,1 +1,0 @@
-(Phaeosphaeria_nodorum_SNOT_12619:0.137847,Pyrenophora_triticirepentis_EDU44231:0.1232,Zymoseptoria_tritici_Mycgr3P26349:0.330519);

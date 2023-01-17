@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|308630|Lacbi1.eu2.Lbscf0003g02690:1.01626,Laccaria_bicolor_jgi|Lacbi2|313890|Lacbi1.eu2.Lbscf0005g04790:0.187667,Laccaria_bicolor_jgi|Lacbi2|636647|estExt_Genewise1Plus.C_12_t20188:0.11685);

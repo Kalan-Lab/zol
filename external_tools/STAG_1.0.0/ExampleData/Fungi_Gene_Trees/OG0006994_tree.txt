@@ -1,0 +1,1 @@
+(Pyrenophora_triticirepentis_EDU43465:0.590925,Pyrenophora_triticirepentis_EDU43564:1.24826,(((((Yarrowia_lipolytica_CAG81538:0,Yarrowia_lipolytica_CAG82793:0):0,Yarrowia_lipolytica_CAG79943:0):0,Yarrowia_lipolytica_CAG84050:0):0,Yarrowia_lipolytica_CAG82169:0):0.532594,Yarrowia_lipolytica_CAG83606:0.687738):0.9054);

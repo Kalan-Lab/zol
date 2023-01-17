@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin14g02880.1:0.790483,Botrytis_cinerea_Bcin14g04400.1:0.767637,((Zymoseptoria_tritici_Mycgr3P97321:0.640767,Zymoseptoria_tritici_Mycgr3P97322:0.703314):0.173801,((Zymoseptoria_tritici_Mycgr3P97327:0.667676,Zymoseptoria_tritici_Mycgr3P97320:0.919879):0.148487,Zymoseptoria_tritici_Mycgr3P97319:1.135):0.049412):0.941847);

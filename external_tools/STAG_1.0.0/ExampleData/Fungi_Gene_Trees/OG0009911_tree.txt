@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW40785:0.00244532,Cryptococcus_neoformans_AAW40786:2.0859e-06,Yarrowia_lipolytica_CAG82446:2.26263);

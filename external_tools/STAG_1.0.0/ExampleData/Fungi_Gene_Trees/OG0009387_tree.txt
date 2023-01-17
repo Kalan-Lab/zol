@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|68199|Phybl1.fgeneshPB_pg.22__39:0.103246,Rhizopus_delemar_EIE91933.1:1.02553,(Sporobolomyces_linderae_jgi|Spoli1|201417|gm1.6313_g:0.636518,Ustilago_maydis_KIS70570:1.01645):1.31943);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66441:0.775646,Magnaporthe_oryzae_MGG_02305T0:1.60532,Phaeosphaeria_nodorum_SNOT_01669:0.527849);

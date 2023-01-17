@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_00692:0.800221,(Zymoseptoria_tritici_Mycgr3P96868:0.508183,Zymoseptoria_tritici_Mycgr3P111027:0.640668):0.303172,Zymoseptoria_tritici_Mycgr3P19274:0.233911);

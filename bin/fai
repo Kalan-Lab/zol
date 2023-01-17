@@ -99,10 +99,11 @@ def create_parser():
 	parser.add_argument('-pq', '--protein_queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
 	parser.add_argument('-tg', '--target_genomes_dir', help='Directory with genomes in FASTA format to search for additional instances of the query gene-cluster.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein.", required=False, default=False)
-	parser.add_argument('-ms', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
+	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges when in aggregate they meet criteria for reporting.', required=False, default=False)
+	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein. Default is 1e-10.", required=False, default=1e-10)
+	parser.add_argument('-m', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
-	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun.', required=False, default=1e-20)
+	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_hits', type=int, help='The minimum number of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.', required=False, default=0)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment.", required=False, default=0.8)
@@ -127,22 +128,23 @@ def faiMain():
 	input_dir = myargs.input_dir
 	reference_genome = myargs.reference_genome
 	reference_contig = myargs.reference_contig
-	reference_start = myargs.refernece_start
+	reference_start = myargs.reference_start
 	reference_end = myargs.reference_end
 	protein_queries_fasta = myargs.protein_queries
 	search_genomes_dir = os.path.abspath(myargs.target_genomes_dir) + '/'
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	use_super5 = myargs.use_super5
 	evalue_cutoff = myargs.evalue_cutoff
-	min_hits = myargs.min_segment_size
+	min_hits = myargs.min_hits
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
 	gc_transition = myargs.gc_transition
 	bg_transition = myargs.bg_transition
-	ge_emission = myargs.ge_emission
-	be_emission = myargs.be_emission
+	ge_emission = myargs.gc_emission
+	be_emission = myargs.bg_emission
 	key_protein_queries_fasta = myargs.key_protein_queries
 	key_protein_evalue_cutoff = myargs.key_protein_evalue_cutoff
 	key_protein_min_hits = myargs.key_protein_min_hits
+	draft_mode = myargs.draft_mode
 	cpus = myargs.cpus
 
 	# create output directory if needed, or warn of over-writing
@@ -169,7 +171,7 @@ def faiMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [input_dir, reference_genome, reference_contig, reference_start, reference_end,
-						protein_queries_fasta, search_genomes_dir, outdir, evalue_cutoff, min_hits,
+						protein_queries_fasta, search_genomes_dir, outdir, draft_mode, evalue_cutoff, min_hits,
 						key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_hits,
 						syntenic_correlation_threshold, ge_emission, be_emission, gc_transition, bg_transition,
 						use_super5, cpus]
@@ -177,6 +179,7 @@ def faiMain():
 					   "Reference Scaffold for Gene Cluster", "Reference Start Coordinate of Gene Cluster",
 					   "Reference End Coordinate of Gene Cluster", "Protein Queries",
 					   "Directory with Target Genomes in FASTA format", "Output Directory",
+					   "Run in Draft-Assembly Mode?",
 					   "E-value cutoff for Detection of general Protein Homologs in Genome",
 					   "Minimum Number of Hits for Gene Presence in Genome", "FASTA file with Key Proteins to Consider",
 					   "E-values for Key Proteins to be Considered as Smoking Gun for Gene Cluster Presence",
@@ -185,7 +188,7 @@ def faiMain():
 					   "Emission probability of gene being in gene-cluster state with homologous hit to gene-cluster",
 					   "Emission probability of gene being in background state with homologous hit to gene-cluster",
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
-					   "Probability for background to background transition in HMM"
+					   "Probability for background to background transition in HMM",
 					   "Use super5 Mode in MUSCLE Alignments?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
@@ -193,11 +196,11 @@ def faiMain():
 	input_type_1_observed = False
 	input_type_2_observed = False
 	input_type_3_observed = False
-	if os.path.isdir(input_dir):
+	if input_dir != None and os.path.isdir(input_dir):
 		input_type_1_observed = True
-	if os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None:
+	if reference_genome != None and os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None:
 		input_type_2_observed = True
-	if os.path.isfile(protein_queries_fasta):
+	if protein_queries_fasta != None and os.path.isfile(protein_queries_fasta):
 		input_type_3_observed = True
 
 	if input_type_1_observed and not (input_type_2_observed or input_type_3_observed):
@@ -230,8 +233,8 @@ def faiMain():
 	work_dir = outdir + 'Processing_Queries/'
 	query_info_pickle_file = outdir + 'Query_Information.pkl'
 	step1_check_file = check_dir + 'Step1.txt'
-	if os.path.isfile(step1_check_file):
-		util.setupReadyDirectory(work_dir)
+	if not os.path.isfile(step1_check_file):
+		util.setupReadyDirectory([work_dir])
 		query_fasta = None
 		comp_gene_info = None
 		protein_to_hg = None
@@ -266,7 +269,7 @@ def faiMain():
 				sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
 				logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
 
-			query_fasta, ortho_matrix_file = fai.genConsensusSequecnes(genbanks, outdir, check_dir, logObject, cpus=cpus)
+			ortho_matrix_file, query_fasta = fai.genConsensusSequences(genbanks, outdir, logObject, cpus=cpus)
 			comp_gene_info = fai.parseCoordsFromGenbank(genbanks, logObject)
 			protein_to_hg = fai.parseHomologGroupMatrix(ortho_matrix_file, logObject)
 
@@ -276,8 +279,8 @@ def faiMain():
 			reference_genome_gbk = reference_genome
 			if not util.is_genbank(reference_genome) and util.is_fasta(reference_genome):
 				reference_genome_gbk = work_dir + 'reference.gbk'
-				gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', '-s', 'reference', '-l', 'REF', '-o',
-								 work_dir]
+				gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', reference_genome, '-s', 'reference', '-l',
+								 'REF', '-o', work_dir]
 				try:
 					subprocess.call(' '.join(gene_call_cmd), shell=True, stdout=subprocess.DEVNULL,
 									stderr=subprocess.DEVNULL,
@@ -289,12 +292,12 @@ def faiMain():
 					sys.stderr.write('Had an issue running runProdigalAndMakePRoperGenbank.py: %s\n' % ' '.join(gene_call_cmd))
 					logObject.error(e)
 					sys.exit(1)
-			locus_genbank = work_dir + 'Query.gbk'
-			locus_proteome = work_dir + 'Query.faa'
+			locus_genbank = work_dir + 'Reference_Query.gbk'
+			locus_proteome = work_dir + 'Reference_Query.faa'
 			fai.subsetGenBankForQueryLocus(reference_genome_gbk, locus_genbank, locus_proteome, reference_contig,
 										   reference_start, reference_end, logObject)
 			comp_gene_info = fai.parseCoordsFromGenbank([locus_genbank], logObject)
-			query_fasta = work_dir + 'Query.faa'
+			query_fasta = work_dir + 'NR_Reference_Query.faa'
 			protein_to_hg = fai.collapseProteinsUsingCDHit(locus_proteome, query_fasta, logObject)
 		elif input_type_3_observed:
 			# simplest case - just take the protein queries provided by the user. Unfortunately, syntenic information is
@@ -330,7 +333,7 @@ def faiMain():
 	target_work_dir = outdir + 'Processing_Targets/'
 	target_information = None
 	target_info_pickle_file = outdir + 'Target_Information.pkl'
-	if os.path.isfile(step2_check_file):
+	if not os.path.isfile(step2_check_file):
 		search_genomes_dir = os.path.abspath(search_genomes_dir) + '/'
 		util.setupReadyDirectory([target_work_dir])
 		target_listing_file = target_work_dir + 'Target_Genomes.txt'
@@ -364,7 +367,7 @@ def faiMain():
 				target_annotation_information[sample]['predicted_proteome'] = faa
 				target_annotation_information[sample]['genbank'] = gbk
 
-		target_genome_gene_info = fai.processGenomeWideGenbanks(target_annot_listing_file, logObject, cpus=cpus)
+		target_genome_gene_info = fai.processGenomeWideGenbanks(target_annotation_information, logObject, cpus=cpus)
 
 		target_information = {'target_annotation_information': target_annotation_information,
 							  'target_genome_gene_info': target_genome_gene_info}
@@ -390,9 +393,9 @@ def faiMain():
 	diamond_work_dir = outdir + 'DIAMOND_Analysis/'
 	diamond_results = None
 	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
-	if os.path.isfile(step3_check_file):
+	if not os.path.isfile(step3_check_file):
 		util.setupReadyDirectory([diamond_work_dir])
-		fai.runDiamondBlastp(target_information['target_annotation_information'], query_fasta, diamond_work_dir, logObject, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		diamond_results = fai.runDiamondBlastp(target_information['target_annotation_information'], query_information['query_fasta'], diamond_work_dir, logObject, evalue_cutoff=evalue_cutoff, cpus=cpus)
 		with open(diamond_results_pickle_file, 'wb') as pickle_file:
 			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step3_check_file)
@@ -412,15 +415,16 @@ def faiMain():
 
 	step4_check_file = check_dir + 'Step4.txt'
 	hmm_work_dir = outdir + 'HMM_Processing/'
-	if os.path.isfile(step4_check_file):
+	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir])
 		fai.identifyGCFInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
-								 min_hits=min_hits, min_key_hits=key_protein_min_hits, gc_to_gc_transition_prob=gc_transition,
-								 bg_to_bg_transition_prob=bg_transition,
+								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,
+								 gc_to_gc_transition_prob=gc_transition, bg_to_bg_transition_prob=bg_transition,
 								 gc_emission_prob_with_hit=ge_emission, gc_emission_prob_without_hit=be_emission,
-								 syntenic_correlation_threshold=syntenic_correlation_threshold, kq_evalue_threshold=key_protein_evalue_cutoff,
-								 min_key_hits=key_protein_min_hits, cpus=1, block_size=3000)
-		fai.concatenateBGCsIntoMultiRecordGenBanks(work_dir + 'BGC_Segments/', fin_outdir, logObject)
+								 syntenic_correlation_threshold=syntenic_correlation_threshold,
+								 kq_evalue_threshold=key_protein_evalue_cutoff,
+								 cpus=1, block_size=3000)
+		fai.concatenateBGCsIntoMultiRecordGenBanks(hmm_work_dir + 'GeneCluster_Genbanks/', fin_outdir, logObject)
 		os.system('touch %s' % step4_check_file)
 
 	# Close logging object and exit

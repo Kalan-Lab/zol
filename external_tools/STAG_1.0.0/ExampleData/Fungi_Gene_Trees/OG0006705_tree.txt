@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59821:0.718634,(Blumeria_graminis_CCU74287:0.912637,(Botrytis_cinerea_Bcin15g03510.1:0.449365,((Fusarium_oxysporum_FOXG_04205P0:0.365617,Magnaporthe_oryzae_MGG_01717T0:0.614945):0.10395,Verticillium_dahliae_EGY18882:0.363182):0.354688):0.085059):0.229111,(Phaeosphaeria_nodorum_SNOT_05876:0.169521,Pyrenophora_triticirepentis_EDU48157:0.281268):0.682374);

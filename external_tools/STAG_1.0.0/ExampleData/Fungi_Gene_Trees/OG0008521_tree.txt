@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_ABU49446:0.44652,(Phaeosphaeria_nodorum_ABU49447:0.472508,Rhizoclosmatium_globosum_jgi|Rhihy1|635288|gw1.330.5.1:0.649513):0.335678,(Saccharomyces_cerevisiae_Q0255:1.24281,Schizosaccharomyces_pombe_SPMIT.02.1_pep:0.924019):0.634051);

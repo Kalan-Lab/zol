@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|621623|e_gw1.29.16.1:0.275999,Rhizoclosmatium_globosum_jgi|Rhihy1|827189|MIX26217_20_51:1.05168,Saccharomyces_cerevisiae_Q0160:0.431114);

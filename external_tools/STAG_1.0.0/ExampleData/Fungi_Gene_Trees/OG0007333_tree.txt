@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_14815P0:0.058073,((Fusarium_oxysporum_FOXG_12470P0:0,Fusarium_oxysporum_FOXG_14068P0:0):0.226529,Fusarium_oxysporum_FOXG_07523P0:0.135211):0.317941,((Phycomyces_blakesleeanus_jgi|Phybl2|186964|estExt_fgenesh1_pg.C_100272:0.306347,Rhizopus_delemar_EIE84841.1:0.307163):0.013769,Rhizopus_delemar_EIE88069.1:0.0615406):1.31742);

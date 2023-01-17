@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|165900|fgenesh1_pg.6_#_167:0.32394,Rhizopus_delemar_EIE83706.1:0.223234,Yarrowia_lipolytica_CAG84230:1.15036);

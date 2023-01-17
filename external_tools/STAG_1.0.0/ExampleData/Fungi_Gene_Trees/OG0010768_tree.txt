@@ -1,0 +1,1 @@
+(Schizosaccharomyces_pombe_SPAPB17E12.02.1_pep:1e-06,Schizosaccharomyces_pombe_SPAC19B12.12c.1_pep:1e-06,Yarrowia_lipolytica_CAG83414:1.87911);

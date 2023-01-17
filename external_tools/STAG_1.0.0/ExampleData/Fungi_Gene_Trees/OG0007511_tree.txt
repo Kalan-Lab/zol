@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62286:1.26474,((Phycomyces_blakesleeanus_jgi|Phybl2|179709|estExt_Genemark1.C_30603:0.295278,Rhizopus_delemar_EIE83467.1:0.358993):0.439907,(Rhizopus_delemar_EIE85156.1:2.9019e-06,Rhizopus_delemar_EIE85860.1:0.358441):0.500166):0.075012,Rhizoclosmatium_globosum_jgi|Rhihy1|722144|fgenesh1_kg.56_#_75_#_Locus13154v1rpkm9.90:1.0333);

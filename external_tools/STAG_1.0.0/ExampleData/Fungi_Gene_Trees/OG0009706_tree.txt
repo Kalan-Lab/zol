@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF78768:0.594016,Rhizoclosmatium_globosum_jgi|Rhihy1|718033|fgenesh1_kg.27_#_120_#_Locus11166v1rpkm14.36:0.444856,Saccharomyces_cerevisiae_YPR093C:1.12823);

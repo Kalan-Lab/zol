@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_04615P0:0.168486,(Fusarium_oxysporum_FOXG_11866P0:0.14469,((Ustilago_maydis_KIS70900:0,Ustilago_maydis_KIS71549:0):0.213282,Zymoseptoria_tritici_Mycgr3P72047:0.896108):0.065077):0.118189,Pyrenophora_triticirepentis_EDU49146:0.139204);

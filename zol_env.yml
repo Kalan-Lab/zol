@@ -26,6 +26,9 @@ dependencies:
   - conda-forge::axel
   - bioconda::hyphy
   - bioconda::fastme
-  - bioconda::clinker-py
   - conda-forge::pomegranate=0.13.3
   - bioconda::cd-hit
+  - bioconda::ncbi-genome-download
+  - conda-forge::r-base=4.0.3
+  - conda-forge::r-ggplot2=3.3.5
+  - conda-forge::r-cowplot=1.1.1

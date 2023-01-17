@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_05993:2.2e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2915810|e_gw1.14.652.1:1.76303,Pyrenophora_triticirepentis_EDU48000:0.288482);

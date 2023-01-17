@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|21373|Phybl1.e_gw1.14.161.1:0.373949,Rhizoclosmatium_globosum_jgi|Rhihy1|849916|estExt_Genemark1.C_190199:1.17843,Yarrowia_lipolytica_CAR64320:0.712028);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61341:0.435309,Rhizopus_delemar_EIE86597.1:0.0245644,(Rhizopus_delemar_EIE87394.1:0.0171944,Rhizopus_delemar_EIE87644.1:0.00535053):0.148186);

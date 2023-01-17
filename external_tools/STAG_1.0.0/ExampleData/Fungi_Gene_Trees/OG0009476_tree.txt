@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55962:1.10978,Botrytis_cinerea_Bcin05g05000.1:0.746867,Laccaria_bicolor_jgi|Lacbi2|455932|estExt_Genemark1.C_LG_2_t30401:1.12842);

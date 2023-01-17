@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_08741P0:0.754368,((Phaeosphaeria_nodorum_SNOT_11143:0.808166,(Phaeosphaeria_nodorum_SNOT_11145:0.583581,Pyrenophora_triticirepentis_EDU43991:0.700424):0.395951):0.660218,Pyrenophora_triticirepentis_EDU48849:0.843635):0.472806,Zymoseptoria_tritici_Mycgr3P94177:0.881722);

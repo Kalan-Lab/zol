@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YPR017C:0.656035,Schizosaccharomyces_pombe_SPBC4C3.04c.1_pep:0.805078,Yarrowia_lipolytica_CAG79269:1.09735);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46708:1.50395,((Saccharomyces_cerevisiae_YHR056C:2.6539e-06,Saccharomyces_cerevisiae_YHR054C:2.2928e-06):1.36477,Saccharomyces_cerevisiae_YDR303C:0.116437):0.387974,Ustilago_maydis_KIS68425:1.71506);

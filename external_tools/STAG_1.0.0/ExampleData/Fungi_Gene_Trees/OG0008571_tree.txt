@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|18982|Phybl1.e_gw1.6.286.1:0.0426934,((Phycomyces_blakesleeanus_jgi|Phybl2|115944|e_gw1.20.139.1:0.813536,Sporobolomyces_linderae_jgi|Spoli1|163772|e_gw1.1.1042.1:1.10511):0.193818,Phycomyces_blakesleeanus_jgi|Phybl2|160269|fgenesh1_kg.27_#_1_#_0_0_CBNC8252.b1_CBNA_CBNB_CBNC_CBNF:2.4032e-06):0.176209,Rhizopus_delemar_EIE84638.1:0.377603);

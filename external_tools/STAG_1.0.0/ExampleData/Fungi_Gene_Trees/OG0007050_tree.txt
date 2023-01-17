@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62178:0.461567,((((Fusarium_oxysporum_FOXG_06803P0:0,Fusarium_oxysporum_FOXG_07363P0:0):0,Fusarium_oxysporum_FOXG_16386P0:0):0.055722,Fusarium_oxysporum_FOXG_06461P0:0.105031):0.943376,Phaeosphaeria_nodorum_SNOT_03210:0.631437):0.216135,Phaeosphaeria_nodorum_SNOT_04869:0.708256);

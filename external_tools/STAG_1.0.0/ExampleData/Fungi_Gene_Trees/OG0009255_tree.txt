@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|451048|gm1.15492_g:1.19411,(Phanerochaete_chrysosporium_jgi|Phchr2|2982161|fgenesh1_kg.7_#_684_#_Locus20055v1rpkm0.78:0.464933,Phanerochaete_chrysosporium_jgi|Phchr2|1561732|CE561732_179:0.31352):0.336118,Phanerochaete_chrysosporium_jgi|Phchr2|2982176|fgenesh1_kg.7_#_699_#_Locus20603v4rpkm0.13:0.675607);

@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g07130.1:1.10675,Schizosaccharomyces_pombe_SPAC14C4.04.1_pep:0.553943,Schizosaccharomyces_pombe_SPAC18G6.12c.1_pep:0.872989);

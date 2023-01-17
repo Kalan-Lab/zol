@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46626:1.23439,(Puccinia_graminis_EFP77435:0.945268,Sporobolomyces_linderae_jgi|Spoli1|64482|CE64481_938:0.748434):0.411387,Ustilago_maydis_KIS66050:0.784765);

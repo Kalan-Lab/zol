@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_05597T0:0.317695,((Phaeosphaeria_nodorum_SNOT_03206:0.722483,Sporobolomyces_linderae_jgi|Spoli1|201695|gm1.6591_g:1.03839):0.159178,Phanerochaete_chrysosporium_jgi|Phchr2|2976207|fgenesh1_kg.2_#_1258_#_Locus20443v9rpkm0.00_PRE:1.04974):0.599155,Verticillium_dahliae_EGY18551:0.371844);

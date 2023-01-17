@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|316574|Lacbi1.eu2.Lbscf0075g00200:1.22026,Puccinia_graminis_EFP85253:0.563631,Puccinia_graminis_EHS64491:0.285085);

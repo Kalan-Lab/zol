@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_17035P0:0.306646,Magnaporthe_oryzae_MGG_07643T0:0.388294,(Phaeosphaeria_nodorum_SNOT_12772:0.166748,Pyrenophora_triticirepentis_EDU44160:0.128247):0.450484);

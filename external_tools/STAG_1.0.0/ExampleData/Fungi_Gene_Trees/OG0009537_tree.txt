@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58520:0.341729,Phaeosphaeria_nodorum_SNOT_09626:0.415522,Phanerochaete_chrysosporium_jgi|Phchr2|3004406|fgenesh1_pm.7_#_106:1.30527);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63946:0.719166,Laccaria_bicolor_jgi|Lacbi2|658356|estExt_fgenesh1_kg.C_LG_60406:0.329642,Laccaria_bicolor_jgi|Lacbi2|475510|fgenesh1_kg.LG_10_#_553_#_1318752_1:0.263169);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46613:1.76975,Fusarium_oxysporum_FOXG_10032P0:0.0681915,Phaeosphaeria_nodorum_SNOT_01186:0.530693);

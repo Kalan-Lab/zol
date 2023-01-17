@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61981:1.37997,Pyrenophora_triticirepentis_EDU47630:0.356697,Pyrenophora_triticirepentis_EDU47648:0.536806);

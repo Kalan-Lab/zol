@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|449434|gm1.13878_g:0.477512,Phanerochaete_chrysosporium_jgi|Phchr2|2062|Phchr1.fgenesh1_pg.C_scaffold_3000056:0.590699,Sporobolomyces_linderae_jgi|Spoli1|90320|CE90319_1187:1.3131);

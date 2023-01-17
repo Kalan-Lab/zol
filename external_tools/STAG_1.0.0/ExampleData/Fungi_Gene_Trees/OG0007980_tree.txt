@@ -1,0 +1,1 @@
+(Puccinia_graminis_EHS63252:0.495046,Puccinia_graminis_EFP87555:0.351474,((Rhizopus_delemar_EIE84581.1:0.130832,(Rhizopus_delemar_EIE90997.1:0.036742,Rhizopus_delemar_EIE91294.1:2.2914e-06):0.099909):0.006302,Rhizopus_delemar_EIE91033.1:2.8808e-06):0.738435);

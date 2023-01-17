@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58639:0.443387,Phanerochaete_chrysosporium_jgi|Phchr2|3038646|estExt_Genemark1.C_7_t10244:0.31073,Ustilago_maydis_KIS69393:0.469632);

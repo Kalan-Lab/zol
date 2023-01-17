@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_04607P0:0.416491,(Phycomyces_blakesleeanus_jgi|Phybl2|79153|Phybl1.estExt_fgeneshPB_pg.C_230090:0.357926,Zymoseptoria_tritici_Mycgr3P104600:0.503065):0.288086,Zymoseptoria_tritici_Mycgr3P96870:0.492561);

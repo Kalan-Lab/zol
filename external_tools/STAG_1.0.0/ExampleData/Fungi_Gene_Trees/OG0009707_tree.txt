@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF78511:0.407263,Laccaria_bicolor_jgi|Lacbi2|694718|fgenesh3_kg.LG_10_#_1231_#_Locus_2291_Transcript_4/8_Confidence_0.188:0.79728,Rhizoclosmatium_globosum_jgi|Rhihy1|659217|e_gw1.20.278.1:0.158506);

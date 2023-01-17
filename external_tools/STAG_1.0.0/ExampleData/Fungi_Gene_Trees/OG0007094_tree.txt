@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66182:1.4166,(((Aspergillus_oryzae_BAE66181:1.17389,(Verticillium_dahliae_EGY23464:0.697402,Verticillium_dahliae_EGY23465:0.508102):0.048518):0.174508,Verticillium_dahliae_EGY23732:0.151809):0.113068,Verticillium_dahliae_EGY23463:0.301845):0.172634,Verticillium_dahliae_EGY23733:0.330762);

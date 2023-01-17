@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56779:0.769343,((Blumeria_graminis_CCU81022:1.40107,Botrytis_cinerea_Bcin15g03400.1:0.735398):0.104751,Zymoseptoria_tritici_Mycgr3P108279:1.17762):0.200311,(Phaeosphaeria_nodorum_SNOT_01810:0.226898,Pyrenophora_triticirepentis_EDU46481:0.49759):1.08696);

@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_10356T0:0.802544,(Phanerochaete_chrysosporium_jgi|Phchr2|3028885|gm1.7102_g:0.476231,Verticillium_dahliae_EGY15910:1.05507):0.390142,Rhizoclosmatium_globosum_jgi|Rhihy1|850510|estExt_Genemark1.C_220085:1.39503);

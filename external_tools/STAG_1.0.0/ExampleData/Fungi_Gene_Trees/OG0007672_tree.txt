@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81685:0.433787,Blumeria_graminis_CCU81686:0.120689,((Botrytis_cinerea_Bcin03g09240.1:0.348994,(Phaeosphaeria_nodorum_SNOT_01407:0.145842,Pyrenophora_triticirepentis_EDU44977:0.141101):0.273787):0.131316,Fusarium_oxysporum_FOXG_03907P0:0.390999):0.458707);

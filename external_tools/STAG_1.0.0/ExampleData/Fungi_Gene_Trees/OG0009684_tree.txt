@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF80453:0.469056,Cryptococcus_neoformans_AAW44531:1.34117,Phycomyces_blakesleeanus_jgi|Phybl2|173362|fgenesh1_pg.25_#_138:0.855822);

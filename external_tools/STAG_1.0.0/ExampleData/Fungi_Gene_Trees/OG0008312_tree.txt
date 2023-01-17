@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin11g03880.1:0.317387,(Cryptococcus_neoformans_AAW45312:0.780618,(Phycomyces_blakesleeanus_jgi|Phybl2|185810|estExt_fgenesh1_pg.C_50176:0.357064,Rhizopus_delemar_EIE91250.1:0.174246):0.401845):0.216407,Laccaria_bicolor_jgi|Lacbi2|704795|estExt_fgenesh3_kg.C_LG_4_t20351:0.255514);

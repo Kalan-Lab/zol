@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45602:1.55105,(Magnaporthe_oryzae_MGG_07218T0:0.107716,(Verticillium_dahliae_EGY13510:0.388032,Verticillium_dahliae_EGY23476:0.893358):0.273244):0.931899,Pyrenophora_triticirepentis_EDU45251:0.663188);

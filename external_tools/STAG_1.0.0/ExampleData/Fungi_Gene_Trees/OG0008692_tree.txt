@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56593:0.759357,(Magnaporthe_oryzae_MGG_15246T0:0.717865,Zymoseptoria_tritici_Mycgr3P35967:0.655751):0.243092,Rhizoclosmatium_globosum_jgi|Rhihy1|718430|fgenesh1_kg.29_#_85_#_Locus2504v1rpkm92.05:1.23388);

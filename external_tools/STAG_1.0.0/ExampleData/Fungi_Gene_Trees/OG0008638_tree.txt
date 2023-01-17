@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64264:0.949528,(Aspergillus_oryzae_BAE56303:0.723161,Fusarium_oxysporum_FOXG_09799P0:0.550542):0.299068,Laccaria_bicolor_jgi|Lacbi2|610561|e_gw1.11.1994.1:0.809205);

@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_00882:0.190623,Pyrenophora_triticirepentis_EDU50305:0.149855,Ustilago_maydis_KIS69170:0.975582);

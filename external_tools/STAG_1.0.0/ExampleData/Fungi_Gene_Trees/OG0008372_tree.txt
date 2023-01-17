@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46655:0,((Cryptococcus_neoformans_AAW41433:0.393488,Ustilago_maydis_KIS70645:0.901885):0.067729,Laccaria_bicolor_jgi|Lacbi2|175190|Lacbi1.estExt_Genewise1_human.C_540027:0.562956):0.394689,Cryptococcus_neoformans_AAW46656:0);

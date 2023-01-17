@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_04689P0:1.1324,(Phanerochaete_chrysosporium_jgi|Phchr2|7087|Phchr1.fgenesh1_pg.C_scaffold_12000271:0.43464,Sporobolomyces_linderae_jgi|Spoli1|224410|estExt_fgenesh1_pg.C_40008:0.443727):0.134891,(Puccinia_graminis_EFP79978:0.00751097,Puccinia_graminis_EFP87496:0.138346):0.805223);

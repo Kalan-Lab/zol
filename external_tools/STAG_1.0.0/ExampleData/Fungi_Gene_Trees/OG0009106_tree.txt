@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_10695P0:1.70393,(Verticillium_dahliae_EGY18699:2.0911e-06,Verticillium_dahliae_EGY15916:2.8959e-06):0.353232,Verticillium_dahliae_EGY17952:0.874373);

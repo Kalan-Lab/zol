@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60862:1.26511,Rhizoclosmatium_globosum_jgi|Rhihy1|787440|gm1.8624_g:0.184559,Rhizoclosmatium_globosum_jgi|Rhihy1|719321|fgenesh1_kg.34_#_135_#_Locus15196v1rpkm6.46:0.0613617);

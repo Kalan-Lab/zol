@@ -1,0 +1,1 @@
+(Sporobolomyces_linderae_jgi|Spoli1|60206|CE60205_3320:0.467487,Sporobolomyces_linderae_jgi|Spoli1|186794|fgenesh1_kg.3_#_263_#_comp4000_c1_seq1:0.241588,Sporobolomyces_linderae_jgi|Spoli1|186795|fgenesh1_kg.3_#_264_#_comp3553_c0_seq1:0.473522);

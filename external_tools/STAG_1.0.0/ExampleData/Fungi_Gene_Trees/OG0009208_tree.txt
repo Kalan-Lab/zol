@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|573073|e_gw1.1.2519.1:0.821212,(Puccinia_graminis_EFP86391:0.565524,Ustilago_maydis_KIS66582:0.684247):0.127391,Sporobolomyces_linderae_jgi|Spoli1|139526|CE139525_5517:0.61745);

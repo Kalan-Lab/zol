@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g01250.1:0.468096,((Fusarium_oxysporum_FOXG_09558P0:0.643819,Zymoseptoria_tritici_Mycgr3P38509:0.653406):0.245428,(Phaeosphaeria_nodorum_SNOT_06668:0.176626,Pyrenophora_triticirepentis_EDU40928:0.399582):0.564948):0.326949,Sporobolomyces_linderae_jgi|Spoli1|203525|gm1.8421_g:1.0083);

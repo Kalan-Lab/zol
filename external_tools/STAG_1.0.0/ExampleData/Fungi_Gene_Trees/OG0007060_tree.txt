@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56602:0.343246,(((Aspergillus_oryzae_BAE56603:0.125333,Magnaporthe_oryzae_MGG_16915T0:0.210489):0.15597,(Laccaria_bicolor_jgi|Lacbi2|666130|estExt_fgenesh1_pm.C_LG_1_t30474:1.16728,Zymoseptoria_tritici_Mycgr3P35698:0.0899062):0.306385):0.101595,Zymoseptoria_tritici_Mycgr3P35526:0.407072):0.093763,Aspergillus_oryzae_BAE56609:0.699691);

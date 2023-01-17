@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60194:0.120671,Batrachochytrium_dendrobatidis_EGF75921:0.995847,Zymoseptoria_tritici_Mycgr3P67267:0.131982);

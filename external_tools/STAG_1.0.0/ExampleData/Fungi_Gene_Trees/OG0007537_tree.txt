@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE57645:0.354816,((Blumeria_graminis_CCU83032:0.251642,(Phycomyces_blakesleeanus_jgi|Phybl2|183250|estExt_Genemark1.C_250179:0.627152,Rhizopus_delemar_EIE75570.1:0.430226):0.839263):0.079355,Botrytis_cinerea_Bcin12g06280.1:0.149609):0.083552,Magnaporthe_oryzae_MGG_06057T0:0.252495);

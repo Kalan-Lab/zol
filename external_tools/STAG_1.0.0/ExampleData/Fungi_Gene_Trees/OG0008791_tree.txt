@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79515:1.46543,(Puccinia_graminis_EFP82000:1.08123,Sporobolomyces_linderae_jgi|Spoli1|195673|gm1.569_g:0.683011):0.111698,Ustilago_maydis_KIS72189:0.815969);

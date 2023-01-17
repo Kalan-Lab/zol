@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65038:1.65543,Sporobolomyces_linderae_jgi|Spoli1|212890|estExt_Genemark1.C_150010:1e-06,Sporobolomyces_linderae_jgi|Spoli1|212893|estExt_Genemark1.C_150014:1e-06);

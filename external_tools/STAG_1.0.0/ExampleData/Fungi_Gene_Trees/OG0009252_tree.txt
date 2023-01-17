@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|314078|Lacbi1.eu2.Lbscf0005g06670:0.491765,(Phaeosphaeria_nodorum_SNOT_16111:0.286074,Pyrenophora_triticirepentis_EDU42819:0.519005):1.05798,Phanerochaete_chrysosporium_jgi|Phchr2|2986822|fgenesh1_kg.12_#_564_#_Locus7952v3rpkm0.00_PRE:1.08886);

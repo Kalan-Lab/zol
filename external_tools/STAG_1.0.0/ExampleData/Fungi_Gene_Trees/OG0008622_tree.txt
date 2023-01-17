@@ -1,0 +1,1 @@
+(Schizosaccharomyces_pombe_SPCC188.09c.1_pep:0.187309,(Schizosaccharomyces_pombe_SPAC1F8.06.1_pep:0.496713,(Schizosaccharomyces_pombe_SPBC1348.08c.1_pep:0,Schizosaccharomyces_pombe_SPAC977.07c.1_pep:0):0.264657):0.237872,Schizosaccharomyces_pombe_SPAPB2C8.01.1_pep:0.230996);

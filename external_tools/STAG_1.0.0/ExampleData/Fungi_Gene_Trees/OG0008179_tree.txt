@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76777:0.936632,((Cryptococcus_neoformans_AAW42398:0.75634,Puccinia_graminis_EFP91176:1.04706):0.189796,Ustilago_maydis_KIS70255:0.824342):0.094312,Sporobolomyces_linderae_jgi|Spoli1|4786|CE4785_1639:0.723103);

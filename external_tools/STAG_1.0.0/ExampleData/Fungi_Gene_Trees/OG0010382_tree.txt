@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_06861:0.138826,Phycomyces_blakesleeanus_jgi|Phybl2|58304|Phybl1.fgeneshPB_pg.1__168:1.1128,Pyrenophora_triticirepentis_EDU40005:0.212445);

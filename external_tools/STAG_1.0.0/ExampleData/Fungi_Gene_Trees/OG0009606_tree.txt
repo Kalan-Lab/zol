@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF77406:1.11281,Phanerochaete_chrysosporium_jgi|Phchr2|2985288|fgenesh1_kg.10_#_516_#_Locus7436v1rpkm21.62:0.63741,Phycomyces_blakesleeanus_jgi|Phybl2|58872|Phybl1.fgeneshPB_pg.1__736:0.412551);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81914:0.977279,(Botrytis_cinerea_Bcin04g03760.1:0.740067,Botrytis_cinerea_Bcin12g04360.1:0.356346):0.564669,(Pyrenophora_triticirepentis_EDU47297:0.0643525,Pyrenophora_triticirepentis_EDU42250:0.0250504):0.85268);

@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_10668P0:0.286527,Phaeosphaeria_nodorum_SNOT_05522:0.353352,Rhizoclosmatium_globosum_jgi|Rhihy1|719526|fgenesh1_kg.36_#_27_#_Locus11221v1rpkm14.18:1.00934);

@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin12g00520.1:1.58375,Rhizoclosmatium_globosum_jgi|Rhihy1|715929|fgenesh1_kg.18_#_37_#_Locus14694v1rpkm7.26:0.384705,Rhizoclosmatium_globosum_jgi|Rhihy1|720290|fgenesh1_kg.41_#_32_#_Locus2598v1rpkm88.60:0.633946);

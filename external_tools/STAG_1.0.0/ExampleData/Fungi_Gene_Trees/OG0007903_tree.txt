@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|658827|estExt_fgenesh1_kg.C_LG_90063:0.965416,Phaeosphaeria_nodorum_SNOT_09757:0.642496,((Phaeosphaeria_nodorum_SNOT_10995:0.212594,Pyrenophora_triticirepentis_EDU46313:0.179515):0.115857,(Pyrenophora_triticirepentis_EDU49140:0.223019,Pyrenophora_triticirepentis_EDU49509:0.313224):0.185758):0.238353);

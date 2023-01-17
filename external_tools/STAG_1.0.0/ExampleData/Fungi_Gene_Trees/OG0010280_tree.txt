@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|519784|gw1.29.54.1:0.445407,Phaeosphaeria_nodorum_ABU49450:0.469766,Rhizoclosmatium_globosum_jgi|Rhihy1|671429|e_gw1.213.41.1:1.09401);

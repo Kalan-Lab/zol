@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65013:0.836706,Botrytis_cinerea_Bcin09g01900.1:0.50417,(Phaeosphaeria_nodorum_SNOT_05370:0.295174,Phaeosphaeria_nodorum_SNOT_05114:0.386041):0.875017);

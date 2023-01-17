@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_15049T0:0.58566,Verticillium_dahliae_EGY23811:0.717939,((Verticillium_dahliae_EGY23812:0.094682,Verticillium_dahliae_EGY20868:0.190916):0.781033,Zymoseptoria_tritici_Mycgr3P13610:1.22279):0.086382);

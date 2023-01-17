@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin10g02020.1:0.385385,((Magnaporthe_oryzae_MGG_08702T0:0.706952,Verticillium_dahliae_EGY22802:1.01745):0.24835,(Rhizoclosmatium_globosum_jgi|Rhihy1|722290|fgenesh1_kg.57_#_88_#_Locus6650v1rpkm32.35:0.59651,Rhizopus_delemar_EIE82503.1:1.04452):0.892293):0.20051,Pyrenophora_triticirepentis_EDU45687:0.981127);

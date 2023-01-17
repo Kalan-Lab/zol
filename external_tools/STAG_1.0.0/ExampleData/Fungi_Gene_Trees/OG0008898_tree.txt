@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU80816:1.23791,(Botrytis_cinerea_Bcin07g05160.1:0.749269,Zymoseptoria_tritici_Mycgr3P94873:1.58773):0.109256,Magnaporthe_oryzae_MGG_03166T0:0.857855);

@@ -1,0 +1,1 @@
+(Zymoseptoria_tritici_Mycgr3P88859:0.861479,(((Zymoseptoria_tritici_Mycgr3P92231:1.07824,Zymoseptoria_tritici_Mycgr3P88644:0.989514):0.184749,Zymoseptoria_tritici_Mycgr3P88879:1.33866):0.138107,(Zymoseptoria_tritici_Mycgr3P95858:0.881944,Zymoseptoria_tritici_Mycgr3P92384:0.690323):0.408021):0.336795,Zymoseptoria_tritici_Mycgr3P106884:0.731768);

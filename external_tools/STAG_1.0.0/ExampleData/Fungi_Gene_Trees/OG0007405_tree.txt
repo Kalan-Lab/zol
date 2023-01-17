@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_08263T0:0.649192,((Magnaporthe_oryzae_MGG_15354T0:0.697018,Pyrenophora_triticirepentis_EDU46120:0.638596):0.277281,Sporobolomyces_linderae_jgi|Spoli1|16317|CE16316_1595:1.8627):0.230897,((Verticillium_dahliae_EGY21697:0.3892,Verticillium_dahliae_EGY16118:0.579452):0.102032,Zymoseptoria_tritici_Mycgr3P25601:0.554775):0.210226);

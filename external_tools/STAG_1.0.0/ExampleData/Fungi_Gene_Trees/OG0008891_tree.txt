@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81424:1.79846,(Botrytis_cinerea_Bcin05g04750.3:1e-06,Botrytis_cinerea_Bcin05g04750.2:1e-06):2e-06,Botrytis_cinerea_Bcin05g04750.1:0.00115851);

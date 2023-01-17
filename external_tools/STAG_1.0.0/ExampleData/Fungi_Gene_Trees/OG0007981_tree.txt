@@ -1,0 +1,1 @@
+(Pyrenophora_triticirepentis_EDU44165:1.49693,(Pyrenophora_triticirepentis_EDU44186:0.953051,((Zymoseptoria_tritici_Mycgr3P96566:0.822774,Zymoseptoria_tritici_Mycgr3P96567:0.521566):0.204379,Zymoseptoria_tritici_Mycgr3P96565:0.439751):1.06678):0.266446,Pyrenophora_triticirepentis_EDU50431:0.581848);

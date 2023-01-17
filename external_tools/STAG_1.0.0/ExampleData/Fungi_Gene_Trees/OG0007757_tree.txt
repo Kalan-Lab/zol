@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW47032:0.850943,(Cryptococcus_neoformans_AAW43169:0.627712,Ustilago_maydis_KIS71770:0.19628):0.096649,((Phaeosphaeria_nodorum_SNOT_12108:0.200948,Pyrenophora_triticirepentis_EDU49325:0.385147):0.450024,Saccharomyces_cerevisiae_YFL014W:0.548941):0.136602);

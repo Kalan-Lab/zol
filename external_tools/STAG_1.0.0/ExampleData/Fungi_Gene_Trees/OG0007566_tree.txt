@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64947:0.931062,(Botrytis_cinerea_Bcin13g02230.1:0.869569,(Phanerochaete_chrysosporium_jgi|Phchr2|2969065|fgenesh1_pg.7_#_439:0.170389,Phanerochaete_chrysosporium_jgi|Phchr2|2615782|CE1615782_4739:0.182671):1.22005):0.136817,(Phaeosphaeria_nodorum_SNOT_03115:0.43691,Pyrenophora_triticirepentis_EDU41566:0.371399):0.505498);

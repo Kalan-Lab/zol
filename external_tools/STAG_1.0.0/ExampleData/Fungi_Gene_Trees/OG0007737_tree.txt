@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin10g03080.1:0.120336,((Botrytis_cinerea_Bcin16g04430.1:0.30687,Phaeosphaeria_nodorum_SNOT_15049:0.245859):1.00872,Pyrenophora_triticirepentis_EDU43290:0.32688):0.049226,(Phanerochaete_chrysosporium_jgi|Phchr2|2978829|fgenesh1_kg.4_#_869_#_Locus19614v1rpkm0.85:0.454491,Zymoseptoria_tritici_Mycgr3P69167:0.0397531):0.091945);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU77582:1.23526,Botrytis_cinerea_Bcin07g00400.1:0.163616,Verticillium_dahliae_EGY16235:0.414019);

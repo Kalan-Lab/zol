@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45650:0.573616,(Laccaria_bicolor_jgi|Lacbi2|647901|estExt_Genewise1.C_LG_6_t30357:0.309653,Phanerochaete_chrysosporium_jgi|Phchr2|3027403|gm1.5620_g:0.280358):0.394724,((Puccinia_graminis_EFP76732:0.534368,Sporobolomyces_linderae_jgi|Spoli1|211158|estExt_Genemark1.C_7_t10416:0.582651):0.101916,Ustilago_maydis_KIS67851:0.540762):0.208079);

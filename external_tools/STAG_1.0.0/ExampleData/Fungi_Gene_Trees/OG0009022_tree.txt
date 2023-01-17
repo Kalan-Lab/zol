@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW43976:0.594942,Phaeosphaeria_nodorum_SNOT_08790:0.529441,(Phaeosphaeria_nodorum_SNOT_01148:0.0911246,Pyrenophora_triticirepentis_EDU46489:0.0822071):0.349038);

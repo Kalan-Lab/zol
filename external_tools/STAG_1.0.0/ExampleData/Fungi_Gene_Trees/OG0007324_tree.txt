@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41063:0.871275,(((Puccinia_graminis_EFP85024:0.213459,Puccinia_graminis_EFP86023:0.192583):0.050386,Puccinia_graminis_EFP74817:0.120799):0.689318,(Puccinia_graminis_EFP82135:0.00247386,Puccinia_graminis_EFP88055:2.0704e-06):0.702228):0.175238,Sporobolomyces_linderae_jgi|Spoli1|196188|gm1.1084_g:0.766408);

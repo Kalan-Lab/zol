@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin05g04110.1:1.02205,(Rhizoclosmatium_globosum_jgi|Rhihy1|762820|estExt_fgenesh1_pg.C_70218:1.28393,(Sporobolomyces_linderae_jgi|Spoli1|22282|CE22281_479:0.361195,Sporobolomyces_linderae_jgi|Spoli1|206974|estExt_Genemark1.C_1_t30417:0.351395):0.595707):0.133081,Sporobolomyces_linderae_jgi|Spoli1|68524|CE68523_806:1.30992);

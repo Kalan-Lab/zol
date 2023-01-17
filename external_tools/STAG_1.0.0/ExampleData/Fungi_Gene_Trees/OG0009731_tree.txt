@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF81172:0.202082,Fusarium_oxysporum_FOXG_14604P0:0.423751,Rhizoclosmatium_globosum_jgi|Rhihy1|700488|estExt_Genewise1Plus.C_430089:0.132738);

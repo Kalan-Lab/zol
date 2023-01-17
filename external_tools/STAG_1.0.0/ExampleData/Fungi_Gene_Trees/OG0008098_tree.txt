@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65856:0.628018,(Botrytis_cinerea_Bcin12g00570.1:0.612501,Verticillium_dahliae_EGY19413:0.380361):0.236666,(Cryptococcus_neoformans_AAW47043:0.520983,Sporobolomyces_linderae_jgi|Spoli1|193736|fgenesh1_pg.3_#_139:0.449731):0.167068);

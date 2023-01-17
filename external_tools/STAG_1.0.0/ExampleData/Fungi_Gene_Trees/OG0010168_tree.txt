@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|581795|e_gw1.2.317.1:0.222097,Laccaria_bicolor_jgi|Lacbi2|571959|e_gw1.1.10812.1:0.193281,Rhizoclosmatium_globosum_jgi|Rhihy1|771956|estExt_fgenesh1_pg.C_790008:1.8162);

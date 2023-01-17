@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_00506:0.392132,Phanerochaete_chrysosporium_jgi|Phchr2|3001808|fgenesh1_pm.2_#_60:0.926298,Zymoseptoria_tritici_Mycgr3P68253:0.610059);

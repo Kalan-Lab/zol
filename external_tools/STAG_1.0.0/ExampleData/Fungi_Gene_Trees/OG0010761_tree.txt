@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YNL234W:1.6417,Yarrowia_lipolytica_CAG81069:0.166487,Yarrowia_lipolytica_CAG83795:0.124926);

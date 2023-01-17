@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YIR019C:0.165685,Saccharomyces_cerevisiae_YDL037C:0.35565,Schizosaccharomyces_pombe_SPBC1289.15.1_pep:1.44574);

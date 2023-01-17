@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76667:0.106912,Batrachochytrium_dendrobatidis_EGF76669:1.40763,Batrachochytrium_dendrobatidis_EGF76668:0.0062885);

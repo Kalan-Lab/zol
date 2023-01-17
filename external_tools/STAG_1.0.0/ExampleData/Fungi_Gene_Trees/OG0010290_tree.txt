@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_04321T1:0.00136252,Magnaporthe_oryzae_MGG_04321T0:0.000366326,Verticillium_dahliae_EGY14280:0.85297);

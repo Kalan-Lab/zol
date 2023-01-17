@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59145:0.499294,Botrytis_cinerea_Bcin12g00060.1:0.487321,(Pyrenophora_triticirepentis_EDU39675:0.488252,Verticillium_dahliae_EGY21913:0.342385):0.322057);

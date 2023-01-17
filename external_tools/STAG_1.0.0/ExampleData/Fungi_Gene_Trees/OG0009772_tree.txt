@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g08190.1:0.237715,Schizosaccharomyces_pombe_SPAC8C9.19.1_pep:0.745381,Zymoseptoria_tritici_Mycgr3P81209:0.10452);

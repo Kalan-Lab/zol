@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW43959:0,(Cryptococcus_neoformans_AAW45637:0.0950643,(Fusarium_oxysporum_FOXG_09913P0:0.554276,Zymoseptoria_tritici_Mycgr3P84542:0.269803):0.407375):0.058746,Cryptococcus_neoformans_AAW43958:0);

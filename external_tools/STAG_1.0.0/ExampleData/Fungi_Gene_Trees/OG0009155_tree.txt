@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11452P0:1.67166,Magnaporthe_oryzae_MGG_08703T0:0.643009,(Magnaporthe_oryzae_MGG_08704T0:1.08837,Magnaporthe_oryzae_MGG_17779T0:0.903523):0.215138);

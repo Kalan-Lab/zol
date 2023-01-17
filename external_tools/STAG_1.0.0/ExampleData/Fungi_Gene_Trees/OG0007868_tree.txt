@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|690115|fgenesh3_kg.LG_6_#_287_#_Locus_44668_Transcript_1/1_Confidence_1.000:0.702806,Laccaria_bicolor_jgi|Lacbi2|665946|estExt_fgenesh1_pm.C_LG_1_t30245:0.532776,((Magnaporthe_oryzae_MGG_15190T0:0.19571,Magnaporthe_oryzae_MGG_10925T0:0.089566):1.01279,(Verticillium_dahliae_EGY23384:0.58597,Verticillium_dahliae_EGY16732:0.3766):0.083281):1.22222);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62794:0.354186,Aspergillus_oryzae_BAE65790:0.540013,(Magnaporthe_oryzae_MGG_08450T0:0.787375,((Phaeosphaeria_nodorum_SNOT_11093:0.180617,Pyrenophora_triticirepentis_EDU44041:0.158811):0.326201,Rhizoclosmatium_globosum_jgi|Rhihy1|844747|estExt_Genemark1.C_10005:0.738335):0.05918):0.191305);

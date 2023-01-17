@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66544:0.669736,Botrytis_cinerea_Bcin13g05880.1:0.822676,((Laccaria_bicolor_jgi|Lacbi2|436639|gm1.1083_g:0.638645,(Laccaria_bicolor_jgi|Lacbi2|487425|fgenesh1_pm.11_#_10:0.590931,Phanerochaete_chrysosporium_jgi|Phchr2|2923822|estExt_Genewise1.C_2_t20046:0.731525):0.139779):0.253856,Phaeosphaeria_nodorum_SNOT_14846:1.38247):0.797745);

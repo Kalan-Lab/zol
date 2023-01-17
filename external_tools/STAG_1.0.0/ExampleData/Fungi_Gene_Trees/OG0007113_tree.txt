@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59686:0.211542,((Batrachochytrium_dendrobatidis_EGF75881:0.67807,Phanerochaete_chrysosporium_jgi|Phchr2|2707707|CE1707707_5903:0.368803):0.063638,Zymoseptoria_tritici_Mycgr3P38019:0.470496):0.120125,((Fusarium_oxysporum_FOXG_17397P0:0.331585,Verticillium_dahliae_EGY16785:0.268853):0.120182,Pyrenophora_triticirepentis_EDU48004:0.280442):0.051217);

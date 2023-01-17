@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|602464|e_gw1.8.941.1:0.0472438,Laccaria_bicolor_jgi|Lacbi2|621767|e_gw1.33.14.1:2.2271e-06,((Phaeosphaeria_nodorum_ABU49448:0.17652,Sporobolomyces_linderae_jgi|Spoli1|170447|e_gw1.18.7.1:0.721399):0.08872,Rhizoclosmatium_globosum_jgi|Rhihy1|671433|e_gw1.213.22.1:0.641167):0.120436);

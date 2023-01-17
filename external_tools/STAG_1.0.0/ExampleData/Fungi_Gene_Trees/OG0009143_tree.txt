@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_12310P0:0.307423,(Magnaporthe_oryzae_MGG_07702T0:0.385366,Pyrenophora_triticirepentis_EDU43612:0.241098):0.059305,Verticillium_dahliae_EGY15195:0.447877);

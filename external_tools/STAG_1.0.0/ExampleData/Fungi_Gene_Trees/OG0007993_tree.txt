@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YDL048C:0.31887,(((Saccharomyces_cerevisiae_YDR463W:0.725239,Saccharomyces_cerevisiae_YHR006W:0.36706):0.397203,Yarrowia_lipolytica_CAG79973:0.524435):0.685305,Yarrowia_lipolytica_CAG82762:0.41144):0.594358,Saccharomyces_cerevisiae_YLR375W:0.348152);

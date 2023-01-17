@@ -1,0 +1,1 @@
+(Verticillium_dahliae_EGY14285:0.611166,((((Verticillium_dahliae_EGY22539:0.494037,(Verticillium_dahliae_EGY19788:0.473152,Verticillium_dahliae_EGY16731:0.517699):0.079205):0.093772,Verticillium_dahliae_EGY21279:0.550958):0.113122,Zymoseptoria_tritici_Mycgr3P67350:0.740304):0.214177,Zymoseptoria_tritici_Mycgr3P51700:0.811836):0.150901,Zymoseptoria_tritici_Mycgr3P86381:0.757043);

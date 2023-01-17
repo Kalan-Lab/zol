@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_02479P0:0.422652,Pyrenophora_triticirepentis_EDU41649:0.320722,Ustilago_maydis_KIS67263:0.756153);

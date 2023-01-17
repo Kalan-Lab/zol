@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|177279|estExt_fgenesh1_pm.C_70005:0.151575,(Rhizoclosmatium_globosum_jgi|Rhihy1|721672|fgenesh1_kg.52_#_28_#_Locus6440v1rpkm33.82:0.279311,Ustilago_maydis_KIS66247:0.561005):0.1707,Rhizopus_delemar_EIE82164.1:0.131864);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW43353:0.302631,Cryptococcus_neoformans_AAW42132:0.338971,((Puccinia_graminis_EFP89911:0.274668,Puccinia_graminis_EFP88402:0.196686):0.641009,Puccinia_graminis_EFP94178:0.533233):1.06531);

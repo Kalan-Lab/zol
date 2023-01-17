@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65542:0.239424,(Botrytis_cinerea_Bcin13g03790.1:0.552456,Zymoseptoria_tritici_Mycgr3P51448:0.530558):0.12292,(Puccinia_graminis_EFP75233:0.452889,Rhizoclosmatium_globosum_jgi|Rhihy1|853094|estExt_Genemark1.C_370136:0.860527):0.319491);

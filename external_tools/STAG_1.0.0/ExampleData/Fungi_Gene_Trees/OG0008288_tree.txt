@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin05g07680.1:0.66067,Magnaporthe_oryzae_MGG_02581T0:0.464271,((Phaeosphaeria_nodorum_SNOT_05271:0.191159,Pyrenophora_triticirepentis_EDU47117:0.0745159):0.163335,Phanerochaete_chrysosporium_jgi|Phchr2|3026544|gm1.4761_g:0.582083):0.174047);

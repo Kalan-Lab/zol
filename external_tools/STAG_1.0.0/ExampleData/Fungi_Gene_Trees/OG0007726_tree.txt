@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin08g03100.1:0.424604,(Magnaporthe_oryzae_MGG_07633T0:0.209811,Verticillium_dahliae_EGY23492:0.326825):0.140891,((Puccinia_graminis_EFP86958:0.82987,Sporobolomyces_linderae_jgi|Spoli1|28586|CE28585_1599:0.201421):0.430337,Zymoseptoria_tritici_Mycgr3P35661:0.245867):0.134389);

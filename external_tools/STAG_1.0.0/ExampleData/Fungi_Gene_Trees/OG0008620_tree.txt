@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YGL258W:0.0513778,Saccharomyces_cerevisiae_YOR387C:0.0288982,(Schizosaccharomyces_pombe_SPAC977.05c.1_pep:0.00817561,(Schizosaccharomyces_pombe_SPBC1348.06c.1_pep:0,Schizosaccharomyces_pombe_SPBPB2B2.15.1_pep:0):0.006718):0.651086);

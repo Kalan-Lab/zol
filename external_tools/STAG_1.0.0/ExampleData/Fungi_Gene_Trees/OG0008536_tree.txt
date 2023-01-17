@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|3089285|MIX45519_1_8:2.1633e-06,((Phanerochaete_chrysosporium_jgi|Phchr2|3006074|fgenesh1_pm.11_#_443:2.0348e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2882997|gw1.90.4.1:2.6529e-06):0.000276,Phanerochaete_chrysosporium_jgi|Phchr2|2916856|e_gw1.15.360.1:1.04):0.046129,Phanerochaete_chrysosporium_jgi|Phchr2|3064428|MIX20662_1_8:0.0152394);

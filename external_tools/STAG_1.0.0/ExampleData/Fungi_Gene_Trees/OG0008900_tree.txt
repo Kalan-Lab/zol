@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU76324:0.457754,Botrytis_cinerea_Bcin14g04920.1:0.444403,(Phycomyces_blakesleeanus_jgi|Phybl2|67800|Phybl1.fgeneshPB_pg.20__77:0.314595,Rhizopus_delemar_EIE90385.1:0.407612):0.561249);

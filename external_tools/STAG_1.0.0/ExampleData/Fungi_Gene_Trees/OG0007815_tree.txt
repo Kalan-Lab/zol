@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45150:0.730835,(Fusarium_oxysporum_FOXG_16796P0:0.530722,Magnaporthe_oryzae_MGG_18138T0:0.63985):0.209145,((Phycomyces_blakesleeanus_jgi|Phybl2|157724|fgenesh1_kg.4_#_21_#_0_0_CBNF4345.g1_CBNA_CBNB_CBNC_CBNF:0.595327,Rhizopus_delemar_EIE82178.1:0.349052):0.579033,Ustilago_maydis_KIS69505:0.625232):0.131263);

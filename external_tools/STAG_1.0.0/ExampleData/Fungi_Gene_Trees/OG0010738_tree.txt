@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|237162|CE237161_688:1.06114,Verticillium_dahliae_EGY16548:0.651158,Verticillium_dahliae_EGY20045:0.417886);

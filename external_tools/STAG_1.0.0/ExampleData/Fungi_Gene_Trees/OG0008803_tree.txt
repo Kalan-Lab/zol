@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF84347:0.952166,(Sporobolomyces_linderae_jgi|Spoli1|199036|gm1.3932_g:0.674343,Sporobolomyces_linderae_jgi|Spoli1|189955|fgenesh1_kg.6_#_406_#_comp8077_c0_seq1:0.587065):0.413759,Ustilago_maydis_KIS65666:1.0152);

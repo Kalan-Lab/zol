@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46423:0,((Cryptococcus_neoformans_AAW46424:0,Cryptococcus_neoformans_AAW45233:0):2e-06,(Puccinia_graminis_EFP87966:0.743515,Ustilago_maydis_KIS69202:0.830062):0.688315):3e-06,Cryptococcus_neoformans_AAW45232:0);

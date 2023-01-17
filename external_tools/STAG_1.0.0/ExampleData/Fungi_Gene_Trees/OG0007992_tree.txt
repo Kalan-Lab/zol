@@ -1,0 +1,1 @@
+(Rhizopus_delemar_EIE80351.1:0.391229,((Rhizopus_delemar_EIE82316.1:0.0592491,(Rhizopus_delemar_EIE86377.1:0.000890829,Rhizopus_delemar_EIE86383.1:0.0340317):0.081289):0.297614,Rhizopus_delemar_EIE91618.1:0.953478):0.124766,Rhizopus_delemar_EIE91619.1:1.14495);

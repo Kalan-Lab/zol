@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|638684|estExt_Genewise1Plus.C_290001:0,((Phaeosphaeria_nodorum_SNOT_14769:2.7635e-06,Pyrenophora_triticirepentis_EDU39626:0.133612):0.277234,(Saccharomyces_cerevisiae_Q0080:0.345343,Schizosaccharomyces_pombe_SPMIT.09.1_pep:0.592874):0.17263):0.568042,Laccaria_bicolor_jgi|Lacbi2|655040|estExt_Genewise1.C_330011:0);

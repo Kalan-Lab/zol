@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF82381:1.68641,Laccaria_bicolor_jgi|Lacbi2|682538|fgenesh3_kg.LG_1_#_3442_#_Locus_4695_Transcript_8/13_Confidence_0.651:0.203647,Phanerochaete_chrysosporium_jgi|Phchr2|2986524|fgenesh1_kg.12_#_266_#_Locus3698v1rpkm70.39:0.362398);

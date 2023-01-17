@@ -76,14 +76,17 @@ def create_parser():
 	- Selection analyses will only be performed for homolog groups which are present in at least 4 input GenBanks.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Files must end with ".gbk" or ".genbank".', required=False, default=None)
+	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk" or ".genbank".', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
 	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
 	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
-	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD and FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
-	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints prior to running FUBAR selection analysis. Less accurate than running with GARD preliminary analysis, but much faster. Default is False because these are computationally intensive.", required=False, default=False)
-	parser.add_argument('-m', '--max_for_visualization', type=int, help='Maximum number of sequences to keep for clinker visualization. If more sequences are provided then this number Treemer will be used to dereplicate based on gene-cluster wide tree.', required=False, default=10)
+	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate. Default is False.", required=False, default=False)
+	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
+	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster. Default is False because these are\ncomputationally intensive.", required=False, default=False)
+	parser.add_argument('-m', '--max_for_visualization', type=int, help='Maximum number of sequences to keep for clinker\nvisualization. If more sequences are provided then this\nnumber Treemer will be used to dereplicate based on gene-cluster\nwide tree. Default is 10.', required=False, default=10)
+	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the heatmap plot. Default is 7.', required=False, default=7)
+	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot. Default is 10.', required=False, default=14)
+	parser.add_argument('-fgl', '--full_genbank_labels', action='store_true', help='Use full GenBank labels instead of just the first 20 characters.', required=False, default=False)
 	args = parser.parse_args()
 	return args
 
@@ -105,6 +108,9 @@ def zolMain():
 	fubar_selection = myargs.fubar_selection
 	skip_gard = myargs.skip_gard
 	max_for_visualization = myargs.max_for_visualization
+	length = myargs.length
+	width = myargs.width
+	full_genbank_labels = myargs.full_genbank_labels
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -138,11 +144,13 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, max_for_visualization, cpus]
+	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, max_for_visualization,
+						length, width, full_genbank_labels, cpus]
 	parameter_names = ["Input directory with Loci GenBanks", "Output directory", "Locus type",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
 					   "Skip GARD Partitioning by Recombination Breakpoints?",
-					   "Maximum Number of Gene Clusters to Visualize?", "Number of CPUs Requested"]
+					   "Maximum Number of Gene Clusters to Visualize?", "Plot Height", "Plot Width",
+					   "Use Full GenBank Labels?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -277,7 +285,7 @@ def zolMain():
 			logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
-	print(annotations.keys())
+	#print(annotations.keys())
 
 	# Step 5: Determine consensus order, conservation, and median homolog group lengths
 	logObject.info('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of homolog groups')
@@ -304,7 +312,7 @@ def zolMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
-	print(hg_stats.keys())
+	#print(hg_stats.keys())
 	# Step 6: Perform genetic/population/evolutionary statistics
 	logObject.info('--------------------\nStep 6\n--------------------\nRunning evolutionary analyses')
 	sys.stdout.write('--------------------\nStep 6\n--------------------\nRunning evolutionary analyses\n')
@@ -344,7 +352,7 @@ def zolMain():
 			logObject.error('Issues with reading in homolog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
-	print(evo_stats.keys())
+	#print(evo_stats.keys())
 
 	# Step 7: Put together report
 	logObject.info('--------------------\nStep 7\n--------------------\nPutting together final report')
@@ -357,19 +365,21 @@ def zolMain():
 		os.system('touch %s' % step7_check_file)
 
 	# Step 8: Create interactive visualization using clinker!
-	logObject.info('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker')
-	sys.stdout.write('--------------------\nStep 7\n--------------------\nVisualizing representative gene clusters using clinker\n')
-	step7_check_file = check_dir + 'step7.txt'
-	clinker_workspace_dir = outdir + 'Clinker_Workspace/'
-	if not os.path.isfile(step7_check_file):
-		util.setupReadyDirectory([clinker_workspace_dir])
-		representative_genbanks = zol.runTreemmer(evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
-		zol.runClinker(genbanks, hg_stats['hg_locus_tags'], representative_genbanks, fin_outdir, clinker_workspace_dir, logObject)
-		os.system('touch %s' % step7_check_file)
+	logObject.info('--------------------\nStep 8\n--------------------\nCreating heatmap visualization of gene cluster representative instances')
+	sys.stdout.write('--------------------\nStep 8\n--------------------\nCreating heatmap visualization of gene cluster representative instances\n')
+	step8_check_file = check_dir + 'step8.txt'
+	plot_workspace_dir = outdir + 'Plot_Workspace/'
+	if not os.path.isfile(step8_check_file):
+		util.setupReadyDirectory([plot_workspace_dir])
+		representative_genbanks = zol.runTreemmer(genbanks, evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
+		plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
+		zol.plotHeatmap(hg_stats, representative_genbanks, plot_result_pdf, plot_workspace_dir, logObject, height=length, width=width, full_genbank_labels=full_genbank_labels)
+		zol.runClinker(genbanks, hg_lts, representative_genbanks, fin_outdir, plot_workspace_dir, logObject)
+		os.system('touch %s' % step8_check_file)
 
 	# Close logging object and exit
-	logObject.info('zol finished! Final results can be found at: %s' % fin_outdir)
-	sys.stdout.write('zol finished! Final results can be found at: %s\n' % fin_outdir)
+	logObject.info('******************\nzol finished!\n******************\nFinal results can be found at: %s' % fin_outdir)
+	sys.stdout.write('******************\nzol finished!\n******************\nFinal results can be found at: %s\n' % fin_outdir)
 	util.closeLoggerObject(logObject)
 	sys.exit(0)
 

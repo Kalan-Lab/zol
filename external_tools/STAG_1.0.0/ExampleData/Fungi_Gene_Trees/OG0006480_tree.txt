@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_02787P0:0.647398,(Rhizopus_delemar_EIE78780.1:0.411041,Rhizopus_delemar_EIE81044.1:0.625912):0.183977,((((Rhizopus_delemar_EIE81823.1:0,Rhizopus_delemar_EIE81829.1:0):3e-06,Rhizopus_delemar_EIE81832.1:0.143702):0.324859,(Rhizopus_delemar_EIE88822.1:0,Rhizopus_delemar_EIE88824.1:0):0.309251):0.048642,Rhizopus_delemar_EIE88839.1:0.133379):0.12346);

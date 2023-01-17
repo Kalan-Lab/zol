@@ -1,0 +1,1 @@
+(Sporobolomyces_linderae_jgi|Spoli1|191596|fgenesh1_kg.8_#_488_#_comp3067_c0_seq1:1.00072,Ustilago_maydis_KIS67402:0.648896,Yarrowia_lipolytica_CAG83245:0.864194);

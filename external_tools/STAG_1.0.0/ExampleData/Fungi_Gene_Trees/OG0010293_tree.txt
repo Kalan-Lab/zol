@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_15792T0:2.8262e-06,Magnaporthe_oryzae_MGG_10898T0:0.014289,Magnaporthe_oryzae_MGG_15974T0:0.00953177);

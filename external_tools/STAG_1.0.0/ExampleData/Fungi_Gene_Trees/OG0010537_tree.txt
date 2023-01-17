@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|180197|estExt_Genemark1.C_50204:0.737153,Rhizopus_delemar_EIE77216.1:0.290526,Schizosaccharomyces_pombe_SPBC582.04c.1_pep:1.99731);

@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|59886|Phybl1.fgeneshPB_pg.2__606:0.874654,Schizosaccharomyces_pombe_SPACUNK4.09.1_pep:0.961941,Ustilago_maydis_KIS70869:1.13446);

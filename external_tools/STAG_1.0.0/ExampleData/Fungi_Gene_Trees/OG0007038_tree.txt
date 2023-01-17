@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55443:0.684423,(Botrytis_cinerea_Bcin06g06780.1:0.105994,((Laccaria_bicolor_jgi|Lacbi2|176790|Lacbi1.estExt_Genewise1_worm.C_20697:0.354906,Puccinia_graminis_EFP90683:0.306691):0.073824,(Rhizopus_delemar_EIE77545.1:0.45412,Rhizopus_delemar_EIE84980.1:0.408522):0.312609):0.37986):0.089965,Zymoseptoria_tritici_Mycgr3P105110:0.243497);

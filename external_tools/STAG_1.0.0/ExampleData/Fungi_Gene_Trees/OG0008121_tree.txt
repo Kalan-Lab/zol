@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64952:0.917345,Magnaporthe_oryzae_MGG_05764T0:0.929198,(Verticillium_dahliae_EGY17614:1.21062,(Verticillium_dahliae_EGY20087:0.281979,Verticillium_dahliae_EGY14475:0.3021):0.589651):0.117545);

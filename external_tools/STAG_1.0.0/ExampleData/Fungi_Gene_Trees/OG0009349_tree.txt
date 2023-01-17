@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|165934|fgenesh1_pg.6_#_201:0.544751,(Phycomyces_blakesleeanus_jgi|Phybl2|166793|fgenesh1_pg.7_#_338:0.19187,Phycomyces_blakesleeanus_jgi|Phybl2|170148|fgenesh1_pg.15_#_25:0.0131117):0.215098,Phycomyces_blakesleeanus_jgi|Phybl2|151335|Genemark1.13526_g:1.44573);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58693:0.362843,(Cryptococcus_neoformans_AAW41965:0.298124,(Fusarium_oxysporum_FOXG_01256P0:0.151587,Magnaporthe_oryzae_MGG_07961T0:0.213871):0.353816):0.100724,Phanerochaete_chrysosporium_jgi|Phchr2|2977850|fgenesh1_kg.3_#_1227_#_Locus2623v6rpkm0.15_PRE:0.44447);

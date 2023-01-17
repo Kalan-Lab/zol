@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_06159P0:1.19994,(Laccaria_bicolor_jgi|Lacbi2|619092|e_gw1.19.213.1:0.313983,Phanerochaete_chrysosporium_jgi|Phchr2|3070265|MIX26499_11432_100:0.855265):0.243248,Rhizopus_delemar_EIE76360.1:0.777798);

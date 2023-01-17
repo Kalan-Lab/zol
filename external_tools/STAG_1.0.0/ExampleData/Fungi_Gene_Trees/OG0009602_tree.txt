@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF75819:1.32609,Fusarium_oxysporum_FOXG_14724P0:0.624524,Phaeosphaeria_nodorum_SNOT_14025:0.522819);

@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_02841T0:0.294253,Rhizoclosmatium_globosum_jgi|Rhihy1|718631|fgenesh1_kg.30_#_117_#_Locus2006v1rpkm113.60:0.794815,Zymoseptoria_tritici_Mycgr3P68789:0.282966);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU83004:0.43011,Botrytis_cinerea_Bcin02g03310.1:0.591446,(Magnaporthe_oryzae_MGG_01906T0:0.555379,((Phaeosphaeria_nodorum_SNOT_09839:0.689137,Sporobolomyces_linderae_jgi|Spoli1|201558|gm1.6454_g:0.917157):0.08621,(Phycomyces_blakesleeanus_jgi|Phybl2|100442|gw1.25.275.1:0.486543,Rhizopus_delemar_EIE86028.1:0.479607):0.442919):0.299442):0.144751);

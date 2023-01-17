@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|721667|fgenesh1_kg.52_#_23_#_Locus11451v1rpkm13.62:1.43458,(Zymoseptoria_tritici_Mycgr3P95442:1.09999,Zymoseptoria_tritici_Mycgr3P95631:0.321536):0.702493,Zymoseptoria_tritici_Mycgr3P96782:0.355169);

@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF82684:0.959812,Botrytis_cinerea_Bcin14g04500.1:1.05116,(Phaeosphaeria_nodorum_SNOT_03218:0.667924,Pyrenophora_triticirepentis_EDU41646:1.18344):0.498089);

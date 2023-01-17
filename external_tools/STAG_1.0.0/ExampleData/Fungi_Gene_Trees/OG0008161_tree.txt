@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79365:0.0136079,(Batrachochytrium_dendrobatidis_EGF75802:0.0400003,Batrachochytrium_dendrobatidis_EGF79004:0.0443569):0.02994,(Batrachochytrium_dendrobatidis_EGF80873:0.15464,Rhizoclosmatium_globosum_jgi|Rhihy1|357008|CE357007_18:1.01316):0.064737);

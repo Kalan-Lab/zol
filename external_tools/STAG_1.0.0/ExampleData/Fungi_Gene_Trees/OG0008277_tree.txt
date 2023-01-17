@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin04g00860.1:0.718482,(Fusarium_oxysporum_FOXG_10091P0:0.739674,(Phanerochaete_chrysosporium_jgi|Phchr2|2579245|CE1579245_1181:1.12109,Rhizoclosmatium_globosum_jgi|Rhihy1|768745|estExt_fgenesh1_pg.C_400117:1.02433):0.358925):0.27433,Fusarium_oxysporum_FOXG_04661P0:0.735744);

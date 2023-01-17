@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP90837:0,(Puccinia_graminis_EFP94417:0.0258865,Puccinia_graminis_EFP74993:0.00417897):0.390933,Puccinia_graminis_EFP77029:0);

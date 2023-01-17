@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60723:0.236093,Cryptococcus_neoformans_AAW41866:0.400506,Fusarium_oxysporum_FOXG_12960P0:0.185627);

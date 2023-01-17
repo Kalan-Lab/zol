@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g01450.1:0.214606,(Phaeosphaeria_nodorum_SNOT_12342:0.117471,Pyrenophora_triticirepentis_EDU49466:0.0688803):0.098337,((Phycomyces_blakesleeanus_jgi|Phybl2|182160|estExt_Genemark1.C_160095:0.125143,Rhizopus_delemar_EIE81855.1:0.144511):0.620355,Zymoseptoria_tritici_Mycgr3P109805:0.205299):0.076715);

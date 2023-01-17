@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_10318:0.127627,Pyrenophora_triticirepentis_EDU48858:0.130679,((Saccharomyces_cerevisiae_YNL208W:0.596102,Yarrowia_lipolytica_CAG84109:0.67389):0.336884,Zymoseptoria_tritici_Mycgr3P107982:0.512238):0.25468);

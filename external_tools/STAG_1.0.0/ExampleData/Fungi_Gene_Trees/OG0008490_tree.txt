@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|632694|estExt_Genewise1Plus.C_LG_8_t20376:0.478643,((Phaeosphaeria_nodorum_SNOT_04849:0.657026,Zymoseptoria_tritici_Mycgr3P89603:0.837977):0.44463,Sporobolomyces_linderae_jgi|Spoli1|206857|estExt_Genemark1.C_1_t30279:0.955978):0.359552,Phanerochaete_chrysosporium_jgi|Phchr2|3069043|MIX25277_1805_87:0.597686);

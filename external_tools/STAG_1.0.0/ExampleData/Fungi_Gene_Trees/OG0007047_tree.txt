@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62409:0.103522,(Fusarium_oxysporum_FOXG_13793P0:0.183074,Verticillium_dahliae_EGY17822:0.261414):0.038351,(Fusarium_oxysporum_FOXG_12325P0:0.389009,(Saccharomyces_cerevisiae_YLL055W:0.541566,(Schizosaccharomyces_pombe_SPBPB10D8.01.1_pep:0.307573,Schizosaccharomyces_pombe_SPCPB1C11.03.1_pep:0.214239):0.240821):0.094315):0.270617);

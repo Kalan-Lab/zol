@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62277:0.616937,((Cryptococcus_neoformans_AAW40941:1.19131,(Laccaria_bicolor_jgi|Lacbi2|665839|estExt_fgenesh1_pm.C_LG_1_t30102:0.584014,Phanerochaete_chrysosporium_jgi|Phchr2|6544|Phchr1.fgenesh1_pg.C_scaffold_11000229:0.662134):0.451566):0.421712,Phaeosphaeria_nodorum_SNOT_11674:0.655026):0.217001,Zymoseptoria_tritici_Mycgr3P89100:0.603853);

@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11002P0:0.254804,Rhizoclosmatium_globosum_jgi|Rhihy1|720256|fgenesh1_kg.40_#_155_#_Locus5301v1rpkm43.05:0.238831,((Sporobolomyces_linderae_jgi|Spoli1|207708|estExt_Genemark1.C_2_t20399:1.86869,Zymoseptoria_tritici_Mycgr3P75982:0.159034):0.115973,Verticillium_dahliae_EGY16411:0.219324):0.094604);

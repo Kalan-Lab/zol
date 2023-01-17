@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|69347|Phybl1.fgeneshPB_pg.27__65:0.265853,(((Puccinia_graminis_EHS64300:0.841353,Ustilago_maydis_KIS69072:1.17395):0.216245,(Saccharomyces_cerevisiae_YIL087C:0.707977,Yarrowia_lipolytica_CAG80725:0.476551):0.163284):0.272365,Schizosaccharomyces_pombe_SPBC17A3.02.1_pep:0.680245):0.479779,Rhizopus_delemar_EIE85301.1:0.344254);

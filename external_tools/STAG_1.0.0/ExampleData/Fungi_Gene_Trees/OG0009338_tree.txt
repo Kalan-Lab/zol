@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|157581|fgenesh1_kg.3_#_112_#_1499_1_CBNA_CBNB_CBNC_CBNF:0.599827,(Puccinia_graminis_EHS63080:0.831326,Rhizoclosmatium_globosum_jgi|Rhihy1|313574|CE313573_148:0.580794):0.432269,Rhizoclosmatium_globosum_jgi|Rhihy1|572699|CE572698_4530:0.562971);

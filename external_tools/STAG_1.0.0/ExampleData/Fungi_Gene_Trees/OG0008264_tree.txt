@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g07390.1:0.372395,Botrytis_cinerea_Bcin08g02040.1:0.725482,((Botrytis_cinerea_Bcin08g02050.1:0.74007,Magnaporthe_oryzae_MGG_02267T0:1.05175):0.147141,Phaeosphaeria_nodorum_SNOT_15036:1.05548):0.092283);

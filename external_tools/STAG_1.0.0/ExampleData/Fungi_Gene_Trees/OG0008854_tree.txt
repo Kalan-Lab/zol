@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF80761:0.973126,(Laccaria_bicolor_jgi|Lacbi2|596382|e_gw1.5.2284.1:0,Laccaria_bicolor_jgi|Lacbi2|620359|e_gw1.22.244.1:0):1.18409,Phycomyces_blakesleeanus_jgi|Phybl2|100582|gw1.2.1249.1:0.448019);

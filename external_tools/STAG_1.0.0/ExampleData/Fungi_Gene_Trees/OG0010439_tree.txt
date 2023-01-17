@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2895644|e_gw1.1.379.1:0.712849,Puccinia_graminis_EFP74451:0.717601,Ustilago_maydis_KIS69868:0.239974);

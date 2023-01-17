@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU76318:1.07439,Botrytis_cinerea_Bcin14g00550.1:0.466396,((Pyrenophora_triticirepentis_EDU48368:0.538381,Zymoseptoria_tritici_Mycgr3P83707:0.446627):0.27831,Verticillium_dahliae_EGY18304:0.801157):0.079803);

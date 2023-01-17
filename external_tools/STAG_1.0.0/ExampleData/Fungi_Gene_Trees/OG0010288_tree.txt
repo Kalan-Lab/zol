@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_08275T0:0.639638,Sporobolomyces_linderae_jgi|Spoli1|187444|fgenesh1_kg.3_#_913_#_comp4876_c0_seq1:0.869572,Zymoseptoria_tritici_Mycgr3P95225:1.35311);

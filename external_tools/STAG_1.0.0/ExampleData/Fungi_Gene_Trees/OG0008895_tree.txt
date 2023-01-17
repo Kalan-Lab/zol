@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU75633:0.187741,Botrytis_cinerea_Bcin09g00280.1:0.322503,(Fusarium_oxysporum_FOXG_05117P0:0.307619,Pyrenophora_triticirepentis_EDU46502:0.292428):0.1057);

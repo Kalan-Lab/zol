@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|142331|Genemark1.4522_g:0.670322,Saccharomyces_cerevisiae_YGR174C:0.583074,Schizosaccharomyces_pombe_SPBC27B12.14.1_pep:0.921656);

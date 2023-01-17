@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU82469:0.485835,Phaeosphaeria_nodorum_SNOT_16005:0.446963,Verticillium_dahliae_EGY14535:0.377542);

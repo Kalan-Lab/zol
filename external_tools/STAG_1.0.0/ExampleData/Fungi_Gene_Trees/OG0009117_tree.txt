@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_09542P0:0.656965,(Fusarium_oxysporum_FOXG_04322P0:0.321463,Phaeosphaeria_nodorum_SNOT_11718:0.652659):0.192691,Magnaporthe_oryzae_MGG_10031T0:1.19479);

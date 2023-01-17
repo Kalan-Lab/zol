@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81692:0.567428,Botrytis_cinerea_Bcin07g05440.1:0.309087,(Magnaporthe_oryzae_MGG_04870T0:0.767519,Phanerochaete_chrysosporium_jgi|Phchr2|2984441|fgenesh1_kg.9_#_680_#_Locus8422v1rpkm15.68:0.944489):0.303489);

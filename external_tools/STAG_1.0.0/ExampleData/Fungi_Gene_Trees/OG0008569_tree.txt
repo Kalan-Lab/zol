@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|142106|Genemark1.4297_g:0.0455204,((Puccinia_graminis_EFP79259:1.03245,Puccinia_graminis_EFP88083:0.794621):0.412025,Zymoseptoria_tritici_Mycgr3P89718:1.11912):0.643685,Rhizopus_delemar_EIE90098.1:0.233681);

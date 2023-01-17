@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59578:0.155208,Cryptococcus_neoformans_AAW45744:0.278211,((Phaeosphaeria_nodorum_SNOT_00505:0.0996262,Pyrenophora_triticirepentis_EDU43695:0.0962882):0.165403,Phanerochaete_chrysosporium_jgi|Phchr2|2895036|e_gw1.1.813.1:0.461609):0.043171);

@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF82835:2.9301e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2901905|e_gw1.4.814.1:1.32621,Rhizoclosmatium_globosum_jgi|Rhihy1|679433|estExt_Genewise1.C_220001:1.05674);

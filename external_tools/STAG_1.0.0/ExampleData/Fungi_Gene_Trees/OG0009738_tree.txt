@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU75970:0.696389,Botrytis_cinerea_Bcin03g09090.1:0.764006,Zymoseptoria_tritici_Mycgr3P92889:1.42525);

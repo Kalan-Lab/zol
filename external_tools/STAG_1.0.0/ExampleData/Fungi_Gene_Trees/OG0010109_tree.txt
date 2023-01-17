@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11149P0:1.44607,Phaeosphaeria_nodorum_SNOT_12640:0.978318,Puccinia_graminis_EFP75698:0.881185);

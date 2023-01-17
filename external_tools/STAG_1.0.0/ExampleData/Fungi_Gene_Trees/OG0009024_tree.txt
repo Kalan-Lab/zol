@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41832:2.6308e-06,Cryptococcus_neoformans_AAW41831:2.3702e-06,(Cryptococcus_neoformans_AAW41839:0.148969,Phanerochaete_chrysosporium_jgi|Phchr2|1211351|CE211351_11090:1.31008):0.124223);

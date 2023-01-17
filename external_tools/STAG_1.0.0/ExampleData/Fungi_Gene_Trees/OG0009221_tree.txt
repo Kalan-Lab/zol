@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|301031|Lacbi1.eu2.Lbscf0001g04800:0.339226,(Magnaporthe_oryzae_MGG_06382T0:1.14147,Puccinia_graminis_EFP75585:0.743665):0.278668,Phanerochaete_chrysosporium_jgi|Phchr2|3054690|MIX10924_1654_41:0.405089);

@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YGR212W:1.43538,Schizosaccharomyces_pombe_SPAC18B11.03c.1_pep:1.01967,(Sporobolomyces_linderae_jgi|Spoli1|197708|gm1.2604_g:1.27568,(Yarrowia_lipolytica_CAG78322:0.543141,(Yarrowia_lipolytica_CAG78404:0.455594,Yarrowia_lipolytica_CAG81216:0.52137):0.360801):0.347585):0.324553);

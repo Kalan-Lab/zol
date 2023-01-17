@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF83162:0.753634,Rhizoclosmatium_globosum_jgi|Rhihy1|855636|estExt_Genemark1.C_600012:0.00936123,Rhizoclosmatium_globosum_jgi|Rhihy1|854360|estExt_Genemark1.C_470008:2.0498e-06);

@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin05g06740.1:0.949324,(Fusarium_oxysporum_FOXG_09353P0:0.811011,Magnaporthe_oryzae_MGG_06436T0:0.476649):0.176307,Zymoseptoria_tritici_Mycgr3P89301:1.17384);

@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|323127|Lacbi1.fgenesh3_pg.C_scaffold_4000030:0.401577,(Phanerochaete_chrysosporium_jgi|Phchr2|2904041|e_gw1.5.552.1:0.663099,Phanerochaete_chrysosporium_jgi|Phchr2|2912319|e_gw1.11.1199.1:0.343451):0.179313,Yarrowia_lipolytica_CAG83339:1.83347);

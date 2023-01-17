@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56582:0.955297,(Cryptococcus_neoformans_AAW41429:1.58598,Phaeosphaeria_nodorum_SNOT_00307:0.538311):0.353486,(Magnaporthe_oryzae_MGG_08361T0:1.44317,Magnaporthe_oryzae_MGG_05845T0:0.821657):0.258737);

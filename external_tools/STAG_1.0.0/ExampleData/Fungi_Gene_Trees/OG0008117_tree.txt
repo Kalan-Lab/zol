@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64611:0.347795,(Botrytis_cinerea_Bcin06g00500.1:0.331252,Phanerochaete_chrysosporium_jgi|Phchr2|1805276|CE805276_4621:0.894543):0.073459,(Fusarium_oxysporum_FOXG_10737P0:0.740632,Zymoseptoria_tritici_Mycgr3P86867:0.257794):0.076564);

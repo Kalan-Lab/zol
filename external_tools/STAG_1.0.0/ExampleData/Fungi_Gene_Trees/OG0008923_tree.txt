@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin03g00650.1:0.416881,(Botrytis_cinerea_Bcin04g00050.1:0.591653,Ustilago_maydis_KIS69448:1.43289):0.12106,Pyrenophora_triticirepentis_EDU44641:0.62963);

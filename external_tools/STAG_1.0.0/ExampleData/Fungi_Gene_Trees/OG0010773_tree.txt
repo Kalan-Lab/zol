@@ -1,0 +1,1 @@
+(Sporobolomyces_linderae_jgi|Spoli1|170492|e_gw1.27.5.1:0.413116,Zymoseptoria_tritici_Mycgr3P45195:1e-06,Zymoseptoria_tritici_Mycgr3P44699:1e-06);

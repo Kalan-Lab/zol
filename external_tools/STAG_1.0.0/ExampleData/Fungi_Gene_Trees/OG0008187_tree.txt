@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF75852:0.999301,(Fusarium_oxysporum_FOXG_05601P0:0.203403,(Magnaporthe_oryzae_MGG_13763T0:0.531428,Verticillium_dahliae_EGY17074:0.162581):0.079624):0.187677,Zymoseptoria_tritici_Mycgr3P31557:0.269665);

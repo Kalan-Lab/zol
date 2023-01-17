@@ -14,6 +14,8 @@ import numpy as np
 import gzip
 import pathlib
 import copy
+import itertools
+import multiprocessing
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
@@ -508,6 +510,104 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 	except:
 		return False
 
+def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject, cpus=1,
+				   locus_tag_length=3, use_pyrodigal=False, avoid_locus_tags=set([])):
+	"""
+	Void function to run Prodigal based gene-calling and annotations.
+	:param sample_genomes: dictionary with keys as sample names and values as genomic assembly paths.
+	:param prodigal_outdir: full path to directory where Prokka results will be written.
+	:param prodigal_proteomes: full path to directory where Prokka generated predicted-proteome FASTA files will be moved after prodigal has run.
+	:param prodigal_genbanks: full path to directory where Prokka generated Genbank (featuring predicted CDS) files will be moved after prodigal has run.
+	:param taxa: name of the taxonomic clade of interest.
+	:param logObject: python logging object handler.
+	:param cpus: number of cpus to use in multiprocessing Prokka cmds.
+	:param locus_tag_length: length of locus tags to generate using unique character combinations.
+	Note length of locus tag must be 3 beause this is substituting for base lsaBGC analysis!!
+	"""
+
+	prodigal_cmds = []
+	try:
+		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+		possible_locustags = sorted(list(
+			set([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]).difference(
+				avoid_locus_tags)))
+		for i, sample in enumerate(sample_genomes):
+			sample_assembly = sample_genomes[sample]
+			sample_locus_tag = ''.join(list(possible_locustags[i]))
+
+			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample,
+							'-l', sample_locus_tag, '-o', prodigal_outdir]
+			if use_pyrodigal:
+				prodigal_cmd += ['-py']
+			prodigal_cmds.append(prodigal_cmd + [logObject])
+
+		p = multiprocessing.Pool(cpus)
+		p.map(multiProcess, prodigal_cmds)
+		p.close()
+
+		for sample in sample_genomes:
+			try:
+				assert (os.path.isfile(prodigal_outdir + sample + '.faa') and os.path.isfile(
+					prodigal_outdir + sample + '.gbk'))
+				os.system('mv %s %s' % (prodigal_outdir + sample + '.gbk', prodigal_genbanks))
+				os.system('mv %s %s' % (prodigal_outdir + sample + '.faa', prodigal_proteomes))
+			except:
+				raise RuntimeError(
+					"Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+	except Exception as e:
+		logObject.error(
+			"Problem with creating commands for running prodigal via script runProdigalAndMakeProperGenbank.py. Exiting now ...")
+		logObject.error(traceback.format_exc())
+		raise RuntimeError(traceback.format_exc())
+
+def parseSampleGenomes(genome_listing_file, logObject):
+	try:
+		sample_genomes = {}
+		all_genbanks = True
+		all_fastas = True
+		at_least_one_genbank = False
+		at_least_one_fasta = False
+		with open(genome_listing_file) as oglf:
+			for line in oglf:
+				line = line.strip()
+				ls = line.split('\t')
+				sample, genome_file = ls
+				try:
+					assert (os.path.isfile(genome_file))
+				except:
+					logObject.warning(
+						"Problem with finding genome file %s for sample %s, skipping" % (genome_file, sample))
+					continue
+				if sample in sample_genomes:
+					logObject.warning(
+						'Skipping genome %s for sample %s because a genome file was already provided for this sample' % (
+						genome_file, sample))
+					continue
+
+				sample_genomes[sample] = genome_file
+				if not is_fasta(genome_file):
+					all_fastas = False
+				else:
+					at_least_one_fasta = True
+				if not is_genbank(genome_file):
+					all_genbanks = False
+				else:
+					at_least_one_genbank = True
+
+		format_prediction = 'mixed'
+		if all_genbanks and at_least_one_genbank:
+			format_prediction = 'genbank'
+		elif all_fastas and at_least_one_fasta:
+			format_prediction = 'fasta'
+
+		return ([sample_genomes, format_prediction])
+
+	except Exception as e:
+		logObject.error("Problem with creating commands for running Prodigal. Exiting now ...")
+		logObject.error(traceback.format_exc())
+		raise RuntimeError(traceback.format_exc())
+
+
 def parseGbk(gbk_path, prefix, logObject):
 	try:
 		gc_gene_locations = {}
@@ -553,7 +653,7 @@ def gatherAnnotationFromDictForHomoloGroup(hg, dict):
 	try:
 		annot_set_filt = set([x for x in dict[hg][0] if x.strip() != ''])
 		assert(len(annot_set_filt) > 0)
-		return('; '.join(annot_set_filt) + ' (' + str(dict[hg][1]) + ')')
+		return('; '.join(annot_set_filt) + ' (' + str(max(dict[hg][1])) + ')')
 	except:
 		return('NA')
 

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|1477314|CE477314_3772:0.568084,Puccinia_graminis_EFP78810:0.564396,Zymoseptoria_tritici_Mycgr3P93689:0.680644);

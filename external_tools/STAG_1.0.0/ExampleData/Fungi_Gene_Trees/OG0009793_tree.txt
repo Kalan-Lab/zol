@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin05g06850.2:0.00632576,Botrytis_cinerea_Bcin05g06850.1:2.1432e-06,Fusarium_oxysporum_FOXG_09131P0:1.14832);

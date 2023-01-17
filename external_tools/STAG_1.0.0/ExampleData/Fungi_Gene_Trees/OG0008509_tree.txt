@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_09972T0:0.461649,(Phaeosphaeria_nodorum_SNOT_10243:0.122027,Pyrenophora_triticirepentis_EDU48483:0.201269):0.736686,(Phaeosphaeria_nodorum_SNOT_15100:0.160619,Pyrenophora_triticirepentis_EDU46242:0.169829):0.319151);

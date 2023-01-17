@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW43016:0.474897,Phycomyces_blakesleeanus_jgi|Phybl2|76205|Phybl1.estExt_fgeneshPB_pg.C_20826:0.436011,Puccinia_graminis_EFP75527:0.615246);

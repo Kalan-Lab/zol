@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46397:1.18449,Cryptococcus_neoformans_AAW46250:0.865878,Cryptococcus_neoformans_AAW46247:0.698087);

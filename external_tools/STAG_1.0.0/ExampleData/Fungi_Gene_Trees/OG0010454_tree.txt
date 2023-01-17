@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|3029352|gm1.7569_g:1.18706,Pyrenophora_triticirepentis_EDU51021:1.07997,Pyrenophora_triticirepentis_EDU48896:0.664825);

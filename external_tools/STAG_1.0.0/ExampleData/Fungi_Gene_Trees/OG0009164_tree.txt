@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|295792|Lacbi1.estExt_fgenesh2_pg.C_600051:0.950796,(Laccaria_bicolor_jgi|Lacbi2|666251|estExt_fgenesh1_pm.C_LG_1_t40159:0.583475,Ustilago_maydis_KIS68197:1.20029):0.182555,Phanerochaete_chrysosporium_jgi|Phchr2|2987418|fgenesh1_kg.13_#_498_#_Locus11725v1rpkm5.34:0.567525);

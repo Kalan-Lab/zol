@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin13g03940.1:0.52459,(Magnaporthe_oryzae_MGG_11894T0:0.786948,Zymoseptoria_tritici_Mycgr3P97493:0.47214):0.222193,Sporobolomyces_linderae_jgi|Spoli1|185412|fgenesh1_kg.1_#_1292_#_comp7518_c0_seq1:0.928212);

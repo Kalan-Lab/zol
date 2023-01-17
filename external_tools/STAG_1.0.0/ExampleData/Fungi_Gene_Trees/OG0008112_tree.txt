@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66143:1.07515,Botrytis_cinerea_Bcin03g04820.1:0.590877,(Laccaria_bicolor_jgi|Lacbi2|304787|Lacbi1.eu2.Lbscf0029g00710:0.511443,(Laccaria_bicolor_jgi|Lacbi2|304789|Lacbi1.eu2.Lbscf0029g00730:0.25023,Phanerochaete_chrysosporium_jgi|Phchr2|2984109|fgenesh1_kg.9_#_348_#_Locus10914v2rpkm0.26_PRE:1.10895):0.222071):0.73837);

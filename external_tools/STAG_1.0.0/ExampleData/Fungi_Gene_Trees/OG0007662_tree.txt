@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF81099:1.9538,((Botrytis_cinerea_Bcin02g01860.1:0.378255,(Magnaporthe_oryzae_MGG_15040T0:0.183928,Phaeosphaeria_nodorum_SNOT_15561:0.275781):0.126926):0.134446,Zymoseptoria_tritici_Mycgr3P38151:0.45058):0.237797,Ustilago_maydis_KIS65755:0.718636);

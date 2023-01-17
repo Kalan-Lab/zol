@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW44475:0.824374,Rhizoclosmatium_globosum_jgi|Rhihy1|847969|estExt_Genemark1.C_110137:1.41786,Sporobolomyces_linderae_jgi|Spoli1|184670|fgenesh1_kg.1_#_550_#_comp10713_c0_seq1:0.974755);

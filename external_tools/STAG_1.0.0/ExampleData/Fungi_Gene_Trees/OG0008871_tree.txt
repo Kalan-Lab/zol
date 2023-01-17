@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF78565:0,(Rhizoclosmatium_globosum_jgi|Rhihy1|738613|fgenesh1_pg.25_#_40:0.465715,Schizosaccharomyces_pombe_SPBC8D2.23.1_pep:0.999576):0.567383,Batrachochytrium_dendrobatidis_EGF78762:0);

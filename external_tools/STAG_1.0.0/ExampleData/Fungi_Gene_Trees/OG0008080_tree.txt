@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE57524:0.539784,(Magnaporthe_oryzae_MGG_05825T0:0.601748,(Phaeosphaeria_nodorum_SNOT_02562:0.683243,Pyrenophora_triticirepentis_EDU47345:0.711398):1.09306):0.07837,Verticillium_dahliae_EGY16068:0.47216);

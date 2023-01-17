@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin13g03780.1:1.31601,Phycomyces_blakesleeanus_jgi|Phybl2|188782|estExt_fgenesh1_pg.C_260025:0.513266,(Rhizopus_delemar_EIE77486.1:0.0581898,Rhizopus_delemar_EIE92308.1:0.118487):0.532461);

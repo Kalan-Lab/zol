@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin15g02680.1:0.372247,(Phaeosphaeria_nodorum_SNOT_05859:0.510719,Verticillium_dahliae_EGY15902:0.413014):0.385449,Zymoseptoria_tritici_Mycgr3P50913:0.731354);

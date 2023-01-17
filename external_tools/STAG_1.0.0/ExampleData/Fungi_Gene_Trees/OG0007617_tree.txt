@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF77488:0.925213,(Batrachochytrium_dendrobatidis_EGF77444:1.06277,Saccharomyces_cerevisiae_YGL122C:0.914999):0.267758,(Phycomyces_blakesleeanus_jgi|Phybl2|186752|estExt_fgenesh1_pg.C_90176:0.446693,(Rhizopus_delemar_EIE83939.1:0.291885,Rhizopus_delemar_EIE90465.1:0.268116):0.315876):0.551991);

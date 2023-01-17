@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF84449:0.307744,Phaeosphaeria_nodorum_SNOT_05539:1.68221,Rhizoclosmatium_globosum_jgi|Rhihy1|850249|estExt_Genemark1.C_210051:0.388616);

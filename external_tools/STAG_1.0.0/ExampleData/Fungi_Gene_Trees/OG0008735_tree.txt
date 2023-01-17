@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64698:0.505767,(Botrytis_cinerea_Bcin09g04020.1:0.331407,Verticillium_dahliae_EGY19701:0.304631):0.181454,Phanerochaete_chrysosporium_jgi|Phchr2|2956839|estExt_Genewise1Plus.C_9_t20401:1.41607);

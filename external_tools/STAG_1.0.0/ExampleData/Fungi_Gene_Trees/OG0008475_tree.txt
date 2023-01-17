@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|301065|Lacbi1.eu2.Lbscf0001g05140:0.334149,Laccaria_bicolor_jgi|Lacbi2|294752|Lacbi1.estExt_fgenesh2_pg.C_200155:0.502025,(Phanerochaete_chrysosporium_jgi|Phchr2|1503523|CE503523_11214:0.273081,(Puccinia_graminis_EFP86671:0.517608,Ustilago_maydis_KIS72303:0.72666):0.307867):0.121461);

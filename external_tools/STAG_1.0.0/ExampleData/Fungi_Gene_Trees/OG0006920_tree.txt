@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_08702P0:0.23368,(((Fusarium_oxysporum_FOXG_11487P0:0.193301,Verticillium_dahliae_EGY14501:0.125223):0.147348,Magnaporthe_oryzae_MGG_05295T0:0.138622):0.550533,(Puccinia_graminis_EFP91901:0.486107,(Puccinia_graminis_EFP77815:2.0819e-06,Puccinia_graminis_EHS63100:0.549948):0.203065):0.833315):0.742468,Verticillium_dahliae_EGY21331:0.433465);

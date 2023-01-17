@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62339:0.799472,Botrytis_cinerea_Bcin06g06430.1:0.457651,(((Fusarium_oxysporum_FOXG_01187P0:0.672891,Verticillium_dahliae_EGY15675:0.478324):0.108177,Magnaporthe_oryzae_MGG_15886T0:0.361837):0.480836,Laccaria_bicolor_jgi|Lacbi2|695747|fgenesh3_kg.11_#_701_#_Locus_1107_Transcript_1/6_Confidence_0.400:0.456274):0.06999);

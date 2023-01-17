@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_12190P0:0.884434,(Laccaria_bicolor_jgi|Lacbi2|466396|fgenesh1_pg.LG_8_#_376:0.393008,Phanerochaete_chrysosporium_jgi|Phchr2|2936620|estExt_Genewise1.C_11_t20157:0.301668):0.127316,Phanerochaete_chrysosporium_jgi|Phchr2|1317484|CE317484_172210:0.317045);

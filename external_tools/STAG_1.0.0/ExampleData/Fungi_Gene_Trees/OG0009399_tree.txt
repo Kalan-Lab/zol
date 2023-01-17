@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP92537:0.00303059,Puccinia_graminis_EFP91745:0.0181694,(Puccinia_graminis_EFP84788:0.272407,Ustilago_maydis_KIS66332:1.57385):0.14545);

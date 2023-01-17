@@ -416,9 +416,9 @@ def findOrthologs():
 					subclust_id += 1
 		result_handle.close()
 
-		os.system('rm %s %s' % (alignment_result_file, cluster_result_file))
-		shutil.rmtree(forth_res_dir)
-		shutil.rmtree(align_res_dir)
+		#os.system('rm %s %s' % (alignment_result_file, cluster_result_file))
+		#shutil.rmtree(forth_res_dir)
+		#shutil.rmtree(align_res_dir)
 
 		os.system('touch %s' % step4_checkpoint_file)
 

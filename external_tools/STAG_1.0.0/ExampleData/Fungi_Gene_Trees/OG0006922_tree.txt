@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07156P0:0.00254128,(((Fusarium_oxysporum_FOXG_06783P0:0,Fusarium_oxysporum_FOXG_16370P0:0):0,Fusarium_oxysporum_FOXG_06477P0:0):0,Fusarium_oxysporum_FOXG_07345P0:0):0.017122,((Phaeosphaeria_nodorum_SNOT_07023:0.226905,Pyrenophora_triticirepentis_EDU40359:0.17854):0.361834,Rhizoclosmatium_globosum_jgi|Rhihy1|788850|gm1.10034_g:1.65364):0.972561);

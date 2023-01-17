@@ -14,10 +14,13 @@ import random
 import xlsxwriter
 import pandas as pd
 import traceback
+import decimal
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 stag_prog = zol_main_directory + 'external_tools/STAG_1.0.0/stag'
 treemmer_prog = zol_main_directory + 'external_tools/Treemmer_v0.3.py'
+plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
+
 def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject):
 	try:
 		g_to_hg = {}
@@ -157,6 +160,7 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.stderr.write('Issues with creating profile HMMs and consensus sequences.\n')
 		logObject.error('Issues with creating profile HMMs and consensus sequences.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, min_annotation_evalue=1e-10):
@@ -195,14 +199,14 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 			db_name = rf.split('.txt')[0]
 			annot_info_file = name_to_info_file[db_name]
 
-			id_to_description = {}
+			id_to_description = defaultdict(lambda: 'NA')
 			with open(annot_info_file) as oaif:
 				for line in oaif:
 					line = line.strip()
 					ls = line.split('\t')
 					id_to_description[ls[0]] = ls[1]
 
-			best_hits_by_evalue = defaultdict(lambda: [[], min_annotation_evalue])
+			best_hits_by_evalue = defaultdict(lambda: [[], [], 0.0])
 			if db_name in hmm_based_annotations:
 				# parse HMM based results from HMMER3
 				with open(annotation_dir + rf) as oarf:
@@ -212,12 +216,15 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 						ls = line.split()
 						query = ls[2]
 						hit = ls[0]
-						evalue = float(ls[4])
+						evalue = decimal.Decimal(ls[4])
+						score = float(ls[5])
+						if evalue > min_annotation_evalue: continue
 						if db_name != 'pfam':
-							if evalue < best_hits_by_evalue[query][1]:
-								best_hits_by_evalue[query] = [[hit], evalue]
-							elif evalue == best_hits_by_evalue[query][1]:
+							if score > best_hits_by_evalue[query][2]:
+								best_hits_by_evalue[query] = [[hit], [evalue], score]
+							elif score == best_hits_by_evalue[query][2]:
 								best_hits_by_evalue[query][0].append(hit)
+								best_hits_by_evalue[query][1].append(evalue)
 						else:
 							if evalue < min_annotation_evalue:
 								best_hits_by_evalue[query][0].append(hit)
@@ -229,20 +236,25 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 						ls = line.split('\t')
 						query = ls[0]
 						hit = ls[1]
-						evalue = float(ls[-2])
-						if evalue < best_hits_by_evalue[query][1]:
-							best_hits_by_evalue[query] = [[hit], evalue]
-						elif evalue == best_hits_by_evalue[query][1]:
+						bitscore = float(ls[11])
+						evalue = decimal.Decimal(ls[10])
+						if evalue > min_annotation_evalue: continue
+						if bitscore > best_hits_by_evalue[query][2]:
+							best_hits_by_evalue[query] = [[hit], [evalue], bitscore]
+						elif bitscore == best_hits_by_evalue[query][2]:
 							best_hits_by_evalue[query][0].append(hit)
+							best_hits_by_evalue[query][1].append(evalue)
+
 			with open(protein_faa) as opf:
 				for rec in SeqIO.parse(opf, 'fasta'):
 					if rec.id in best_hits_by_evalue:
 						annotations[db_name][rec.id] = [[id_to_description[x] for x in best_hits_by_evalue[rec.id][0]], best_hits_by_evalue[rec.id][1]]
 		return(default_to_regular(annotations))
 	except Exception as e:
-		sys.stderr.write('Issues with creating profile HMMs and consensus sequences.\n')
-		logObject.error('Issues with creating profile HMMs and consensus sequences.')
+		sys.stderr.write('Issues with annotating consensus sequences.\n')
+		logObject.error('Issues with annotating consensus sequences.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def default_to_regular(d):
@@ -554,7 +566,7 @@ def individualHyphyRun(inputs):
 				sys.exit(1)
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
-			print(' '.join(fubar_cmd))
+			#print(' '.join(fubar_cmd))
 			try:
 				subprocess.call(' '.join(fubar_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -797,7 +809,7 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 			hg_scs = hg_stats['hg_single_copy_status'][hg]
 			hg_cons = hg_stats['hg_prop_samples'][hg]
 			hg_mlen = hg_stats['hg_median_lengths'][hg]
-			hg_lts = '; '.join(hg_stats['hg_locus_tags'][hg])
+			hg_lts = '; '.join(sorted(hg_stats['hg_locus_tags'][hg]))
 			hg_ordr = hg_tup[1][0]
 			hg_dire = hg_tup[1][1]
 			hg_tajd = util.gatherValueFromDictForHomologGroup(hg, evo_stats['tajimas_d'])
@@ -846,25 +858,29 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
-def runTreemmer(gene_cluster_tree, max_for_visualization, logObject):
+def runTreemmer(genbanks, gene_cluster_tree, max_for_visualization, logObject):
 	representative_genbanks = set([])
 	try:
-		retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
-		treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
-		try:
-			subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			assert (os.path.isfile(retain_listing_file))
-			logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
-		except Exception as e:
-			logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
-			sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
-			logObject.error(e)
-			sys.exit(1)
-		with open(retain_listing_file) as orlf:
-			for line in orlf:
-				line = line.strip()
-				representative_genbanks.add(line)
+		if len(genbanks) <= max_for_visualization:
+			for gbk in genbanks:
+				representative_genbanks.add('.'.join(gbk.split('/')[-1].split('.')[:-1]))
+		else:
+			retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
+			treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
+			try:
+				subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+								executable='/bin/bash')
+				assert (os.path.isfile(retain_listing_file))
+				logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
+			except Exception as e:
+				logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
+				sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
+				logObject.error(e)
+				sys.exit(1)
+			with open(retain_listing_file) as orlf:
+				for line in orlf:
+					line = line.strip()
+					representative_genbanks.add(line)
 	except Exception as e:
 		sys.stderr.write('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.\n')
 		logObject.error('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.')
@@ -872,31 +888,98 @@ def runTreemmer(gene_cluster_tree, max_for_visualization, logObject):
 		sys.exit(1)
 	return(representative_genbanks)
 
+def plotHeatmap(hg_stats, representative_genbanks, plot_result_pdf, work_dir, logObject, height=7, width=10, full_genbank_labels=False):
+	try:
+		# create input tracks
+		ml_track_file = work_dir + 'HG_Median_Length_Info.txt'
+		hm_track_file = work_dir + 'HG_Heatmap_Info.txt'
+		ml_track_handle = open(ml_track_file, 'w')
+		hm_track_handle = open(hm_track_file, 'w')
+		ml_track_handle.write('og\tog_order\tmed_length\n')
+		hm_track_handle.write('og\tog_order\tgenbank\tog_presence\tcopy_count\n')
+		gn_lab_keys = set([])
+		gn_labs = set([])
+		for hg_tup in sorted(hg_stats['hg_order_scores'].items(), key=lambda e: e[1][0]):
+			hg = hg_tup[0]
+			hg_mlen = hg_stats['hg_median_lengths'][hg]
+			hg_lts = hg_stats['hg_locus_tags'][hg]
+			hg_ordr = hg_tup[1][0]
+			sample_copy_counts = defaultdict(int)
+			for lt in hg_lts:
+				gn = lt.split('|')[0]
+				if not gn in representative_genbanks: continue
+				sample_copy_counts[gn] += 1
+			if sum(sample_copy_counts.values()) == 0: continue
+			ml_track_handle.write(hg + '\t' + str(hg_ordr) + '\t' + str(float(hg_mlen)/1000.0) + '\n')
+			for gn in representative_genbanks:
+				pres = '0'
+				copy_count = ''
+				if sample_copy_counts[gn] > 0:
+					pres = '1'
+					if sample_copy_counts[gn] > 1:
+						copy_count = str(sample_copy_counts[gn])
+				gn_label = gn
+				if not full_genbank_labels:
+					gn_label = gn
+					if len(gn) >= 21:
+						gn_label = gn[:20]
+				gn_lab_keys.add(tuple([gn, gn_label]))
+				gn_labs.add(gn_label)
+				hm_track_handle.write(hg + '\t' + str(hg_ordr) + '\t' + gn_label + '\t' + pres + '\t' + str(copy_count) + '\n')
+		ml_track_handle.close()
+		hm_track_handle.close()
+
+		try:
+			assert(len(gn_labs) == len(gn_lab_keys))
+		except:
+			logObject.write('Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.')
+			sys.stderr.write('Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.\n')
+			sys.exit(1)
+
+		plot_cmd = ['Rscript', plot_prog, ml_track_file, hm_track_file, plot_result_pdf, str(height), str(width)]
+		try:
+			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(plot_result_pdf))
+			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running R based plotting: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based plotting: %s\n' % ' '.join(plot_cmd))
+			logObject.error(e)
+			sys.exit(1)
+	except Exception as e:
+		sys.stderr.write('Issues creating visualizations.\n')
+		logObject.error('Issues creating visualizations.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+
+#Clinker is great but I was having trouble with mapping proteins to homolog groups so switching back to R based
+#static graphics
 def runClinker(genbanks, hg_lts, representative_genbanks, fin_dir, work_dir, logObject):
 	try:
 		renamed_lts_dir = work_dir + 'GenBanks_LTs_Renamed/'
+		util.setupReadyDirectory([renamed_lts_dir])
 		input_gbks = []
 		for gbk in genbanks:
 			gbk_name = '.'.join(gbk.split('/')[-1].split('.')[:-1])
 			if not gbk_name in representative_genbanks: continue
-			updated_gbk = renamed_lts_dir + gbk
+			updated_gbk = renamed_lts_dir + gbk.split('/')[-1]
 			ug_handle = open(updated_gbk, 'w')
 			with open(gbk) as ogbk:
-				for rec in SeqIO.parse(ogbk, 'fasta'):
+				for rec in SeqIO.parse(ogbk, 'genbank'):
 					for feature in rec.features:
 						if not feature.type == 'CDS': continue
 						lt = feature.qualifiers.get('locus_tag')[0]
-						feature.qualifiers.get('locus_tag')[0] = gbk_name + '|' + lt
+						feature.qualifiers['locus_tag'] = gbk_name + '|' + lt
 					SeqIO.write(rec, ug_handle, 'genbank')
 			ug_handle.close()
 			input_gbks.append(updated_gbk)
-
 		hg_mapping_file = work_dir + 'Locus_Tag_to_Homolog_Group_Mapping.csv'
 		hmf_handle = open(hg_mapping_file, 'w')
 		for hg in hg_lts:
 			for lt in hg_lts[hg]:
 				if lt.split('|')[0] in representative_genbanks:
-					hmf_handle.write(lt + ',' + hg + '\n')
+					hmf_handle.write(lt.split('|')[-1] + ',' + hg + '\n')
 		hmf_handle.close()
 
 		result_html = fin_dir + 'clinker_Visual_of_Representative_Gene_Clusters.html'

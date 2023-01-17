@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55818:0.537875,(((Fusarium_oxysporum_FOXG_09666P0:0.292629,Fusarium_oxysporum_FOXG_02725P0:0.312458):0.231543,Phaeosphaeria_nodorum_SNOT_10897:0.243769):0.670842,Rhizoclosmatium_globosum_jgi|Rhihy1|785179|gm1.6363_g:1.08714):0.194865,Laccaria_bicolor_jgi|Lacbi2|701857|estExt_fgenesh3_kg.C_LG_2_t20090:0.952313);

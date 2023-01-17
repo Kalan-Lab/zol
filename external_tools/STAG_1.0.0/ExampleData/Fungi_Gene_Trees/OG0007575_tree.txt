@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65413:0.758398,(((Phaeosphaeria_nodorum_SNOT_08308:0.749247,Pyrenophora_triticirepentis_EDU51346:0.420283):0.366614,Rhizoclosmatium_globosum_jgi|Rhihy1|722477|fgenesh1_kg.59_#_58_#_Locus18360v1rpkm3.06:1.24442):0.114871,Zymoseptoria_tritici_Mycgr3P108679:1.34072):0.269476,Verticillium_dahliae_EGY16420:1.18674);

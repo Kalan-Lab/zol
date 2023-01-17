@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63245:0.676401,((Aspergillus_oryzae_BAE56896:0.850649,(Fusarium_oxysporum_FOXG_05184P0:0.657531,Ustilago_maydis_KIS66742:1.52134):0.139498):0.181603,Puccinia_graminis_EFP80361:1.43154):0.102952,((Rhizopus_delemar_EIE78197.1:0.344226,Rhizopus_delemar_EIE87020.1:0.302296):0.317488,Rhizopus_delemar_EIE84678.1:0.779727):0.775956);

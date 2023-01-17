@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP86154:0.00883035,Puccinia_graminis_EFP84323:0.00585336,Schizosaccharomyces_pombe_SPAC4G9.11c.1_pep:1.77863);

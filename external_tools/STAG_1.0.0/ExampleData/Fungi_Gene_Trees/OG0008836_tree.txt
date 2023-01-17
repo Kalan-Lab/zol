@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79638:0.70884,(Phycomyces_blakesleeanus_jgi|Phybl2|63078|Phybl1.fgeneshPB_pg.6__299:0.221795,Rhizopus_delemar_EIE77769.1:0.342814):1.06667,Rhizoclosmatium_globosum_jgi|Rhihy1|262220|CE262219_3828:0.826979);

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2921913|estExt_Genewise1.C_1_t30184:0.474768,Phanerochaete_chrysosporium_jgi|Phchr2|2969277|fgenesh1_pg.8_#_130:0.346595,Ustilago_maydis_KIS66522:1.65981);

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2960803|estExt_Genewise1Plus.C_13_t20354:0.783702,(Rhizoclosmatium_globosum_jgi|Rhihy1|857249|estExt_Genemark1.C_810034:1.03471,Saccharomyces_cerevisiae_YCR097W:0.859139):0.186192,Ustilago_maydis_KIS72160:1.4088);

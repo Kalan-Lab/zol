@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU75198:1.25999,Pyrenophora_triticirepentis_EDU44293:2.1568e-06,(Pyrenophora_triticirepentis_EDU47330:0.00483461,Pyrenophora_triticirepentis_EDU40571:2.18e-06):0.087553);

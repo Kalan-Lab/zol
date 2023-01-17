@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|158715|fgenesh1_kg.9_#_98_#_1789_1_CBNA_CBNB_CBNC_CBNF:0.327375,Puccinia_graminis_EFP84060:1.58577,Rhizopus_delemar_EIE80145.1:0.408828);

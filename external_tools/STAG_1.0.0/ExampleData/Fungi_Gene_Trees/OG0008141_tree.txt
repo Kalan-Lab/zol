@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60262:0.46979,((Botrytis_cinerea_Bcin16g02270.1:0.814781,Sporobolomyces_linderae_jgi|Spoli1|196187|gm1.1083_g:0.910253):0.120214,Laccaria_bicolor_jgi|Lacbi2|610737|e_gw1.11.1714.1:0.698357):0.367829,Verticillium_dahliae_EGY23837:0.598336);

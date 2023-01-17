@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15851P0:1.02304,Laccaria_bicolor_jgi|Lacbi2|636425|estExt_Genewise1Plus.C_12_t10288:1.04706,((Phaeosphaeria_nodorum_SNOT_10118:0.626201,Pyrenophora_triticirepentis_EDU47245:0.653768):0.821327,(Phaeosphaeria_nodorum_SNOT_14768:0.696446,Zymoseptoria_tritici_Mycgr3P45652:0.588883):0.202793):0.063712);

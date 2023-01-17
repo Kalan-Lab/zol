@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_10354P0:0.614277,(Fusarium_oxysporum_FOXG_14908P0:0.858206,Yarrowia_lipolytica_CAG80045:0.850151):0.095541,Phanerochaete_chrysosporium_jgi|Phchr2|2965777|fgenesh1_pg.2_#_209:1.35881);

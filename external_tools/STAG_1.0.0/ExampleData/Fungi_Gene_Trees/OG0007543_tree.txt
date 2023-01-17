@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58422:0.392357,((Botrytis_cinerea_Bcin08g01850.1:0.419438,(Magnaporthe_oryzae_MGG_03847T0:0.333411,Zymoseptoria_tritici_Mycgr3P42544:0.429431):0.122038):0.082128,Cryptococcus_neoformans_AAW43744:0.412291):0.207783,Schizosaccharomyces_pombe_SPAC5H10.01.1_pep:0.643436);

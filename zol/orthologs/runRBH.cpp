@@ -89,13 +89,14 @@ int main (int argc, char* argv[]) {
         double coverage_cutoff, identity_cutoff;
         sscanf(argv[2],"%lf",&identity_cutoff);
         sscanf(argv[3],"%lf",&coverage_cutoff);
+        //string focal_sample = argv[4];
 
         /*
         Parse out all hits to perform gene length normalization.
         */
         ifstream input_file;
         input_file.open (argv[1]);
-        string q, h;
+        string query, hit;
         double bitscore, identity, coverage;
         map<string, double> reflexive_bitscores;
         if ( input_file.is_open() ) {
@@ -106,18 +107,18 @@ int main (int argc, char* argv[]) {
                     v = split (line, delim);
                     for (auto i : v) {
                         if (split_counter == 0) {
-                            q = i;
+                            query = i;
                         }
                         else if (split_counter == 1) {
-                            h = i;
+                            hit = i;
                         }
                         else if (split_counter == 11) {
                             bitscore = stod(i);
                         }
                         split_counter++;
                     }
-                    if (q.compare(h) == 0) {
-                        reflexive_bitscores[q] = bitscore;
+                    if (query.compare(hit) == 0) {
+                        reflexive_bitscores[query] = bitscore;
                     }
                 }
             }
@@ -133,7 +134,7 @@ int main (int argc, char* argv[]) {
         map<pair<string, string>, set<string>> query_max_hits;
         set<pair<string, string>>::iterator align_iter;
         pair<string, string> align, query_hit_sample_pair, qshs_pair;
-        string query, hit, query_sample, hit_sample;
+        string query_sample, hit_sample;
         set<string> all_samples;
         set<pair<string, string>> all_queries;
         double normalized_bitscore, reflexive_bitscore_factor;
@@ -162,7 +163,6 @@ int main (int argc, char* argv[]) {
                         split_counter++;
                     }
                     if (query.compare(hit) != 0 && identity >= identity_cutoff && coverage >= coverage_cutoff) {
-
                         query_sample = query.substr(0, query.find('|'));
                         hit_sample = hit.substr(0, hit.find('|'));
                         reflexive_bitscore_factor = reflexive_bitscores[query];
@@ -170,11 +170,10 @@ int main (int argc, char* argv[]) {
                         normalized_bitscore = (bitscore)/(reflexive_bitscore_factor);
 
                         /*
+                        cout << query << endl;
                         cout << hit_sample << endl;
                         cout << query_sample << endl;
                         cout << reflexive_bitscore_factor << endl;
-                        cout << phylo_normalization_factor << endl;
-                        cout << qh_bitscore_prime << endl;
                         cout << normalized_bitscore << endl;
                         cout << "--------------------" << endl;
                         */

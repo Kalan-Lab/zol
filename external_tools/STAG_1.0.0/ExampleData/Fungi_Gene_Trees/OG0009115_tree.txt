@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07752P0:0.309063,(Rhizopus_delemar_EIE77759.1:1.77994,Zymoseptoria_tritici_Mycgr3P97180:0.57087):0.277551,Verticillium_dahliae_EGY17168:0.339198);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62967:0.781886,Botrytis_cinerea_Bcin08g06430.1:1.33376,Verticillium_dahliae_EGY19434:1.30613);

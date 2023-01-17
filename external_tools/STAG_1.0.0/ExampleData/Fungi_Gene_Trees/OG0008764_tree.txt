@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59830:0.308093,Botrytis_cinerea_Bcin07g06950.1:0.277137,(Schizosaccharomyces_pombe_SPBC800.11.1_pep:1.10923,Zymoseptoria_tritici_Mycgr3P47097:0.300541):0.14655);

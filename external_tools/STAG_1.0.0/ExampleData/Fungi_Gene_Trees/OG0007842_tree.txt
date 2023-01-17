@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_17314P0:0,((Fusarium_oxysporum_FOXG_14669P0:0.7396,Zymoseptoria_tritici_Mycgr3P95227:1.26189):0.3607,(Fusarium_oxysporum_FOXG_15699P0:0.281856,Zymoseptoria_tritici_Mycgr3P69084:1.7566):0.102383):0.10469,Fusarium_oxysporum_FOXG_17103P0:0);

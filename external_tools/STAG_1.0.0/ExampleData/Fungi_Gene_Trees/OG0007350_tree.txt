@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_14282P0:1.13034,(Zymoseptoria_tritici_Mycgr3P19346:0.284959,(Zymoseptoria_tritici_Mycgr3P44244:0.514073,(Zymoseptoria_tritici_Mycgr3P40631:2.6401e-06,Zymoseptoria_tritici_Mycgr3P51748:0.152917):0.305012):0.168568):0.045893,(Zymoseptoria_tritici_Mycgr3P97994:0.526714,Zymoseptoria_tritici_Mycgr3P97860:0.100878):0.218926);

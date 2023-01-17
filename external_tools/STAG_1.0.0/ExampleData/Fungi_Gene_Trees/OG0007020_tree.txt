@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63892:0.53214,((Aspergillus_oryzae_BAE55498:0.359825,Aspergillus_oryzae_BAE65993:0.403454):0.121858,(Aspergillus_oryzae_BAE65759:1.56372,(Aspergillus_oryzae_BAE58690:1.14433,Blumeria_graminis_CCU83054:0.540536):0.343705):0.393705):0.196756,Aspergillus_oryzae_BAE62704:0.455842);

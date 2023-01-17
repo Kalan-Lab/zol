@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW47207:0.199996,Phanerochaete_chrysosporium_jgi|Phchr2|3029739|gm1.7956_g:0.928059,(Sporobolomyces_linderae_jgi|Spoli1|195950|gm1.846_g:2.9932e-06,Sporobolomyces_linderae_jgi|Spoli1|195962|gm1.858_g:0.0389943):0.554534);

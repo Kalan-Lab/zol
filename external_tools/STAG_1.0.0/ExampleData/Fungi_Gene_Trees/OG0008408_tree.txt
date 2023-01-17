@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11942P0:1.39168,Saccharomyces_cerevisiae_YKL222C:0.866472,(Saccharomyces_cerevisiae_YLR266C:1.07189,(Saccharomyces_cerevisiae_YOR172W:0.332296,Saccharomyces_cerevisiae_YOR162C:0.687798):0.449246):0.133379);

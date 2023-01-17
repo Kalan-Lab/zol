@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15484P0:0.553616,Rhizoclosmatium_globosum_jgi|Rhihy1|717570|fgenesh1_kg.25_#_63_#_Locus13441v1rpkm9.38:1.36025,Zymoseptoria_tritici_Mycgr3P74399:0.608069);

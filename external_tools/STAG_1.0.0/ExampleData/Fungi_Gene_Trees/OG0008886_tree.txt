@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF81224:0.647822,(Phycomyces_blakesleeanus_jgi|Phybl2|144652|Genemark1.6843_g:1.03732,Yarrowia_lipolytica_CAG80820:1.0595):0.295202,Rhizoclosmatium_globosum_jgi|Rhihy1|853744|estExt_Genemark1.C_420016:0.87343);

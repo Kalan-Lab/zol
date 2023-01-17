@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76903:1.15894,((Cryptococcus_neoformans_AAW41521:0.98849,Ustilago_maydis_KIS71329:0.896995):0.087271,(Laccaria_bicolor_jgi|Lacbi2|297312|Lacbi1.eu2.Lbscf0011g04690:0.446579,Phanerochaete_chrysosporium_jgi|Phchr2|3004388|fgenesh1_pm.7_#_88:0.526579):0.240225):0.296457,Sporobolomyces_linderae_jgi|Spoli1|60460|CE60459_2259:0.60787);

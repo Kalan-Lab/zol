@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|627440|estExt_Genewise1Plus.C_LG_3_t120118:0.98481,(Magnaporthe_oryzae_MGG_02647T0:0.145884,((Phaeosphaeria_nodorum_SNOT_10026:0.172026,Pyrenophora_triticirepentis_EDU47400:0.321484):0.150504,Verticillium_dahliae_EGY23092:0.172958):0.094195):0.564372,(Verticillium_dahliae_EGY15382:0.48308,Verticillium_dahliae_EGY23684:0.899581):0.353508);

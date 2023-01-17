@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56095:0.697587,(Aspergillus_oryzae_BAE66050:0.800924,Phanerochaete_chrysosporium_jgi|Phchr2|2986944|fgenesh1_kg.13_#_24_#_Locus24143v2rpkm0.21:0.706897):0.854636,(Fusarium_oxysporum_FOXG_16460P0:0.261142,Fusarium_oxysporum_FOXG_04545P0:0.274799):0.276237);

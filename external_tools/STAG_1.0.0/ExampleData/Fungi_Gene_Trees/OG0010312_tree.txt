@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_12049T0:0.66725,Magnaporthe_oryzae_MGG_07623T0:0.803909,Zymoseptoria_tritici_Mycgr3P19570:0.536108);

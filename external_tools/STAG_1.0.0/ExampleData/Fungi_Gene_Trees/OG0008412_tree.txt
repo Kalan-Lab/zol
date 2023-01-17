@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_09905P0:0.295209,((Sporobolomyces_linderae_jgi|Spoli1|124739|CE124738_1026:0.66513,Yarrowia_lipolytica_CAR64340:0.427031):0.517448,Zymoseptoria_tritici_Mycgr3P32685:0.418334):0.134212,Verticillium_dahliae_EGY21682:0.371228);

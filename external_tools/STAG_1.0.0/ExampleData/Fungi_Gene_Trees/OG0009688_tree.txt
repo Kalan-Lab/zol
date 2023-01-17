@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF80278:0.698969,Rhizoclosmatium_globosum_jgi|Rhihy1|695843|estExt_Genewise1Plus.C_120001:0.609854,Ustilago_maydis_KIS66290:1.02851);

@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF80522:1.99897,((Phycomyces_blakesleeanus_jgi|Phybl2|169619|fgenesh1_pg.13_#_241:0.338509,Rhizopus_delemar_EIE84562.1:0.498183):0.454994,(Puccinia_graminis_EFP85103:0.733297,(Puccinia_graminis_EFP85162:0.00917539,Puccinia_graminis_EFP93955:0.0196656):0.350119):0.477429):0.076079,Sporobolomyces_linderae_jgi|Spoli1|8174|CE8173_2105:0.632056);

@@ -1,0 +1,1 @@
+(Yarrowia_lipolytica_CAG81948:0.370988,Yarrowia_lipolytica_CAG81928:0.309889,Yarrowia_lipolytica_CAG80400:0.316163);

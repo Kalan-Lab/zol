@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin15g01700.1:0.29226,Fusarium_oxysporum_FOXG_17009P0:0.329287,Sporobolomyces_linderae_jgi|Spoli1|223512|estExt_fgenesh1_pm.C_100015:0.694151);

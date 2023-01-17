@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79957:0.67506,(Batrachochytrium_dendrobatidis_EGF79000:0.665764,Rhizoclosmatium_globosum_jgi|Rhihy1|849752|estExt_Genemark1.C_190007:0.980912):0.700498,(Rhizopus_delemar_EIE85312.1:0.132444,Rhizopus_delemar_EIE88369.1:0.200288):0.723868);

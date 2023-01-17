@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU82141:0.248778,(Botrytis_cinerea_Bcin16g00870.1:0.279416,((Phaeosphaeria_nodorum_SNOT_02642:0.152904,Pyrenophora_triticirepentis_EDU41215:0.0905587):0.276423,Zymoseptoria_tritici_Mycgr3P80097:0.504637):0.15773):0.050025,((Magnaporthe_oryzae_MGG_06875T0:0.332497,Verticillium_dahliae_EGY23150:0.299569):0.388056,Yarrowia_lipolytica_CAR64331:0.951105):0.165458);

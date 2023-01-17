@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE57579:0.463177,Fusarium_oxysporum_FOXG_05523P0:0.695015,((Pyrenophora_triticirepentis_EDU46897:0.460842,Zymoseptoria_tritici_Mycgr3P28618:1.03508):0.261057,Rhizoclosmatium_globosum_jgi|Rhihy1|718043|fgenesh1_kg.27_#_130_#_Locus3955v2rpkm32.63:1.38671):0.239854);

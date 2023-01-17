@@ -1,0 +1,1 @@
+(Puccinia_graminis_EHS64392:2.8217e-06,Puccinia_graminis_EFP89648:2.8479e-06,((Rhizopus_delemar_EIE88894.1:1.11691,Ustilago_maydis_KIS67849:0.925273):0.187303,Sporobolomyces_linderae_jgi|Spoli1|129905|CE129904_2291:0.818994):1.12209);

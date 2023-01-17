@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g00370.1:1.04106,Schizosaccharomyces_pombe_SPAC3C7.05c.1_pep:0.650322,Yarrowia_lipolytica_CAG84200:0.64594);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56028:1.42557,Botrytis_cinerea_Bcin10g02550.1:0.82494,((Fusarium_oxysporum_FOXG_09459P0:0.40303,Magnaporthe_oryzae_MGG_05692T0:0.485897):0.090462,Verticillium_dahliae_EGY14877:0.430181):0.219173);

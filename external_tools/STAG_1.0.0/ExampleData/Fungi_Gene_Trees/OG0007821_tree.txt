@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_14913P0:0.0162383,(Fusarium_oxysporum_FOXG_11873P0:0.249537,(Laccaria_bicolor_jgi|Lacbi2|695564|fgenesh3_kg.11_#_518_#_Locus_4987_Transcript_1/2_Confidence_1.000:0.305793,Laccaria_bicolor_jgi|Lacbi2|612383|e_gw1.11.320.1:0.210044):0.971842):0.324384,(Fusarium_oxysporum_FOXG_16666P0:0,Fusarium_oxysporum_FOXG_16729P0:0):0.018984);

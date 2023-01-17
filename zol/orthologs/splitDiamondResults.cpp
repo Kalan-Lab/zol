@@ -87,6 +87,7 @@ int main (int argc, char* argv[]) {
         */
         input_file.open (argv[1]);
         string line_with_newline;
+        string sid;
         if ( input_file.is_open() ) {
             while ( input_file.good()  ) {
                 getline (input_file,line);
@@ -104,12 +105,14 @@ int main (int argc, char* argv[]) {
                          split_counter++;
                     }
                     line_with_newline = line + '\n';
-		            if (query_sample.compare(subject_sample) == 0) {
+	                if (query_sample.compare(subject_sample) == 0) {
+	                    for (auto sid: all_samples) {
+	                        *sample_to_outfile[sid] << line_with_newline;
+                        }
+	                } else {
 	                    *sample_to_outfile[query_sample] << line_with_newline;
-    	            } else {
-                        *sample_to_outfile[query_sample] << line_with_newline;
-		                *sample_to_outfile[subject_sample] << line_with_newline;
-	    	        }
+	                    *sample_to_outfile[subject_sample] << line_with_newline;
+	                }
 		        }
             }
         } else {

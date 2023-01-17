@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin04g02950.1:0.476205,(Botrytis_cinerea_Bcin10g04980.1:0.431974,(Phaeosphaeria_nodorum_SNOT_10148:0.441071,Pyrenophora_triticirepentis_EDU39640:0.843896):0.32079):0.168676,Magnaporthe_oryzae_MGG_03891T0:0.894832);

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2983042|fgenesh1_kg.8_#_456_#_Locus13421v1rpkm3.21:1.08447,(Phycomyces_blakesleeanus_jgi|Phybl2|138535|Genemark1.726_g:0.705264,Schizosaccharomyces_pombe_SPAC23H3.15c.1_pep:0.999996):0.299449,(Rhizopus_delemar_EIE78242.1:0.620731,Rhizopus_delemar_EIE86801.1:0.476018):0.196197);

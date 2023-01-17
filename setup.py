@@ -14,8 +14,7 @@ setup(name='zol',
                'scripts/readifyAdditionalGenomes.py',
                'scripts/runProdigalAndMakeProperGenbank.py',
                'scripts/setup_annotation_dbs.py',
-               'zol/orthologs/findOrthologs.py',
-               'external_tools/Treemmer_v0.3.py'],
+               'zol/orthologs/findOrthologs.py'],
       zip_safe=False)
 
 # compile RBH/InParanoid-esque programs written in C++

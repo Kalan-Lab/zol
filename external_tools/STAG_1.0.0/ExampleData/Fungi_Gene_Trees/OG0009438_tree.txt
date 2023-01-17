@@ -1,0 +1,1 @@
+(Sporobolomyces_linderae_jgi|Spoli1|198765|gm1.3661_g:1.47684,Sporobolomyces_linderae_jgi|Spoli1|200332|gm1.5228_g:0.287662,(Sporobolomyces_linderae_jgi|Spoli1|201012|gm1.5908_g:0.234556,Sporobolomyces_linderae_jgi|Spoli1|201013|gm1.5909_g:0.20595):0.143186);

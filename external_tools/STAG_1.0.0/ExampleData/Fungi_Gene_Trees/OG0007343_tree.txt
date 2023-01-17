@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_14596P0:0.81759,Ustilago_maydis_KIS68313:1.06438,((Yarrowia_lipolytica_CAG78333:0.382324,Yarrowia_lipolytica_CAG79215:0.803216):0.279547,(Yarrowia_lipolytica_CAG80483:0.475519,(Yarrowia_lipolytica_CAG81766:0.367747,Yarrowia_lipolytica_CAG82076:0.54218):0.414522):0.176138):0.378829);

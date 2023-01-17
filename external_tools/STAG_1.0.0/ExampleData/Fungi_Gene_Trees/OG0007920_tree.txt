@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_08655T0:0.396758,((Phaeosphaeria_nodorum_SNOT_12479:0.346935,Pyrenophora_triticirepentis_EDU49527:0.211384):0.259566,(Ustilago_maydis_KIS69306:1.52462,Zymoseptoria_tritici_Mycgr3P108774:0.72252):0.175449):0.104054,Verticillium_dahliae_EGY23640:0.4277);

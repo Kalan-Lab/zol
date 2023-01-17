@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|657794|estExt_fgenesh1_kg.C_LG_4_t10247:0.2144,((Magnaporthe_oryzae_MGG_09742T0:0.379091,Magnaporthe_oryzae_MGG_09106T0:0.441665):1.10502,Sporobolomyces_linderae_jgi|Spoli1|209370|estExt_Genemark1.C_4_t20292:0.345025):0.266352,Phanerochaete_chrysosporium_jgi|Phchr2|8548|Phchr1.fgenesh1_pg.C_scaffold_17000113:0.332152);

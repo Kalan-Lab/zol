@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|163035|fgenesh1_pg.2_#_867:0.341473,(Rhizopus_delemar_EIE91061.1:0.314859,Rhizopus_delemar_EIE91335.1:0.177989):0.138098,Sporobolomyces_linderae_jgi|Spoli1|208001|estExt_Genemark1.C_3_t10152:1.74077);

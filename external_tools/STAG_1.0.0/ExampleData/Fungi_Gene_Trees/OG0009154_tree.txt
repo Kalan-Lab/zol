@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15218P0:0.557164,(Magnaporthe_oryzae_MGG_00316T0:0.602811,Zymoseptoria_tritici_Mycgr3P38237:0.419818):0.224752,Magnaporthe_oryzae_MGG_00042T0:0.346594);

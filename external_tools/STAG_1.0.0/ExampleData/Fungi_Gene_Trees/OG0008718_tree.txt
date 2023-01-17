@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66472:0.431501,(Aspergillus_oryzae_BAE66471:0.503456,Verticillium_dahliae_EGY14219:0.516093):0.078062,Fusarium_oxysporum_FOXG_03821P0:0.877315);

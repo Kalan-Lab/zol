@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60124:1.56191,((Phaeosphaeria_nodorum_SNOT_14262:0.560645,Zymoseptoria_tritici_Mycgr3P40950:0.300881):0.331476,Sporobolomyces_linderae_jgi|Spoli1|195848|gm1.744_g:0.602544):0.182081,Ustilago_maydis_KIS69905:0.679553);

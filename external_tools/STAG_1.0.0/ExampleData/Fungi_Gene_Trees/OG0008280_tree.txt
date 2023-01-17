@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin04g04140.1:0.338902,(Magnaporthe_oryzae_MGG_14916T0:0.372811,(Schizosaccharomyces_pombe_SPCC1393.14.1_pep:0.873277,Zymoseptoria_tritici_Mycgr3P33900:0.702944):0.497992):0.222642,Pyrenophora_triticirepentis_EDU44870:0.994548);

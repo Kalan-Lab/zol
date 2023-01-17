@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81833:0.482718,(Magnaporthe_oryzae_MGG_02236T0:0.447037,Magnaporthe_oryzae_MGG_14838T0:0.306643):0.409228,(Phaeosphaeria_nodorum_SNOT_16403:0.112228,(Pyrenophora_triticirepentis_EDU49776:0,Pyrenophora_triticirepentis_EDU44779:0):0.075881):0.334087);

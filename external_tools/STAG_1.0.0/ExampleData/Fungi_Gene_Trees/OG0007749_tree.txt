@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin13g03160.1:0.465764,(Fusarium_oxysporum_FOXG_10828P0:0.869323,(Laccaria_bicolor_jgi|Lacbi2|296572|Lacbi1.eu2.Lbscf0010g03810:0.507439,Laccaria_bicolor_jgi|Lacbi2|310796|Lacbi1.eu2.Lbscf0048g00280:0.349365):0.880819):0.096696,(Magnaporthe_oryzae_MGG_01872T0:0.560353,Verticillium_dahliae_EGY14257:0.54487):0.161299);

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|131205|Phchr1.e_gww2.5.479.1:0.419115,Phycomyces_blakesleeanus_jgi|Phybl2|93918|gw1.2.649.1:0.492456,Rhizoclosmatium_globosum_jgi|Rhihy1|711050|fgenesh1_kg.1_#_201_#_Locus10063v1rpkm17.42:0.526168);

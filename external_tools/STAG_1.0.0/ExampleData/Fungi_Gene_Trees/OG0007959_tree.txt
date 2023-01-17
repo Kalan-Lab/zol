@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|186069|estExt_fgenesh1_pg.C_60145:0.411606,(((Pyrenophora_triticirepentis_EDU45989:0,Pyrenophora_triticirepentis_EDU46231:0):0,Pyrenophora_triticirepentis_EDU45978:0):1.51352,Rhizoclosmatium_globosum_jgi|Rhihy1|713795|fgenesh1_kg.9_#_120_#_Locus10498v1rpkm16.21:0.972471):0.42877,Rhizopus_delemar_EIE80092.1:0.582493);

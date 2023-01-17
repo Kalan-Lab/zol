@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63462:0.605989,((Aspergillus_oryzae_BAE63461:0.450993,Fusarium_oxysporum_FOXG_16844P0:0.453615):0.109352,Aspergillus_oryzae_BAE55557:0.217752):0.136765,Fusarium_oxysporum_FOXG_13130P0:0.395074);

@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_06004:0.131645,Pyrenophora_triticirepentis_EDU48022:0.120404,(Sporobolomyces_linderae_jgi|Spoli1|200737|gm1.5633_g:0.6076,Zymoseptoria_tritici_Mycgr3P46265:0.394955):0.276001);

@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin10g05760.1:0.92552,(Laccaria_bicolor_jgi|Lacbi2|706658|estExt_fgenesh3_kg.C_LG_8_t20215:1.15819,Sporobolomyces_linderae_jgi|Spoli1|207428|estExt_Genemark1.C_2_t20043:1.47889):0.141139,((Magnaporthe_oryzae_MGG_06827T0:1.05017,Verticillium_dahliae_EGY15118:1.43747):0.253559,Zymoseptoria_tritici_Mycgr3P108345:0.751413):0.159622);

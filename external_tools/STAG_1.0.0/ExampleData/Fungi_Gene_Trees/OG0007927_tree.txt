@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_09436T0:0.189106,((Phaeosphaeria_nodorum_SNOT_15116:0.0617191,Pyrenophora_triticirepentis_EDU44442:0.0823112):0.136455,(Sporobolomyces_linderae_jgi|Spoli1|191528|fgenesh1_kg.8_#_420_#_comp1423_c0_seq2:0.832871,Zymoseptoria_tritici_Mycgr3P33514:0.255966):0.140916):0.22388,Verticillium_dahliae_EGY18982:0.128588);

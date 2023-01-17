@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65442:0.522537,(Laccaria_bicolor_jgi|Lacbi2|516921|gw1.2.2011.1:1.10659,Pyrenophora_triticirepentis_EDU49510:0.485693):0.186747,Phaeosphaeria_nodorum_SNOT_00477:0.295243);

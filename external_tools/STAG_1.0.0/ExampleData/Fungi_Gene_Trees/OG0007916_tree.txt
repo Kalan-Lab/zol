@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_03128T0:0.431571,(Phaeosphaeria_nodorum_SNOT_09306:0.0760861,Pyrenophora_triticirepentis_EDU40576:0.101761):0.167042,((Phanerochaete_chrysosporium_jgi|Phchr2|2912243|e_gw1.11.1537.1:0.386587,Phanerochaete_chrysosporium_jgi|Phchr2|2918304|e_gw1.18.61.1:0.177349):0.257424,Verticillium_dahliae_EGY14119:0.354428):0.171643);

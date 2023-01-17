@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|769235|estExt_fgenesh1_pg.C_440089:2.1209e-06,Rhizoclosmatium_globosum_jgi|Rhihy1|720819|fgenesh1_kg.44_#_127_#_Locus14019v1rpkm8.31:0.0280087,Rhizoclosmatium_globosum_jgi|Rhihy1|741636|fgenesh1_pg.44_#_98:0.0889179);

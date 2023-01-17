@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_09796T0:0.385395,Pyrenophora_triticirepentis_EDU45849:0.69733,Verticillium_dahliae_EGY21093:0.495245);

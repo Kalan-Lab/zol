@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66198:0.484158,(Fusarium_oxysporum_FOXG_10393P0:0.290191,Verticillium_dahliae_EGY17499:0.35472):0.175848,(Yarrowia_lipolytica_CAG83674:0.499291,Yarrowia_lipolytica_CAG81920:1.01736):0.984719);

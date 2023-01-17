@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_02224:0.308376,Verticillium_dahliae_EGY14167:0.696979,Zymoseptoria_tritici_Mycgr3P45762:0.294882);

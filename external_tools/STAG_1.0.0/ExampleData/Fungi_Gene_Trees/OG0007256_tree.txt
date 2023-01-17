@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin07g03230.1:0.363337,(((Botrytis_cinerea_Bcin15g04940.1:0.306857,Verticillium_dahliae_EGY17198:0.297888):0.355989,Phanerochaete_chrysosporium_jgi|Phchr2|2966617|fgenesh1_pg.3_#_255:0.797345):0.16472,(Fusarium_oxysporum_FOXG_17707P0:0.215917,Verticillium_dahliae_EGY19689:0.15096):0.435858):0.280889,Fusarium_oxysporum_FOXG_08868P0:0.423806);

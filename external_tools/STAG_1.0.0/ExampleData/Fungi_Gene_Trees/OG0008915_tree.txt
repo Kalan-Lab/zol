@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin02g00380.1:0.216737,Fusarium_oxysporum_FOXG_10180P0:0.150548,(Laccaria_bicolor_jgi|Lacbi2|477838|fgenesh1_pm.LG_1_#_555:0.162262,Phanerochaete_chrysosporium_jgi|Phchr2|3006127|fgenesh1_pm.12_#_53:0.325051):0.123837);

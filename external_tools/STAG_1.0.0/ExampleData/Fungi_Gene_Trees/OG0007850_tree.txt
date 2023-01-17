@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15279P0:1.29054,(((Puccinia_graminis_EFP90451:0.672927,Sporobolomyces_linderae_jgi|Spoli1|125873|CE125872_563:0.723127):0.139716,Sporobolomyces_linderae_jgi|Spoli1|104997|CE104996_2986:0.734893):0.227201,Sporobolomyces_linderae_jgi|Spoli1|25102|CE25101_568:0.616047):0.197677,Sporobolomyces_linderae_jgi|Spoli1|212749|estExt_Genemark1.C_130020:0.321877);

@@ -1,0 +1,1 @@
+(Pyrenophora_triticirepentis_EDU47908:1.64304,Saccharomyces_cerevisiae_YIL036W:0.699536,Saccharomyces_cerevisiae_YER045C:0.265008);

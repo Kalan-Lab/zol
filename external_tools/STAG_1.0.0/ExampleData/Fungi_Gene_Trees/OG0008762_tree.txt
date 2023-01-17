@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59869:1.38262,Aspergillus_oryzae_BAE61692:0.477937,(Botrytis_cinerea_Bcin07g06520.1:0.951832,Botrytis_cinerea_Bcin07g06530.1:0.500529):0.69808);

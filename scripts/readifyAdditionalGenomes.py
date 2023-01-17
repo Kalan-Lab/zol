@@ -111,18 +111,6 @@ def readifyAdditionalGenomes():
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
-	used_locus_tags = set([])
-	if previous_annotation_listing_file:
-		with open(previous_annotation_listing_file) as opalf:
-			for line in opalf:
-				line = line.strip('\n')
-				sample, gbk, faa = line.split('\t')
-				with open(faa) as ofaa:
-					for i, rec in enumerate(SeqIO.parse(ofaa, 'fasta')):
-						if i == 0:
-							lt = rec.id.split('_')[0]
-							used_locus_tags.add(lt)
-
 	# Step 1: Process Additional Genomes
 	additional_sample_annotation_listing_file = outdir + 'Target_Sample_Annotation_Files.txt'
 	
@@ -144,14 +132,14 @@ def readifyAdditionalGenomes():
 		# find them via zol-Expansion.
 		util.processGenomes(additional_sample_genomes, additional_prodigal_outdir, additional_proteomes_directory,
 							additional_genbanks_directory, logObject, cpus=cpus, locus_tag_length=locus_tag_length,
-							use_pyrodigal=use_pyrodigal, avoid_locus_tags=used_locus_tags)
+							use_pyrodigal=use_pyrodigal)
 	else:
 		# genomes are provided as Genbanks with CDS features
 		gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
 		util.setupReadyDirectory([gene_name_mapping_outdir])
 		util.processGenomesAsGenbanks(additional_sample_genomes, additional_proteomes_directory,
 									  additional_genbanks_directory, gene_name_mapping_outdir, logObject,
-									  cpus=cpus, locus_tag_length=locus_tag_length, avoid_locus_tags=used_locus_tags)
+									  cpus=cpus, locus_tag_length=locus_tag_length)
 
 	additional_sample_annotation_listing_handle = open(additional_sample_annotation_listing_file, 'w')
 	for f in os.listdir(additional_proteomes_directory):

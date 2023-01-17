@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|586987|e_gw1.3.8671.1:0.304854,Phanerochaete_chrysosporium_jgi|Phchr2|2907709|e_gw1.7.649.1:0.340227,((Phycomyces_blakesleeanus_jgi|Phybl2|188499|estExt_fgenesh1_pg.C_230069:0.526023,Rhizoclosmatium_globosum_jgi|Rhihy1|184268|CE184267_5219:1.06203):0.787938,Ustilago_maydis_KIS71118:0.933404):0.398967);

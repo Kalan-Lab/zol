@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin03g03020.1:0.555624,Botrytis_cinerea_Bcin09g03250.1:0.411821,Verticillium_dahliae_EGY20278:0.926622);

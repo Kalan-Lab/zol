@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_09867P0:0.699258,(Fusarium_oxysporum_FOXG_12680P0:0.964888,(Sporobolomyces_linderae_jgi|Spoli1|52105|CE52104_5151:0.0345407,Sporobolomyces_linderae_jgi|Spoli1|197439|gm1.2335_g:0.0207376):1.10913):0.50039,Verticillium_dahliae_EGY22065:0.185966);

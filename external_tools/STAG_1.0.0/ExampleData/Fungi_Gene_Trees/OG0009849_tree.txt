@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin15g03260.1:0.508287,Laccaria_bicolor_jgi|Lacbi2|624473|estExt_Genewise1Plus.C_LG_1_t50285:1.13538,Ustilago_maydis_KIS69627:1.10408);

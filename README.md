@@ -58,39 +58,7 @@ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -o fai_Results/
 fai -pq Gene-Cluster_Query_Proteins.faa -o fai_Results/
 ```
 
-
-#### Remember: ncbi-genome-download is a great way to download genomes (is included in conda-environment for zol)
-
-Github link: https://github.com/kblin/ncbi-genome-download
-
-```bash
-# Example for downloading all Streptomyces genomes in RefSeq
-ncbi-genome-download -F fasta -s refseq -g "Streptomyces" --flat-output -o RefSeq_Streptomyces_Genomes/ bacteria -p 4
-```
-
-#### Relation to cblaster and lsaBGC-Expansion
-
-Similar to lsaBGC-Expansion it is inspired by cblaster and ClusterFinder and similar methods. 
-
-Similar to lsaBGC-Expansion - fai aims to work on fragmented genomes and potentially MAGs and can report multiple segments, provided they are on scaffold/contig edges. This is not the default for fai, where `--draft-mode` needs to be specified to initiate it. 
-
-Unlike cblaster, it can also filter for syntenic similarity with regards to gene order and direction in the reference gene cluster. It does this through comparing candidate homologous gene-cluster segments to known reference gene-clusters provide as the queries via Pearson correlation of gene-coordinate midpoints that are facing in the same relative directions (this is the same approach used in lsaBGC-Expansion).
-
-cblaster uniquely offers the ability to perform gene cluster searches remotely, in case you lack computational resources and are interested in searching a large set of genomes.
-
-#### Using cblaster instead of fai to generate input for zol
-
-It is possible to use cblaster (Gilchrist et al. 2021) instead of fai to generate the inputs required for zol.
-
-For instance:
-
-```bash
-# use cblaster to search for homologous co-clusters in NCBI genomes
-cblaster search -qf queries.faa -s cblaster_results.json
-
-# use cblaster to extract GenBannks of homologous gene-clusters detected
-cblaster extract_clusters session.json -o example_directory/
-```
+For additional details on fai (how to download target genomes, how it relates to cblaster and lsaBGC-Expansion), please check out the '1. more info on fai'](https://github.com/Kalan-Lab/zol/wiki/1.-more-info-on-fai) wiki page.
 
 ### zol (generating table reports; works for Eukaryotes + Prokaryotes)
 

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58859:0.70906,((Laccaria_bicolor_jgi|Lacbi2|442046|gm1.6490_g:0.594856,Laccaria_bicolor_jgi|Lacbi2|587012|e_gw1.3.8483.1:0.54125):0.223322,(Phycomyces_blakesleeanus_jgi|Phybl2|126253|estExt_Genewise1.C_170139:0.212542,Rhizopus_delemar_EIE82159.1:0.341334):0.16949):0.684431,Zymoseptoria_tritici_Mycgr3P23189:0.428811);

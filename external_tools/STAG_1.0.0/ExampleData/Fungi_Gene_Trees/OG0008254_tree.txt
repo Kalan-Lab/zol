@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU83264:0.191364,Rhizoclosmatium_globosum_jgi|Rhihy1|756499|fgenesh1_pm.275_#_2:0.0401747,(Sporobolomyces_linderae_jgi|Spoli1|205802|fgenesh1_pm.23_#_1:0.221982,(Zymoseptoria_tritici_Mycgr3P86961:2.5325e-06,Zymoseptoria_tritici_Mycgr3P45610:2.4403e-06):0.259524):0.094255);

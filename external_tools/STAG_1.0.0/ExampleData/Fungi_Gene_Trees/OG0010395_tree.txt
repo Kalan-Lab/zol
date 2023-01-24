@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_06870:0.149103,Pyrenophora_triticirepentis_EDU40224:0.204676,Rhizoclosmatium_globosum_jgi|Rhihy1|721942|fgenesh1_kg.54_#_94_#_Locus12380v1rpkm11.53:0.976428);

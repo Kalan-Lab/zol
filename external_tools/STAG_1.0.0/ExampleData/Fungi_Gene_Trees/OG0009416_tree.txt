@@ -1,0 +1,1 @@
+(Pyrenophora_triticirepentis_EDU40865:1.17659,(Rhizoclosmatium_globosum_jgi|Rhihy1|782084|gm1.3268_g:0.196946,Rhizoclosmatium_globosum_jgi|Rhihy1|721441|fgenesh1_kg.50_#_26_#_Locus15785v1rpkm5.67:0.194046):0.541241,Zymoseptoria_tritici_Mycgr3P96081:1.19379);

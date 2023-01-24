@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41124:0.92717,(((Phycomyces_blakesleeanus_jgi|Phybl2|60519|Phybl1.fgeneshPB_pg.3__144:0.353799,Rhizopus_delemar_EIE82282.1:0.45353):0.341069,Rhizoclosmatium_globosum_jgi|Rhihy1|711760|fgenesh1_kg.3_#_143_#_Locus6853v1rpkm31.06:0.869186):0.162143,Ustilago_maydis_KIS70596:0.971895):0.19578,Sporobolomyces_linderae_jgi|Spoli1|17838|CE17837_1290:0.731534);

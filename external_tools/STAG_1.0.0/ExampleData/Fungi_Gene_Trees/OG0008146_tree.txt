@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60907:1.11117,Fusarium_oxysporum_FOXG_09126P0:1.22463,(Phycomyces_blakesleeanus_jgi|Phybl2|139880|Genemark1.2071_g:0.445733,(Rhizopus_delemar_EIE85396.1:0.144117,Rhizopus_delemar_EIE90630.1:0.118887):0.351666):0.825787);

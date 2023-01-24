@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15343P0:0.524047,Pyrenophora_triticirepentis_EDU49854:1.24299,(Pyrenophora_triticirepentis_EDU47208:1.00737,Verticillium_dahliae_EGY16206:0.64079):0.250766);

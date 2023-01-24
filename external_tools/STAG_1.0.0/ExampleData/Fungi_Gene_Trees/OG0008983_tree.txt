@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin10g05200.1:1.24517,Magnaporthe_oryzae_MGG_04254T0:0.982181,(Verticillium_dahliae_EGY21144:0.697213,Zymoseptoria_tritici_Mycgr3P16974:0.726446):0.144913);

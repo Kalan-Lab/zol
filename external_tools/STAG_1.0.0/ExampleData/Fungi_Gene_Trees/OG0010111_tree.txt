@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_17462P0:2.11827,Laccaria_bicolor_jgi|Lacbi2|295828|Lacbi1.estExt_fgenesh2_pg.C_630013:0.602614,Laccaria_bicolor_jgi|Lacbi2|335185|Lacbi1.fgenesh3_pg.C_scaffold_78000034:2.1691e-06);

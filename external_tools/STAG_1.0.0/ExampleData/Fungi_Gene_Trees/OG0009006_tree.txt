@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin14g01350.1:0.683987,(Phaeosphaeria_nodorum_SNOT_02103:0.416028,Pyrenophora_triticirepentis_EDU51159:0.32717):0.17665,Zymoseptoria_tritici_Mycgr3P91799:0.847);

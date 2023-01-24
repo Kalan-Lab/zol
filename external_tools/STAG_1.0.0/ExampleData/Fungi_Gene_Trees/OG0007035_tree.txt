@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55509:0.65526,Blumeria_graminis_CCU79051:0.672241,(((Botrytis_cinerea_Bcin06g00760.1:0.743786,Magnaporthe_oryzae_MGG_12864T0:0.794364):0.144587,(Magnaporthe_oryzae_MGG_03506T0:0.606569,Rhizopus_delemar_EIE90687.1:0.828763):0.377884):0.469073,Botrytis_cinerea_Bcin15g01270.1:0.440435):0.142494);

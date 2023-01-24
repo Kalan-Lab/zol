@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_17557T0:1.22745,Puccinia_graminis_EHS62707:0.024481,Puccinia_graminis_EFP79085:0.136323);

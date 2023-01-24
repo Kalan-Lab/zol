@@ -1,0 +1,1 @@
+(Ustilago_maydis_KIS72372:0.493003,Ustilago_maydis_KIS65855:0.0737859,Ustilago_maydis_KIS69135:0.16132);

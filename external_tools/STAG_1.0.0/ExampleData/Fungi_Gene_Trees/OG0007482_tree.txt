@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54582:0.358805,Botrytis_cinerea_Bcin13g01120.1:0.361247,(((Fusarium_oxysporum_FOXG_13396P0:0.935647,Phaeosphaeria_nodorum_SNOT_16157:0.38109):0.159736,Sporobolomyces_linderae_jgi|Spoli1|210431|estExt_Genemark1.C_6_t10290:1.10003):0.179061,Laccaria_bicolor_jgi|Lacbi2|518379|gw1.3.3795.1:0.267232):0.085119);

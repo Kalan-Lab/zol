@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60910:1.4522,Phanerochaete_chrysosporium_jgi|Phchr2|2973394|fgenesh1_kg.1_#_151_#_Locus24877v2rpkm0.24:1e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2973397|fgenesh1_kg.1_#_154_#_Locus24877v2rpkm0.24:1e-06);

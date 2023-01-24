@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_16656P0:0.142241,((Fusarium_oxysporum_FOXG_16009P0:0,Fusarium_oxysporum_FOXG_15551P0:0):0.066694,(Fusarium_oxysporum_FOXG_17320P0:0.145869,(Fusarium_oxysporum_FOXG_15923P0:0.144121,(Fusarium_oxysporum_FOXG_14138P0:0.202335,Fusarium_oxysporum_FOXG_14334P0:0.107411):0.219731):0.070027):0.055808):0.040045,Fusarium_oxysporum_FOXG_15912P0:0.200184);

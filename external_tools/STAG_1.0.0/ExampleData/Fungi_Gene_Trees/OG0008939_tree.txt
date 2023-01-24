@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin05g02900.1:0.590423,(Botrytis_cinerea_Bcin06g03530.1:0.363137,Botrytis_cinerea_Bcin07g00020.1:0.632328):0.200497,Botrytis_cinerea_Bcin09g02530.1:0.791044);

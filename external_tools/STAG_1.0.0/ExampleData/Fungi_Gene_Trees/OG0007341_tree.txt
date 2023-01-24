@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_02404P0:0.846203,(((Fusarium_oxysporum_FOXG_09206P0:0.172368,Fusarium_oxysporum_FOXG_01144P0:0.397328):0.319022,Fusarium_oxysporum_FOXG_08693P0:0.405468):0.178635,Fusarium_oxysporum_FOXG_09075P0:0.780535):0.191791,(Laccaria_bicolor_jgi|Lacbi2|456920|estExt_Genemark1.C_LG_3_t50417:1.28922,Verticillium_dahliae_EGY22564:1.30217):0.402563);

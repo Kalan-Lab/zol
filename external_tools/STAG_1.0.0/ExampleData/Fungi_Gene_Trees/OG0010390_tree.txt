@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_10181:0.222045,Pyrenophora_triticirepentis_EDU49059:0.591447,Verticillium_dahliae_EGY23657:0.853618);

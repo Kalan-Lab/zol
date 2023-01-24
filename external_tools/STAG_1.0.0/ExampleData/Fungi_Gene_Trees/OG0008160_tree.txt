@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79212:0.274833,((Batrachochytrium_dendrobatidis_EGF84179:0.615406,Batrachochytrium_dendrobatidis_EGF81091:0.913243):0.45931,Cryptococcus_neoformans_AAW40918:1.4661):0.27283,Batrachochytrium_dendrobatidis_EGF80258:2.3678e-06);

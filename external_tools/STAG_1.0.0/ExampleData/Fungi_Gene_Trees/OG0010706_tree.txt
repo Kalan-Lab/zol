@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP88704:0.234136,Puccinia_graminis_EFP92929:2.1263e-06,Sporobolomyces_linderae_jgi|Spoli1|201565|gm1.6461_g:1.64304);

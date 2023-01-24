@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g11250.1:0.512023,Pyrenophora_triticirepentis_EDU46326:1.24124,(Zymoseptoria_tritici_Mycgr3P95759:0.650302,Zymoseptoria_tritici_Mycgr3P95758:0.810345):1.04326);

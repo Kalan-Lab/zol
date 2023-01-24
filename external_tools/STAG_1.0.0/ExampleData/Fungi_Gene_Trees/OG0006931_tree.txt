@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_09753P0:0.87789,(((Magnaporthe_oryzae_MGG_10432T0:0.322849,Magnaporthe_oryzae_MGG_07043T0:0.236362):0.455901,(Magnaporthe_oryzae_MGG_00391T0:0.811465,Phaeosphaeria_nodorum_SNOT_03733:1.01313):0.077813):0.123456,(Magnaporthe_oryzae_MGG_03805T0:0.591414,Magnaporthe_oryzae_MGG_10716T0:0.306786):0.248734):0.407052,Verticillium_dahliae_EGY20068:0.764236);

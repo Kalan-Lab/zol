@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|648316|estExt_Genewise1.C_LG_6_t50324:0.494431,Pyrenophora_triticirepentis_EDU41928:0.64338,Sporobolomyces_linderae_jgi|Spoli1|185208|fgenesh1_kg.1_#_1088_#_comp7404_c0_seq1:1.28908);

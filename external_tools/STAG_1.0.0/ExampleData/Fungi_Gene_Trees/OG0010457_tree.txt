@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|1625920|CE625920_7392:0.527609,Phanerochaete_chrysosporium_jgi|Phchr2|3031771|gm1.9988_g:0.700368,Sporobolomyces_linderae_jgi|Spoli1|190620|fgenesh1_kg.7_#_242_#_comp3261_c0_seq4:1.01154);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW42494:0.777366,Fusarium_oxysporum_FOXG_13145P0:0.935028,(Laccaria_bicolor_jgi|Lacbi2|437464|gm1.1908_g:0.144805,Laccaria_bicolor_jgi|Lacbi2|681425|fgenesh3_kg.LG_1_#_2329_#_Locus_17822_Transcript_1/2_Confidence_1.000:0.12259):0.908656);

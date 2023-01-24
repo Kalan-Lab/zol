@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41964:0.710975,(((Phanerochaete_chrysosporium_jgi|Phchr2|2965133|fgenesh1_pg.1_#_450:0.687924,Phanerochaete_chrysosporium_jgi|Phchr2|2691945|CE1691945_3791:1.00149):0.131761,Rhizopus_delemar_EIE79638.1:1.34559):0.515338,Ustilago_maydis_KIS66825:1.31633):0.118499,(Puccinia_graminis_EFP93320:2.0021e-06,Puccinia_graminis_EFP80415:0.00801457):0.86407);

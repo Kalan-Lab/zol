@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU83276:0.150778,((Laccaria_bicolor_jgi|Lacbi2|621603|e_gw1.29.15.1:0.281008,Sporobolomyces_linderae_jgi|Spoli1|192998|fgenesh1_kg.29_#_1_#_comp114772_c0_seq1:0.308379):0.040015,Rhizoclosmatium_globosum_jgi|Rhihy1|671426|e_gw1.213.27.1:0.797995):0.152444,Phaeosphaeria_nodorum_ABU49443:0.113804);

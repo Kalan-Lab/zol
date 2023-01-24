@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_Q0055:0.424921,Saccharomyces_cerevisiae_Q0050:0.438487,Schizosaccharomyces_pombe_SPMIT.06.1_pep:1.23733);

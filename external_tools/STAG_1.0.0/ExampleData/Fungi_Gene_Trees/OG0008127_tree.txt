@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58663:0.300909,(Fusarium_oxysporum_FOXG_09551P0:0.198084,(Sporobolomyces_linderae_jgi|Spoli1|212742|estExt_Genemark1.C_130011:0.898764,Ustilago_maydis_KIS69621:1.08883):0.730471):0.162114,Phaeosphaeria_nodorum_SNOT_06346:0.838899);

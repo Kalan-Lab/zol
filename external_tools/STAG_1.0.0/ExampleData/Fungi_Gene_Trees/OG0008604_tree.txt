@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|732363|fgenesh1_pg.1_#_49:0.876874,(Rhizoclosmatium_globosum_jgi|Rhihy1|524986|CE524985_21881:0,Rhizoclosmatium_globosum_jgi|Rhihy1|516916|CE516915_17221:0):0.813616,(Rhizopus_delemar_EIE79771.1:0.0914585,Rhizopus_delemar_EIE90172.1:0.265207):1.32139);

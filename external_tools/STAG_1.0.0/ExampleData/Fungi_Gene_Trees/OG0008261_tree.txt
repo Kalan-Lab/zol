@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g03290.1:0.80618,((Laccaria_bicolor_jgi|Lacbi2|301449|Lacbi1.eu2.Lbscf0001g08980:0.559492,Phanerochaete_chrysosporium_jgi|Phchr2|2899735|e_gw1.2.2462.1:0.586964):0.17522,Laccaria_bicolor_jgi|Lacbi2|485037|fgenesh1_pm.LG_7_#_96:0.726864):0.445642,Verticillium_dahliae_EGY23723:1.43349);

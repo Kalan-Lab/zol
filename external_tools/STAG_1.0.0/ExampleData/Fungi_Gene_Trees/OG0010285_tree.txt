@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_00227T0:0.636175,Phaeosphaeria_nodorum_SNOT_06754:1.00348,Phaeosphaeria_nodorum_SNOT_02635:0.426631);

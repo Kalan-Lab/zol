@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_04451P0:0.278519,Phaeosphaeria_nodorum_SNOT_13098:0.63284,Sporobolomyces_linderae_jgi|Spoli1|130106|CE130105_1175:1.56541);

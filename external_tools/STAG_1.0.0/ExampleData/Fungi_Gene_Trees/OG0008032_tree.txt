@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54675:0.666601,((Fusarium_oxysporum_FOXG_02752P0:0.840941,Phaeosphaeria_nodorum_SNOT_08836:0.469723):0.148519,Zymoseptoria_tritici_Mycgr3P51659:1.61925):0.675298,Phaeosphaeria_nodorum_SNOT_08177:0.862919);

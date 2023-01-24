@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2988442|fgenesh1_kg.15_#_349_#_Locus22063v2rpkm0.37:1.32731,(Puccinia_graminis_EHS64194:0,Puccinia_graminis_EFP88454:0):0.524165,Sporobolomyces_linderae_jgi|Spoli1|196738|gm1.1634_g:1.24571);

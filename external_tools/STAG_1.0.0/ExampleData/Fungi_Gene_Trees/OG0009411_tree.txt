@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP76750:0.953004,(Sporobolomyces_linderae_jgi|Spoli1|85849|CE85848_1157:0.0255698,Sporobolomyces_linderae_jgi|Spoli1|199560|gm1.4456_g:0.0477652):0.780167,Zymoseptoria_tritici_Mycgr3P104571:0.982598);

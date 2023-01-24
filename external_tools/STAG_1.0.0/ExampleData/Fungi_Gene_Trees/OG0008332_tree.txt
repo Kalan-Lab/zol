@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin17g00060.1:1.04539,((Phycomyces_blakesleeanus_jgi|Phybl2|131051|estExt_Genewise1Plus.C_40050:0.158968,Rhizopus_delemar_EIE91226.1:0.107314):1.06051,Sporobolomyces_linderae_jgi|Spoli1|210505|estExt_Genemark1.C_6_t10388:1.15389):0.410653,Pyrenophora_triticirepentis_EDU47135:0.773793);

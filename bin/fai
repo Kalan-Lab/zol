@@ -44,6 +44,8 @@ from time import sleep
 from zol import util, fai
 import subprocess
 import pickle
+import shutil
+import math
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
@@ -97,20 +99,22 @@ def create_parser():
 	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
 	parser.add_argument('-re', '--reference_end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
 	parser.add_argument('-pq', '--protein_queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
-	parser.add_argument('-tg', '--target_genomes_dir', help='Directory with genomes in FASTA format to search for additional instances of the query gene-cluster.', required=True)
+	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges when in aggregate they meet criteria for reporting.', required=False, default=False)
+	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a single target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein. Default is 1e-10.", required=False, default=1e-10)
-	parser.add_argument('-m', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is 5.", required=False, default=5)
+	parser.add_argument('-m', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is half the total number of distinct reference proteins.", required=False, default=None)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
 	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_hits', type=int, help='The minimum number of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.', required=False, default=0)
-	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster but less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment.", required=False, default=0.8)
+	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. Default is 0.6", required=False, default=0.6)
+	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to merge segments together. Allows for more inclusivity of novel auxiliary genes. Default is 0.", required=False, default=0)
 	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is found at the e-value cutoff. Default is 0.95.", required=False, default=0.95)
 	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog gis found at the e-value cutoff. Default is 0.2.", required=False, default=0.2)
+	parser.add_argument('-gp', '--generate_plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use.", required=False, default=1)
 	args = parser.parse_args()
 	return args
@@ -131,12 +135,12 @@ def faiMain():
 	reference_start = myargs.reference_start
 	reference_end = myargs.reference_end
 	protein_queries_fasta = myargs.protein_queries
-	search_genomes_dir = os.path.abspath(myargs.target_genomes_dir) + '/'
+	target_genomes = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.output_dir) + '/'
-	use_super5 = myargs.use_super5
 	evalue_cutoff = myargs.evalue_cutoff
 	min_hits = myargs.min_hits
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
+	max_genes_disconnect = myargs.max_genes_disconnect
 	gc_transition = myargs.gc_transition
 	bg_transition = myargs.bg_transition
 	ge_emission = myargs.gc_emission
@@ -145,6 +149,8 @@ def faiMain():
 	key_protein_evalue_cutoff = myargs.key_protein_evalue_cutoff
 	key_protein_min_hits = myargs.key_protein_min_hits
 	draft_mode = myargs.draft_mode
+	filter_paralogs = myargs.filter_paralogs
+	plotting_flag = myargs.generate_plots
 	cpus = myargs.cpus
 
 	# create output directory if needed, or warn of over-writing
@@ -154,10 +160,7 @@ def faiMain():
 	else:
 		os.mkdir(outdir)
 
-	fin_outdir = outdir + 'Additional_Gene_Cluster_Instances_Identified/'
 	check_dir = outdir + 'Checkpoint_Files/'
-	if not os.path.isdir(fin_outdir):
-		util.setupReadyDirectory([fin_outdir])
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])
 
@@ -171,25 +174,26 @@ def faiMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [input_dir, reference_genome, reference_contig, reference_start, reference_end,
-						protein_queries_fasta, search_genomes_dir, outdir, draft_mode, evalue_cutoff, min_hits,
-						key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_hits,
-						syntenic_correlation_threshold, ge_emission, be_emission, gc_transition, bg_transition,
-						use_super5, cpus]
+						protein_queries_fasta, target_genomes, outdir, draft_mode, filter_paralogs, evalue_cutoff,
+						min_hits, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_hits,
+						syntenic_correlation_threshold, max_genes_disconnect, ge_emission, be_emission, gc_transition,
+						bg_transition, plotting_flag, cpus]
 	parameter_names = ["Input directory with Gene-Cluster GenBanks", "Reference Genome for Gene Cluster",
 					   "Reference Scaffold for Gene Cluster", "Reference Start Coordinate of Gene Cluster",
 					   "Reference End Coordinate of Gene Cluster", "Protein Queries",
-					   "Directory with Target Genomes in FASTA format", "Output Directory",
-					   "Run in Draft-Assembly Mode?",
+					   "Target Genomes Prepared Directory by prepTG", "Output Directory",
+					   "Run in Draft-Assembly Mode?", "Filter for Paralogous/Gene-Content Overlapping Segments",
 					   "E-value cutoff for Detection of general Protein Homologs in Genome",
 					   "Minimum Number of Hits for Gene Presence in Genome", "FASTA file with Key Proteins to Consider",
 					   "E-values for Key Proteins to be Considered as Smoking Gun for Gene Cluster Presence",
 					   "Minimum Number of Key Protein Hits Required for Gene Cluster Presence in Genome",
 					   "Syntenic Correlation to Known Instance Threshold Required For Gene Cluster Presence",
+					   "Maximum distance in between candidate gene-cluster segments to perform merging",
 					   "Emission probability of gene being in gene-cluster state with homologous hit to gene-cluster",
 					   "Emission probability of gene being in background state with homologous hit to gene-cluster",
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
 					   "Probability for background to background transition in HMM",
-					   "Use super5 Mode in MUSCLE Alignments?", "Number of CPUs Requested"]
+					   "Perform plotting?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -232,7 +236,7 @@ def faiMain():
 	query_information = None
 	work_dir = outdir + 'Processing_Queries/'
 	query_info_pickle_file = outdir + 'Query_Information.pkl'
-	step1_check_file = check_dir + 'Step1.txt'
+	step1_check_file = check_dir + 'step1.txt'
 	if not os.path.isfile(step1_check_file):
 		util.setupReadyDirectory([work_dir])
 		query_fasta = None
@@ -326,53 +330,40 @@ def faiMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
-	logObject.info('--------------------\nStep 2\n--------------------\nGene-calling using prodigal on set of genomes to search.')
-	sys.stdout.write('--------------------\nStep 2\n--------------------\nGene-calling using prodigal on set of genomes to search.\n')
+	logObject.info('--------------------\nStep 2\n--------------------\nLoading target genomes database prepared by prepTG.')
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nLoading target genomes database prepared by prepTG.\n')
 
-	step2_check_file = check_dir + 'Step2.txt'
-	target_work_dir = outdir + 'Processing_Targets/'
+	step2_check_file = check_dir + 'step2.txt'
 	target_information = None
 	target_info_pickle_file = outdir + 'Target_Information.pkl'
 	if not os.path.isfile(step2_check_file):
-		search_genomes_dir = os.path.abspath(search_genomes_dir) + '/'
-		util.setupReadyDirectory([target_work_dir])
-		target_listing_file = target_work_dir + 'Target_Genomes.txt'
-		target_listing_handle = open(target_listing_file, 'w')
-		for f in os.listdir(search_genomes_dir):
-			sample_id = f.split('.fasta')[0].split('.fna')[0].split('.fa')[0]
-			target_listing_handle.write(sample_id + '\t' + search_genomes_dir + f + '\n')
-		target_listing_handle.close()
+		if os.path.isdir(target_genomes):
+			preptg_dir = os.path.abspath(target_genomes) + '/'
+			target_genomes_pkl_file = preptg_dir + 'Target_Genomes.pkl'
+			target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
+			try:
+				assert(os.path.isfile(target_genomes_pkl_file) and os.path.isfile(target_annot_listing_file))
+			except Exception as e:
+				sys.stderr.write('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
+				logObject.error('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
+				sys.stderr.write(str(e) + '\n')
+				sys.exit(1)
 
-		target_annot_listing_file = target_work_dir + 'Target_Sample_Annotation_Files.txt'
-		add_gen_gene_call_cmds = ['readifyAdditionalGenomes.py', '-d', target_listing_file, '-o', target_work_dir,
-								  '-c', str(cpus)]
-		try:
-			subprocess.call(' '.join(add_gen_gene_call_cmds), shell=True, stdout=subprocess.DEVNULL,
-							stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			assert (os.path.isfile(target_annot_listing_file))
-			logObject.info('Successfully ran: %s' % ' '.join(add_gen_gene_call_cmds))
-		except Exception as e:
-			logObject.error('Had an issue running readifyAddtionalGenomes.py: %s' % ' '.join(add_gen_gene_call_cmds))
-			sys.stderr.write('Had an issue running readifyAdditionalGenomes.py: %s\n' % ' '.join(add_gen_gene_call_cmds))
-			logObject.error(e)
-			sys.exit(1)
+			target_annotation_information = {}
+			with open(target_annot_listing_file) as otalf:
+				for line in otalf:
+					line = line.strip()
+					sample, gbk, faa = line.split('\t')
+					target_annotation_information[sample] = {}
+					target_annotation_information[sample]['predicted_proteome'] = faa
+					target_annotation_information[sample]['genbank'] = gbk
 
-		target_annotation_information = {}
-		with open(target_annot_listing_file) as otalf:
-			for line in otalf:
-				line = line.strip()
-				sample, gbk, faa = line.split('\t')
-				target_annotation_information[sample] = {}
-				target_annotation_information[sample]['predicted_proteome'] = faa
-				target_annotation_information[sample]['genbank'] = gbk
+			target_genome_gene_info = fai.processGenomeWideGenbanks(target_genomes_pkl_file, logObject, cpus=cpus)
 
-		target_genome_gene_info = fai.processGenomeWideGenbanks(target_annotation_information, logObject, cpus=cpus)
-
-		target_information = {'target_annotation_information': target_annotation_information,
-							  'target_genome_gene_info': target_genome_gene_info}
-		with open(target_info_pickle_file, 'wb') as pickle_file:
-			pickle.dump(target_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+			target_information = {'target_annotation_information': target_annotation_information,
+								  'target_genome_gene_info': target_genome_gene_info}
+			with open(target_info_pickle_file, 'wb') as pickle_file:
+				pickle.dump(target_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step2_check_file)
 
 	if target_information == None:
@@ -389,7 +380,7 @@ def faiMain():
 	logObject.info('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
 	sys.stdout.write('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.\n')
 
-	step3_check_file = check_dir + 'Step3.txt'
+	step3_check_file = check_dir + 'step3.txt'
 	diamond_work_dir = outdir + 'DIAMOND_Analysis/'
 	diamond_results = None
 	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
@@ -413,19 +404,40 @@ def faiMain():
 	logObject.info('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.')
 	sys.stdout.write('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.\n')
 
-	step4_check_file = check_dir + 'Step4.txt'
+	step4_check_file = check_dir + 'step4.txt'
 	hmm_work_dir = outdir + 'HMM_Processing/'
+	homologous_gbk_dir = outdir + 'Homologous_GenBanks_Directory/'
 	if not os.path.isfile(step4_check_file):
-		util.setupReadyDirectory([hmm_work_dir])
+		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
+		if min_hits == None:
+			min_hits = math.floor(len(set(query_information['protein_to_hg'].values()))/2.0)
+			if key_protein_min_hits:
+				min_hits = min([min_hits, key_protein_min_hits])
 		fai.identifyGCFInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
 								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,
 								 gc_to_gc_transition_prob=gc_transition, bg_to_bg_transition_prob=bg_transition,
 								 gc_emission_prob_with_hit=ge_emission, gc_emission_prob_without_hit=be_emission,
 								 syntenic_correlation_threshold=syntenic_correlation_threshold,
 								 kq_evalue_threshold=key_protein_evalue_cutoff,
-								 cpus=1, block_size=3000)
-		fai.concatenateBGCsIntoMultiRecordGenBanks(hmm_work_dir + 'GeneCluster_Genbanks/', fin_outdir, logObject)
+								 max_int_genes_for_merge=max_genes_disconnect, cpus=1, block_size=3000)
+		if draft_mode or filter_paralogs:
+			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, logObject)
+		else:
+			for f in os.listdir(hmm_work_dir + 'GeneCluster_Genbanks/'):
+				shutil.move(hmm_work_dir + 'GeneCluster_Genbanks/' + f, homologous_gbk_dir)
+
 		os.system('touch %s' % step4_check_file)
+
+	step5_check_file = check_dir + 'step5.txt'
+	plot_dir = outdir + 'Plotting_Files/'
+	plot_result_pdf = outdir + 'Overview_of_Homologous_Gene-Cluster_Segments.pdf'
+	if not os.path.isfile(step5_check_file) and plotting_flag:
+		logObject.info('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.')
+		sys.stdout.write('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.\n')
+		util.setupReadyDirectory([plot_dir])
+		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir, plot_dir,
+						  plot_result_pdf, logObject, height=5, width=15)
+		os.system('touch %s' % step5_check_file)
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

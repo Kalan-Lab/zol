@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|79223|Phybl1.estExt_fgeneshPB_pg.C_240023:1.07791,Rhizopus_delemar_EIE85672.1:0.311262,Rhizopus_delemar_EIE88235.1:0.143324);

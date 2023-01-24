@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_16493P0:0.915175,(((Fusarium_oxysporum_FOXG_04886P0:1.39141,Phaeosphaeria_nodorum_SNOT_13344:0.6982):0.299827,Phaeosphaeria_nodorum_SNOT_07943:0.838325):0.217706,Phaeosphaeria_nodorum_SNOT_02026:0.755714):0.146806,Fusarium_oxysporum_FOXG_14520P0:0.446694);

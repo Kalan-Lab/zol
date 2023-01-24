@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF81452:2.6119e-06,Batrachochytrium_dendrobatidis_EGF81141:0.00816259,Phanerochaete_chrysosporium_jgi|Phchr2|2980771|fgenesh1_kg.6_#_359_#_Locus3949v1rpkm64.69:1.32572);

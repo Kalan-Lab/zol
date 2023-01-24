@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54964:1.13786,(Botrytis_cinerea_Bcin04g02270.1:1.03533,(Fusarium_oxysporum_FOXG_02775P0:0.53856,Phaeosphaeria_nodorum_SNOT_04559:0.354729):0.23834):0.126317,(Sporobolomyces_linderae_jgi|Spoli1|211874|estExt_Genemark1.C_8_t20040:0.306644,Sporobolomyces_linderae_jgi|Spoli1|135328|CE135327_761:0.487551):0.721043);

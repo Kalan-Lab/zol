@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63247:1.38779,Phycomyces_blakesleeanus_jgi|Phybl2|76505|Phybl1.estExt_fgeneshPB_pg.C_30521:0.73929,Rhizopus_delemar_EIE77842.1:0.54834);

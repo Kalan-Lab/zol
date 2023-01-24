@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_05987T0:0.735389,Phanerochaete_chrysosporium_jgi|Phchr2|2910972|e_gw1.9.977.1:1.0668,Zymoseptoria_tritici_Mycgr3P90820:0.446992);

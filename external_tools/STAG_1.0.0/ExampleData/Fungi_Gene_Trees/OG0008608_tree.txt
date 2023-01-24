@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|452268|CE452267_102:1.30724,((Rhizoclosmatium_globosum_jgi|Rhihy1|738359|fgenesh1_pg.23_#_222:0.025309,Rhizoclosmatium_globosum_jgi|Rhihy1|826358|MIX25386_43_80:0.683159):0.063493,Rhizoclosmatium_globosum_jgi|Rhihy1|809580|MIX8608_312_100:0.0398758):0.069237,Rhizoclosmatium_globosum_jgi|Rhihy1|741550|fgenesh1_pg.44_#_12:0.154607);

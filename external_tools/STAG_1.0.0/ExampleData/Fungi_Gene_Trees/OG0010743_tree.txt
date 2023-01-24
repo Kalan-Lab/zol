@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|720331|fgenesh1_kg.41_#_73_#_Locus12426v1rpkm11.43:1.67317,Rhizopus_delemar_EIE77818.1:0.386163,Rhizopus_delemar_EIE89258.1:0.356349);

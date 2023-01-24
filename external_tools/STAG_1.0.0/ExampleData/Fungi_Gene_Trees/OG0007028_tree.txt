@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56208:0.628535,((Aspergillus_oryzae_BAE62274:0.748965,Laccaria_bicolor_jgi|Lacbi2|661482|estExt_fgenesh1_pg.C_LG_1_t40147:0.987345):0.10615,((Aspergillus_oryzae_BAE66090:0.462252,Rhizopus_delemar_EIE76404.1:1.5105):0.223008,Phaeosphaeria_nodorum_SNOT_00538:0.81482):0.074418):0.097541,Aspergillus_oryzae_BAE62268:0.665211);

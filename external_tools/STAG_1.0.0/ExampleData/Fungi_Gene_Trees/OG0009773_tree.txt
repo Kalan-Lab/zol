@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin03g01210.1:1.01,Phanerochaete_chrysosporium_jgi|Phchr2|3035004|estExt_Genemark1.C_2_t10243:0.89355,Phanerochaete_chrysosporium_jgi|Phchr2|3031583|gm1.9800_g:0.547204);

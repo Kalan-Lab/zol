@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|3003415|fgenesh1_pm.4_#_412:0.190618,Phanerochaete_chrysosporium_jgi|Phchr2|2990702|fgenesh1_kg.25_#_44_#_Locus9564v2rpkm0.90_PRE:0.208756,Zymoseptoria_tritici_Mycgr3P42395:1.40414);

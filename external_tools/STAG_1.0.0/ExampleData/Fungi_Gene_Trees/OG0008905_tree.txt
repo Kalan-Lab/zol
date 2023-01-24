@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g02850.1:1.24153,Phaeosphaeria_nodorum_SNOT_09582:0.500098,(Sporobolomyces_linderae_jgi|Spoli1|114223|CE114222_216:1.08558,Zymoseptoria_tritici_Mycgr3P49121:0.581703):0.113605);

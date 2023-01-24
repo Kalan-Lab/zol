@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF78550:0.705453,((Cryptococcus_neoformans_AAW45763:0.814187,Ustilago_maydis_KIS68091:0.685654):0.238611,Puccinia_graminis_EFP87691:0.996662):0.578317,(Phycomyces_blakesleeanus_jgi|Phybl2|141172|Genemark1.3363_g:0.638693,Rhizopus_delemar_EIE85478.1:0.224095):0.273674);

@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|570775|e_gw1.1.968.1:0.135533,Laccaria_bicolor_jgi|Lacbi2|553434|gw1.1.13460.1:0.149344,Laccaria_bicolor_jgi|Lacbi2|691192|fgenesh3_kg.LG_7_#_145_#_Locus_8221_Transcript_4/4_Confidence_0.308:0.231971);

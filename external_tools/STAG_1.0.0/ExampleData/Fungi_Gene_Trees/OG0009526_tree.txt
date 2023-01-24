@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE57933:0.515562,Aspergillus_oryzae_BAE65161:0.485812,Batrachochytrium_dendrobatidis_EGF76084:1.23329);

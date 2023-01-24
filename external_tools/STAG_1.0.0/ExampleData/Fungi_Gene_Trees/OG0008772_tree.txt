@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60932:0.980774,(Phaeosphaeria_nodorum_SNOT_05753:0.252409,Pyrenophora_triticirepentis_EDU45096:0.239026):0.468318,Zymoseptoria_tritici_Mycgr3P102217:0.460057);

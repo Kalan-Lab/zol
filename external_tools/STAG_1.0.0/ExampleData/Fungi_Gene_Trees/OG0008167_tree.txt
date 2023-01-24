@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF83106:0.913282,(Laccaria_bicolor_jgi|Lacbi2|307359|Lacbi1.eu2.Lbscf0035g00180:0.793589,Phanerochaete_chrysosporium_jgi|Phchr2|2895271|e_gw1.1.2915.1:0.348198):0.786432,(Phycomyces_blakesleeanus_jgi|Phybl2|144287|Genemark1.6478_g:0.319811,Rhizopus_delemar_EIE83050.1:0.13539):0.274905);

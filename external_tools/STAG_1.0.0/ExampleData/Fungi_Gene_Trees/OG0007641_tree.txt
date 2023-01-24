@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF78822:0.00259572,Batrachochytrium_dendrobatidis_EGF80606:2.2934e-06,((Laccaria_bicolor_jgi|Lacbi2|312767|Lacbi1.eu2.Lbscf0054g00920:0.690147,(Rhizopus_delemar_EIE78299.1:0.0907677,Rhizopus_delemar_EIE85890.1:0.184311):0.416738):0.334031,Rhizoclosmatium_globosum_jgi|Rhihy1|659384|e_gw1.20.234.1:0.503495):0.445514);

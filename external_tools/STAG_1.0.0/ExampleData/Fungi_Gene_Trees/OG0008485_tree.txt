@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|297796|Lacbi1.eu2.Lbscf0012g03510:1.55776,((Phycomyces_blakesleeanus_jgi|Phybl2|61542|Phybl1.fgeneshPB_pg.4__217:0.570645,Phycomyces_blakesleeanus_jgi|Phybl2|77593|Phybl1.estExt_fgeneshPB_pg.C_80313:0.332607):0.135166,Rhizopus_delemar_EIE77294.1:0.0146989):0.022974,Rhizopus_delemar_EIE77416.1:2.071e-06);

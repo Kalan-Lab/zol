@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45705:0.738704,Laccaria_bicolor_jgi|Lacbi2|641207|estExt_Genewise1.C_LG_1_t50367:1.30534,Phanerochaete_chrysosporium_jgi|Phchr2|2795361|CE1795361_6488:0.832705);

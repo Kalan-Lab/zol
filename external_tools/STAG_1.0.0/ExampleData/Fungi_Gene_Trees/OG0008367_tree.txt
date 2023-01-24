@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW42054:1e-06,Cryptococcus_neoformans_AAW42055:1e-06,(Cryptococcus_neoformans_AAW42056:0.0423581,(Sporobolomyces_linderae_jgi|Spoli1|2029|CE2028_399:0.509642,Sporobolomyces_linderae_jgi|Spoli1|117457|CE117456_412:0.618633):1.00377):0.099679);

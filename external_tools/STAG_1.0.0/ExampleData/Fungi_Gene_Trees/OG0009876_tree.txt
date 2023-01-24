@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW43158:0.944644,Sporobolomyces_linderae_jgi|Spoli1|212133|estExt_Genemark1.C_90278:0.733811,Ustilago_maydis_KIS67574:0.448587);

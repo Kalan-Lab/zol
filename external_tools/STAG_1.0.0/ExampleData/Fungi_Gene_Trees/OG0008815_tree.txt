@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF83862:0.647577,Phycomyces_blakesleeanus_jgi|Phybl2|157528|fgenesh1_kg.3_#_59_#_1621_1_CBNA_CBNB_CBNC_CBNF:1.12524,(Puccinia_graminis_EFP76593:1.1879,Rhizoclosmatium_globosum_jgi|Rhihy1|848157|estExt_Genemark1.C_120072:0.828861):0.309376);

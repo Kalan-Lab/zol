@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55705:0.394725,((Batrachochytrium_dendrobatidis_EGF79899:0.452635,Rhizoclosmatium_globosum_jgi|Rhihy1|717941|fgenesh1_kg.27_#_28_#_Locus4440v1rpkm52.31:0.632921):0.84649,Verticillium_dahliae_EGY19530:0.774716):0.583454,Phaeosphaeria_nodorum_SNOT_15316:1.08252);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW42011:0.556458,Phanerochaete_chrysosporium_jgi|Phchr2|3032054|gm1.10271_g:0.31377,Ustilago_maydis_KIS71826:0.523674);

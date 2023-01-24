@@ -1,0 +1,1 @@
+(Puccinia_graminis_EHS64676:1.1936,((Rhizoclosmatium_globosum_jgi|Rhihy1|13339|CE13338_5538:0.029621,Rhizoclosmatium_globosum_jgi|Rhihy1|116445|CE116444_3864:2.9736e-06):0.170165,Rhizoclosmatium_globosum_jgi|Rhihy1|716541|fgenesh1_kg.20_#_144_#_Locus16224v1rpkm5.17:0.550983):0.140806,Rhizoclosmatium_globosum_jgi|Rhihy1|764709|estExt_fgenesh1_pg.C_160005:1.02726);

@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|180225|estExt_Genemark1.C_50278:1.14365,(Saccharomyces_cerevisiae_YNR063W:1.77082,(Ustilago_maydis_KIS69255:0.0101428,Ustilago_maydis_KIS69254:0.00092741):0.42995):0.16055,Yarrowia_lipolytica_CAG78344:1.70012);

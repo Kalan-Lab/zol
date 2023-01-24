@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin11g03870.1:0.893648,((Laccaria_bicolor_jgi|Lacbi2|477788|fgenesh1_pm.LG_1_#_505:0.404815,Laccaria_bicolor_jgi|Lacbi2|679988|fgenesh3_kg.LG_1_#_892_#_Locus_24667_Transcript_2/2_Confidence_1.000:0.368759):0.106806,Laccaria_bicolor_jgi|Lacbi2|457990|estExt_Genemark1.C_LG_7_t10315:0.396792):0.358299,Phaeosphaeria_nodorum_SNOT_13236:0.795322);

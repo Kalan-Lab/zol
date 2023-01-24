@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin09g00910.1:0.702918,(Cryptococcus_neoformans_AAW41929:0.199106,Cryptococcus_neoformans_AAW41838:0.255164):1.12449,Verticillium_dahliae_EGY20013:0.478203);

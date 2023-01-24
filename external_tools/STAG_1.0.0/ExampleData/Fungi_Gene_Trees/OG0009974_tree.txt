@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07092P0:1e-06,Fusarium_oxysporum_FOXG_07004P0:1e-06,Puccinia_graminis_EFP84797:1.33409);

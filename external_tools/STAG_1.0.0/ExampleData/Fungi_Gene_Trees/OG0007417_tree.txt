@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2901848|e_gw1.4.973.1:0,((((Puccinia_graminis_EFP74848:0.012868,Puccinia_graminis_EFP84564:0.0419339):0.004634,Puccinia_graminis_EFP84565:0.00723365):0.01346,Puccinia_graminis_EFP79818:0.06648):0.094347,Puccinia_graminis_EHS64645:0.186381):1.50589,Phanerochaete_chrysosporium_jgi|Phchr2|2917549|e_gw1.16.441.1:0);

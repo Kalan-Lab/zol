@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|850981|estExt_Genemark1.C_240166:1.44255,Sporobolomyces_linderae_jgi|Spoli1|189975|fgenesh1_kg.6_#_426_#_comp5072_c0_seq1:0.832542,Ustilago_maydis_KIS69431:0.335912);

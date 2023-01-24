@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62256:0.246891,(Phycomyces_blakesleeanus_jgi|Phybl2|133446|estExt_Genewise1Plus.C_100034:0.243352,Rhizopus_delemar_EIE76636.1:0.379896):0.591213,Zymoseptoria_tritici_Mycgr3P29881:0.297224);

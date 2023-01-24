@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_02344:0.0293269,Phaeosphaeria_nodorum_SNOT_01370:1e-06,Phaeosphaeria_nodorum_SNOT_09186:1e-06);

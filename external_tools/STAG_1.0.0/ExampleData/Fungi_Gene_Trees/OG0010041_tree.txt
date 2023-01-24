@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_12232P0:1.16405,Pyrenophora_triticirepentis_EDU43151:1.36016,Verticillium_dahliae_EGY15556:0.217923);

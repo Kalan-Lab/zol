@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin09g00420.1:1.16763,(Fusarium_oxysporum_FOXG_05002P0:0.855176,Verticillium_dahliae_EGY22437:0.662195):0.198768,(Pyrenophora_triticirepentis_EDU43723:1.23927,Pyrenophora_triticirepentis_EDU46426:1.09099):0.172669);

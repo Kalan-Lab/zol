@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63768:0.309094,(Fusarium_oxysporum_FOXG_11457P0:0.294699,Fusarium_oxysporum_FOXG_08802P0:0.974806):0.2069,Magnaporthe_oryzae_MGG_15921T0:0.751019);

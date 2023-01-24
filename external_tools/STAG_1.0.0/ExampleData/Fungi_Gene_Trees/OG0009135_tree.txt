@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15171P0:0,(Fusarium_oxysporum_FOXG_07123P0:2.2707e-06,Ustilago_maydis_KIS66241:1.48006):0.176989,Fusarium_oxysporum_FOXG_14309P0:0);

@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_01577:2.6557e-06,Pyrenophora_triticirepentis_EDU46577:0.152506,(Rhizopus_delemar_EIE75825.1:0.906776,Rhizopus_delemar_EIE88021.1:0.431273):0.992081);

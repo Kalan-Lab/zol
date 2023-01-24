@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79448:1.26983,(((Cryptococcus_neoformans_AAW43997:1.10627,Ustilago_maydis_KIS67771:0.825741):0.118725,(Rhizopus_delemar_EIE76433.1:0.237612,Rhizopus_delemar_EIE84568.1:0.253518):1.06733):0.195226,Laccaria_bicolor_jgi|Lacbi2|316443|Lacbi1.eu2.Lbscf0073g00590:0.513652):0.136068,Phanerochaete_chrysosporium_jgi|Phchr2|3026855|gm1.5072_g:0.240699);

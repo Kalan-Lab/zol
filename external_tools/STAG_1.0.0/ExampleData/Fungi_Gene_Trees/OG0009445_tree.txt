@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63845:0.424753,Laccaria_bicolor_jgi|Lacbi2|600246|e_gw1.7.1822.1:0.513136,Verticillium_dahliae_EGY22665:0.601957);

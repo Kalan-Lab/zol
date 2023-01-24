@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_03966P0:0.182456,(((Laccaria_bicolor_jgi|Lacbi2|464692|fgenesh1_pg.LG_4_#_436:0.0283948,Laccaria_bicolor_jgi|Lacbi2|572899|e_gw1.1.3613.1:2.6076e-06):0.447215,Pyrenophora_triticirepentis_EDU47980:0.211111):0.127572,Magnaporthe_oryzae_MGG_10266T0:0.153287):0.108605,Verticillium_dahliae_EGY19158:0.213817);

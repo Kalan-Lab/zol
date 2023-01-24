@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin03g01870.1:0.805089,(Botrytis_cinerea_Bcin04g06440.1:1.2307,(Saccharomyces_cerevisiae_YJL149W:0.773758,Saccharomyces_cerevisiae_YDR131C:1.00254):0.697697):0.219116,(Phaeosphaeria_nodorum_SNOT_01841:0.634166,Phaeosphaeria_nodorum_SNOT_12442:0.556065):0.423153);

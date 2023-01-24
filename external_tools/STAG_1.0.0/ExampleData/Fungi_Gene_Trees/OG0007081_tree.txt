@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58349:0.444115,((Aspergillus_oryzae_BAE65983:0.196289,(Fusarium_oxysporum_FOXG_15260P0:0.00659506,Rhizopus_delemar_EIE78165.1:1.21231):0.496594):0.62425,Botrytis_cinerea_Bcin09g00470.1:0.652014):0.137063,(Aspergillus_oryzae_BAE58679:0.284593,Phaeosphaeria_nodorum_SNOT_12418:0.348897):0.23204);

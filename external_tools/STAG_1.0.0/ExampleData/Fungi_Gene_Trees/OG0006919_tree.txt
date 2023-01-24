@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_12545P0:0,((((Magnaporthe_oryzae_MGG_10791T0:1.16964,Phaeosphaeria_nodorum_SNOT_07823:0.434299):0.261811,(Zymoseptoria_tritici_Mycgr3P31119:0.383129,Zymoseptoria_tritici_Mycgr3P107790:0.652123):0.294492):0.642431,Fusarium_oxysporum_FOXG_13996P0:0):0,Fusarium_oxysporum_FOXG_12595P0:0):0,Fusarium_oxysporum_FOXG_17080P0:0);

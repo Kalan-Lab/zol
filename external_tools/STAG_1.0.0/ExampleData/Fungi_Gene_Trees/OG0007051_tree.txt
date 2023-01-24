@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62082:0.25887,((Cryptococcus_neoformans_AAW41453:0.202959,Zymoseptoria_tritici_Mycgr3P77930:0.340454):0.128304,Schizosaccharomyces_pombe_SPAC922.03.1_pep:0.47676):0.163,((Fusarium_oxysporum_FOXG_08649P0:0.109548,Verticillium_dahliae_EGY20763:0.078806):0.034191,Magnaporthe_oryzae_MGG_02812T0:0.176139):0.078852);

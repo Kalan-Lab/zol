@@ -1,0 +1,1 @@
+(Rhizopus_delemar_EIE76245.1:0.292717,((Rhizopus_delemar_EIE79298.1:0.179509,Rhizopus_delemar_EIE85784.1:0.442436):0.385858,Yarrowia_lipolytica_CAG77761:1.18523):0.20407,Rhizopus_delemar_EIE82459.1:0.203652);

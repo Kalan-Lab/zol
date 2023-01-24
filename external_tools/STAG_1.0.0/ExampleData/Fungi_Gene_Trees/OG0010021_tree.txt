@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15726P0:0.396991,Magnaporthe_oryzae_MGG_10772T0:0.728025,Verticillium_dahliae_EGY15304:0.503557);

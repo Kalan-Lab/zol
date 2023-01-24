@@ -59,7 +59,7 @@ def create_parser():
 	11/17/2022 - can now use pyrodigal instead of progial.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-i', '--input_genomic_fasta', help='Path to genomic assembly in FASTA format.', required=True)
+	parser.add_argument('-i', '--input_genomic_fasta', help='Path to genomic assembly in FASTA or GenBank (needed for Eukaryotes) format.', required=True)
 	parser.add_argument('-o', '--output_directory', help='Path to output directory. Should already be created!', required=True)
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default='AAA', required=False)

@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_09780T0:1.39064,((Sporobolomyces_linderae_jgi|Spoli1|200788|gm1.5684_g:0.232424,Sporobolomyces_linderae_jgi|Spoli1|125381|CE125380_1815:0.224131):0.475603,Sporobolomyces_linderae_jgi|Spoli1|212623|estExt_Genemark1.C_110215:0.820515):0.435913,Sporobolomyces_linderae_jgi|Spoli1|210757|estExt_Genemark1.C_6_t20199:1.03138);

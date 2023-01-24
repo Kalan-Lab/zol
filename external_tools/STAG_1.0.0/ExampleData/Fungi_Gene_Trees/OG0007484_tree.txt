@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54636:0.449998,(Batrachochytrium_dendrobatidis_EGF82314:1.11244,(Phycomyces_blakesleeanus_jgi|Phybl2|182549|estExt_Genemark1.C_190195:0.254027,Rhizopus_delemar_EIE75648.1:0.355916):0.647213):0.156254,(Laccaria_bicolor_jgi|Lacbi2|658328|estExt_fgenesh1_kg.C_LG_60361:0.354377,Phanerochaete_chrysosporium_jgi|Phchr2|3025824|gm1.4041_g:0.366809):0.173092);

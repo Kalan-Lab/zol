@@ -78,15 +78,19 @@ def create_parser():
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk" or ".genbank".', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-t', '--type', help='Type of locus. Options include: BGC, Phage, MGE.', required=False, default=None)
 	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
+	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks.', required=False, default=False)
+	parser.add_argument('-dit', '--derep_identity_threshold', type=float, help='Identity threshold for dereplication. Default is 98.0', required=False, default=98.0)
+	parser.add_argument('-dct', '--derep_coverage_threshold', type=float, help='Coverage threshold for dereplication. Default is 90.0', required=False, default=90.0)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-f', '--fubar_selection', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
+	parser.add_argument('-s', '--selection_analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
 	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster. Default is False because these are\ncomputationally intensive.", required=False, default=False)
-	parser.add_argument('-m', '--max_for_visualization', type=int, help='Maximum number of sequences to keep for clinker\nvisualization. If more sequences are provided then this\nnumber Treemer will be used to dereplicate based on gene-cluster\nwide tree. Default is 10.', required=False, default=10)
 	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the heatmap plot. Default is 7.', required=False, default=7)
 	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot. Default is 10.', required=False, default=14)
 	parser.add_argument('-fgl', '--full_genbank_labels', action='store_true', help='Use full GenBank labels instead of just the first 20 characters.', required=False, default=False)
+	parser.add_argument('-f', '--focal_genbanks', help='File with focal genbank(s) listed (one per line).', required=False, default=None)
+	parser.add_argument('-fc', '--comparator_genbanks', help='Optional file with comparator genbank(s) listed.\nDefault is to use remaining GenBanks as comparators to focal listing.', required=False, default=None)
+
 	args = parser.parse_args()
 	return args
 
@@ -102,15 +106,18 @@ def zolMain():
 
 	input_dir = os.path.abspath(myargs.input_dir) + '/'
 	outdir = os.path.abspath(myargs.output_dir) + '/'
-	type = myargs.type
 	cpus = myargs.cpus
 	use_super5 = myargs.use_super5
-	fubar_selection = myargs.fubar_selection
+	fubar_selection = myargs.selection_analysis
 	skip_gard = myargs.skip_gard
-	max_for_visualization = myargs.max_for_visualization
 	length = myargs.length
 	width = myargs.width
 	full_genbank_labels = myargs.full_genbank_labels
+	focal_genbanks_listing_file = myargs.focal_genbanks
+	comparator_genbanks_listing_file = myargs.comparator_genbanks
+	dereplicate_flag = myargs.dereplicate
+	derep_cov_thr = myargs.derep_coverage_threshold
+	derep_idt_thr = myargs.derep_identity_threshold
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -144,21 +151,28 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard, max_for_visualization,
-						length, width, full_genbank_labels, cpus]
+	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard,
+						focal_genbanks_listing_file, comparator_genbanks_listing_file, dereplicate_flag, derep_idt_thr,
+						derep_cov_thr, length, width, full_genbank_labels, cpus]
 	parameter_names = ["Input directory with Loci GenBanks", "Output directory", "Locus type",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
-					   "Skip GARD Partitioning by Recombination Breakpoints?",
-					   "Maximum Number of Gene Clusters to Visualize?", "Plot Height", "Plot Width",
+					   "Skip GARD Partitioning by Recombination Breakpoints?", "Focal GenBanks Listing",
+					   "Comparator GenBanks Listing", "Perform Dereplication?", "Dereplication Identity Threshold",
+					   "Dereplication Coverage Threshold", "Plot Height", "Plot Width",
 					   "Use Full GenBank Labels?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
-	# Step 1: Gather Genbanks in Input Directory
+	# Step 1: Gather Genbanks in Input Directory and Perform Dereplication if Specified
 	logObject.info('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory')
 	sys.stdout.write('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory\n')
 
 	genbanks = set([])
+	kept_dir = outdir + 'Dereplicated_GenBanks/'
+	if os.path.isdir(kept_dir):
+		sys.stderr.write('Warning: Will be using previously dereplicated set of GenBanks located at %s\n' % kept_dir)
+		logObject.warning('Will be using previously dereplicated set of GenBanks located at %s' % kept_dir)
+		input_dir = kept_dir
 	try:
 		for dirpath, dirnames, files in os.walk(input_dir):
 			for filename in files:
@@ -182,6 +196,14 @@ def zolMain():
 	else:
 		sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
 		logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
+
+	step1_check_file = check_dir + 'step1.txt'
+	derep_dir = outdir + 'Dereplication_Processing/'
+	if dereplicate_flag:
+		if not os.path.isfile(step1_check_file):
+			util.setupReadyDirectory([derep_dir, kept_dir])
+			genbanks = zol.dereplicateUsingFastANI(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, ani_cutoff=derep_idt_thr, coverage_cutoff=derep_cov_thr)
+			os.system('touch %s' % step1_check_file)
 
 	# Step 2: Determine Orthologs
 	logObject.info('--------------------\nStep 2\n--------------------\nDetermining orthogroups')
@@ -325,7 +347,7 @@ def zolMain():
 	gtc_results_dir = evo_results_dir + 'Gene_Tree_Congruence_Results/'
 	if not os.path.isfile(step6_check_file):
 		util.setupReadyDirectory([evo_results_dir, gard_results_dir, fubar_results_dir, gtc_results_dir])
-		tajimas_d = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
+		tajimas_d, segregating_sites_prop = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
 		gard_partitions = {}
 		fubar_sel_props = {}
 		fubar_sel_sites = {}
@@ -335,10 +357,11 @@ def zolMain():
 																					 fubar_results_dir, logObject,
 																				  	 gard_mode='Faster',
 																					 skip_gard=skip_gard, cpus=cpus)
-		gc_tree, gtc_score = zol.runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject)
-		evo_stats = {'tajimas_d': tajimas_d, 'gard_partitions': gard_partitions,
-							 'fubar_sel_props': fubar_sel_props, 'fubar_sel_sites': fubar_sel_sites,
-							 'gene_cluster_tree': gc_tree, 'gene_tree_congruence': gtc_score}
+		hg_med_beta_rd, hg_max_beta_rd = zol.computeBetaRDgc(prot_algn_dir, logObject)
+		evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop,
+					 'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
+					 'fubar_sel_sites': fubar_sel_sites, 'median_beta_rd_gc': hg_med_beta_rd,
+					 'max_beta_rd_gc': hg_max_beta_rd}
 		with open(evo_stats_pickle_file, 'wb') as pickle_file:
 			pickle.dump(evo_stats, pickle_file)
 		os.system('touch %s' % step6_check_file)
@@ -354,28 +377,70 @@ def zolMain():
 			sys.exit(1)
 	#print(evo_stats.keys())
 
-	# Step 7: Put together report
-	logObject.info('--------------------\nStep 7\n--------------------\nPutting together final report')
-	sys.stdout.write('--------------------\nStep 7\n--------------------\nPutting together final report\n')
-	step7_check_file = check_dir + 'step7.txt'
+	# Step 7: Perform comparative investigations between provided gene-cluster sets (things are rerun every time after this step)
+	comp_stats = None
+	if focal_genbanks_listing_file != None and os.path.isfile(focal_genbanks_listing_file):
+		all_genbank_ids = set([])
+		focal_genbank_ids = set([])
+		comparator_genbank_ids = set([])
+
+		for gbk in genbanks:
+			gbk_id = gbk.split('/')[-1]
+			if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank'):
+				gbk_id = '.'.join(gbk_id.split('.')[:-1])
+			all_genbank_ids.add(gbk_id)
+
+		with open(focal_genbanks_listing_file) as ofglf:
+			for line in ofglf:
+				line = line.strip()
+				gbk_id = line.split('/')[-1]
+				if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank'):
+					gbk_id = '.'.join(gbk_id.split('.')[:-1])
+				if gbk_id in all_genbank_ids:
+					focal_genbank_ids.add(gbk_id)
+				else:
+					sys.stderr.write('Could not match focal Gene Cluster %s to available GenBanks in analysis\n' % line)
+					logObject.warning('Could not match focal Gene Cluster %s to available GenBanks in analysis\n' % line)
+
+		if comparator_genbanks_listing_file != None and os.path.isfile(comparator_genbanks_listing_file):
+			with open(comparator_genbanks_listing_file) as ocglf:
+				for line in ocglf:
+					line = line.strip()
+					gbk_id = line.split('/')[-1]
+					if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank'):
+						gbk_id = '.'.join(gbk_id.split('.')[:-1])
+					if gbk_id in all_genbank_ids:
+						comparator_genbank_ids.add(gbk_id)
+					else:
+						sys.stderr.write('Could not match comparator Gene Cluster %s to available GenBanks in analysis\n' % line)
+						logObject.warning('Could not match comparator Gene Cluster %s to available GenBanks in analysis\n' % line)
+		else:
+			comparator_genbank_ids = all_genbank_ids.difference(focal_genbank_ids)
+
+		try:
+			assert( len(focal_genbank_ids) > 0 and len(comparator_genbank_ids) > 0)
+		except:
+			sys.stderr.write('Either no focal GenBanks or no comparator GenBanks. If confused, you can always run without the focal GenBank listing argument.\n')
+			logObject.error('Either no focal GenBanks or no comparator GenBanks.')
+			sys.exit(1)
+
+		# run comparative analyses
+		comp_stats = zol.compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, prot_algn_trim_dir, logObject)
+
+	# Step 8: Put together report
+	logObject.info('--------------------\nStep 8\n--------------------\nPutting together final report')
+	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
 	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	if not os.path.isfile(step7_check_file):
-		zol.consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
-		os.system('touch %s' % step7_check_file)
+	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
 
-	# Step 8: Create interactive visualization using clinker!
-	logObject.info('--------------------\nStep 8\n--------------------\nCreating heatmap visualization of gene cluster representative instances')
-	sys.stdout.write('--------------------\nStep 8\n--------------------\nCreating heatmap visualization of gene cluster representative instances\n')
-	step8_check_file = check_dir + 'step8.txt'
+	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
+	logObject.info('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')
+	sys.stdout.write('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances\n')
+	plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
 	plot_workspace_dir = outdir + 'Plot_Workspace/'
-	if not os.path.isfile(step8_check_file):
-		util.setupReadyDirectory([plot_workspace_dir])
-		representative_genbanks = zol.runTreemmer(genbanks, evo_stats['gene_cluster_tree'], max_for_visualization, logObject)
-		plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
-		zol.plotHeatmap(hg_stats, representative_genbanks, plot_result_pdf, plot_workspace_dir, logObject, height=length, width=width, full_genbank_labels=full_genbank_labels)
-		zol.runClinker(genbanks, hg_lts, representative_genbanks, fin_outdir, plot_workspace_dir, logObject)
-		os.system('touch %s' % step8_check_file)
+	util.setupReadyDirectory([plot_workspace_dir])
+	zol.plotHeatmap(hg_stats, genbanks, plot_result_pdf, plot_workspace_dir, logObject, height=length, width=width, full_genbank_labels=full_genbank_labels)
 
 	# Close logging object and exit
 	logObject.info('******************\nzol finished!\n******************\nFinal results can be found at: %s' % fin_outdir)

@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|518761|gw1.1.6316.1:0.766166,Phanerochaete_chrysosporium_jgi|Phchr2|3029798|gm1.8015_g:0.586592,((Phycomyces_blakesleeanus_jgi|Phybl2|165701|fgenesh1_pg.5_#_683:0.655259,Rhizopus_delemar_EIE77114.1:0.642302):0.509796,(Saccharomyces_cerevisiae_YLR139C:1.41043,Schizosaccharomyces_pombe_SPAP8A3.14c.1_pep:1.27032):0.310923):0.717472);

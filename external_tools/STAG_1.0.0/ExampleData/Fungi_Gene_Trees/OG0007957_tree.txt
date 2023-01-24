@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|141856|Genemark1.4047_g:0.309345,(Phycomyces_blakesleeanus_jgi|Phybl2|189017|estExt_fgenesh1_pg.C_290119:0.237892,(Puccinia_graminis_EFP81690:0.863093,Sporobolomyces_linderae_jgi|Spoli1|6965|CE6964_2768:0.712119):0.695612):0.073134,(Rhizopus_delemar_EIE81326.1:0.289604,Rhizopus_delemar_EIE90299.1:0.16162):0.11093);

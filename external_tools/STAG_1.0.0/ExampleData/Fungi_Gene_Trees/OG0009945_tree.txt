@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15944P0:0.0746651,Fusarium_oxysporum_FOXG_02818P0:2.3654e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2892056|gw1.20.356.1:1.10477);

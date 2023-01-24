@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60683:1.01549,Magnaporthe_oryzae_MGG_03422T0:0.90801,Pyrenophora_triticirepentis_EDU51351:0.411104);

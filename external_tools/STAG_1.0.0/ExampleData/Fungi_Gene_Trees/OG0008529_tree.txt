@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_09463:0.239081,Pyrenophora_triticirepentis_EDU39792:0.316836,((Rhizoclosmatium_globosum_jgi|Rhihy1|701289|estExt_Genewise1Plus.C_510080:0.660956,Sporobolomyces_linderae_jgi|Spoli1|184491|fgenesh1_kg.1_#_371_#_comp5860_c0_seq1:0.642652):0.371687,Zymoseptoria_tritici_Mycgr3P76762:0.437335):0.115763);

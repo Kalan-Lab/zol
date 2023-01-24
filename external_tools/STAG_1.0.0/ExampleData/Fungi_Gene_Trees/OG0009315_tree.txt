@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2910261|e_gw1.9.644.1:1.56169,(Rhizoclosmatium_globosum_jgi|Rhihy1|781328|gm1.2512_g:0.144924,Rhizoclosmatium_globosum_jgi|Rhihy1|847065|estExt_Genemark1.C_80033:0.138971):0.308868,Rhizoclosmatium_globosum_jgi|Rhihy1|643273|gw1.18.177.1:0.00897007);

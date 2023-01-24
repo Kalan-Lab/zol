@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65716:0.396322,(Fusarium_oxysporum_FOXG_02492P0:0.404172,(Fusarium_oxysporum_FOXG_12990P0:0.43849,(Fusarium_oxysporum_FOXG_12988P0:0.338395,Verticillium_dahliae_EGY22190:0.206247):0.559295):0.1366):0.055665,(Phaeosphaeria_nodorum_SNOT_10986:0.358469,Pyrenophora_triticirepentis_EDU43815:0.380264):0.251369);

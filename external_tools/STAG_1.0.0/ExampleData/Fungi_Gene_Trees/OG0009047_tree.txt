@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45677:0.661768,(Phycomyces_blakesleeanus_jgi|Phybl2|141360|Genemark1.3551_g:0.270103,Phycomyces_blakesleeanus_jgi|Phybl2|69188|Phybl1.fgeneshPB_pg.26__102:0.174247):0.784043,Sporobolomyces_linderae_jgi|Spoli1|187351|fgenesh1_kg.3_#_820_#_comp15960_c0_seq1:0.897956);

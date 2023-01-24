@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|666230|estExt_fgenesh1_pm.C_LG_1_t40124:0.181494,Laccaria_bicolor_jgi|Lacbi2|461533|fgenesh1_pg.LG_1_#_1019:0.131678,(Puccinia_graminis_EFP77619:0.7641,Sporobolomyces_linderae_jgi|Spoli1|199154|gm1.4050_g:0.733119):1.14777);

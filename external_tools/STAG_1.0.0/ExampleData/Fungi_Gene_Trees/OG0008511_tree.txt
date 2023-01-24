@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_16994T0:0.0488898,((Magnaporthe_oryzae_MGG_16581T0:0,Magnaporthe_oryzae_MGG_16995T0:0):2e-06,Magnaporthe_oryzae_MGG_16580T0:0.0735861):2e-06,Phaeosphaeria_nodorum_SNOT_16364:1.70906);

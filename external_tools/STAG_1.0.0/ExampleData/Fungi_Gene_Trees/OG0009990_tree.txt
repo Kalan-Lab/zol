@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07432P0:0.0131234,Fusarium_oxysporum_FOXG_14960P0:0.00473695,Pyrenophora_triticirepentis_EDU41654:0.645701);

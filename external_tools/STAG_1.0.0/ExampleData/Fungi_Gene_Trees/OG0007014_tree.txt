@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63491:0.387164,(Botrytis_cinerea_Bcin09g04600.1:0.416694,(((Fusarium_oxysporum_FOXG_03973P0:0.391234,Verticillium_dahliae_EGY20772:0.390684):0.142163,Pyrenophora_triticirepentis_EDU40713:0.344057):0.728733,Zymoseptoria_tritici_Mycgr3P49728:0.886771):0.177101):0.168566,Verticillium_dahliae_EGY22098:0.584029);

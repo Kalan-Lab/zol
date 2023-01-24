@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56712:0.327994,Pyrenophora_triticirepentis_EDU50956:0.719622,Schizosaccharomyces_pombe_SPAC1F8.04c.1_pep:0.347762);

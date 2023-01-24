@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2981533|fgenesh1_kg.7_#_56_#_Locus4294v3rpkm2.62_PRE:0.370284,Schizosaccharomyces_pombe_SPAC19A8.16.1_pep:0.511105,Verticillium_dahliae_EGY20866:0.594208);

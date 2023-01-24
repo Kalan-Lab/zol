@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_10864P0:1.05373,(Phanerochaete_chrysosporium_jgi|Phchr2|1178852|CE178852_413:2.2815e-06,Phanerochaete_chrysosporium_jgi|Phchr2|2991168|fgenesh1_kg.133_#_1_#_Locus24398v3rpkm0.00_PRE:2.661e-06):0.397849,(Rhizopus_delemar_EIE80831.1:0.186642,Rhizopus_delemar_EIE88014.1:0.872885):0.515112);

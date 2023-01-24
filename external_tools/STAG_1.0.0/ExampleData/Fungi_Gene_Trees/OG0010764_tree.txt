@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YPL139C:0.887335,Saccharomyces_cerevisiae_YOR230W:0.24031,Saccharomyces_cerevisiae_YOR229W:0.22597);

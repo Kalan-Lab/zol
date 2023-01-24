@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU81121:0.882512,Botrytis_cinerea_Bcin15g01160.1:0.890231,(((((Puccinia_graminis_EFP74360:0.379814,Puccinia_graminis_EFP90938:0.34475):0.067691,Puccinia_graminis_EFP74357:0.184377):0.113998,Puccinia_graminis_EFP74863:0.238734):0.582946,Sporobolomyces_linderae_jgi|Spoli1|201583|gm1.6479_g:0.721418):0.581366,Yarrowia_lipolytica_CAG80563:1.27885):0.49938);

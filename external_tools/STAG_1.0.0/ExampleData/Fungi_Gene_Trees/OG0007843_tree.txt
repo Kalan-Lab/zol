@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11821P0:0.791677,((Laccaria_bicolor_jgi|Lacbi2|591662|e_gw1.4.2906.1:1.0203,Phanerochaete_chrysosporium_jgi|Phchr2|3040311|estExt_Genemark1.C_100184:0.827953):0.802576,Verticillium_dahliae_EGY21975:0.999321):0.243939,(Magnaporthe_oryzae_MGG_10936T0:0.208887,Magnaporthe_oryzae_MGG_09772T0:0.110126):0.296271);

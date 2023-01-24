@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_07016:0.14043,((Phanerochaete_chrysosporium_jgi|Phchr2|2951022|estExt_Genewise1Plus.C_5_t10390:0.50959,(Sporobolomyces_linderae_jgi|Spoli1|188502|fgenesh1_kg.4_#_938_#_comp8094_c0_seq1:0.943609,Ustilago_maydis_KIS68247:1.08441):0.262444):0.51382,Zymoseptoria_tritici_Mycgr3P32807:0.496354):0.298476,Pyrenophora_triticirepentis_EDU40383:0.175546);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU79477:0.39539,((Botrytis_cinerea_Bcin04g01940.1:0.0744567,(Pyrenophora_triticirepentis_EDU46764:0.287548,((Saccharomyces_cerevisiae_YLR395C:0.760077,Yarrowia_lipolytica_CAG77786:0.246637):0.704176,Verticillium_dahliae_EGY16589:0.308535):0.108979):0.094066):0.093579,Magnaporthe_oryzae_MGG_03930T0:0.29466):0.080997,Zymoseptoria_tritici_Mycgr3P82889:0.164471);

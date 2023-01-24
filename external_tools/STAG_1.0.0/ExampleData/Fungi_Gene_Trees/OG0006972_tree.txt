@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_00565T0:0.2375,Magnaporthe_oryzae_MGG_08962T0:0.296386,((Magnaporthe_oryzae_MGG_08373T0:0.210665,Zymoseptoria_tritici_Mycgr3P73448:1.13545):0.060845,(((Magnaporthe_oryzae_MGG_02273T0:0.561701,Magnaporthe_oryzae_MGG_03079T0:0.56318):0.170335,Verticillium_dahliae_EGY15290:1.09463):0.480235,Magnaporthe_oryzae_MGG_02234T0:0.408039):0.264933):0.133549);

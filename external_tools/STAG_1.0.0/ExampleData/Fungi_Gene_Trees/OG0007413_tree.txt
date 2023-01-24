@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_02907:0.178378,(((Phycomyces_blakesleeanus_jgi|Phybl2|124133|estExt_Genewise1.C_80179:0.345452,Rhizopus_delemar_EIE84183.1:0.326842):0.381423,(Puccinia_graminis_EFP85765:0.271485,Puccinia_graminis_EFP85759:0.158352):0.318468):0.26498,Ustilago_maydis_KIS70428:0.359491):0.132372,Pyrenophora_triticirepentis_EDU44642:0.153507);

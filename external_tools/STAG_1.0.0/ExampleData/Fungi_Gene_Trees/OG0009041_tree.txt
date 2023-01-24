@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45334:0.768909,(Phycomyces_blakesleeanus_jgi|Phybl2|188905|estExt_fgenesh1_pg.C_270131:0.31747,Rhizopus_delemar_EIE85531.1:0.581725):0.891291,Ustilago_maydis_KIS69794:1.18372);

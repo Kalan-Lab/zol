@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61797:0.402271,((Fusarium_oxysporum_FOXG_17624P0:0.69332,((Fusarium_oxysporum_FOXG_15074P0:0,Fusarium_oxysporum_FOXG_14407P0:0):0.302185,(Fusarium_oxysporum_FOXG_14394P0:0,Fusarium_oxysporum_FOXG_15086P0:0):0.362185):0.223119):0.466868,Ustilago_maydis_KIS69935:0.796315):0.288594,Zymoseptoria_tritici_Mycgr3P39259:0.650004);

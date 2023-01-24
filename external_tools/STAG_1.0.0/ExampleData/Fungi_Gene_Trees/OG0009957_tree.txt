@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_12167P0:0.357436,Rhizoclosmatium_globosum_jgi|Rhihy1|275288|CE275287_2542:1.27407,Verticillium_dahliae_EGY22013:0.244347);

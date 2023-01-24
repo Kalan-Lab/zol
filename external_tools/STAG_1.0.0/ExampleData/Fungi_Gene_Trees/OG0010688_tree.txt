@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|152620|Genemark1.14811_g:0.488111,Puccinia_graminis_EHS63043:0.495846,Ustilago_maydis_KIS71354:0.287082);

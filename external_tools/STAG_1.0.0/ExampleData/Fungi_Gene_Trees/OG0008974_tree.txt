@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin08g06940.1:2.1825e-06,Botrytis_cinerea_Bcin08g06940.2:0.00587398,(Laccaria_bicolor_jgi|Lacbi2|628417|estExt_Genewise1Plus.C_LG_3_t50004:0.564011,Phanerochaete_chrysosporium_jgi|Phchr2|3036966|estExt_Genemark1.C_4_t20020:1.16341):0.923423);

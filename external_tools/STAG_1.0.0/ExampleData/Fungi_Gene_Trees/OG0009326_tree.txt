@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|184559|estExt_fgenesh1_pg.C_10827:0.447083,(Rhizopus_delemar_EIE84284.1:0.165449,Zymoseptoria_tritici_Mycgr3P18862:1.70049):0.08629,Rhizopus_delemar_EIE89673.1:0.12816);

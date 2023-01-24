@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF77214:1.00554,((Phanerochaete_chrysosporium_jgi|Phchr2|3028634|gm1.6851_g:0.506327,Ustilago_maydis_KIS68102:0.628735):0.17963,Schizosaccharomyces_pombe_SPCC622.19.1_pep:0.694441):0.216942,Rhizoclosmatium_globosum_jgi|Rhihy1|852926|estExt_Genemark1.C_360098:0.828061);

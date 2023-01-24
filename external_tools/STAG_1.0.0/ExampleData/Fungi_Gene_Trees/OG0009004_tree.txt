@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin14g01130.1:1.49339,(Phaeosphaeria_nodorum_SNOT_10585:1.1498,Phaeosphaeria_nodorum_SNOT_10584:0.589635):0.44769,Puccinia_graminis_EFP89668:0.525527);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU82034:0.838894,Fusarium_oxysporum_FOXG_02352P0:0.318342,Magnaporthe_oryzae_MGG_18099T0:0.79173);

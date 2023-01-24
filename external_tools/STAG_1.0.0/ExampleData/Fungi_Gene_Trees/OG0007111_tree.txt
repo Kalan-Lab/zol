@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE59307:0.467484,((Botrytis_cinerea_Bcin08g01140.1:0.489788,(Rhizopus_delemar_EIE77586.1:0.196868,Rhizopus_delemar_EIE89621.1:0.153598):0.679481):0.167097,(Laccaria_bicolor_jgi|Lacbi2|328635|Lacbi1.fgenesh3_pg.C_scaffold_17000199:0.726636,Ustilago_maydis_KIS67458:0.930055):0.132518):0.253731,Phaeosphaeria_nodorum_SNOT_05802:1.01516);

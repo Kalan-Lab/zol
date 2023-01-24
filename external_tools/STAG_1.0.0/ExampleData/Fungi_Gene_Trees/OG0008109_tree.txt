@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE66254:0.183359,Aspergillus_oryzae_BAE61455:0.439907,((Batrachochytrium_dendrobatidis_EGF76867:0.710524,Rhizoclosmatium_globosum_jgi|Rhihy1|724721|fgenesh1_kg.88_#_43_#_Locus7785v1rpkm26.15:0.795322):0.381068,Fusarium_oxysporum_FOXG_15740P0:0.242912):0.252766);

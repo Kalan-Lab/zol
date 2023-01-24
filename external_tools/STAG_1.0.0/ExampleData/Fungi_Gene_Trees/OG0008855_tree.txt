@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF80711:1.28009,(Laccaria_bicolor_jgi|Lacbi2|585014|e_gw1.3.1350.1:0.271733,Phanerochaete_chrysosporium_jgi|Phchr2|2874163|gw1.16.175.1:0.30086):0.32009,Sporobolomyces_linderae_jgi|Spoli1|199691|gm1.4587_g:0.519146);

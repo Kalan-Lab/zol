@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63843:0.197926,Aspergillus_oryzae_BAE61986:0.588127,Aspergillus_oryzae_BAE58603:0.328741);

@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU82835:1.26659,Botrytis_cinerea_Bcin08g03000.1:0.486312,Magnaporthe_oryzae_MGG_03672T0:0.8689);

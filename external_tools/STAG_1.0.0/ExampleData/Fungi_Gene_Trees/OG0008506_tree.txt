@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|452122|gm1.16566_g:0.808091,(Pyrenophora_triticirepentis_EDU50523:0.236891,(Verticillium_dahliae_EGY23832:0.258922,Zymoseptoria_tritici_Mycgr3P28830:0.249964):0.063827):0.085123,Rhizoclosmatium_globosum_jgi|Rhihy1|637362|gw1.5.149.1:0.980602);

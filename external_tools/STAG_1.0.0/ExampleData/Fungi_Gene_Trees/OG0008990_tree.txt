@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin11g05880.1:1.11153,(Fusarium_oxysporum_FOXG_00629P0:0.707034,Verticillium_dahliae_EGY21831:0.383943):0.132613,Magnaporthe_oryzae_MGG_04769T0:0.60532);

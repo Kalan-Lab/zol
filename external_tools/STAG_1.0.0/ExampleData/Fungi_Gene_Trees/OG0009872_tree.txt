@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41700:2.0534,Laccaria_bicolor_jgi|Lacbi2|690389|fgenesh3_kg.LG_6_#_561_#_Locus_2259_Transcript_1/5_Confidence_0.692:0.0417302,Laccaria_bicolor_jgi|Lacbi2|296120|Lacbi1.eu2.Lbscf0102g00060:0.247725);

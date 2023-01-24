@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76110:1.18577,((Laccaria_bicolor_jgi|Lacbi2|442261|gm1.6705_g:0.50829,Phanerochaete_chrysosporium_jgi|Phchr2|2953844|estExt_Genewise1Plus.C_7_t10379:0.405863):0.493768,Sporobolomyces_linderae_jgi|Spoli1|210761|estExt_Genemark1.C_6_t20207:0.765007):0.184997,(Puccinia_graminis_EHS63217:1.15028,Ustilago_maydis_KIS68975:0.611467):0.306418);

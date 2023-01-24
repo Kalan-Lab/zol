@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|609210|e_gw1.10.1609.1:0.92219,((Magnaporthe_oryzae_MGG_17606T0:1.21608,Verticillium_dahliae_EGY23236:0.548627):0.384141,Verticillium_dahliae_EGY23752:0.671454):0.213542,((Phaeosphaeria_nodorum_SNOT_09296:0.594809,Pyrenophora_triticirepentis_EDU40548:0.716277):0.432782,Sporobolomyces_linderae_jgi|Spoli1|82164|CE82163_152:1.42917):0.126378);

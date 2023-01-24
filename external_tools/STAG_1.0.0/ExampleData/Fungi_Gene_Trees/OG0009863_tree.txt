@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW44095:1.74624,Fusarium_oxysporum_FOXG_06162P0:0.150951,Verticillium_dahliae_EGY16870:0.957876);

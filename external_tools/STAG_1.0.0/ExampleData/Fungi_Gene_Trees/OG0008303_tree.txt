@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin09g05160.1:0.390246,Fusarium_oxysporum_FOXG_05389P0:0.314098,(Magnaporthe_oryzae_MGG_15899T0:0.619,(Phaeosphaeria_nodorum_SNOT_03707:0.168477,Pyrenophora_triticirepentis_EDU45443:0.173914):0.144358):0.151777);

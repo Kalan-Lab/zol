@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55452:0.33708,(Botrytis_cinerea_Bcin08g05870.1:0.308319,Pyrenophora_triticirepentis_EDU43196:0.362346):0.117984,((Laccaria_bicolor_jgi|Lacbi2|315175|Lacbi1.eu2.Lbscf0068g00440:0.304387,Phanerochaete_chrysosporium_jgi|Phchr2|2914430|e_gw1.12.372.1:0.256528):0.647739,Verticillium_dahliae_EGY19243:0.346173):0.051994);

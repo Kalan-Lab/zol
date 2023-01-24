@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46953:1.33891,(Ustilago_maydis_KIS66223:1.28131,Ustilago_maydis_KIS71013:0.541046):0.158569,Ustilago_maydis_KIS70551:0.892754);

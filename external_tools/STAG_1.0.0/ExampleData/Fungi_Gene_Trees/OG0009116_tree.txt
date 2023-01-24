@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_00718P0:0.42257,(Phycomyces_blakesleeanus_jgi|Phybl2|59769|Phybl1.fgeneshPB_pg.2__489:0.56222,Phycomyces_blakesleeanus_jgi|Phybl2|144139|Genemark1.6330_g:0.235632):1.07463,Verticillium_dahliae_EGY21500:0.41861);

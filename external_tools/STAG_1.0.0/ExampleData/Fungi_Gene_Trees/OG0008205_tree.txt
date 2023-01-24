@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF81811:1.01328,((Cryptococcus_neoformans_AAW44147:1.29377,Laccaria_bicolor_jgi|Lacbi2|296456|Lacbi1.eu2.Lbscf0010g02650:0.438077):0.190026,Phanerochaete_chrysosporium_jgi|Phchr2|2894545|e_gw1.1.1689.1:0.514434):0.951258,Phycomyces_blakesleeanus_jgi|Phybl2|151398|Genemark1.13589_g:0.970168);

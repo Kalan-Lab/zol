@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62486:0.163424,Aspergillus_oryzae_BAE66186:0.313425,Ustilago_maydis_KIS68862:1.12683);

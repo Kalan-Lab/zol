@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g09260.1:0.596876,Cryptococcus_neoformans_AAW43679:0.360074,Fusarium_oxysporum_FOXG_11890P0:0.991176);

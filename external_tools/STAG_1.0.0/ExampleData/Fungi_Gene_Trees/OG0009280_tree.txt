@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_09719T0:0.134535,(Rhizoclosmatium_globosum_jgi|Rhihy1|685228|estExt_Genewise1.C_790015:0.750342,Sporobolomyces_linderae_jgi|Spoli1|37613|CE37612_2713:0.902598):0.730848,Verticillium_dahliae_EGY22580:0.272369);

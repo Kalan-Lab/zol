@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|179371|estExt_Genemark1.C_20903:0.284087,(Rhizoclosmatium_globosum_jgi|Rhihy1|712547|fgenesh1_kg.5_#_210_#_Locus9360v1rpkm19.73:0.706339,(Schizosaccharomyces_pombe_SPAC1F12.06c.1_pep:0.912364,Sporobolomyces_linderae_jgi|Spoli1|128913|CE128912_1671:0.637207):0.216505):0.116783,Rhizopus_delemar_EIE83100.1:0.3312);

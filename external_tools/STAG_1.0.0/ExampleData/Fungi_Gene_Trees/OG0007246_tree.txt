@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin04g06910.1:1.15555,(Magnaporthe_oryzae_MGG_07625T0:0.484344,Pyrenophora_triticirepentis_EDU43182:0.27396):0.374677,((Magnaporthe_oryzae_MGG_10318T0:0.208112,(Phaeosphaeria_nodorum_SNOT_13500:0.276945,Pyrenophora_triticirepentis_EDU48482:0.180309):0.089224):0.095179,Zymoseptoria_tritici_Mycgr3P70022:0.588587):0.111797);

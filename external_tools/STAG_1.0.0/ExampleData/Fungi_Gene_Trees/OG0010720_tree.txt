@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP91538:0.936198,Sporobolomyces_linderae_jgi|Spoli1|203591|gm1.8487_g:0.651689,Ustilago_maydis_KIS69329:0.454137);

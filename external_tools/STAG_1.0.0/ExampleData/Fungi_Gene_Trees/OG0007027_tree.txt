@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56300:0.605256,(((Aspergillus_oryzae_BAE62609:0.871156,(Phaeosphaeria_nodorum_SNOT_11655:0.229367,Pyrenophora_triticirepentis_EDU39504:0.298845):0.513471):0.143821,Aspergillus_oryzae_BAE58907:0.843805):2e-06,Verticillium_dahliae_EGY23616:1.12169):0.248441,Aspergillus_oryzae_BAE64750:0.344461);

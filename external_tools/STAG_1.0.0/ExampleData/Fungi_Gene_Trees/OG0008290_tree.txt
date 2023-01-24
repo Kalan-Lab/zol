@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin06g04930.1:0.594411,(Magnaporthe_oryzae_MGG_05897T0:0.507378,Verticillium_dahliae_EGY16881:0.597661):0.434346,(Phaeosphaeria_nodorum_SNOT_11678:0.394932,Zymoseptoria_tritici_Mycgr3P107967:0.903894):0.253357);

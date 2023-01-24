@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|715963|fgenesh1_kg.18_#_71_#_Locus15141v1rpkm6.53:1.77115,Schizosaccharomyces_pombe_SPAC11D3.10.1_pep:0.285644,Schizosaccharomyces_pombe_SPCC777.03c.1_pep:0.330846);

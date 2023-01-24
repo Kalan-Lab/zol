@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76781:0.923526,Rhizoclosmatium_globosum_jgi|Rhihy1|681260|estExt_Genewise1.C_340139:1.03475,(Saccharomyces_cerevisiae_YPR106W:1.10648,(Verticillium_dahliae_EGY15270:0.577895,Verticillium_dahliae_EGY21031:1.0173):0.498348):0.113596);

@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79942:0.486375,Cryptococcus_neoformans_AAW43363:0.589192,Rhizoclosmatium_globosum_jgi|Rhihy1|712672|fgenesh1_kg.5_#_335_#_Locus8601v1rpkm22.68:0.415732);

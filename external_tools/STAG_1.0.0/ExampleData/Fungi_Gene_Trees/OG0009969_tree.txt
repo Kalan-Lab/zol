@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_11895P0:0.836401,Phaeosphaeria_nodorum_SNOT_15896:1.09318,Verticillium_dahliae_EGY14472:0.133337);

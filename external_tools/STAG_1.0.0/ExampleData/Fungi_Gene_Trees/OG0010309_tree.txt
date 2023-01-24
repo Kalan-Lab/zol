@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_02595T0:1.87131,Phycomyces_blakesleeanus_jgi|Phybl2|172376|fgenesh1_pg.22_#_8:0.118276,Rhizopus_delemar_EIE84712.1:0.448784);

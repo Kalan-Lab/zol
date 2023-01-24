@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|482661|fgenesh1_pm.LG_3_#_1661:1.49685,Puccinia_graminis_EFP91569:1.02828,((Schizosaccharomyces_pombe_SPAC212.11.1_pep:2.8701e-06,Schizosaccharomyces_pombe_SPBCPT2R1.08c.1_pep:2.5414e-06):3e-06,Schizosaccharomyces_pombe_SPAC212.06c.1_pep:0.0269257):0.6896);

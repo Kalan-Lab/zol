@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW40801:0.524652,(Fusarium_oxysporum_FOXG_15734P0:0.319874,Pyrenophora_triticirepentis_EDU44972:0.350865):0.421488,(Phycomyces_blakesleeanus_jgi|Phybl2|152924|Genemark1.15115_g:0.28533,(Rhizopus_delemar_EIE83831.1:0.177505,Rhizopus_delemar_EIE87104.1:0.10268):0.082165):0.423513);

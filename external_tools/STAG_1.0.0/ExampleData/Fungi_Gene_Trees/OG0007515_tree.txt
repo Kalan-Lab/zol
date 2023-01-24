@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61970:0.665696,(Fusarium_oxysporum_FOXG_07638P0:0.247579,Verticillium_dahliae_EGY19008:0.31915):0.208234,(Rhizoclosmatium_globosum_jgi|Rhihy1|833933|MIX32961_3982_91:0.403123,(Sporobolomyces_linderae_jgi|Spoli1|97470|CE97469_1316:0.0214743,Sporobolomyces_linderae_jgi|Spoli1|97637|CE97636_1212:0.0142443):0.755619):0.131982);

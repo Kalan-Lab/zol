@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE65154:0.385387,Fusarium_oxysporum_FOXG_16502P0:0.996755,Laccaria_bicolor_jgi|Lacbi2|293222|Lacbi1.estExt_fgenesh2_pg.C_50450:1.23673);

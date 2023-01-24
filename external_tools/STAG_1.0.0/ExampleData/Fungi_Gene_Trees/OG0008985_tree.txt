@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin11g00630.1:1.1617,Botrytis_cinerea_Bcin11g00640.1:0.812791,(Botrytis_cinerea_Bcin11g00650.1:0.388501,Pyrenophora_triticirepentis_EDU40894:1.48177):0.26947);

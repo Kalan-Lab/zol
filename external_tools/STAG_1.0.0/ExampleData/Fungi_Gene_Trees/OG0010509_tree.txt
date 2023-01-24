@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|103888|gw1.3.1023.1:0.159407,Phycomyces_blakesleeanus_jgi|Phybl2|103899|gw1.11.459.1:0.278965,Sporobolomyces_linderae_jgi|Spoli1|168480|e_gw1.7.59.1:0.444109);

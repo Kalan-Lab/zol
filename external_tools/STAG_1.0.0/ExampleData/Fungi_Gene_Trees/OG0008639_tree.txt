@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE64262:0.591404,(Laccaria_bicolor_jgi|Lacbi2|687673|fgenesh3_kg.LG_3_#_2947_#_Locus_7198_Transcript_1/1_Confidence_1.000:0.387423,Phanerochaete_chrysosporium_jgi|Phchr2|3036996|estExt_Genemark1.C_4_t20052:0.515737):0.389802,Phanerochaete_chrysosporium_jgi|Phchr2|2985710|fgenesh1_kg.11_#_222_#_Locus2105v4rpkm1.72_PRE:1.06218);

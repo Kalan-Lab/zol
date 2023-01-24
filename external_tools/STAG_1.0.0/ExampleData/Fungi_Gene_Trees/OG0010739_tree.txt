@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|716864|fgenesh1_kg.22_#_2_#_Locus2677v1rpkm85.98:2.2361e-06,Rhizoclosmatium_globosum_jgi|Rhihy1|721970|fgenesh1_kg.55_#_8_#_Locus2677v1rpkm85.98:0.0240185,Ustilago_maydis_KIS70881:1.44824);

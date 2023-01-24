@@ -1,0 +1,1 @@
+(Pyrenophora_triticirepentis_EDU49775:1e-06,Pyrenophora_triticirepentis_EDU46165:0.581128,Pyrenophora_triticirepentis_EDU44778:1e-06);

@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07377P0:1.22023,Fusarium_oxysporum_FOXG_13256P0:0.97399,Rhizoclosmatium_globosum_jgi|Rhihy1|79479|CE79478_2233:0.651354);

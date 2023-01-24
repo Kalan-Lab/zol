@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63154:0.876898,(Aspergillus_oryzae_BAE64808:0.6866,(Magnaporthe_oryzae_MGG_02929T0:0.979022,(Phaeosphaeria_nodorum_SNOT_05133:0.241503,Verticillium_dahliae_EGY22734:0.251053):0.195714):0.45028):0.465675,Zymoseptoria_tritici_Mycgr3P109632:0.522006);

@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW44272:2.3232e-06,Cryptococcus_neoformans_AAW44273:2.3232e-06,Saccharomyces_cerevisiae_YMR168C:2.33912);

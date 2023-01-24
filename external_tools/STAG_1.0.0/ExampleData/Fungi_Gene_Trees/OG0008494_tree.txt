@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|605733|e_gw1.9.1570.1:0.497501,Phanerochaete_chrysosporium_jgi|Phchr2|3030453|gm1.8670_g:0.538648,((Puccinia_graminis_EFP85191:0.233055,Puccinia_graminis_EFP93777:0.231428):0.867176,Sporobolomyces_linderae_jgi|Spoli1|187760|fgenesh1_kg.4_#_196_#_comp7815_c0_seq1:0.987675):0.372406);

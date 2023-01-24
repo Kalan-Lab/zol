@@ -1,0 +1,192 @@
+#!/usr/bin/env python
+
+### Program: prepTG
+### Author: Rauf Salamzade
+### Kalan Lab
+### UW Madison, Department of Medical Microbiology and Immunology
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2021, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import sys
+import argparse
+from Bio import SeqIO
+from collections import defaultdict
+from time import sleep
+from zol import util
+import subprocess
+import traceback
+import multiprocessing
+import math
+from ete3 import Tree
+import _pickle as cPickle
+
+def create_parser():
+	""" Parse arguments """
+	parser = argparse.ArgumentParser(description="""
+	Program: prepTG
+	Author: Rauf Salamzade
+	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+
+	Prepares additional genomes for being searched for GCFs using fai.
+	
+	Note, to prepare for Eukaryotic genomes, you must provide provide full-GenBanks with CDS (gene-calls) and
+	translations provided because if FASTA are provided prodigal is used for gene-calling which is specific
+	for prokaryotes. 
+	""", formatter_class=argparse.RawTextHelpFormatter)
+
+	parser.add_argument('-i', '--target_genomes_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=True)
+	parser.add_argument('-o', '--output_directory', help='Output directory to stored input for fai.', required=True)
+	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. 3 for primary genomes; 4 for additional genomes (default).', required=False, default=4)
+	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
+	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.", required=False, default=1)
+	parser.add_argument('-py', '--use_pyrodigal', action='store_true', help='Use pyrodigal instead of prodigal.', required=False, default=False)
+
+	args = parser.parse_args()
+	return args
+
+def readifyAdditionalGenomes():
+	"""
+	Void function which runs primary workflow for program.
+	"""
+
+	"""
+	PARSE ARGUMENTS
+	"""
+	myargs = create_parser()
+
+	outdir = os.path.abspath(myargs.output_directory) + '/'
+	target_genomes_dir = myargs.target_genomes_dir
+	locus_tag_length = myargs.locus_tag_length
+	rename_locus_tags = myargs.rename_locus_tags
+	cpus = myargs.cpus
+	use_pyrodigal = myargs.use_pyrodigal
+
+	if os.path.isdir(outdir):
+		sys.stderr.write("Output directory exists! Exiting\n ")
+		sys.exit(1)
+	else:
+		os.system('mkdir %s' % outdir)
+
+	try:
+		assert(os.path.isdir(target_genomes_dir))
+		target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
+	except:
+		raise RuntimeError('Issue with reading genome listing file for samples with additional genomic assemblies.')
+
+	"""
+	START WORKFLOW
+	"""
+
+	# create logging object
+	log_file = outdir + 'Progress.log'
+	logObject = util.createLoggerObject(log_file)
+	logObject.info("Saving parameters for future records.")
+	parameters_file = outdir + 'Parameter_Inputs.txt'
+	parameter_values = [target_genomes_dir, outdir, cpus]
+	parameter_names = ["Target Genomes Directory", "Output Directory", "Number of cpus"]
+	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
+	logObject.info("Done saving parameters!")
+
+	# Step 1: List genomes in directory
+	target_listing_file = outdir + 'Target_Genomes.txt'
+	uncompress_dir = outdir + 'Uncompressed_Genomes/'
+	list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
+				target_listing_file]
+	try:
+		subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
+	except Exception as e:
+		logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
+		sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+		logObject.error(e)
+		sys.exit(1)
+
+	# Step 2: Setup files needed for fai
+	target_genome_annotation_listing_file = outdir + 'Target_Genome_Annotation_Files.txt'
+	additional_sample_genomes, additional_format_prediction = util.parseSampleGenomes(target_listing_file, logObject)
+	if additional_format_prediction == 'mixed':
+		logObject.error(
+			'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
+		raise RuntimeError(
+			'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
+
+	additional_proteomes_directory = outdir + 'Predicted_Proteomes_Additional/'
+	additional_genbanks_directory = outdir + 'Genomic_Genbanks_Additional/'
+	util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory])
+	if additional_format_prediction == 'fasta':
+		additional_prodigal_outdir = outdir + 'Prodigal_Gene_Calling_Additional/'
+		util.setupReadyDirectory([additional_prodigal_outdir])
+
+		util.processGenomes(additional_sample_genomes, additional_prodigal_outdir, additional_proteomes_directory,
+							additional_genbanks_directory, logObject, cpus=cpus, locus_tag_length=locus_tag_length,
+							use_pyrodigal=use_pyrodigal)
+	else:
+		# genomes are provided as Genbanks with CDS features
+		gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
+		util.setupReadyDirectory([gene_name_mapping_outdir])
+		util.processGenomesAsGenbanks(additional_sample_genomes, additional_proteomes_directory,
+									  additional_genbanks_directory, gene_name_mapping_outdir, logObject,
+									  cpus=cpus, locus_tag_length=locus_tag_length, rename_locus_tags=rename_locus_tags)
+
+	target_genome_annotation_listing_handle = open(target_genome_annotation_listing_file, 'w')
+	for f in os.listdir(additional_proteomes_directory):
+		sample = f.split('.faa')[0]
+		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory + sample + '.gbk' + '\t' + additional_proteomes_directory + f + '\n')
+	target_genome_annotation_listing_handle.close()
+
+	target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file)
+
+	pickle_output = outdir + 'Target_Genomes.pkl'
+	try:
+		with multiprocessing.Manager() as manager:
+			sample_gbk_info = manager.dict()
+			genbanks = []
+			for sample in target_genome_annotation_data:
+				sample_genbank = target_genome_annotation_data[sample]['genbank']
+				genbanks.append([sample, sample_genbank, sample_gbk_info])
+
+			with manager.Pool(cpus) as pool:
+				pool.map(util.parseGenbankAndFindBoundaryGenes, genbanks)
+
+			of = open(pickle_output, 'wb')
+			cPickle.dump(dict(sample_gbk_info), of)
+			of.close()
+	except Exception as e:
+		sys.stderr.write('')
+
+	# Close logging object and exit
+	util.closeLoggerObject(logObject)
+	sys.exit(0)
+
+if __name__ == '__main__':
+	readifyAdditionalGenomes()

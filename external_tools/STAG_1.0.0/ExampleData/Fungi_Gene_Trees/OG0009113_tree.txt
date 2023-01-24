@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_02777P0:0.507862,Laccaria_bicolor_jgi|Lacbi2|301991|Lacbi1.eu2.Lbscf0001g14400:0.51611,(Rhizoclosmatium_globosum_jgi|Rhihy1|757894|estExt_fgenesh1_pm.C_180001:0.0184088,Rhizoclosmatium_globosum_jgi|Rhihy1|679225|estExt_Genewise1.C_210004:0.0024467):0.679198);

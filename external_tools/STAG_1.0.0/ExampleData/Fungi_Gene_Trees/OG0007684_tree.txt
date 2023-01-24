@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU74397:0.0718228,Blumeria_graminis_CCU76411:0.0360774,((Fusarium_oxysporum_FOXG_16723P0:0,Fusarium_oxysporum_FOXG_16660P0:0):0.263208,(Fusarium_oxysporum_FOXG_15028P0:0,Fusarium_oxysporum_FOXG_14452P0:0):0.151154):1.23626);

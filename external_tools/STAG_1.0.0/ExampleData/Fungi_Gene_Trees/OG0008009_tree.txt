@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63295:0.432293,((Botrytis_cinerea_Bcin08g04880.1:0.521142,Magnaporthe_oryzae_MGG_11658T0:0.262666):0.052752,Verticillium_dahliae_EGY22090:0.286951):0.187765,Rhizoclosmatium_globosum_jgi|Rhihy1|736027|fgenesh1_pg.13_#_230:0.843934);

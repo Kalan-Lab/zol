@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_16453P0:0.492176,((Laccaria_bicolor_jgi|Lacbi2|316322|Lacbi1.eu2.Lbscf0072g00080:0.408406,Phanerochaete_chrysosporium_jgi|Phchr2|2917088|e_gw1.16.477.1:0.49685):0.353552,Rhizoclosmatium_globosum_jgi|Rhihy1|6805|CE6804_236:0.752749):0.178252,Phaeosphaeria_nodorum_SNOT_14810:0.432718);

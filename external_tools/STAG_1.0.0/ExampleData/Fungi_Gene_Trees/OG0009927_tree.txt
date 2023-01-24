@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW45042:1.0952,Laccaria_bicolor_jgi|Lacbi2|292557|Lacbi1.estExt_fgenesh2_pg.C_30513:0.898327,Rhizoclosmatium_globosum_jgi|Rhihy1|740196|fgenesh1_pg.34_#_139:1.04401);

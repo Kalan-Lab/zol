@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin08g01230.1:0.738294,Botrytis_cinerea_Bcin08g01280.1:0.739297,(Laccaria_bicolor_jgi|Lacbi2|481520|fgenesh1_pm.LG_3_#_520:0.756506,(Laccaria_bicolor_jgi|Lacbi2|331053|Lacbi1.fgenesh3_pg.C_scaffold_31000028:0.0637682,(Laccaria_bicolor_jgi|Lacbi2|435900|gm1.344_g:2.3218e-06,Laccaria_bicolor_jgi|Lacbi2|435898|gm1.342_g:2.4093e-06):0.002228):0.561365):0.842079);

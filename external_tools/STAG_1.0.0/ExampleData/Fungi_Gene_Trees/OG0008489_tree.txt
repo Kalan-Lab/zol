@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|669576|estExt_fgenesh1_pm.C_LG_8_t10105:0.482152,(Laccaria_bicolor_jgi|Lacbi2|447586|gm1.12030_g:0.0245678,Laccaria_bicolor_jgi|Lacbi2|603436|e_gw1.8.25.1:0.0990146):0.54754,(Sporobolomyces_linderae_jgi|Spoli1|209255|estExt_Genemark1.C_4_t20151:0.689398,Sporobolomyces_linderae_jgi|Spoli1|209258|estExt_Genemark1.C_4_t20154:0.177972):1.55683);

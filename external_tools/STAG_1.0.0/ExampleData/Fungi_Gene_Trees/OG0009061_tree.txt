@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46472:1.09518,(Phycomyces_blakesleeanus_jgi|Phybl2|186261|estExt_fgenesh1_pg.C_60612:0.640512,Rhizopus_delemar_EIE82658.1:0.473909):0.965224,Yarrowia_lipolytica_CAG82536:1.2126);

@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2951296|estExt_Genewise1Plus.C_5_t20184:0.207277,Phanerochaete_chrysosporium_jgi|Phchr2|2983668|fgenesh1_kg.8_#_1082_#_Locus1156v1rpkm249.28:0.121981,Schizosaccharomyces_pombe_SPAC13F5.03c.1_pep:0.847091);

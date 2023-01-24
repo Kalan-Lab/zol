@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_14199:0.909853,(Phaeosphaeria_nodorum_SNOT_13590:0.814491,Phaeosphaeria_nodorum_SNOT_00580:0.642269):0.297193,Sporobolomyces_linderae_jgi|Spoli1|210927|estExt_Genemark1.C_7_t10135:1.10691);

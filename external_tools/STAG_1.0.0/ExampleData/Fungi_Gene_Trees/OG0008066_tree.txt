@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62837:0.633248,Aspergillus_oryzae_BAE59626:0.301662,((Aspergillus_oryzae_BAE61464:0.651908,Laccaria_bicolor_jgi|Lacbi2|691408|fgenesh3_kg.LG_7_#_361_#_Locus_14603_Transcript_1/1_Confidence_1.000:0.529448):0.21506,Batrachochytrium_dendrobatidis_EGF78901:1.80075):0.297226);

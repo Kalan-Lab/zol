@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|116117|CE116116_1473:0.433603,Rhizoclosmatium_globosum_jgi|Rhihy1|328525|CE328524_1186:0.466839,((Sporobolomyces_linderae_jgi|Spoli1|191085|fgenesh1_kg.7_#_707_#_comp1780_c0_seq2:0.232134,Sporobolomyces_linderae_jgi|Spoli1|201942|gm1.6838_g:0.251802):0.041295,Sporobolomyces_linderae_jgi|Spoli1|125731|CE125730_2873:0.318352):1.03304);

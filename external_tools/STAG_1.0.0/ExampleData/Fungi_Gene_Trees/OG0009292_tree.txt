@@ -1,0 +1,1 @@
+(Phaeosphaeria_nodorum_SNOT_15946:0.846392,Phaeosphaeria_nodorum_SNOT_15947:0.506304,(Phaeosphaeria_nodorum_SNOT_13788:0.754648,Verticillium_dahliae_EGY18375:0.965405):0.241249);

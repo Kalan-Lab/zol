@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_07503P0:0.46782,Laccaria_bicolor_jgi|Lacbi2|446060|gm1.10504_g:1.24535,Zymoseptoria_tritici_Mycgr3P110435:0.456029);

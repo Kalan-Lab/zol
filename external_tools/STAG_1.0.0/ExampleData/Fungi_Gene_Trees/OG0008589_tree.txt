@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|79489|Phybl1.estExt_fgeneshPB_pg.C_270130:0.979788,((Sporobolomyces_linderae_jgi|Spoli1|197015|gm1.1911_g:0.418926,Sporobolomyces_linderae_jgi|Spoli1|190533|fgenesh1_kg.7_#_155_#_comp11966_c0_seq1:0.770102):0.227231,Ustilago_maydis_KIS69100:0.591601):0.479697,Ustilago_maydis_KIS70808:0.860451);

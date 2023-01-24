@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF83781:0.361534,Phycomyces_blakesleeanus_jgi|Phybl2|167703|fgenesh1_pg.9_#_199:0.706495,(Sporobolomyces_linderae_jgi|Spoli1|64807|CE64806_1314:0.882112,Sporobolomyces_linderae_jgi|Spoli1|188486|fgenesh1_kg.4_#_922_#_comp2040_c0_seq2:0.556715):0.19196);

@@ -1,0 +1,1 @@
+(Saccharomyces_cerevisiae_YKL055C:1.27977,Sporobolomyces_linderae_jgi|Spoli1|197122|gm1.2018_g:0.435262,Zymoseptoria_tritici_Mycgr3P38624:0.383549);

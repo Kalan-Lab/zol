@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU77067:0.227947,Botrytis_cinerea_Bcin05g06650.1:0.171805,(((Fusarium_oxysporum_FOXG_02237P0:0.27836,Zymoseptoria_tritici_Mycgr3P44531:0.37115):0.037009,Verticillium_dahliae_EGY15503:0.0899432):0.088568,Magnaporthe_oryzae_MGG_04675T0:0.199584):0.185409);

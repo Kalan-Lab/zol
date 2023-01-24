@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE55139:0.323158,(Aspergillus_oryzae_BAE65646:0.243104,Aspergillus_oryzae_BAE60800:0.921478):0.128633,Magnaporthe_oryzae_MGG_10272T0:1.04359);

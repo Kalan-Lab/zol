@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_15658P0:0.1811,(Fusarium_oxysporum_FOXG_14957P0:0.251192,Fusarium_oxysporum_FOXG_07430P0:0.0212906):0.837066,(((Phaeosphaeria_nodorum_SNOT_01957:0.267078,Pyrenophora_triticirepentis_EDU43296:0.463173):0.084627,Zymoseptoria_tritici_Mycgr3P103423:0.49282):0.107698,Verticillium_dahliae_EGY21095:0.309421):0.131735);

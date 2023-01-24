@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF79904:0.473906,(Phaeosphaeria_nodorum_SNOT_06471:0.282639,Pyrenophora_triticirepentis_EDU45010:0.139493):0.932222,Rhizoclosmatium_globosum_jgi|Rhihy1|719544|fgenesh1_kg.36_#_45_#_Locus6620v1rpkm32.48:0.415086);

@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61461:1.05031,(Botrytis_cinerea_Bcin16g04270.1:0.51357,Botrytis_cinerea_Bcin16g04360.1:0.547685):0.270128,((Magnaporthe_oryzae_MGG_05767T0:0.601489,Magnaporthe_oryzae_MGG_08453T0:0.562797):0.542236,Magnaporthe_oryzae_MGG_08488T0:0.952213):0.175225);

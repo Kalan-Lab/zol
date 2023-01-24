@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW46034:0.980186,(Fusarium_oxysporum_FOXG_10970P0:0.409972,Verticillium_dahliae_EGY18585:0.274013):0.890162,(Phaeosphaeria_nodorum_SNOT_03543:0.285812,Pyrenophora_triticirepentis_EDU45451:0.21138):0.572788);

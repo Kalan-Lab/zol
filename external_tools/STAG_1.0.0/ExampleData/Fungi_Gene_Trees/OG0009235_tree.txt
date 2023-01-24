@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|319073|Lacbi1.eu2.Lbscf0009g04330:1.08664,(Phycomyces_blakesleeanus_jgi|Phybl2|103175|gw1.11.431.1:0.384296,Rhizoclosmatium_globosum_jgi|Rhihy1|711694|fgenesh1_kg.3_#_77_#_Locus19411v1rpkm2.34:1.58209):0.127071,Phycomyces_blakesleeanus_jgi|Phybl2|126049|estExt_Genewise1.C_160176:0.234228);

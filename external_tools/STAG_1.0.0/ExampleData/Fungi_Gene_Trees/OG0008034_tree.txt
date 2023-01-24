@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54901:0.738971,((Phaeosphaeria_nodorum_SNOT_05538:0.256648,Pyrenophora_triticirepentis_EDU40137:0.182828):0.318518,Sporobolomyces_linderae_jgi|Spoli1|184627|fgenesh1_kg.1_#_507_#_comp1976_c0_seq1:1.28422):0.180669,Phaeosphaeria_nodorum_SNOT_15428:0.617644);

@@ -1,0 +1,1 @@
+(Magnaporthe_oryzae_MGG_03369T0:0.151797,Phaeosphaeria_nodorum_SNOT_05696:0.661061,Verticillium_dahliae_EGY23658:0.190605);

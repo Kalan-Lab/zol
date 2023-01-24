@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63595:0.623756,((Botrytis_cinerea_Bcin05g06660.1:0.43695,Pyrenophora_triticirepentis_EDU50664:0.401157):0.657213,Phanerochaete_chrysosporium_jgi|Phchr2|2977404|fgenesh1_kg.3_#_781_#_Locus4869v2rpkm22.34:0.242786):0.1294,Laccaria_bicolor_jgi|Lacbi2|698371|fgenesh3_kg.19_#_71_#_Locus_17537_Transcript_1/1_Confidence_1.000:0.463429);

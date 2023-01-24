@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU74433:0.932608,(Fusarium_oxysporum_FOXG_07450P0:0.51663,Phaeosphaeria_nodorum_SNOT_12425:1.33392):0.328431,((Fusarium_oxysporum_FOXG_08740P0:0.592798,Pyrenophora_triticirepentis_EDU48848:0.410108):0.174726,(Phaeosphaeria_nodorum_SNOT_11144:0.830248,Zymoseptoria_tritici_Mycgr3P73568:0.359559):0.180646):0.177211);

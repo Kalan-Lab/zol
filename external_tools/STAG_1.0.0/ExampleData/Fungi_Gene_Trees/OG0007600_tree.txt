@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE60727:0.386543,((Botrytis_cinerea_Bcin08g04460.1:0.616154,Laccaria_bicolor_jgi|Lacbi2|695663|fgenesh3_kg.11_#_617_#_Locus_5652_Transcript_3/6_Confidence_0.500:0.726813):0.169527,(Phaeosphaeria_nodorum_SNOT_10209:0.354946,Pyrenophora_triticirepentis_EDU48403:0.403072):0.200583):0.291103,Magnaporthe_oryzae_MGG_14883T0:0.443661);

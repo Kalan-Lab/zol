@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|656993|estExt_fgenesh1_kg.C_LG_3_t10317:0.425499,Rhizopus_delemar_EIE79004.1:0.740989,Ustilago_maydis_KIS71473:0.60158);

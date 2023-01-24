@@ -15,11 +15,125 @@ import xlsxwriter
 import pandas as pd
 import traceback
 import decimal
+import shutil
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-stag_prog = zol_main_directory + 'external_tools/STAG_1.0.0/stag'
-treemmer_prog = zol_main_directory + 'external_tools/Treemmer_v0.3.py'
 plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
+
+def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, ani_cutoff=98.0, coverage_cutoff=90.0):
+	derep_genbanks = set([])
+	try:
+		full_nucl_seq_dir = derep_dir + 'FASTAs/'
+		util.setupReadyDirectory([full_nucl_seq_dir])
+		fasta_listing_file = derep_dir + 'Gene_Clusters_FASTA_Listing.txt'
+		flf_handle = open(fasta_listing_file, 'w')
+		longest_seq = defaultdict(int)
+		tot_seq = defaultdict(int)
+		for gbk in genbanks:
+			gbk_prefix = gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+			gbk_fasta_file = full_nucl_seq_dir + gbk_prefix + '.fasta'
+			flf_handle.write(gbk_fasta_file + '\n')
+			gbk_fasta_handle = open(gbk_fasta_file, 'w')
+			with open(gbk) as ogbk:
+				for rec in SeqIO.parse(ogbk, 'genbank'):
+					gbk_fasta_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
+					if longest_seq[gbk_prefix] < len(str(rec.seq)):
+						longest_seq[gbk_prefix] = len(str(rec.seq))
+					tot_seq[gbk_prefix] += len(str(rec.seq))
+			gbk_fasta_handle.close()
+		flf_handle.close()
+
+		fastani_result_file = derep_dir + 'fastANI_Results.tsv'
+		fastani_cmd = ['fastANI', '--fragLen', '1000', '--ql', fasta_listing_file, '--rl', fasta_listing_file, '-o',
+					   fastani_result_file]
+
+		try:
+			subprocess.call(' '.join(fastani_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(fastani_result_file))
+			logObject.info('Successfully ran: %s' % ' '.join(fastani_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running fastANI: %s' % ' '.join(fastani_cmd))
+			sys.stderr.write('Had an issue running fastANI: %s\n' % ' '.join(fastani_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
+		dereplication_pairs = []
+		gc_in_dereplication_pairs = set([])
+		all_gcs = set([])
+		with open(fastani_result_file) as ofrf:
+			for line in ofrf:
+				line = line.strip()
+				f1, f2, idt, cov, tot = line.split('\t')
+				s1 = '.fasta'.join(f1.split('/')[-1].split('.fasta')[:-1])
+				s2 = '.fasta'.join(f2.split('/')[-1].split('.fasta')[:-1])
+				all_gcs.add(s1)
+				all_gcs.add(s2)
+				cov_prop = 100.0*(int(cov)/float(int(tot)))
+				if cov_prop >= coverage_cutoff and float(idt) >= ani_cutoff:
+					pair_tup = sorted([s1, s2])
+					dereplication_pairs.append(pair_tup)
+					gc_in_dereplication_pairs.add(s1)
+					gc_in_dereplication_pairs.add(s2)
+
+		"""	
+		Solution for single-linkage clustering taken from mimomu's response in the stackoverflow page:
+		https://stackoverflow.com/questions/4842613/merge-lists-that-share-common-elements?lq=1
+		"""
+		L = list(dereplication_pairs)
+		LL = set(itertools.chain.from_iterable(L))
+		for each in LL:
+			components = [x for x in L if each in x]
+			for i in components:
+				L.remove(i)
+			L += [list(set(itertools.chain.from_iterable(components)))]
+
+		for gc in all_gcs:
+			if not gc in gc_in_dereplication_pairs:
+				L.append([gc])
+
+		focal = None
+		if os.path.isfile(focal_genbanks):
+			focal = set([])
+			with open(focal_genbanks) as ofgf:
+				for line in ofgf:
+					line = line.strip()
+					gbk_prefix = line.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+					focal.add(gbk_prefix)
+
+		representatives = set([])
+		for gcc in L:
+			cluster_gc_stats = []
+			gcs = set([])
+			for gc in gcc:
+				cluster_gc_stats.append([gc, longest_seq[gc], tot_seq[gc]])
+				gcs.add(gc)
+			focal_not_relevant = False
+			if focal == None or len(gcs.intersection(focal)) == 0:
+				focal_not_relevant = True
+			rep = [x[0] for x in sorted(cluster_gc_stats, key=itemgetter(1,2), reverse=True) if focal_not_relevant or x[0] in focal][0]
+			representatives.add(rep)
+
+		for gbk in genbanks:
+			gbk_prefix = gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+			if not gbk_prefix in representatives: continue
+			shutil.copy(gbk, kept_dir)
+			derep_genbanks.add(kept_dir + gbk.split('/')[-1])
+
+		num_gbk = len(derep_genbanks)
+		if num_gbk == 0:
+			sys.stderr.write('Issues with dereplicating GenBanks! All GenBanks deemed as redundant ...\n')
+			logObject.error('Issues with dereplicating GenBanks! All GenBanks deemed as redundant ...')
+		else:
+			sys.stdout.write('Found %d GenBanks retained after dereplication.\n' % num_gbk)
+			logObject.info('Found %d GenBanks retained after dereplication.' % num_gbk)
+
+	except Exception as e:
+		sys.stderr.write('Issues with run fastANI based dereplication of input GenBanks.\n')
+		logObject.error('Issues with run fastANI based dereplication of input GenBanks.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+	return(derep_genbanks)
 
 def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject):
 	try:
@@ -163,7 +277,7 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, min_annotation_evalue=1e-10):
+def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, min_annotation_evalue=1e-5):
 	db_locations = zol_main_directory + 'db/database_location_paths.txt'
 	try:
 		individual_cpus = 1
@@ -186,8 +300,8 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 					search_cmd = ['hmmscan', '--cpu', str(individual_cpus), '--tblout', annotation_result_file,
 								  db_file, protein_faa, logObject]
 				elif db_file.endswith('.dmnd'):
-					search_cmd = ['diamond', 'blastp', '-p', str(individual_cpus), '-d', db_file, '-q', protein_faa,
-								  '-o', annotation_result_file, logObject]
+					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(individual_cpus), '-d', db_file,
+								  '-q', protein_faa, '-o', annotation_result_file, logObject]
 				search_cmds.append(search_cmd)
 
 		p = multiprocessing.Pool(pool_size)
@@ -273,6 +387,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 	try:
 		gc_gene_to_hg = {}
 		core_hgs = set([])
+		single_copy_core_hgs = set([])
 		with open(ortho_matrix_file) as omf:
 			for i, line in enumerate(omf):
 				if i == 0: continue
@@ -280,24 +395,34 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 				ls = line.split('\t')
 				hg = ls[0]
 				sample_count = 0
+				sc_sample_count = 0
 				for lts in ls[1:]:
 					for lt in lts.split(', '):
 						gc_gene_to_hg[lt] = hg
 					if lts.strip() != '':
 						sample_count += 1
+					if lts.strip() != '' and not ', ' in lts:
+						sc_sample_count += 1
 				if sample_count/float(len(ls[1:])) == 1.0:
 					core_hgs.add(hg)
+					if sc_sample_count/float(len(ls[1:])) == 1.0:
+						single_copy_core_hgs.add(hg)
 
 		gc_gene_counts = defaultdict(int)
 		gc_genes = defaultdict(set)
-		gc_gene_locations = {}
+		scaff_relative_gene_locations = {}
 		for gbk in genbanks:
 			prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
 			gene_locations = util.parseGbk(gbk, prefix, logObject)
-			for g in gene_locations:
-				gc_gene_locations[g] = gene_locations[g]
-			gc_gene_counts[gbk] = len(gc_gene_locations)
-			gc_genes[gbk] = set(gc_gene_locations.keys())
+			scaffolds = set([gene_locations[x]['scaffold'] for x in gene_locations])
+			for scaff in scaffolds:
+				gc_gene_locations = {}
+				for g in gene_locations:
+					if gene_locations[g]['scaffold'] == scaff:
+						gc_gene_locations[g] = gene_locations[g]
+						scaff_relative_gene_locations[g] = gene_locations[g]
+				gc_gene_counts[gbk + "|" + scaff] = len(gc_gene_locations)
+				gc_genes[gbk + "|" + scaff] = set(gc_gene_locations.keys())
 
 		ref_bgc = None
 		for i, item in enumerate(sorted(gc_gene_counts.items(), key=itemgetter(1), reverse=True)):
@@ -318,7 +443,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 			hg_lengths = defaultdict(list)
 			hg_starts = {}
 			for g in sorted(curr_gc_genes):
-				ginfo = gc_gene_locations[g]
+				ginfo = scaff_relative_gene_locations[g]
 				gstart = ginfo['start']
 				gend = ginfo['end']
 				if g in gc_gene_to_hg:
@@ -326,7 +451,6 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 					hg_directions[hg] = ginfo['direction']
 					hg_lengths[hg].append(abs(gend - gstart))
 					hg_starts[hg] = ginfo['start']
-
 			reverse_flag = False
 			if i == 0:
 				ref_hg_directions = hg_directions
@@ -382,14 +506,21 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 
 		anchor_edge = None
 		for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
-			if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
+			if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
 				anchor_edge = hps[0]
 				break
 		try:
 			assert (anchor_edge != None)
 		except:
-			sys.stderr.write("Unexpected error, no anchor edge found, could be because no protocore homolog group exists, which shouldn't be the case!\n")
-			sys.exit(1)
+			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+				if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
+					anchor_edge = hps[0]
+					break
+			try:
+				assert (anchor_edge != None)
+			except:
+				sys.stderr.write("Unexpected error, no anchor edge found, could be because no protocore homolog group exists, which shouldn't be the case!\n")
+				sys.exit(1)
 
 		# use to keep track of which HGs have been accounted for already at different steps of assigning order
 		accounted_hgs = set([anchor_edge[0], anchor_edge[1]])
@@ -537,6 +668,19 @@ def individualHyphyRun(inputs):
 		if len(input_gbks_with_hg) < 4:
 			return
 
+		unique_seqs = set([])
+		align_len = 0
+		with open(hg_codo_algn_file) as ohcaf:
+			for rec in SeqIO.parse(ohcaf, 'fasta'):
+				unique_seqs.add(str(rec.seq))
+				align_len = len(str(rec.seq))
+
+		if len(unique_seqs) == 1:
+			return
+
+		if align_len <= 200:
+			return
+
 		if skip_gard:
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', hg_codo_algn_file, '--tree', hg_full_codo_tree_file]
 			try:
@@ -585,7 +729,6 @@ def individualHyphyRun(inputs):
 		sys.exit(1)
 		sys.stderr.write(traceback.format_exc())
 
-
 def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, logObject, cpus=1, skip_gard=False, gard_mode="Faster"):
 	try:
 		hyphy_inputs = []
@@ -620,6 +763,8 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 		for f in os.listdir(fubar_results_dir):
 			if f.endswith('.json'):
 				hg = f.split('.msa.fna.FUBAR.json')[0]
+				if f.endswith('.best.FUBAR.json'):
+					hg = f.split('.best.FUBAR.json')[0]
 				fubar_json_result = fubar_results_dir + f
 				with open(fubar_json_result) as ofjr:
 					fubar_results = json.load(ofjr)
@@ -646,65 +791,80 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject, subsample_max=1000):
+def determineSeqSimProteinAlignment(protein_alignment_file, use_only_core=True):
+	protein_sequences = {}
+	with open(protein_alignment_file) as ocaf:
+		for rec in SeqIO.parse(ocaf, 'fasta'):
+			protein_sequences[rec.id] = str(rec.seq).upper()
+
+	pair_seq_matching = defaultdict(lambda: defaultdict(lambda: 0.0))
+	for i, g1 in enumerate(sorted(protein_sequences)):
+		s1 = g1.split('|')[0]
+		g1s = protein_sequences[g1]
+		for j, g2 in enumerate(sorted(protein_sequences)):
+			if i >= j: continue
+			s2 = g2.split('|')[0]
+			if s1 == s2: continue
+			g2s = protein_sequences[g2]
+			tot_comp_pos = 0
+			match_pos = 0
+			for pos, g1a in enumerate(g1s):
+				g2a = g2s[pos]
+				if g1a != '-' or g2a != '-':
+					if not use_only_core or (use_only_core and g1a != '-' and g2a != '-'):
+						tot_comp_pos += 1
+						if g1a == g2a:
+							match_pos += 1
+			general_matching_percentage = 0.0
+			if tot_comp_pos > 0:
+				general_matching_percentage = float(match_pos) / float(tot_comp_pos)
+			if pair_seq_matching[s1][s2] < general_matching_percentage and pair_seq_matching[s2][
+				s1] < general_matching_percentage:
+				pair_seq_matching[s1][s2] = general_matching_percentage
+				pair_seq_matching[s2][s1] = general_matching_percentage
+
+	return pair_seq_matching
+
+def computeBetaRDgc(prot_algn_dir, logObject):
+	"""
+	Note, Beta-RD gene-cluster statistic here is being computed in a different manner than what we did in lsaBGC.
+	"""
+	hg_med_beta_rd = {}
+	hg_max_beta_rd = {}
 	try:
-		# Run STAG by David Emms and Steve Kelley
-		stag_map_file = gtc_results_dir + 'Species_Mapping.txt'
-		smf_handle = open(stag_map_file, 'w')
-		prefices = []
-		for gbk in genbanks:
-			prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-			prefices.append(prefix)
-			smf_handle.write(prefix + '|*\t' + prefix + '\n')
-		smf_handle.close()
+		all_hg_median_sims = []
+		hg_sims_dict = {}
+		gc_wide_sims_dict = defaultdict(lambda: defaultdict(list))
+		for f in os.listdir(prot_algn_dir):
+			hg = f.split('.msa.faa')[0]
+			sims_dict = determineSeqSimProteinAlignment(prot_algn_dir + f)
+			if len(sims_dict) < 2: continue
+			hg_sims_dict[hg] = sims_dict
+			for i, s1 in enumerate(sorted(sims_dict)):
+				for j, s2 in enumerate(sorted(sims_dict)):
+					gc_wide_sims_dict[s1][s2].append(sims_dict[s1][s2])
 
-		stag_cmd = [stag_prog, stag_map_file, tree_dir]
-		result_gc_tree = None
-		try:
-			subprocess.call(' '.join(stag_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			par_dir_with_species_tree = '/'.join(os.path.abspath(tree_dir).split('/')[:-1]) + '/'
-			for sd in os.listdir(par_dir_with_species_tree):
-				if sd.startswith("STAG"):
-					result_gc_tree = par_dir_with_species_tree + sd + '/SpeciesTree.tre'
-			assert(os.path.isfile(result_gc_tree))
-			logObject.info('Successfully ran: %s' % ' '.join(stag_cmd))
-		except Exception as e:
-			logObject.error('Had an issue running STAG: %s' % ' '.join(stag_cmd))
-			sys.stderr.write('Had an issue running STAG: %s\n' % ' '.join(stag_cmd))
-			logObject.error(e)
-			sys.exit(1)
-
-		all_pairwise_combinations = itertools.combinations(sorted(prefices), 2)
-		all_pairwise_combinations = sorted(list(all_pairwise_combinations))
-		num_total_pairwise = len(all_pairwise_combinations)
-		subsample_size = min(subsample_max, num_total_pairwise)
-		selected_pairs = random.sample(all_pairwise_combinations, k=subsample_size)
-
-		gc_pw_info = util.calculateSelectDistances(result_gc_tree, selected_pairs)
-		hg_to_gc_congruence = {}
-		for hgt in os.listdir(tree_dir):
-			hg = hgt.split('.tre')[0]
-			outf = gtc_results_dir + hg + '.txt'
-			util.computeCongruence(hg, tree_dir + hgt, gc_pw_info, selected_pairs, outf, logObject)
-
-		for f in os.listdir(gtc_results_dir):
-			if f == 'Species_Mapping.txt': continue
-			hg = f.split('.txt')[0]
-			with open(gtc_results_dir + f) as ogf:
-				for line in ogf:
-					line = line.strip()
-					hg_to_gc_congruence[hg] = line
-		return([result_gc_tree, hg_to_gc_congruence])
+		for hg in hg_sims_dict:
+			Brdgc = []
+			for i, s1 in enumerate(sorted(hg_sims_dict[hg])):
+				for j, s2 in enumerate(sorted(hg_sims_dict[hg])):
+					if i >= j: continue
+					Brdgc.append(hg_sims_dict[hg][s1][s2] / float(statistics.median(gc_wide_sims_dict[s1][s2])))
+			if len(Brdgc) > 0:
+				hg_med_beta_rd[hg] = statistics.median(Brdgc)
+				hg_max_beta_rd[hg] = max(Brdgc)
 	except Exception as e:
-		sys.stderr.write('Issues with running gene tree to gene-cluster tree congruence analysis.\n')
-		logObject.error('Issues with running gene tree to gene-cluster tree congruence analysis.')
+		sys.stderr.write('Issues with calculating Beta-RD gene-cluster for homolog groups.\n')
+		logObject.error('Issues with calculating Beta-RD gene-cluster for homolog groups.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
+	return([hg_med_beta_rd, hg_max_beta_rd])
 
 def runTajimasDAnalysis(codo_algn_trim_dir, logObject):
 	try:
 		hg_tajimas_d = {}
+		hg_seg_sites_prop = {}
 		for catf in os.listdir(codo_algn_trim_dir):
 			if not catf.endswith('.msa.fna'): continue
 			hg = catf.split('.msa.fna')[0]
@@ -713,13 +873,16 @@ def runTajimasDAnalysis(codo_algn_trim_dir, logObject):
 			with open(codo_algn_trimmed_file) as ocatf:
 				for rec in SeqIO.parse(ocatf, 'fasta'):
 					codo_sequences.append(str(rec.seq))
-			# alignment must be > 100 bp and have 4 or more sequences
-			if len(codo_sequences) >= 4 and len(codo_sequences[0]) >= 100:
-				taj_d = calculateTajimasD(codo_sequences)
+			# at least 4 sequences and 60 bp in filtered alignment
+			if len(codo_sequences) >= 4 and len(codo_sequences[0]) > 60:
+				taj_d, seg_sites = calculateTajimasD(codo_sequences)
+				seg_sites_prop = seg_sites/len(codo_sequences[0])
 			else:
 				taj_d = 'NA'
+				seg_sites = 'NA'
 			hg_tajimas_d[hg] = taj_d
-		return(hg_tajimas_d)
+			hg_seg_sites_prop[hg] = seg_sites_prop
+		return([hg_tajimas_d, hg_seg_sites_prop])
 	except Exception as e:
 		sys.stderr.write('Issues with calculating Tajima\'s D for homolog groups.\n')
 		logObject.error('Issues with calculating Tajima\s D for homolog groups.')
@@ -781,29 +944,113 @@ def calculateTajimasD(sequences):
 	e2 = float(c2) / ((a1 ** 2) + a2)
 	if S >= 3:
 		D = (float(pi - (float(S) / a1)) / math.sqrt((e1 * S) + ((e2 * S) * (S - 1))))
-		return (D)
+		return ([D, S])
 	else:
-		return ("NA")
+		return (["< 3 segregating sites!", S])
 
-def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject):
+
+def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, prot_algn_trim_dir, logObject):
+	comp_stats = {}
+	try:
+		for f in os.listdir(prot_algn_trim_dir):
+			hg = f.split('.msa.faa')[0]
+			prot_algn_trim_file = prot_algn_trim_dir + f
+			focal_samps_with_hg = set([])
+			compa_samps_with_hg = set([])
+			focal_seqs = []
+			compa_seqs = []
+			with open(prot_algn_trim_file) as opatf:
+				for rec in SeqIO.parse(opatf, 'fasta'):
+					sample = rec.id.split('|')[0]
+					seq = str(rec.seq)
+					if sample in focal_genbank_ids:
+						focal_samps_with_hg.add(sample)
+						focal_seqs.append(seq)
+					elif sample in comparator_genbank_ids:
+						compa_samps_with_hg.add(sample)
+						compa_seqs.append(seq)
+
+			diff_between = 0
+			pw_between = 0
+			diff_foc_within = 0
+			diff_com_within = 0
+			pw_foc_within = 0
+			pw_com_within = 0
+			for i, s1 in enumerate(focal_seqs):
+				for j, s2 in enumerate(focal_seqs):
+					if i >= j: continue
+					diff_foc_within += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+					pw_foc_within += 1
+
+			for i, s1 in enumerate(compa_seqs):
+				for j, s2 in enumerate(compa_seqs):
+					if i >= j: continue
+					diff_com_within += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+					pw_com_within += 1
+
+			for i, s1 in enumerate(focal_seqs):
+				for j, s2 in enumerate(compa_seqs):
+					diff_between += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+					pw_between += 1
+
+			# Fst estimated according to Hudson, Slatkin and Maddison 1989
+			# which is closely related to Nei and Chesser 1983.
+			# While the derivations were specific to diploid organisms,
+			# the concept of the estimation can more simplictically be applied
+			# to haploid.
+			pi_between, pi_within, fst = ['NA']*3
+			if pw_between > 0 and pw_foc_within > 0:
+				pi_between = diff_between/float(pw_between)
+				pi_within = (diff_foc_within)/float(pw_foc_within)
+				if pi_between > 0:
+					fst = 1.0 - (float(pi_within)/float(pi_between))
+
+			#pi_foc = diff_foc_within/float(pw_foc_within)
+			#pi_com = diff_com_within/float(pw_com_within)
+
+			prop_foc_with = len(focal_samps_with_hg)/float(len(focal_genbank_ids))
+			prop_com_with = len(compa_samps_with_hg)/float(len(comparator_genbank_ids))
+
+			comp_stats[hg] = {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst}
+
+	except Exception as e:
+		sys.stderr.write('Issues with performing comparative analyses between user-defined Gene Cluster groups.\n')
+		logObject.error('Issues with performing comparative analyses between user-defined Gene Cluster groups.')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+	return (comp_stats)
+
+def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject):
 	"""
 	dict_keys(['pfam', 'vfdb', 'paperblast', 'pgap', 'vog', 'isfinder', 'card', 'mibig'])
 	dict_keys(['hg_single_copy_status', 'hg_prop_samples', 'hg_median_lengths', 'hg_order_scores'])
 	dict_keys(['tajimas_d', 'gard_partitions', 'fubar_sel_props', 'fubar_sel_sites', 'gene_tree_congruence'])
 	"""
 	try:
-		header = ['Homolog Group (HG) ID', 'HG is Single Copy?', 'Proportion of GenBanks with HG',
-				  'HG Median Length (bp)', 'HG Consensus Order', 'HG Consensus Direction', 'Tajima\'s D',
-				  'GARD Partitions Based on Recombination Breakpoints',
+		header = ['Homolog Group (HG) ID', 'HG is Single Copy?', 'Proportion of Total Gene Clusters with HG',
+				  'HG Median Length (bp)', 'HG Consensus Order', 'HG Consensus Direction']
+		if comp_stats:
+			header += ['Proportion of Focal Gene Clusters with HG', 'Proportion of Comparator Gene Clusters with HG',
+					   'Fixation Index of Proteins']
+		header += ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
+				   'GARD Partitions Based on Recombination Breakpoints',
 				  'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-				  'Proportion of Sites Under Selection which are Positive', 'HG Tree to Gene Cluster Tree Congruence',
-				  'KO Annotation (E-value)', 'PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)',
-				  'CARD Annotation (E-value)', 'IS Finder (E-value)', 'MI-BiG Annotation (E-value)',
-				  'VOG Annotation (E-value)',  'VFDB Annotation (E-value)', 'Pfam Domains', 'CDS Locus Tags']
+				  'Proportion of Sites Under Selection which are Positive',
+				   'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
+				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
+				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
+				   'Pfam Domains', 'CDS Locus Tags', 'HG Consensus Sequence']
+
+		seqs = {}
+		with open(consensus_prot_seqs_faa) as ocpsf:
+			for rec in SeqIO.parse(ocpsf, 'fasta'):
+				seqs[rec.id] = str(rec.seq)
 
 		frt_handle = open(final_report_tsv, 'w')
 		frt_handle.write('\t'.join(header) + '\n')
 		# traverse HG in consensus order
+		num_rows = 1
 		for hg_tup in sorted(hg_stats['hg_order_scores'].items(), key=lambda e: e[1][0]):
 			hg = hg_tup[0]
 			hg_scs = hg_stats['hg_single_copy_status'][hg]
@@ -811,29 +1058,38 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 			hg_mlen = hg_stats['hg_median_lengths'][hg]
 			hg_lts = '; '.join(sorted(hg_stats['hg_locus_tags'][hg]))
 			hg_ordr = hg_tup[1][0]
-			hg_dire = hg_tup[1][1]
+			hg_dire = '"' + hg_tup[1][1] + '"'
 			hg_tajd = util.gatherValueFromDictForHomologGroup(hg, evo_stats['tajimas_d'])
+			hg_segs = util.gatherValueFromDictForHomologGroup(hg, evo_stats['segregating_sites_prop'])
 			hg_gpar = util.gatherValueFromDictForHomologGroup(hg, evo_stats['gard_partitions'])
 			hg_ssit = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_sites'])
 			hg_spro = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_props'])
-			hg_gtcc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['gene_tree_congruence'])
-			ko_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['ko'])
-			pgap_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['pgap'])
-			pb_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['paperblast'])
-			card_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['card'])
-			isf_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['isfinder'])
-			mibig_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['mibig'])
-			vog_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['vog'])
-			vfdb_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, annotations['vfdb'])
+			hg_med_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['median_beta_rd_gc'])
+			hg_max_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['max_beta_rd_gc'])
+			ko_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'ko', annotations)
+			pgap_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'pgap', annotations)
+			pb_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'paperblast', annotations)
+			card_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'card', annotations)
+			isf_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'isfinder', annotations)
+			mibig_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'mibig', annotations)
+			vog_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'vog', annotations)
+			vfdb_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'vfdb', annotations)
 			pfam_annots = 'NA'
-			if hg in annotations['pfam']:
+			if 'pfam' in annotations and hg in annotations['pfam']:
 				pfam_annots = '; '.join(annotations['pfam'][hg][0])
-
-			row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire, hg_tajd, hg_gpar, hg_ssit, hg_spro, hg_gtcc,
-				   ko_annot, pgap_annot, pb_annot, card_annot, isf_annot, mibig_annot, vog_annot, vfdb_annot,
-				   pfam_annots, hg_lts]
+			con_seq = seqs[hg]
+			row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire]
+			if comp_stats:
+				fp = comp_stats[hg]['prop_foc_with']
+				cp = comp_stats[hg]['prop_com_with']
+				fst = comp_stats[hg]['fst']
+				row += [fp, cp, fst]
+			row += [hg_tajd, hg_segs, hg_med_brdgc, hg_max_brdgc, hg_gpar, hg_ssit,
+					hg_spro, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot,
+					mibig_annot, vog_annot, vfdb_annot, pfam_annots, hg_lts, con_seq]
 			row = [str(x) for x in row]
 			frt_handle.write('\t'.join(row) + '\n')
+			num_rows += 1
 		frt_handle.close()
 
 		# Generate Excel spreadsheet
@@ -842,54 +1098,98 @@ def consolidateReport(hg_stats, annotations, evo_stats, final_report_xlsx, final
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
 		dd_sheet.write(0, 0, 'WARNING: some evolutionary statistics are experimental - evaluate with caution!!!')
 		dd_sheet.write(1, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki at:')
-		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/XXXXX')
+		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-zol#explanation-of-report')
 
-		numeric_columns = set(['Proportion of GenBanks with HG', 'HG Median Length (bp)', 'HG Consensus Order',
-							   'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints',
-							    'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-		'Proportion of Sites Under Selection which are Positive", "HG Tree to Gene Cluster Tree Congruence'])
+		numeric_columns = {'Proportion of Total Gene Clusters with HG', 'Proportion of Focal Gene Clusters with HG',
+						   'Proportion of Comparator Gene Clusters with HG', 'Fixation Index of Proteins', 'Pi-Focal',
+						   'Pi-Comparator', 'HG Median Length (bp)', 'HG Consensus Order',
+						   'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints',
+						   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
+						   'Proportion of Sites Under Selection which are Positive', 'Median Beta-RD-gc',
+						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites'}
+
+		warn_format = workbook.add_format({'bg_color': '#bf241f', 'bold': True, 'font_color': '#FFFFFF'})
+		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+
 		results_df = util.loadTableInPandaDataFrame(final_report_tsv, numeric_columns)
 		results_df.to_excel(writer, sheet_name='ZoL Results', index=False, na_rep="NA")
+		worksheet =  writer.sheets['ZoL Results']
+		worksheet.conditional_format('B2:B' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"False"', 'format': warn_format})
+		worksheet.conditional_format('A2:AB' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})
+		worksheet.conditional_format('A1:AB1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+
+		# prop gene-clusters with hg
+		worksheet.conditional_format('C2:C' + str(num_rows), {'type': '2_color_scale', 'min_color': "#f7de99", 'max_color': "#c29006", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		# gene-lengths
+		worksheet.conditional_format('D2:D' + str(num_rows), {'type': '2_color_scale', 'min_color': "#a3dee3", 'max_color': "#1ebcc9", "min_value": 100, "max_value": 2500, 'min_type': 'num', 'max_type': 'num'})
+		if comp_stats != None:
+			# prop focal gene-clusters with hg
+			worksheet.conditional_format('G2:G' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7de99", 'max_color': "#c29006",'min_type': 'num', 'max_type': 'num',
+										  "min_value": 0.0, "max_value": 1.0})
+			# prop comparator gene-clusters with hg
+			worksheet.conditional_format('H2:H' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7de99", 'max_color': "#c29006",'min_type': 'num', 'max_type': 'num',
+										  "min_value": 0.0, "max_value": 1.0})
+			# fst
+			worksheet.conditional_format('I2:I' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#aecaf5", 'max_color': "#6198ed",'min_type': 'num', 'max_type': 'num',
+										  "min_value": 0.0, "max_value": 1.0})
+			# taj-d
+			worksheet.conditional_format('J2:J' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#f7a09c", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+										  'max_color': "#87cefa", "min_value": -2.0, "mid_value": 0.0, "max_value": 2.0})
+			# prop seg sites
+			worksheet.conditional_format('K2:K' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#eab3f2", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#a37ba8", "min_value": 0.0, "max_value": 1.0})
+			# beta-rd gc
+			worksheet.conditional_format('L2:L' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+                                         'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+			# max beta-rd gc
+			worksheet.conditional_format('M2:M' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+
+		else:
+			# taj-d
+			worksheet.conditional_format('G2:G' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#f7a09c", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+										  'max_color': "#87cefa", "min_value": -2.0, "mid_value": 0.0, "max_value": 2.0})
+
+			# prop seg sites
+			worksheet.conditional_format('H2:H' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#eab3f2", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#a37ba8", "min_value": 0.0, "max_value": 1.0})
+
+			# median beta-rd gc
+			worksheet.conditional_format('I2:I' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+			# max beta-rd gc
+			worksheet.conditional_format('J2:J' + str(num_rows),
+										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
+										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+
+		worksheet.autofilter('A1:BA' + str(num_rows))
+		worksheet.filter_column(2, 'x >= 0.25')
 		workbook.close()
 
 	except Exception as e:
 		sys.stderr.write('Issues creating consolidated results files.\n')
 		logObject.error('Issues creating consolidated results files.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def runTreemmer(genbanks, gene_cluster_tree, max_for_visualization, logObject):
-	representative_genbanks = set([])
+def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height=7, width=10, full_genbank_labels=False):
 	try:
-		if len(genbanks) <= max_for_visualization:
-			for gbk in genbanks:
-				representative_genbanks.add('.'.join(gbk.split('/')[-1].split('.')[:-1]))
-		else:
-			retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
-			treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
-			try:
-				subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-								executable='/bin/bash')
-				assert (os.path.isfile(retain_listing_file))
-				logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
-			except Exception as e:
-				logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
-				sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
-				logObject.error(e)
-				sys.exit(1)
-			with open(retain_listing_file) as orlf:
-				for line in orlf:
-					line = line.strip()
-					representative_genbanks.add(line)
-	except Exception as e:
-		sys.stderr.write('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.\n')
-		logObject.error('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.')
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-	return(representative_genbanks)
+		representative_genbanks = set([])
+		for gbk in genbanks:
+			representative_genbanks.add(gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0])
 
-def plotHeatmap(hg_stats, representative_genbanks, plot_result_pdf, work_dir, logObject, height=7, width=10, full_genbank_labels=False):
-	try:
 		# create input tracks
 		ml_track_file = work_dir + 'HG_Median_Length_Info.txt'
 		hm_track_file = work_dir + 'HG_Heatmap_Info.txt'
@@ -953,8 +1253,98 @@ def plotHeatmap(hg_stats, representative_genbanks, plot_result_pdf, work_dir, lo
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
-#Clinker is great but I was having trouble with mapping proteins to homolog groups so switching back to R based
-#static graphics
+"""
+def runTreemmer(genbanks, gene_cluster_tree, max_for_visualization, logObject):
+	representative_genbanks = set([])
+	try:
+		if len(genbanks) <= max_for_visualization:
+			for gbk in genbanks:
+				representative_genbanks.add('.'.join(gbk.split('/')[-1].split('.')[:-1]))
+		else:
+			retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
+			treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
+			try:
+				subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+								executable='/bin/bash')
+				assert (os.path.isfile(retain_listing_file))
+				logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
+			except Exception as e:
+				logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
+				sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
+				logObject.error(e)
+				sys.exit(1)
+			with open(retain_listing_file) as orlf:
+				for line in orlf:
+					line = line.strip()
+					representative_genbanks.add(line)
+	except Exception as e:
+		sys.stderr.write('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.\n')
+		logObject.error('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+	return(representative_genbanks)
+
+def runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject, subsample_max=1000):
+	try:
+		# Run STAG by David Emms and Steve Kelley
+		stag_map_file = gtc_results_dir + 'Species_Mapping.txt'
+		smf_handle = open(stag_map_file, 'w')
+		prefices = []
+		for gbk in genbanks:
+			prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+			prefices.append(prefix)
+			smf_handle.write(prefix + '|*\t' + prefix + '\n')
+		smf_handle.close()
+
+		stag_cmd = [stag_prog, stag_map_file, tree_dir]
+		result_gc_tree = None
+		try:
+			subprocess.call(' '.join(stag_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			par_dir_with_species_tree = '/'.join(os.path.abspath(tree_dir).split('/')[:-1]) + '/'
+			for sd in os.listdir(par_dir_with_species_tree):
+				if sd.startswith("STAG"):
+					result_gc_tree = par_dir_with_species_tree + sd + '/SpeciesTree.tre'
+			assert(os.path.isfile(result_gc_tree))
+			logObject.info('Successfully ran: %s' % ' '.join(stag_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running STAG: %s' % ' '.join(stag_cmd))
+			sys.stderr.write('Had an issue running STAG: %s\n' % ' '.join(stag_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
+		all_pairwise_combinations = itertools.combinations(sorted(prefices), 2)
+		all_pairwise_combinations = sorted(list(all_pairwise_combinations))
+		num_total_pairwise = len(all_pairwise_combinations)
+		subsample_size = min(subsample_max, num_total_pairwise)
+		selected_pairs = random.sample(all_pairwise_combinations, k=subsample_size)
+
+		gc_pw_info = util.calculateSelectDistances(result_gc_tree, selected_pairs)
+		hg_to_gc_congruence_slope = {}
+		hg_to_gc_congruence_rvalue = {}
+		for hgt in os.listdir(tree_dir):
+			hg = hgt.split('.tre')[0]
+			outf = gtc_results_dir + hg + '.txt'
+			util.computeCongruence(hg, tree_dir + hgt, gc_pw_info, selected_pairs, outf, logObject)
+
+		for f in os.listdir(gtc_results_dir):
+			if f == 'Species_Mapping.txt': continue
+			hg = f.split('.txt')[0]
+			with open(gtc_results_dir + f) as ogf:
+				for line in ogf:
+					line = line.strip()
+					slope, rvalue = line.split('\t')
+					hg_to_gc_congruence_slope[hg] = slope
+					hg_to_gc_congruence_rvalue[hg] = rvalue
+		return([result_gc_tree, hg_to_gc_congruence_slope, hg_to_gc_congruence_rvalue])
+	except Exception as e:
+		sys.stderr.write('Issues with running gene tree to gene-cluster tree congruence analysis.\n')
+		logObject.error('Issues with running gene tree to gene-cluster tree congruence analysis.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+
+# clinker is great but I was having trouble with mapping proteins to homolog groups so it will be akin 
+# running the tool itself on the raw data. If you are reading this check out clinker!
 def runClinker(genbanks, hg_lts, representative_genbanks, fin_dir, work_dir, logObject):
 	try:
 		renamed_lts_dir = work_dir + 'GenBanks_LTs_Renamed/'
@@ -999,3 +1389,4 @@ def runClinker(genbanks, hg_lts, representative_genbanks, fin_dir, work_dir, log
 		logObject.error('Issues running clinker or creating inputs for clinker.')
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
+"""

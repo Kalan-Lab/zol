@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61320:0.145321,(Cryptococcus_neoformans_AAW44135:0.31748,Verticillium_dahliae_EGY22420:0.240318):0.061854,Zymoseptoria_tritici_Mycgr3P36032:0.186194);

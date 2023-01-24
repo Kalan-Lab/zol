@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|672889|e_gw1.275.214.1:1e-06,Rhizoclosmatium_globosum_jgi|Rhihy1|672842|e_gw1.275.170.1:1e-06,Saccharomyces_cerevisiae_YLR154W-F:0.365812);

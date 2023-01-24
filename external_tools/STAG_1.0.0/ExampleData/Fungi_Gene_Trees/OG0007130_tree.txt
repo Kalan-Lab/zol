@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE61383:0.62139,((Fusarium_oxysporum_FOXG_02341P0:0.201251,Fusarium_oxysporum_FOXG_05852P0:0.753586):0.296373,(Laccaria_bicolor_jgi|Lacbi2|709733|estExt_fgenesh3_kg.C_150107:1.16778,Verticillium_dahliae_EGY14559:1.07184):0.466298):0.123204,(Verticillium_dahliae_EGY20841:0.0363875,Verticillium_dahliae_EGY16703:0.0521154):0.533463);

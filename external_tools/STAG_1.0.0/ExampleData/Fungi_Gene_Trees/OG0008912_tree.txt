@@ -1,0 +1,1 @@
+(Botrytis_cinerea_Bcin01g11100.1:0.675052,Botrytis_cinerea_Bcin09g06020.1:0.771433,(Botrytis_cinerea_Bcin15g03010.1:0.695038,Magnaporthe_oryzae_MGG_08644T0:0.834541):0.135046);

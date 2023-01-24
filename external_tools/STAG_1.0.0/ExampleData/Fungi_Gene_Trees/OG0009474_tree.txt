@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE56529:0.521484,Aspergillus_oryzae_BAE59619:0.50339,Zymoseptoria_tritici_Mycgr3P40839:0.415137);

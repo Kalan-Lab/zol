@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2915766|e_gw1.14.726.1:0.560608,(Phycomyces_blakesleeanus_jgi|Phybl2|178916|estExt_Genemark1.C_11113:0.23067,Rhizopus_delemar_EIE86236.1:0.139842):0.587438,Ustilago_maydis_KIS70493:0.915945);

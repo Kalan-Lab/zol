@@ -21,6 +21,46 @@ valid_alleles = set(['A', 'C', 'G', 'T'])
 curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
 main_dir = '/'.join(curr_dir.split('/')[:-2]) + '/'
 
+def cleanUpSampleName(original_name):
+	return original_name.replace('#', '').replace('*', '_').replace(':', '_').replace(';', '_').replace(' ',
+																										'_').replace(
+		':', '_').replace('|', '_').replace('"', '_').replace("'", '_').replace("=", "_").replace('-', '_').replace('(',
+																													'').replace(
+		')', '').replace('/', '').replace('\\', '').replace('[', '').replace(']', '').replace(',', '')
+
+def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=None):
+	"""
+	Function to read in GenBank and Predicted proteome annotation paths from expansion listing file and load into dictionary with keys corresponding to sample IDs.
+	:param expansion_listing_file: tab-delimited file with three columns: (1) sample ID (2) Genbank path (3) predicted proteome path.
+	:param logObject: python logging object handler.
+	:return sample_annotation_data: dictionary of dictionaries with primary keys as sample names and secondary keys as either "genbank" or "predicted_proteome", with final values being paths to corresponding files.
+	"""
+	sample_annotation_data = defaultdict(dict)
+	try:
+		with open(expansion_listing_file) as oalf:
+			for line in oalf:
+				line = line.strip()
+				sample, genbank, predicted_proteome = line.split('\t')
+				sample = cleanUpSampleName(sample)
+				try:
+					assert (is_genbank(genbank))
+					assert (is_fasta(predicted_proteome))
+					sample_annotation_data[sample]['genbank'] = genbank
+					sample_annotation_data[sample]['predicted_proteome'] = predicted_proteome
+				except Exception as e:
+					if logObject:
+						logObject.warning('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.' % sample)
+					else:
+						sys.stderr.write('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.' % sample)
+		assert (len(sample_annotation_data) >= 1)
+		return (sample_annotation_data)
+	except Exception as e:
+		if logObject:
+			logObject.error("Input file listing the location of annotation files for samples leads to incorrect paths or something else went wrong with processing of it. Exiting now ...")
+			logObject.error(traceback.format_exc())
+		raise RuntimeError(traceback.format_exc())
+
+
 def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
 	"""
 	Function to prune full genome-sized GenBank for only features in BGC of interest.
@@ -228,8 +268,7 @@ def is_genbank(gbk):
 				for rec in SeqIO.parse(ogf, 'genbank'):
 					recs += 1
 		else:
-			with open(gbk) as of:
-				SeqIO.parse(of, 'genbank')
+			with open(gbk) as ogf:
 				for rec in SeqIO.parse(ogf, 'genbank'):
 					recs += 1
 		if recs > 0:
@@ -475,13 +514,22 @@ def computeCongruence(hg, gene_tree, gc_pw_info, selected_pairs, outf, logObject
 				hg_pw_dists_filt.append(hg_pw_info[pair])
 				gc_pw_dists_filt.append(gc_pw_info[pair])
 
-		congruence_stat = 'NA'
-		if len(hg_pw_dists_filt) >= 3:
-			stat, pval = stats.pearsonr(hg_pw_dists_filt, gc_pw_dists_filt)
-			if stat != 'nan':
-				congruence_stat = stat
+		congruence_slope = 'NA'
+		congruence_rvalue = 'NA'
+		if hg_pw_dists_filt == gc_pw_dists_filt:
+			congruence_slope = '1.0'
+			congruence_rvalue = '1.0'
+		elif len(hg_pw_dists_filt) >= 3:
+			try:
+				slope, _, rvalue, pvalue, _ = stats.linregress(gc_pw_dists_filt, hg_pw_dists_filt)
+			except:
+				slope = 'nan'
+				rvalue = 'nan'
+			if slope != 'nan' and rvalue != 'nan':
+				congruence_slope = float(slope)
+				congruence_rvalue = float(rvalue)
 		out_handle = open(outf, 'w')
-		out_handle.write(str(congruence_stat) + '\n')
+		out_handle.write(str(congruence_slope) + '\t' + str(congruence_rvalue) + '\n')
 		out_handle.close()
 
 	except Exception as e:
@@ -559,6 +607,68 @@ def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal
 			"Problem with creating commands for running prodigal via script runProdigalAndMakeProperGenbank.py. Exiting now ...")
 		logObject.error(traceback.format_exc())
 		raise RuntimeError(traceback.format_exc())
+
+def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
+							 logObject, cpus=1, locus_tag_length=3, avoid_locus_tags=set([]),
+							 rename_locus_tags=False):
+	"""
+	Extracts CDS/proteins from existing Genbank files and recreates
+	"""
+
+	sample_genomes_updated = {}
+	process_cmds = []
+	try:
+		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+		possible_locustags = sorted(list(
+			set([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]).difference(
+				avoid_locus_tags)))
+		lacking_cds_gbks = set([])
+
+		for i, sample in enumerate(sample_genomes):
+			sample_genbank = sample_genomes[sample]
+			ogh = None
+			if sample_genbank.endswith('.gz'):
+				ogh = gzip.open(sample_genbank, 'rt')
+			else:
+				ogh = open(sample_genbank)
+			cds_flag = False
+			for rec in SeqIO.parse(ogh, 'genbank'):
+				for feature in rec.features:
+					if feature.type == 'CDS':
+						cds_flag = True
+						break
+			ogh.close()
+			sample_locus_tag = ''.join(list(possible_locustags[i]))
+			if not cds_flag:
+				lacking_cds_gbks.add(sample)
+				logObject.warning('NCBI genbank file %s for sample %s lacks CDS features' % (sample_genbank, sample))
+				continue
+			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample,
+						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]
+			if rename_locus_tags:
+				process_cmd += ['-l', sample_locus_tag]
+			process_cmds.append(process_cmd + [logObject])
+
+		p = multiprocessing.Pool(cpus)
+		p.map(multiProcess, process_cmds)
+		p.close()
+
+		for sample in sample_genomes:
+			if sample in lacking_cds_gbks:
+				continue
+			try:
+				assert (os.path.isfile(proteomes_directory + sample + '.faa') and
+						os.path.isfile(genbanks_directory + sample + '.gbk') and
+						os.path.isfile(gene_name_mapping_outdir + sample + '.txt'))
+				sample_genomes_updated[sample] = genbanks_directory + sample + '.gbk'
+			except:
+				raise RuntimeError(
+					"Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+	except Exception as e:
+		logObject.error("Problem with processing existing Genbanks to (re)create genbanks/proteomes. Exiting now ...")
+		logObject.error(traceback.format_exc())
+		raise RuntimeError(traceback.format_exc())
+	return sample_genomes
 
 def parseSampleGenomes(genome_listing_file, logObject):
 	try:
@@ -640,7 +750,7 @@ def parseGbk(gbk_path, prefix, logObject):
 							start = sc
 						if ec > end:
 							end = ec
-					location = {'start': start, 'end': end, 'direction': dir}
+					location = {'scaffold': rec.id, 'start': start, 'end': end, 'direction': dir}
 					gc_gene_locations[prefix + '|' + lt] = location
 		return gc_gene_locations
 	except Exception as e:
@@ -649,11 +759,12 @@ def parseGbk(gbk_path, prefix, logObject):
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
-def gatherAnnotationFromDictForHomoloGroup(hg, dict):
+def gatherAnnotationFromDictForHomoloGroup(hg, db, dict):
 	try:
-		annot_set_filt = set([x for x in dict[hg][0] if x.strip() != ''])
+		assert(db in dict)
+		annot_set_filt = set([x for x in dict[db][hg][0] if x.strip() != ''])
 		assert(len(annot_set_filt) > 0)
-		return('; '.join(annot_set_filt) + ' (' + str(max(dict[hg][1])) + ')')
+		return('; '.join(annot_set_filt) + ' (' + str(max(dict[db][hg][1])) + ')')
 	except:
 		return('NA')
 
@@ -697,3 +808,77 @@ def chunks(lst, n):
     """
 	for i in range(0, len(lst), n):
 		yield lst[i:i + n]
+
+def parseGenbankAndFindBoundaryGenes(inputs):
+	"""
+	Function to parse Genbanks from Prokka and return a dictionary of genes per scaffold, gene to scaffold, and a
+	set of genes which lie on the boundary of scaffolds.
+	:param sample_genbank: Prokka generated Genbank file.
+	:param distance_to_scaffold_boundary: Distance to scaffold edge considered as boundary.
+	:return gene_to_scaffold: Dictionary mapping each gene's locus tag to the scaffold it is found on.
+	:return scaffold_genes: Dictionary with keys as scaffolds and values as a set of genes found on that scaffold.
+	:return boundary_genes: Set of gene locus tag ids which are found within proximity to scaffold edges.
+	"""
+
+	distance_to_scaffold_boundary = 2000
+	gene_location = {}
+	scaffold_genes = defaultdict(set)
+	boundary_genes = set([])
+	gene_id_to_order = defaultdict(dict)
+	gene_order_to_id = defaultdict(dict)
+
+	sample, sample_genbank, sample_gbk_info = inputs
+	osg = None
+	if sample_genbank.endswith('.gz'):
+		osg = gzip.open(sample_genbank, 'rt')
+	else:
+		osg = open(sample_genbank)
+	for rec in SeqIO.parse(osg, 'genbank'):
+		scaffold = rec.id
+		scaffold_length = len(str(rec.seq))
+		boundary_ranges = set(range(1, distance_to_scaffold_boundary + 1)).union(
+			set(range(scaffold_length - distance_to_scaffold_boundary, scaffold_length + 1)))
+		gene_starts = []
+		for feature in rec.features:
+			if not feature.type == 'CDS': continue
+			locus_tag = feature.qualifiers.get('locus_tag')[0]
+
+			start = None
+			end = None
+			direction = None
+			if not 'join' in str(feature.location):
+				start = min(
+					[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
+				direction = str(feature.location).split('(')[1].split(')')[0]
+			else:
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[5:-1].split(', '):
+					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(start)
+					all_ends.append(end)
+					all_directions.append(direction)
+				start = min(all_starts)
+				end = max(all_ends)
+				direction = all_directions[0]
+
+			gene_location[locus_tag] = {'scaffold': scaffold, 'start': start, 'end': end, 'direction': direction}
+			scaffold_genes[scaffold].add(locus_tag)
+
+			gene_range = set(range(start, end + 1))
+			if len(gene_range.intersection(boundary_ranges)) > 0:
+				boundary_genes.add(locus_tag)
+
+			gene_starts.append([locus_tag, start])
+
+		for i, g in enumerate(sorted(gene_starts, key=itemgetter(1))):
+			gene_id_to_order[scaffold][g[0]] = i
+			gene_order_to_id[scaffold][i] = g[0]
+	osg.close()
+	sample_gbk_info[sample] = [gene_location, dict(scaffold_genes), boundary_genes, dict(gene_id_to_order),
+							   dict(gene_order_to_id)]
+

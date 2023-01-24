@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE54918:1.3497,Aspergillus_oryzae_BAE60576:0.583287,(Fusarium_oxysporum_FOXG_16441P0:0.688037,Pyrenophora_triticirepentis_EDU47778:0.759975):0.179109);

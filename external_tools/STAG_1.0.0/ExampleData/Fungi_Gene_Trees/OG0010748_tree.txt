@@ -1,0 +1,1 @@
+(Rhizoclosmatium_globosum_jgi|Rhihy1|857346|estExt_Genemark1.C_820058:1.19451,Schizosaccharomyces_pombe_SPBC336.01.1_pep:0.547379,Ustilago_maydis_KIS68176:0.995295);

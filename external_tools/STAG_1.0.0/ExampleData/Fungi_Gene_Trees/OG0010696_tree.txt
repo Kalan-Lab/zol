@@ -1,0 +1,1 @@
+(Phycomyces_blakesleeanus_jgi|Phybl2|80346|Phybl1.estExt_fgeneshPB_pg.C_530037:1.35344,Puccinia_graminis_EFP83782:0.570245,Puccinia_graminis_EFP89145:0.245487);

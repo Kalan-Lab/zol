@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE63794:0.248018,Botrytis_cinerea_Bcin02g01890.1:0.186526,Fusarium_oxysporum_FOXG_09414P0:0.151143);

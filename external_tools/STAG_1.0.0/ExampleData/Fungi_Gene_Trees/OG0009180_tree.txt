@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|294557|Lacbi1.estExt_fgenesh2_pg.C_150086:0.462729,(Rhizoclosmatium_globosum_jgi|Rhihy1|196816|CE196815_1308:0.978037,Rhizoclosmatium_globosum_jgi|Rhihy1|659358|e_gw1.20.96.1:0.145649):0.228773,Ustilago_maydis_KIS70625:0.933431);

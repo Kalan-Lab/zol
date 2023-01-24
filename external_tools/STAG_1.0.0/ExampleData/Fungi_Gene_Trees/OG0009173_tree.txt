@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|590768|e_gw1.4.1158.1:0.135972,Laccaria_bicolor_jgi|Lacbi2|483425|fgenesh1_pm.LG_4_#_536:0.737146,(Laccaria_bicolor_jgi|Lacbi2|322644|Lacbi1.fgenesh3_pg.C_scaffold_3000261:0.681982,Pyrenophora_triticirepentis_EDU41395:1.48883):0.381326);

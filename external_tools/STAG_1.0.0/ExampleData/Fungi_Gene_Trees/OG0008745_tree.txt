@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE58721:0.50693,Sporobolomyces_linderae_jgi|Spoli1|108988|CE108987_52:0.567191,(Zymoseptoria_tritici_Mycgr3P29212:0.276682,Zymoseptoria_tritici_Mycgr3P89270:0.298368):0.407494);

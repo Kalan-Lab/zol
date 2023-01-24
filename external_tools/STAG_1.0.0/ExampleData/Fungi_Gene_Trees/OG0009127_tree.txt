@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_17662P0:0.727502,(Puccinia_graminis_EFP78871:0.691828,Puccinia_graminis_EFP78967:0.0892045):0.488783,Pyrenophora_triticirepentis_EDU43433:1.56388);

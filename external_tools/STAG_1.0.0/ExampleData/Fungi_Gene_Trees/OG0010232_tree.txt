@@ -1,0 +1,1 @@
+(Laccaria_bicolor_jgi|Lacbi2|649415|estExt_Genewise1.C_LG_8_t30491:0.667454,Ustilago_maydis_KIS71663:0.822929,Ustilago_maydis_KIS68059:0.963506);

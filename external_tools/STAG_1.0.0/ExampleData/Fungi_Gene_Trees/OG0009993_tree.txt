@@ -1,0 +1,1 @@
+(Fusarium_oxysporum_FOXG_03175P0:1.05464,Phycomyces_blakesleeanus_jgi|Phybl2|151115|Genemark1.13306_g:1.17118,Zymoseptoria_tritici_Mycgr3P106071:0.55946);

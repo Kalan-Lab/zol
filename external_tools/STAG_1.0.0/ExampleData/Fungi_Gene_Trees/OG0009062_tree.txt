@@ -1,0 +1,1 @@
+(Cryptococcus_neoformans_AAW41422:0.956744,(Laccaria_bicolor_jgi|Lacbi2|646220|estExt_Genewise1.C_LG_3_t90265:0.676607,Phanerochaete_chrysosporium_jgi|Phchr2|3020729|estExt_fgenesh1_pg.C_160009:0.367175):0.343225,Sporobolomyces_linderae_jgi|Spoli1|5480|CE5479_1777:0.980911);

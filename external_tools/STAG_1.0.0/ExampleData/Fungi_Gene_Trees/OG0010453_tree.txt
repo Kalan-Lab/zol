@@ -1,0 +1,1 @@
+(Phanerochaete_chrysosporium_jgi|Phchr2|2715227|CE1715227_4605:1.26182,Phycomyces_blakesleeanus_jgi|Phybl2|185900|estExt_fgenesh1_pg.C_50472:1.1218,Rhizopus_delemar_EIE76348.1:0.963079);

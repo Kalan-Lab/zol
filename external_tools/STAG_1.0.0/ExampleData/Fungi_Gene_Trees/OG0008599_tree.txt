@@ -1,0 +1,1 @@
+(Puccinia_graminis_EFP92668:0.259801,Puccinia_graminis_EFP90674:0.242584,((Rhizoclosmatium_globosum_jgi|Rhihy1|830449|MIX29477_2_53:0.177093,Rhizoclosmatium_globosum_jgi|Rhihy1|852385|estExt_Genemark1.C_320180:0.0164879):0.11489,Rhizoclosmatium_globosum_jgi|Rhihy1|851684|estExt_Genemark1.C_280166:0.0905004):1.42962);

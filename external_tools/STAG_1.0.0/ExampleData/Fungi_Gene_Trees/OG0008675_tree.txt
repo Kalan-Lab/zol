@@ -1,0 +1,1 @@
+(Aspergillus_oryzae_BAE62272:0.308425,(Batrachochytrium_dendrobatidis_EGF76200:1.6712,Magnaporthe_oryzae_MGG_17057T0:0.458882):0.19968,Fusarium_oxysporum_FOXG_13603P0:0.401062);

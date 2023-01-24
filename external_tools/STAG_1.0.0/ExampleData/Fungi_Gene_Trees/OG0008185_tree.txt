@@ -1,0 +1,1 @@
+(Batrachochytrium_dendrobatidis_EGF76011:1.34682,(Fusarium_oxysporum_FOXG_16510P0:0.428754,Pyrenophora_triticirepentis_EDU46453:0.420339):0.172615,(Fusarium_oxysporum_FOXG_14511P0:0.6951,Zymoseptoria_tritici_Mycgr3P106768:0.49636):0.216734);

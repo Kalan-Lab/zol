@@ -1,0 +1,1 @@
+(Blumeria_graminis_CCU74344:0.495798,(Fusarium_oxysporum_FOXG_07451P0:0.953497,(Sporobolomyces_linderae_jgi|Spoli1|67430|CE67429_840:0.0229284,Sporobolomyces_linderae_jgi|Spoli1|208441|estExt_Genemark1.C_3_t20200:0.0769849):0.411032):0.268595,Magnaporthe_oryzae_MGG_06578T0:1.1963);

@@ -12,7 +12,7 @@ Some features in zol reports are more up to date than lsaBGC (but we plan to inc
 
 **zol** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).
 
-**fai** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific, soon to work for eukaryotes). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript.
+**fai** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific, soon to work for eukaryotes). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript. Users would need to prepare a set of genomes for searching using **prepTG**. It aims to find really similar instances of gene-clusters in a rapid and automated fashion, for more divergent searches, we recommend users check out [cblaster](https://github.com/gamcil/cblaster), which offers a more interactive experience for users to select desired gene-clusters.
 
 ### Installation:
 
@@ -29,114 +29,60 @@ conda activate /path/to/zol_conda_env/
 python setup.py install
 pip install -e .
 
-# 4. depending on internet speed can take 20-30 minutes
+# 4. depending on internet speed, this can take 20-30 minutes
 # within zol Git repo with conda environment activated, run:
 setup_annotation_dbs.py
 ```
 
 ### Usage:
 
-### fai (finding homologous instances; works for Prokaryotes **currently, stay tuned!**)
+### prepTG
 
-fai uses an HMM based approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters using an approach very much analogous to lsaBGC-Expansion.py. It is more general and has flexibility in input types:
+prepTG formats and parses information in provided GenBank files or can run prodigal (for bacteria only!) for gene-calling if provided FASTA files and subsequently create GenBank files.
+
+```bash
+prepTG -i Folder_with_Target_Genomes/ -o prepTG_DB/
+```
+
+For additoinal details on prepTG (e.g. how to download genomes from NCBI), please check out the [1. more info on prepTG]() wiki page.
+
+### fai
+
+fai uses an HMM-based approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters using an approach very much analogous to lsaBGC-Expansion.py. It is more general, has flexibility in input types, and offers additional parameters/conditions for user adjustment:
 
 1. Provide GenBank(s) of known instance(s) of gene cluster in an input directory
 
-```commandline
+```bash
 fai -i Known_GeneCluster_Genbanks/ -sg Search_Genomes/ -o fai_Results/
 ```
 
 2. Provide gene-cluster coordinates along a FASTA reference genome 
 
-```commandline
+```bash
 fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -o fai_Results/
 ```
 
 3. Provide proteins gene-cluster using set of proteins that should be co-clustered (similar to cblaster!)
 
-```commandline
+```bash
 fai -pq Gene-Cluster_Query_Proteins.faa -o fai_Results/
 ```
 
-For additional details on fai (how to download target genomes, how it relates to cblaster and lsaBGC-Expansion), please check out the '1. more info on fai'](https://github.com/Kalan-Lab/zol/wiki/1.-more-info-on-fai) wiki page.
+For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai']() wiki page.
 
 ### zol (generating table reports; works for Eukaryotes + Prokaryotes)
 
-```commandline
+```bash
 zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
 ```
 
-zol produces a table report similar to lsaBGC-PopGene.py where rows correspond to each individual orthogroup/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics.
+zol produces an xlsx spreadsheet report similar to lsaBGC-PopGene.py where rows correspond to each individual orthogroup/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
 
-Annotation databases include KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage gene clusters), MI-BiG (characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences)
+Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage gene clusters), MI-BiG (characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 
-zol also produces a heatmap PDF as well, because visuals are always nice too!
+zol also produces a heatmap and can also be run in dereplication mode to obtain a diverse and representative set of GenBanks/gene-clusters for visual exploration with the wonderful [clinker](https://github.com/gamcil/clinker) tool. 
 
-## Showcase Example(s)
-
-### Finding new auxiliary genes of the cyphomycin synthesis encoding BGC in ***Streptomyces***
-
-At the Natural Products (Meta)Genome Mining symposium in Hellerup, Denmark in 2022, Marnix Medema made a great suggestion for the utility of the lsaBGC-Expansion algorithm for discovering new genes when discovering new instances of GCFs in genomes. This was difficult to implement in lsaBGC because the homolog group set is hard-locked at this stage in the lsaBGC workflow; however, the combination of fai & zol make this possible to do and we show such an application here by first identifying homologous instances of the BGC encoding for the synthesis of cyphomycin described by Chevrette et al. 2019.
-
-Note, `examples/cyphomycin/` can be found in the main zol GitHub directory. Please change directories there.
-
-```bash
-# change directory to example folder
-cd /path/to/zol/examples/cyphomycin/
-```
-
-**1. Run fai to find homologous BGCs to the cyphomycin encoding BGC in other *Streptomyces* genomes**
-
-```bash
-fai -i Reference_GBKs/ -tg Target_Genomes/ -o fai_Results/ -e 1e-10 -m 30 -kpq Key_Proteins.faa -kpe 1e-20 -kpm 5 -c 4
-```
-
-So some parameters are being used here. First we are providing a directory with the reference BGC for cyphomycin downloaded from MI-BiG with the `-i` argument. 
-
-Next, we are specifying a directory of genomes to search, where genomes are in FASTA format, using the `-tg` argument. Note, to prevent putting all Streptomyces genomes in this folder, I preselected the genomes where I found homologous instances of the reference BGC. Some manual investigation was done to ensure final sets were to the desired level of similarity.
-
-`-o` simply specifies the output directory.
-
-`-e` is the E-value threshold to use for finding homologs with DIAMOND in the target genomes. 
-
-`-m` is the minimum number of homolog groups/genes in a segment the HMM identifies as in a "homologous" state to consider the BGC as present.
-
-`-kpq` is a FASTA file containing proteins for key proteins in the gene cluster. Here we provide sequences for 7 of the largest genes in the reference BGC.
-
-`-kpm` is the minimum number of key proteins in a candidate segment that are needed to be reported.
-
-`-kpe` is the minimum E-value threshold needed for the key proteins. Because there is a smaller set, you might want to increase stringency for them to prevent false positives.
-
-`-c` is the number of cpus/threads to use.
-
-After running, homologous gene-clusters to the reference can be found in the subdirectory of the results at: `fai_Results/Additional_Gene_Cluster_Instances_Identified/`.
-
-**2. Perform comparative analytics using zol**
-
-```bash
-# first copy over the reference and additional homologous instances into a single directory:
-mkdir zol_Input/
-cp examples/Reference_GBKs/* fai_Results/Additional_Gene_Cluster_Instances_Identified/*  zol_Input/
-
-# now run zol
-zol -i zol_Input/ -o zol_Results/ -c 4 
-```
-After running, final results can be found at: `zol_Results/`
-
-Including the following static PDF: 
-
-
-
-**3. Filter for genes which are missing in cyphomycin reference BGC but found in homologous BGCs**
-
-**4. Filter for genes which are unique to the cyphomycin reference BGC but missing in homologous BGCs**
-
-**5. Investigate cluster further using clinker**
-
-clinker is an amazing program by Gilchirst & Chooi 2021 which produces interactive visualizations. We integrate it here and can be further used to explore homologous gene-clusters including syntenic conservation.
-
-
-### Application to finding and investigating homologous phages and ICEs (coming soon!)
+For details on the stats/annotations zol infers, please refer to the [3. more info on zol]() wiki page.
 
 ## Dependencies and Citation
 
@@ -144,10 +90,9 @@ clinker is an amazing program by Gilchirst & Chooi 2021 which produces interacti
 
 **Please consider citing the following dependencies!**
 * **MUSCLE5** for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
-* **Treemmer** and **clinker** for visualization
 * **DIAMOND** for alignments in determining homolog groups and **FastTree2** for subsequent phylogeny construction.
 * **HyPhy** and **FASTME** for selection analyses.
-* **STAG** for consensus tree construction used in gene tree congruence statistic.
+* **FastANI** for dereplication of gene-clusters/GenBanks.
 * **antiSMASH, GECCO, DeepBGC, VIBRANT**, or **ICEfinder** if you used to identify a BGC, phage, or ICEs.
 * **PFAM, KEGG, NCBI's PGAP, MIBIG, VOG, VFDB, CARD,** and **ISFinder** databases used for annotation. 
 * **lsaBGC, BiG-SCAPE/CORASON, cblaster**, or **BiG-SLICE** studies if you used them to identify homologous BGCs.

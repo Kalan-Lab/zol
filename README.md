@@ -82,7 +82,11 @@ Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage gene cl
 
 zol also produces a heatmap and can also be run in dereplication mode to obtain a diverse and representative set of GenBanks/gene-clusters for visual exploration with the wonderful [clinker](https://github.com/gamcil/clinker) tool. 
 
-For details on the stats/annotations zol infers, please refer to the [3. more info on zol]() wiki page.
+For details on the stats/annotations zol infers, please refer to the [3. more info on zol](https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol/) wiki page.
+
+
+![image](https://user-images.githubusercontent.com/4260723/214199267-81546d36-c98d-4394-a146-f9679e0628fe.png)
+
 
 ## Dependencies and Citation
 

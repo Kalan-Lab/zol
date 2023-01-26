@@ -36,7 +36,7 @@ setup_annotation_dbs.py
 
 ### Usage:
 
-### prepTG
+### prepTG (preparing to run fai)
 
 prepTG formats and parses information in provided GenBank files or can run prodigal (for bacteria only!) for gene-calling if provided FASTA files and subsequently create GenBank files.
 
@@ -46,7 +46,7 @@ prepTG -i Folder_with_Target_Genomes/ -o prepTG_DB/
 
 For additoinal details on prepTG (e.g. how to download genomes from NCBI), please check out the [1. more info on prepTG]() wiki page.
 
-### fai
+### fai (finding homologous instances)
 
 fai uses an HMM-based approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters using an approach very much analogous to lsaBGC-Expansion.py. It is more general, has flexibility in input types, and offers additional parameters/conditions for user adjustment:
 
@@ -70,7 +70,7 @@ fai -pq Gene-Cluster_Query_Proteins.faa -o fai_Results/
 
 For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai']() wiki page.
 
-### zol (generating table reports; works for Eukaryotes + Prokaryotes)
+### zol (generating table reports)
 
 ```bash
 zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/

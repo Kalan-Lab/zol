@@ -53,19 +53,19 @@ fai uses an HMM-based approach to identify homologous instances of a gene-cluste
 1. Provide GenBank(s) of known instance(s) of gene cluster in an input directory
 
 ```bash
-fai -i Known_GeneCluster_Genbanks/ -sg Search_Genomes/ -o fai_Results/
+fai -i Known_GeneCluster_Genbanks/ -sg Search_Genomes/ -tg prepTG_Database/ -o fai_Results/
 ```
 
 2. Provide gene-cluster coordinates along a FASTA reference genome 
 
 ```bash
-fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -o fai_Results/
+fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -o fai_Results/
 ```
 
 3. Provide proteins gene-cluster using set of proteins that should be co-clustered (similar to cblaster!)
 
 ```bash
-fai -pq Gene-Cluster_Query_Proteins.faa -o fai_Results/
+fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
 
 For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai']() wiki page.

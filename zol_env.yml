@@ -4,7 +4,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python
+  - python=3.9
   - pip=22.1.2
   - biopython=1.79
   - conda-forge::cxx-compiler
@@ -19,7 +19,7 @@ dependencies:
   - bioconda::diamond=2.0.15
   - bioconda::prodigal=2.6.3
   - bioconda::pyrodigal
-  - conda-forge::pandas=1.4.2
+  - conda-forge::pandas
   - bioconda::gtotree
   - conda-forge::xlsxwriter=3.0.3
   - conda-forge::scikit-learn
@@ -32,4 +32,5 @@ dependencies:
   - conda-forge::r-base=4.0.3
   - conda-forge::r-ggplot2=3.3.5
   - conda-forge::r-cowplot=1.1.1
-  - bioconda::fastani
+  - bioconda::mash
+  - bioconda::slclust

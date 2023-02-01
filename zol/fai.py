@@ -20,7 +20,7 @@ plot_prog = zol_main_directory + 'zol/plotSegments.R'
 
 def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, reference_contig, reference_start, reference_end, logObject):
 	try:
-		util.createBGCGenbank(full_gw_genbank, locus_genbank, reference_contig, reference_start, reference_end)
+		util.createGenbank(full_gw_genbank, locus_genbank, reference_contig, reference_start, reference_end)
 
 		locus_proteins_handle = open(locus_proteins, 'w')
 		with open(locus_genbank) as olg:
@@ -134,7 +134,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 			for gbk in genbanks:
 				try:
 					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-					proteins, nucleotides = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
+					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
 					protein_outf = prot_dir + prefix + '.faa'
 					protein_handle = open(protein_outf, 'w')
 					for lt in proteins:
@@ -181,7 +181,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 		consensus_prot_seqs_handle.close()
 		return([ortho_matrix_file, consensus_prot_seqs_faa])
 
-def processGenomeWideGenbanks(annotation_pickle_file, logObject, cpus=1):
+def processGenomeWideGenbanks(annotation_pickle_file, valid_tg_samples, logObject, cpus=1):
 	gene_locations = {}
 	scaffold_genes = {}
 	boundary_genes = {}
@@ -191,6 +191,7 @@ def processGenomeWideGenbanks(annotation_pickle_file, logObject, cpus=1):
 		with open(annotation_pickle_file, "rb") as input_file:
 			genbank_info = cPickle.load(input_file)
 			for sample in genbank_info:
+				if not sample in valid_tg_samples: continue
 				gene_locations[sample] = genbank_info[sample][0]
 				scaffold_genes[sample] = genbank_info[sample][1]
 				boundary_genes[sample] = genbank_info[sample][2]
@@ -407,11 +408,11 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 		sys.exit(1)
 	return key_hgs
 
-def identifyGCFInstances(query_information, target_information, diamond_results, work_dir, logObject, min_hits=5,
+def identifyGCInstances(query_information, target_information, diamond_results, work_dir, logObject, min_hits=5,
 						 min_key_hits=3, draft_mode=False, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
 						 gc_emission_prob_with_hit=0.95,  gc_emission_prob_without_hit=0.2,
 						 syntenic_correlation_threshold=0.8, max_int_genes_for_merge=0,  kq_evalue_threshold=1e-20,
-						 cpus=1, block_size=3000):
+						 flanking_context=1000, cpus=1, block_size=3000):
 	"""
 	Function to search for instances of Gene Cluster in samples using HMM based approach based on homolog groups as
 	characters, "part of Gene Cluster" and "not part of Gene Cluster" as states - all trained on initial BGCs
@@ -534,7 +535,7 @@ def identifyGCFInstances(query_information, target_information, diamond_results,
 												   dict(gene_order_to_id[sample]), boundary_genes[sample],
 												   lt_to_hg, min_hits, min_key_hits, key_hgs,
 												   kq_evalue_threshold, syntenic_correlation_threshold,
-												   max_int_genes_for_merge, draft_mode])
+												   max_int_genes_for_merge, flanking_context, draft_mode])
 			#with multiprocessing.Manager() as manager:
 			#	with manager.Pool(cpus) as pool:
 			#		pool.map(identify_gc_instances, identify_gc_segments_input)
@@ -552,7 +553,7 @@ def identifyGCFInstances(query_information, target_information, diamond_results,
 		sys.exit(1)
 
 def identify_gc_instances(input_args):
-	gc_info_dir, gc_genbanks_dir, sample, target_annotation_info, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore, model, lts_ordered_dict, hgs_ordered_dict, query_gene_info, gene_locations, gene_id_to_order, gene_order_to_id, boundary_genes, lt_to_hg, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, draft_mode = input_args
+	gc_info_dir, gc_genbanks_dir, sample, target_annotation_info, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore, model, lts_ordered_dict, hgs_ordered_dict, query_gene_info, gene_locations, gene_id_to_order, gene_order_to_id, boundary_genes, lt_to_hg, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode = input_args
 
 	sample_gc_predictions = []
 	for scaffold in hgs_ordered_dict:
@@ -780,10 +781,13 @@ def identify_gc_instances(input_args):
 		sample_gc_id += 1
 
 		gc_segment_scaff = gc_segment[5]
-		min_gc_pos = min([gene_locations[g]['start'] for g in gc_segment[0]])
-		max_gc_pos = max([gene_locations[g]['end'] for g in gc_segment[0]])
+		min_gc_pos = min([gene_locations[g]['start'] for g in gc_segment[0]])-flanking_context
+		max_gc_pos = max([gene_locations[g]['end'] for g in gc_segment[0]])+flanking_context
 
-		util.createBGCGenbank(target_annotation_info['genbank'], gc_genbank_file, gc_segment_scaff,
+		#print(gc_segment)
+		#print([gene_locations[g]['start'] for g in gc_segment[0]])
+		#print([gene_locations[g]['end'] for g in gc_segment[0]])
+		util.createGenbank(target_annotation_info['genbank'], gc_genbank_file, gc_segment_scaff,
 							  min_gc_pos, max_gc_pos)
 		gc_sample_listing_handle.write('\t'.join([sample, gc_genbank_file]) + '\n')
 
@@ -865,14 +869,23 @@ def plotOverviews(target_annotation_info, hmm_work_dir, plot_work_dir, plot_resu
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
 		gbk_filt_dir = hmm_work_dir + 'GeneCluster_Filtered_Segments/'
 
+		relevant_samples = set([])
+		if os.path.isdir(gbk_info_dir):
+			for gcs_info in os.listdir(gbk_info_dir):
+				if not gcs_info.endswith('.hg_evalues.txt') or os.path.getsize(gbk_info_dir + gcs_info) == 0: continue
+				sample = gcs_info.split('.hg_evalues.txt')[0]
+				relevant_samples.add(sample)
+
 		lt_dists_to_scaff_starts = defaultdict(dict)
 		lt_dists_to_scaff_ends = defaultdict(dict)
 		lt_starts = defaultdict(dict)
 		for sample in target_annotation_info:
+			if not sample in relevant_samples: continue
 			with open(target_annotation_info[sample]['genbank']) as osgbk:
 				for rec in SeqIO.parse(osgbk, 'genbank'):
 					scaff_len = len(str(rec.seq))
 					for feature in rec.features:
+						if feature.type != 'CDS': continue
 						lt = feature.qualifiers.get('locus_tag')[0]
 						all_coords = []
 						if not 'join' in str(feature.location):

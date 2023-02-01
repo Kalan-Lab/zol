@@ -40,7 +40,7 @@ import sys
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
-from lsaBGC import util
+from zol import util
 import gzip
 
 
@@ -179,8 +179,15 @@ def processAndReformatNCBIGenbanks():
 						feature.qualifiers['translation'] = prot_seq
 					# sys.stderr.write('CDS with locus tag %s does not have translation available, generating translation.\n' % old_locus_tag)
 
-					new_locus_tag = feature.qualifiers.get('locus_tags')[0]
-					if locus_tag:
+					new_locus_tag = None
+					try:
+						new_locus_tag = feature.qualifiers.get('locus_tags')[0]
+					except:
+						pass
+					if locus_tag != None or new_locus_tag == None:
+						if locus_tag == None:
+							sys.stderr.write('Using AAAA as locus tag because non-provided by user or GenBank for CDS.\n')
+							locus_tag = 'AAAA'
 						new_locus_tag = locus_tag + '_'
 						if locus_tag_iterator < 10:
 							new_locus_tag += '00000' + str(locus_tag_iterator)

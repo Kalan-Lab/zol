@@ -51,7 +51,7 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=
 					if logObject:
 						logObject.warning('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.' % sample)
 					else:
-						sys.stderr.write('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.' % sample)
+						sys.stderr.write('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.\n' % sample)
 		assert (len(sample_annotation_data) >= 1)
 		return (sample_annotation_data)
 	except Exception as e:
@@ -60,8 +60,7 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=
 			logObject.error(traceback.format_exc())
 		raise RuntimeError(traceback.format_exc())
 
-
-def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
+def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
 	"""
 	Function to prune full genome-sized GenBank for only features in BGC of interest.
 	:param full_genbank_file: Prokka generated GenBank file for full genome.
@@ -78,7 +77,8 @@ def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord,
 				if not rec.id == scaffold: continue
 				original_seq = str(rec.seq)
 				filtered_seq = ""
-				if end_coord == len(original_seq):
+				start_coord = max(start_coord, 1)
+				if end_coord >= len(original_seq):
 					filtered_seq = original_seq[start_coord - 1:]
 				else:
 					filtered_seq = original_seq[start_coord - 1:end_coord]
@@ -137,6 +137,8 @@ def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord,
 					if len(feature_coords.intersection(pruned_coords)) > 0:
 						fls = []
 						for sc, ec, dc in all_coords:
+							exon_coord = set(range(sc, ec+1))
+							if len(exon_coord.intersection(pruned_coords)) == 0: continue
 							updated_start = sc - start_coord + 1
 							updated_end = ec - start_coord + 1
 							if ec > end_coord:
@@ -151,7 +153,6 @@ def createBGCGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord,
 									continue
 								else:
 									updated_start = 1  # ; flag2 = True
-
 							strand = 1
 							if dc == '-':
 								strand = -1
@@ -255,6 +256,12 @@ def is_fasta(fasta):
 	except:
 		return False
 
+def is_integer(x):
+	try:
+		x = int(x)
+		return True
+	except:
+		return False
 
 def is_genbank(gbk):
 	"""
@@ -278,10 +285,11 @@ def is_genbank(gbk):
 	except:
 		return False
 
-def checkValidGenBank(genbank_file):
+def checkValidGenBank(genbank_file, quality_assessment=False):
 	try:
 		number_of_cds = 0
 		lt_has_comma = False
+		seqs = ''
 		with open(genbank_file) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
@@ -290,9 +298,13 @@ def checkValidGenBank(genbank_file):
 						lt = feature.qualifiers.get('locus_tag')[0]
 						if ',' in lt:
 							lt_has_comma = True
-
+				seqs += str(rec.seq)
+		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])])/len(seqs)
 		if number_of_cds > 0 and not lt_has_comma:
-			return True
+			if quality_assessment and prop_missing >= 0.1:
+				return False
+			else:
+				return True
 		else:
 			return False
 	except:
@@ -302,6 +314,7 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
 	try:
 		proteins = {}
 		nucleotides = {}
+		upstream_regions = {}
 		with open(gbk_path) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				full_sequence = str(rec.seq).upper()
@@ -338,11 +351,21 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
 							nucl_seq += full_sequence[sc - 1:]
 						else:
 							nucl_seq += full_sequence[sc - 1:ec]
+					upstream_region = None
 					if direction == '-':
 						nucl_seq = str(Seq(nucl_seq).reverse_complement())
+						if ec + 100 >= len(full_sequence):
+							upstream_region = str(Seq(full_sequence[ec:ec+100]).reverse_complement())
+					else:
+						if sc - 100 >= 0:
+							upstream_region = str(Seq(full_sequence[sc-100:sc]))
+
 					proteins[lt] = prot_seq
 					nucleotides[lt] = nucl_seq
-		return([proteins, nucleotides])
+					if upstream_region:
+						upstream_regions[lt] = upstream_region
+
+		return([proteins, nucleotides, upstream_regions])
 	except Exception as e:
 		sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk_path)
 		logObject.error('Issues with parsing the GenBank %s' % gbk_path)
@@ -362,6 +385,30 @@ def parseVersionFromSetupPy():
 			if line.startswith('version='):
 				version = line.split('version=')[1][:-1]
 	return version
+
+def calculateMSAEntropy(nucl_algn_fasta, logObject):
+	try:
+		seqs = []
+		with open(nucl_algn_fasta) as onaf:
+			for rec in SeqIO.parse(onaf, 'fasta'):
+				seqs.append(list(str(rec.seq)))
+		accounted_sites = 0
+		all_entropy = 0.0
+		for tup in zip(*seqs):
+			als = list(tup)
+			missing_prop = sum([1 for al in als if not al in set(['A', 'C', 'G', 'T'])])/float(len(als))
+			if missing_prop >= 0.1: continue
+			filt_als = [al for al in als if al in set(['A', 'C', 'G', 'T'])]
+			a_freq = sum([1 for al in filt_als if al == 'A'])/float(len(filt_als))
+			c_freq = sum([1 for al in filt_als if al == 'C'])/float(len(filt_als))
+			g_freq = sum([1 for al in filt_als if al == 'G'])/float(len(filt_als))
+			t_freq = sum([1 for al in filt_als if al == 'T'])/float(len(filt_als))
+			site_entropy = stats.entropy([a_freq, c_freq, g_freq, t_freq],base=4)
+			all_entropy += site_entropy
+			accounted_sites += 1
+		return(all_entropy/accounted_sites)
+	except:
+		sys.exit(1)
 
 def createLoggerObject(log_file):
 	"""
@@ -717,6 +764,48 @@ def parseSampleGenomes(genome_listing_file, logObject):
 		logObject.error(traceback.format_exc())
 		raise RuntimeError(traceback.format_exc())
 
+def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, filter_low_quality=True):
+	try:
+		number_of_cds = 0
+		seqs = ""
+		with open(genbank_file) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				for feature in rec.features:
+					if feature.type == 'CDS':
+						number_of_cds += 1
+				seqs += str(rec.seq)
+		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])]) / len(seqs)
+		if number_of_cds > 0 and (prop_missing <= 0.1 or not filter_low_quality):
+			out_handle = open(rn_genbank_file, 'w')
+			locus_tag_iterator = 1
+			with open(genbank_file) as ogbk:
+				for rec in SeqIO.parse(ogbk, 'genbank'):
+					for feature in rec.features:
+						if feature.type != 'CDS': continue
+						new_locus_tag = lt + '_'
+						if locus_tag_iterator < 10:
+							new_locus_tag += '00000' + str(locus_tag_iterator)
+						elif locus_tag_iterator < 100:
+							new_locus_tag += '0000' + str(locus_tag_iterator)
+						elif locus_tag_iterator < 1000:
+							new_locus_tag += '000' + str(locus_tag_iterator)
+						elif locus_tag_iterator < 10000:
+							new_locus_tag += '00' + str(locus_tag_iterator)
+						elif locus_tag_iterator < 100000:
+							new_locus_tag += '0' + str(locus_tag_iterator)
+						else:
+							new_locus_tag += str(locus_tag_iterator)
+						feature.qualifiers['locus_tag'] = new_locus_tag
+						locus_tag_iterator += 1
+					SeqIO.write(rec, out_handle, 'genbank')
+			out_handle.close()
+	except Exception as e:
+		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % genbank_file)
+		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % genbank_file)
+		sys.stderr.write(str(e) + '\n')
+		raise RuntimeError(traceback.format_exc())
+		sys.exit(1)
+
 
 def parseGbk(gbk_path, prefix, logObject):
 	try:
@@ -758,6 +847,11 @@ def parseGbk(gbk_path, prefix, logObject):
 		logObject.error('Issue parsing GenBank %s' % gbk_path)
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
+
+def determinePossibleLTs():
+	alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+	possible_locustags = sorted(list([''.join(list(lt)) for lt in itertools.product(alphabet, repeat=4)]))
+	return possible_locustags
 
 def gatherAnnotationFromDictForHomoloGroup(hg, db, dict):
 	try:

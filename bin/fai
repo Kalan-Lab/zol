@@ -93,7 +93,7 @@ def create_parser():
 	  ORFs.
 	- If FASTA provided for --input_dir argument, it must >20,000 to allow Prodigal based gene-calling.
 	""", formatter_class=argparse.RawTextHelpFormatter)
-	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Will use to build a profile to search additional genomes with. Directory can contain just a single reference GenBank for the cluster. Files must end with ".gbk" or ".genbank".', required=False, default=None)
+	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks. Will use to build a profile to search additional genomes with. Directory can contain just a single reference GenBank for the cluster. Files must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
 	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region of interest.', required=False, default=None)
 	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
@@ -104,12 +104,13 @@ def create_parser():
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges when in aggregate they meet criteria for reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a single target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein. Default is 1e-10.", required=False, default=1e-10)
-	parser.add_argument('-m', '--min_hits', type=float, help="The minimum number of homolog groups (>3) needed to report discrete segments of the gene-cluster. Ignored if key homolog group is detected in segment or in aggregate with other segments the condition is met. Default is half the total number of distinct reference proteins.", required=False, default=None)
+	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/homolog groups needed to report discrete segments of the gene-cluster. Note, that a minimum of 3 distinct proteins/homolog groups are needed per segment reported.", required=False, default=0.5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
 	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20.', required=False, default=1e-20)
-	parser.add_argument('-kpm', '--key_protein_min_hits', type=int, help='The minimum number of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.', required=False, default=0)
+	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.0.', required=False, default=0.0)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. Default is 0.6", required=False, default=0.6)
 	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to merge segments together. Allows for more inclusivity of novel auxiliary genes. Default is 0.", required=False, default=0)
+	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster segments identified. Default is 1000.', required=False, default=1000)
 	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is found at the e-value cutoff. Default is 0.95.", required=False, default=0.95)
@@ -138,16 +139,17 @@ def faiMain():
 	target_genomes = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	evalue_cutoff = myargs.evalue_cutoff
-	min_hits = myargs.min_hits
+	min_prop = myargs.min_prop
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
 	max_genes_disconnect = myargs.max_genes_disconnect
+	flanking_context = myargs.flanking_context
 	gc_transition = myargs.gc_transition
 	bg_transition = myargs.bg_transition
 	ge_emission = myargs.gc_emission
 	be_emission = myargs.bg_emission
 	key_protein_queries_fasta = myargs.key_protein_queries
 	key_protein_evalue_cutoff = myargs.key_protein_evalue_cutoff
-	key_protein_min_hits = myargs.key_protein_min_hits
+	key_protein_min_prop = myargs.key_protein_min_prop
 	draft_mode = myargs.draft_mode
 	filter_paralogs = myargs.filter_paralogs
 	plotting_flag = myargs.generate_plots
@@ -175,20 +177,21 @@ def faiMain():
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [input_dir, reference_genome, reference_contig, reference_start, reference_end,
 						protein_queries_fasta, target_genomes, outdir, draft_mode, filter_paralogs, evalue_cutoff,
-						min_hits, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_hits,
-						syntenic_correlation_threshold, max_genes_disconnect, ge_emission, be_emission, gc_transition,
-						bg_transition, plotting_flag, cpus]
+						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
+						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
+						be_emission, gc_transition, bg_transition, plotting_flag, cpus]
 	parameter_names = ["Input directory with Gene-Cluster GenBanks", "Reference Genome for Gene Cluster",
 					   "Reference Scaffold for Gene Cluster", "Reference Start Coordinate of Gene Cluster",
 					   "Reference End Coordinate of Gene Cluster", "Protein Queries",
 					   "Target Genomes Prepared Directory by prepTG", "Output Directory",
 					   "Run in Draft-Assembly Mode?", "Filter for Paralogous/Gene-Content Overlapping Segments",
 					   "E-value cutoff for Detection of general Protein Homologs in Genome",
-					   "Minimum Number of Hits for Gene Presence in Genome", "FASTA file with Key Proteins to Consider",
+					   "Minimum Proportion of Hits for Gene Presence in Genome", "FASTA file with Key Proteins to Consider",
 					   "E-values for Key Proteins to be Considered as Smoking Gun for Gene Cluster Presence",
-					   "Minimum Number of Key Protein Hits Required for Gene Cluster Presence in Genome",
+					   "Minimum Proportion of Key Protein Hits Required for Gene Cluster Presence in Genome",
 					   "Syntenic Correlation to Known Instance Threshold Required For Gene Cluster Presence",
 					   "Maximum distance in between candidate gene-cluster segments to perform merging",
+					   "Base pair for flanking context to extract",
 					   "Emission probability of gene being in gene-cluster state with homologous hit to gene-cluster",
 					   "Emission probability of gene being in background state with homologous hit to gene-cluster",
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
@@ -250,7 +253,7 @@ def faiMain():
 			try:
 				for dirpath, dirnames, files in os.walk(input_dir):
 					for filename in files:
-						if filename.endswith(".gbk") or filename.endswith(".genbank"):
+						if filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank"):
 							genbank_file = os.path.join(dirpath, filename)
 							if util.checkValidGenBank(genbank_file):
 								genbanks.add(genbank_file)
@@ -350,15 +353,18 @@ def faiMain():
 				sys.exit(1)
 
 			target_annotation_information = {}
+			valid_tg_samples = set([])
 			with open(target_annot_listing_file) as otalf:
 				for line in otalf:
 					line = line.strip()
 					sample, gbk, faa = line.split('\t')
-					target_annotation_information[sample] = {}
-					target_annotation_information[sample]['predicted_proteome'] = faa
-					target_annotation_information[sample]['genbank'] = gbk
+					if os.path.isfile(faa) and os.path.getsize(faa) > 0 and os.path.isfile(gbk) and os.path.getsize(gbk) > 0:
+						target_annotation_information[sample] = {}
+						target_annotation_information[sample]['predicted_proteome'] = faa
+						target_annotation_information[sample]['genbank'] = gbk
+						valid_tg_samples.add(sample)
 
-			target_genome_gene_info = fai.processGenomeWideGenbanks(target_genomes_pkl_file, logObject, cpus=cpus)
+			target_genome_gene_info = fai.processGenomeWideGenbanks(target_genomes_pkl_file, valid_tg_samples, logObject, cpus=cpus)
 
 			target_information = {'target_annotation_information': target_annotation_information,
 								  'target_genome_gene_info': target_genome_gene_info}
@@ -409,17 +415,16 @@ def faiMain():
 	homologous_gbk_dir = outdir + 'Homologous_GenBanks_Directory/'
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
-		if min_hits == None:
-			min_hits = math.floor(len(set(query_information['protein_to_hg'].values()))/2.0)
-			if key_protein_min_hits:
-				min_hits = min([min_hits, key_protein_min_hits])
-		fai.identifyGCFInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
+		min_hits = min_prop*len(query_information['protein_to_hg'].values())
+		key_protein_min_hits = key_protein_min_prop*len(query_information['protein_to_hg'].values())
+		fai.identifyGCInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
 								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,
 								 gc_to_gc_transition_prob=gc_transition, bg_to_bg_transition_prob=bg_transition,
 								 gc_emission_prob_with_hit=ge_emission, gc_emission_prob_without_hit=be_emission,
 								 syntenic_correlation_threshold=syntenic_correlation_threshold,
 								 kq_evalue_threshold=key_protein_evalue_cutoff,
-								 max_int_genes_for_merge=max_genes_disconnect, cpus=1, block_size=3000)
+								 max_int_genes_for_merge=max_genes_disconnect, flanking_context=flanking_context,
+								 cpus=1, block_size=3000)
 		if draft_mode or filter_paralogs:
 			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, logObject)
 		else:

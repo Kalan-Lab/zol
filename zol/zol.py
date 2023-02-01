@@ -20,7 +20,7 @@ import shutil
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
 
-def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, ani_cutoff=98.0, coverage_cutoff=90.0):
+def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, mash_dist_threshold=0.01, cpus=1):
 	derep_genbanks = set([])
 	try:
 		full_nucl_seq_dir = derep_dir + 'FASTAs/'
@@ -30,7 +30,10 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 		longest_seq = defaultdict(int)
 		tot_seq = defaultdict(int)
 		for gbk in genbanks:
-			gbk_prefix = gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+			gbk_prefix = None
+			if gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.genbank'):
+				gbk_prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+			assert(gbk_prefix != None)
 			gbk_fasta_file = full_nucl_seq_dir + gbk_prefix + '.fasta'
 			flf_handle.write(gbk_fasta_file + '\n')
 			gbk_fasta_handle = open(gbk_fasta_file, 'w')
@@ -43,79 +46,105 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 			gbk_fasta_handle.close()
 		flf_handle.close()
 
-		fastani_result_file = derep_dir + 'fastANI_Results.tsv'
-		fastani_cmd = ['fastANI', '--fragLen', '1000', '--ql', fasta_listing_file, '--rl', fasta_listing_file, '-o',
-					   fastani_result_file]
-
+		mash_sketch_db_file = derep_dir + 'MASH_Database.msh'
+		mash_sketch_cmd = ['mash', 'sketch', '-s', '1000', '-p', str(cpus), '-l', fasta_listing_file, '-o', mash_sketch_db_file]
 		try:
-			subprocess.call(' '.join(fastani_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+			subprocess.call(' '.join(mash_sketch_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
-			assert (os.path.isfile(fastani_result_file))
-			logObject.info('Successfully ran: %s' % ' '.join(fastani_cmd))
+			assert (os.path.isfile(mash_sketch_db_file))
+			logObject.info('Successfully ran: %s' % ' '.join(mash_sketch_cmd))
 		except Exception as e:
-			logObject.error('Had an issue running fastANI: %s' % ' '.join(fastani_cmd))
-			sys.stderr.write('Had an issue running fastANI: %s\n' % ' '.join(fastani_cmd))
+			logObject.error('Had an issue running MASH: %s' % ' '.join(mash_sketch_cmd))
+			sys.stderr.write('Had an issue running MASH: %s\n' % ' '.join(mash_sketch_cmd))
 			logObject.error(e)
 			sys.exit(1)
 
-		dereplication_pairs = []
-		gc_in_dereplication_pairs = set([])
+		mash_result_file = derep_dir + 'MASH_Results.tsv'
+		mash_dist_cmd = ['mash', 'dist', '-s', '1000', '-p', str(cpus), mash_sketch_db_file, mash_sketch_db_file, '>',
+						   mash_result_file]
+
+		try:
+			subprocess.call(' '.join(mash_dist_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(mash_result_file))
+			logObject.info('Successfully ran: %s' % ' '.join(mash_dist_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running MASH: %s' % ' '.join(mash_dist_cmd))
+			sys.stderr.write('Had an issue running MASH: %s\n' % ' '.join(mash_dist_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
+		similar_pairs_file = derep_dir + 'Similar_Pairs.txt'
+		similar_pairs_handle = open(similar_pairs_file, 'w')
 		all_gcs = set([])
-		with open(fastani_result_file) as ofrf:
-			for line in ofrf:
+		paired_gcs = set([])
+		visited = set([])
+		with open(mash_result_file) as omrf:
+			for line in omrf:
 				line = line.strip()
-				f1, f2, idt, cov, tot = line.split('\t')
+				f1, f2, mash_dist, pvalue, matching_hashes = line.split('\t')
 				s1 = '.fasta'.join(f1.split('/')[-1].split('.fasta')[:-1])
 				s2 = '.fasta'.join(f2.split('/')[-1].split('.fasta')[:-1])
-				all_gcs.add(s1)
-				all_gcs.add(s2)
-				cov_prop = 100.0*(int(cov)/float(int(tot)))
-				if cov_prop >= coverage_cutoff and float(idt) >= ani_cutoff:
+				if float(mash_dist) <= mash_dist_threshold:
 					pair_tup = sorted([s1, s2])
-					dereplication_pairs.append(pair_tup)
-					gc_in_dereplication_pairs.add(s1)
-					gc_in_dereplication_pairs.add(s2)
-
-		"""	
-		Solution for single-linkage clustering taken from mimomu's response in the stackoverflow page:
-		https://stackoverflow.com/questions/4842613/merge-lists-that-share-common-elements?lq=1
-		"""
-		L = list(dereplication_pairs)
-		LL = set(itertools.chain.from_iterable(L))
-		for each in LL:
-			components = [x for x in L if each in x]
-			for i in components:
-				L.remove(i)
-			L += [list(set(itertools.chain.from_iterable(components)))]
-
-		for gc in all_gcs:
-			if not gc in gc_in_dereplication_pairs:
-				L.append([gc])
+					if not tuple(pair_tup) in visited:
+						similar_pairs_handle.write(pair_tup[0] + '\t' + pair_tup[1] + '\n')
+						if s1 != s2:
+							paired_gcs.add(s1)
+							paired_gcs.add(s2)
+						else:
+							all_gcs.add(s1)
+					visited.add(tuple(pair_tup))
+		similar_pairs_handle.close()
 
 		focal = None
-		if os.path.isfile(focal_genbanks):
+		if focal_genbanks != None and os.path.isfile(focal_genbanks):
 			focal = set([])
 			with open(focal_genbanks) as ofgf:
 				for line in ofgf:
-					line = line.strip()
-					gbk_prefix = line.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+					gbk = line.strip()
+					gbk_prefix = None
+					if gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.genbank'):
+						gbk_prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+					assert(gbk_prefix != None)
 					focal.add(gbk_prefix)
 
+		clusters_file = derep_dir + 'SLClusters.txt'
+		slclust_cmd = ['slclust', '<', similar_pairs_file, '>', clusters_file]
+		try:
+			subprocess.call(' '.join(slclust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(clusters_file))
+			logObject.info('Successfully ran: %s' % ' '.join(slclust_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running slclust: %s' % ' '.join(slclust_cmd))
+			sys.stderr.write('Had an issue running slclust: %s\n' % ' '.join(slclust_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
 		representatives = set([])
-		for gcc in L:
-			cluster_gc_stats = []
-			gcs = set([])
-			for gc in gcc:
-				cluster_gc_stats.append([gc, longest_seq[gc], tot_seq[gc]])
-				gcs.add(gc)
-			focal_not_relevant = False
-			if focal == None or len(gcs.intersection(focal)) == 0:
-				focal_not_relevant = True
-			rep = [x[0] for x in sorted(cluster_gc_stats, key=itemgetter(1,2), reverse=True) if focal_not_relevant or x[0] in focal][0]
-			representatives.add(rep)
+		with open(clusters_file) as ocf:
+			for line in ocf:
+				line = line.strip()
+				gcc = line.split()
+				cluster_gc_stats = []
+				gcs = set([])
+				for gc in gcc:
+					cluster_gc_stats.append([gc, longest_seq[gc], tot_seq[gc]])
+					gcs.add(gc)
+				focal_not_relevant = False
+				if focal == None or len(gcs.intersection(focal)) == 0:
+					focal_not_relevant = True
+				rep = [x[0] for x in sorted(cluster_gc_stats, key=itemgetter(1,2), reverse=True) if focal_not_relevant or x[0] in focal][0]
+				representatives.add(rep)
+
+		for gc in all_gcs.difference(paired_gcs):
+			representatives.add(gc)
 
 		for gbk in genbanks:
-			gbk_prefix = gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0]
+			gbk_prefix = None
+			if gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.genbank'):
+				gbk_prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+			assert (gbk_prefix != None)
 			if not gbk_prefix in representatives: continue
 			shutil.copy(gbk, kept_dir)
 			derep_genbanks.add(kept_dir + gbk.split('/')[-1])
@@ -129,9 +158,10 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 			logObject.info('Found %d GenBanks retained after dereplication.' % num_gbk)
 
 	except Exception as e:
-		sys.stderr.write('Issues with run fastANI based dereplication of input GenBanks.\n')
-		logObject.error('Issues with run fastANI based dereplication of input GenBanks.')
+		sys.stderr.write('Issues with run MASH based dereplication of input GenBanks.\n')
+		logObject.error('Issues with run MASH based dereplication of input GenBanks.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return(derep_genbanks)
 
@@ -173,6 +203,57 @@ def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
+
+def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, hg_upst_dir, upst_algn_dir, logObject, cpus=1, use_super5=False):
+	try:
+		g_to_hg = {}
+		samples = []
+		with open(ortho_matrix_file) as oomf:
+			for i, line in enumerate(oomf):
+				line = line.strip()
+				ls = line.split('\t')
+				if i == 0:
+					samples = ls[1:]
+					continue
+				hg = ls[0]
+				for j, gs in enumerate(ls[1:]):
+					for g in gs.split(', '):
+						g = g.strip()
+						g_to_hg[g] = hg
+
+		for uf in os.listdir(nucl_upstr_dir):
+			ufile = nucl_upstr_dir + uf
+			with open(ufile) as ouf:
+				for rec in SeqIO.parse(ouf, 'fasta'):
+					hg = g_to_hg[rec.id]
+					hpf_handle = open(hg_upst_dir + hg + '.fna', 'a+')
+					hpf_handle.write('>' + rec.description + '\n' + str(rec.seq) + '\n')
+					hpf_handle.close()
+
+		for pf in os.listdir(hg_upst_dir):
+			prefix = '.fna'.join(pf.split('.fna')[:-1])
+			upst_file = hg_upst_dir + pf
+			if os.path.getsize(upst_file) == 0: continue
+			upst_algn_file = upst_algn_dir + prefix + '.msa.fna'
+			align_cmd = ['muscle', '-align', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(cpus)]
+			if use_super5:
+				align_cmd = ['muscle', '-super5', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(cpus)]
+			try:
+				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+								executable='/bin/bash')
+				assert(os.path.isfile(upst_algn_file))
+				logObject.info('Successfully ran: %s' % ' '.join(align_cmd))
+			except Exception as e:
+				logObject.error('Had an issue running MUSCLE: %s' % ' '.join(align_cmd))
+				sys.stderr.write('Had an issue running MUSCLE: %s\n' % ' '.join(align_cmd))
+				logObject.error(e)
+				sys.exit(1)
+
+	except Exception as e:
+		sys.stderr.write('Issues with partitioning/aligning upstream sequences.\n')
+		logObject.error('Issues with partitioning/aligning upstream sequences.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
 
 def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False, cpus=1):
 	try:
@@ -277,7 +358,71 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, min_annotation_evalue=1e-5):
+def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
+	custom_annotations = {}
+	try:
+		custom_annot_dir = annotation_dir + 'Custom_Annotation/'
+		util.setupReadyDirectory([custom_annot_dir])
+		dmnd_db = custom_annot_dir + 'Custom.dmnd'
+		blastp_file = custom_annot_dir + 'Custom.txt'
+		makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', custom_protein_db_faa, '-d', dmnd_db]
+		search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(cpus), '-d', dmnd_db, '-q', protein_faa,
+					  '-o', blastp_file]
+
+		try:
+			subprocess.call(' '.join(makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(dmnd_db))
+			logObject.info('Successfully ran: %s' % ' '.join(makedb_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running DIAMOND makedb: %s' % ' '.join(makedb_cmd))
+			sys.stderr.write('Had an issue running DIAMOND makedb: %s\n' % ' '.join(makedb_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
+		try:
+			subprocess.call(' '.join(search_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(blastp_file))
+			logObject.info('Successfully ran: %s' % ' '.join(search_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running DIAMOND blastp: %s' % ' '.join(search_cmd))
+			sys.stderr.write('Had an issue running DIAMOND blastp: %s\n' % ' '.join(search_cmd))
+			logObject.error(e)
+			sys.exit(1)
+
+		id_to_description = {}
+		with open(custom_protein_db_faa) as ocpdf:
+			for rec in SeqIO.parse(ocpdf, 'fasta'):
+				id_to_description[rec.id] = rec.description
+
+		best_hits_by_bitscore = defaultdict(lambda: [[], [], 0.0])
+		with open(blastp_file) as obf:
+			for line in obf:
+				line = line.strip()
+				ls = line.split('\t')
+				que, hit = ls[:2]
+				eval = float(ls[10])
+				if eval > max_annotation_evalue: continue
+				bitscore = float(ls[11])
+				if bitscore > best_hits_by_bitscore[que][2]:
+					best_hits_by_bitscore[que] = [[hit], [eval], bitscore]
+				elif bitscore == best_hits_by_bitscore[que][2]:
+					best_hits_by_bitscore[que][0].append(hit)
+					best_hits_by_bitscore[que][1].append(eval)
+
+		for que in best_hits_by_bitscore:
+			custom_annotations[que] = [[id_to_description[x] for x in best_hits_by_bitscore[que][0]], best_hits_by_bitscore[que][1]]
+
+	except Exception as e:
+		sys.stderr.write('Issues with annotating using custom database.\n')
+		logObject.error('Issues with annotating using custom database.')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+	return(custom_annotations)
+
+def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
 	db_locations = zol_main_directory + 'db/database_location_paths.txt'
 	try:
 		individual_cpus = 1
@@ -310,6 +455,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 
 		annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA'])) # db -> query -> [hit descriptions, evalue]
 		for rf in os.listdir(annotation_dir):
+			if not rf.endswith('.txt'): continue
 			db_name = rf.split('.txt')[0]
 			annot_info_file = name_to_info_file[db_name]
 
@@ -320,7 +466,8 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 					ls = line.split('\t')
 					id_to_description[ls[0]] = ls[1]
 
-			best_hits_by_evalue = defaultdict(lambda: [[], [], 0.0])
+			# or by_score if HMMscan - lets avoid a second variable
+			best_hits_by_bitscore = defaultdict(lambda: [[], [], 0.0])
 			if db_name in hmm_based_annotations:
 				# parse HMM based results from HMMER3
 				with open(annotation_dir + rf) as oarf:
@@ -332,16 +479,16 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 						hit = ls[0]
 						evalue = decimal.Decimal(ls[4])
 						score = float(ls[5])
-						if evalue > min_annotation_evalue: continue
+						if evalue > max_annotation_evalue: continue
 						if db_name != 'pfam':
-							if score > best_hits_by_evalue[query][2]:
-								best_hits_by_evalue[query] = [[hit], [evalue], score]
-							elif score == best_hits_by_evalue[query][2]:
-								best_hits_by_evalue[query][0].append(hit)
-								best_hits_by_evalue[query][1].append(evalue)
+							if score > best_hits_by_bitscore[query][2]:
+								best_hits_by_bitscore[query] = [[hit], [evalue], score]
+							elif score == best_hits_by_bitscore[query][2]:
+								best_hits_by_bitscore[query][0].append(hit)
+								best_hits_by_bitscore[query][1].append(evalue)
 						else:
-							if evalue < min_annotation_evalue:
-								best_hits_by_evalue[query][0].append(hit)
+							if evalue < max_annotation_evalue:
+								best_hits_by_bitscore[query][0].append(hit)
 			else:
 				# parse DIAMOND BLASTp based results
 				with open(annotation_dir + rf) as oarf:
@@ -352,17 +499,17 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 						hit = ls[1]
 						bitscore = float(ls[11])
 						evalue = decimal.Decimal(ls[10])
-						if evalue > min_annotation_evalue: continue
-						if bitscore > best_hits_by_evalue[query][2]:
-							best_hits_by_evalue[query] = [[hit], [evalue], bitscore]
-						elif bitscore == best_hits_by_evalue[query][2]:
-							best_hits_by_evalue[query][0].append(hit)
-							best_hits_by_evalue[query][1].append(evalue)
+						if evalue > max_annotation_evalue: continue
+						if bitscore > best_hits_by_bitscore[query][2]:
+							best_hits_by_bitscore[query] = [[hit], [evalue], bitscore]
+						elif bitscore == best_hits_by_bitscore[query][2]:
+							best_hits_by_bitscore[query][0].append(hit)
+							best_hits_by_bitscore[query][1].append(evalue)
 
 			with open(protein_faa) as opf:
 				for rec in SeqIO.parse(opf, 'fasta'):
-					if rec.id in best_hits_by_evalue:
-						annotations[db_name][rec.id] = [[id_to_description[x] for x in best_hits_by_evalue[rec.id][0]], best_hits_by_evalue[rec.id][1]]
+					if rec.id in best_hits_by_bitscore:
+						annotations[db_name][rec.id] = [[id_to_description[x] for x in best_hits_by_bitscore[rec.id][0]], best_hits_by_bitscore[rec.id][1]]
 		return(default_to_regular(annotations))
 	except Exception as e:
 		sys.stderr.write('Issues with annotating consensus sequences.\n')
@@ -861,6 +1008,29 @@ def computeBetaRDgc(prot_algn_dir, logObject):
 		sys.exit(1)
 	return([hg_med_beta_rd, hg_max_beta_rd])
 
+def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, logObject):
+	hg_entropy = {}
+	hg_upst_entropy = {}
+	try:
+		for f in os.listdir(codo_algn_trim_dir):
+			hg = f.split('.msa.fna')[0]
+			caf = codo_algn_trim_dir + f
+			entropy = util.calculateMSAEntropy(caf, logObject)
+			hg_entropy[hg] = entropy
+
+		for f in os.listdir(upst_algn_dir):
+			hg = f.split('.msa.fna')[0]
+			uaf = upst_algn_dir + f
+			entropy = util.calculateMSAEntropy(uaf, logObject)
+			hg_upst_entropy[hg] = entropy
+
+	except Exception as e:
+		sys.stderr.write('Issues with calculating entropy for homolog groups or their upstream regions.\n')
+		logObject.error('Issues with calculating entropy for homolog groups or their upstream regions.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+	return([hg_entropy, hg_upst_entropy])
+
 def runTajimasDAnalysis(codo_algn_trim_dir, logObject):
 	try:
 		hg_tajimas_d = {}
@@ -879,7 +1049,7 @@ def runTajimasDAnalysis(codo_algn_trim_dir, logObject):
 				seg_sites_prop = seg_sites/len(codo_sequences[0])
 			else:
 				taj_d = 'NA'
-				seg_sites = 'NA'
+				seg_sites_prop = 'NA'
 			hg_tajimas_d[hg] = taj_d
 			hg_seg_sites_prop[hg] = seg_sites_prop
 		return([hg_tajimas_d, hg_seg_sites_prop])
@@ -949,17 +1119,17 @@ def calculateTajimasD(sequences):
 		return (["< 3 segregating sites!", S])
 
 
-def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, prot_algn_trim_dir, logObject):
+def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, logObject):
 	comp_stats = {}
 	try:
-		for f in os.listdir(prot_algn_trim_dir):
-			hg = f.split('.msa.faa')[0]
-			prot_algn_trim_file = prot_algn_trim_dir + f
+		for f in os.listdir(codo_algn_trim_dir):
+			hg = f.split('.msa.fna')[0]
+			codo_algn_trim_file = codo_algn_trim_dir + f
 			focal_samps_with_hg = set([])
 			compa_samps_with_hg = set([])
 			focal_seqs = []
 			compa_seqs = []
-			with open(prot_algn_trim_file) as opatf:
+			with open(codo_algn_trim_file) as opatf:
 				for rec in SeqIO.parse(opatf, 'fasta'):
 					sample = rec.id.split('|')[0]
 					seq = str(rec.seq)
@@ -1011,7 +1181,56 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 			prop_foc_with = len(focal_samps_with_hg)/float(len(focal_genbank_ids))
 			prop_com_with = len(compa_samps_with_hg)/float(len(comparator_genbank_ids))
 
-			comp_stats[hg] = {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst}
+			upst_algn_file = upst_algn_dir + hg + '.msa.fna'
+			upst_fst = 'NA'
+			if os.path.isfile(upst_algn_file) and os.path.getsize(upst_algn_file) > 0:
+				focal_samps_with_hg = set([])
+				compa_samps_with_hg = set([])
+				focal_seqs = []
+				compa_seqs = []
+				with open(upst_algn_file) as oaf:
+					for rec in SeqIO.parse(oaf, 'fasta'):
+						sample = rec.id.split('|')[0]
+						seq = str(rec.seq)
+						if sample in focal_genbank_ids:
+							focal_samps_with_hg.add(sample)
+							focal_seqs.append(seq)
+						elif sample in comparator_genbank_ids:
+							compa_samps_with_hg.add(sample)
+							compa_seqs.append(seq)
+
+				diff_between = 0
+				pw_between = 0
+				diff_foc_within = 0
+				diff_com_within = 0
+				pw_foc_within = 0
+				pw_com_within = 0
+				for i, s1 in enumerate(focal_seqs):
+					for j, s2 in enumerate(focal_seqs):
+						if i >= j: continue
+						diff_foc_within += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+						pw_foc_within += 1
+
+				for i, s1 in enumerate(compa_seqs):
+					for j, s2 in enumerate(compa_seqs):
+						if i >= j: continue
+						diff_com_within += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+						pw_com_within += 1
+
+				for i, s1 in enumerate(focal_seqs):
+					for j, s2 in enumerate(compa_seqs):
+						diff_between += sum(1 for a, b in zip(s1, s2) if a != b and a != '-' and b != '-')
+						pw_between += 1
+
+				#print([diff_between, pw_between, pw_foc_within, pw_com_within, diff_foc_within, diff_com_within])
+				if pw_between > 0 and pw_foc_within > 0:
+					pi_between = diff_between/float(pw_between)
+					pi_within = (diff_foc_within)/float(pw_foc_within)
+					if pi_between > 0:
+						upst_fst = 1.0 - (float(pi_within)/float(pi_between))
+
+			comp_stats[hg] = {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst, 'fst_upst': upst_fst}
+
 
 	except Exception as e:
 		sys.stderr.write('Issues with performing comparative analyses between user-defined Gene Cluster groups.\n')
@@ -1028,15 +1247,18 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 	dict_keys(['tajimas_d', 'gard_partitions', 'fubar_sel_props', 'fubar_sel_sites', 'gene_tree_congruence'])
 	"""
 	try:
+		# Note to self, eventually quit being lazy and conditionally display all columns (e.g. FUBAR columns) when requested by user
+		# to avoid having columns with NA values.
 		header = ['Homolog Group (HG) ID', 'HG is Single Copy?', 'Proportion of Total Gene Clusters with HG',
 				  'HG Median Length (bp)', 'HG Consensus Order', 'HG Consensus Direction']
 		if comp_stats:
 			header += ['Proportion of Focal Gene Clusters with HG', 'Proportion of Comparator Gene Clusters with HG',
-					   'Fixation Index of Proteins']
-		header += ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
+					   'Fixation Index', 'Upstream Region Fixation Index']
+		header += ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 'Entropy',
+				   'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
 				   'GARD Partitions Based on Recombination Breakpoints',
 				  'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-				  'Proportion of Sites Under Selection which are Positive',
+				  'Proportion of Sites Under Selection which are Positive', 'Custom Annotation (E-value)',
 				   'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
 				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
@@ -1060,12 +1282,15 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			hg_ordr = hg_tup[1][0]
 			hg_dire = '"' + hg_tup[1][1] + '"'
 			hg_tajd = util.gatherValueFromDictForHomologGroup(hg, evo_stats['tajimas_d'])
+			hg_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy'])
+			hg_upst_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy_upst'])
 			hg_segs = util.gatherValueFromDictForHomologGroup(hg, evo_stats['segregating_sites_prop'])
 			hg_gpar = util.gatherValueFromDictForHomologGroup(hg, evo_stats['gard_partitions'])
 			hg_ssit = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_sites'])
 			hg_spro = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_props'])
 			hg_med_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['median_beta_rd_gc'])
 			hg_max_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['max_beta_rd_gc'])
+			cust_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'custom', annotations)
 			ko_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'ko', annotations)
 			pgap_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'pgap', annotations)
 			pb_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'paperblast', annotations)
@@ -1083,9 +1308,10 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				fp = comp_stats[hg]['prop_foc_with']
 				cp = comp_stats[hg]['prop_com_with']
 				fst = comp_stats[hg]['fst']
-				row += [fp, cp, fst]
-			row += [hg_tajd, hg_segs, hg_med_brdgc, hg_max_brdgc, hg_gpar, hg_ssit,
-					hg_spro, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot,
+				fst_upst = comp_stats[hg]['fst_upst']
+				row += [fp, cp, fst, fst_upst]
+			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_gpar, hg_ssit,
+					hg_spro, cust_annot, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot,
 					mibig_annot, vog_annot, vfdb_annot, pfam_annots, hg_lts, con_seq]
 			row = [str(x) for x in row]
 			frt_handle.write('\t'.join(row) + '\n')
@@ -1101,9 +1327,10 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-zol#explanation-of-report')
 
 		numeric_columns = {'Proportion of Total Gene Clusters with HG', 'Proportion of Focal Gene Clusters with HG',
-						   'Proportion of Comparator Gene Clusters with HG', 'Fixation Index of Proteins', 'Pi-Focal',
-						   'Pi-Comparator', 'HG Median Length (bp)', 'HG Consensus Order',
-						   'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints',
+						   'Proportion of Comparator Gene Clusters with HG', 'Fixation Index',
+						   'Upstream Region Fixation Index', 'HG Median Length (bp)', 'HG Consensus Order',
+						   'Tajima\'s D', 'Entropy', 'Upstream Region Entropy',
+						   'GARD Partitions Based on Recombination Breakpoints',
 						   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
 						   'Proportion of Sites Under Selection which are Positive', 'Median Beta-RD-gc',
 						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites'}
@@ -1116,8 +1343,8 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		results_df.to_excel(writer, sheet_name='ZoL Results', index=False, na_rep="NA")
 		worksheet =  writer.sheets['ZoL Results']
 		worksheet.conditional_format('B2:B' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"False"', 'format': warn_format})
-		worksheet.conditional_format('A2:AB' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})
-		worksheet.conditional_format('A1:AB1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+		worksheet.conditional_format('A2:BA' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})
+		worksheet.conditional_format('A1:BA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
 
 		# prop gene-clusters with hg
 		worksheet.conditional_format('C2:C' + str(num_rows), {'type': '2_color_scale', 'min_color': "#f7de99", 'max_color': "#c29006", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
@@ -1136,20 +1363,37 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			worksheet.conditional_format('I2:I' + str(num_rows),
 										 {'type': '2_color_scale', 'min_color': "#aecaf5", 'max_color': "#6198ed",'min_type': 'num', 'max_type': 'num',
 										  "min_value": 0.0, "max_value": 1.0})
-			# taj-d
+
+			# upstream region fst
 			worksheet.conditional_format('J2:J' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#aecaf5", 'max_color': "#6198ed",'min_type': 'num', 'max_type': 'num',
+										  "min_value": 0.0, "max_value": 1.0})
+
+			# taj-d
+			worksheet.conditional_format('K2:K' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#f7a09c", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#87cefa", "min_value": -2.0, "mid_value": 0.0, "max_value": 2.0})
 			# prop seg sites
-			worksheet.conditional_format('K2:K' + str(num_rows),
+			worksheet.conditional_format('L2:L' + str(num_rows),
 										 {'type': '2_color_scale', 'min_color': "#eab3f2", 'min_type': 'num', 'max_type': 'num',
 										  'max_color': "#a37ba8", "min_value": 0.0, "max_value": 1.0})
+
+			# entropy
+			worksheet.conditional_format('M2:M' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+
+			# upstream region entropy
+			worksheet.conditional_format('N2:N' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+
 			# beta-rd gc
-			worksheet.conditional_format('L2:L' + str(num_rows),
+			worksheet.conditional_format('O2:O' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
                                          'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 			# max beta-rd gc
-			worksheet.conditional_format('M2:M' + str(num_rows),
+			worksheet.conditional_format('P2:P' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 
@@ -1164,12 +1408,22 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 										 {'type': '2_color_scale', 'min_color': "#eab3f2", 'min_type': 'num', 'max_type': 'num',
 										  'max_color': "#a37ba8", "min_value": 0.0, "max_value": 1.0})
 
-			# median beta-rd gc
+			# entropy
 			worksheet.conditional_format('I2:I' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+
+			# upstream region entropy
+			worksheet.conditional_format('J2:J' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+
+			# median beta-rd gc
+			worksheet.conditional_format('K2:K' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 			# max beta-rd gc
-			worksheet.conditional_format('J2:J' + str(num_rows),
+			worksheet.conditional_format('L2:L' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 
@@ -1188,7 +1442,11 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 	try:
 		representative_genbanks = set([])
 		for gbk in genbanks:
-			representative_genbanks.add(gbk.split('/')[-1].split('.gbk')[0].split('.genbank')[0])
+			gbk_prefix = None
+			if gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.genbank'):
+				gbk_prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+			assert (gbk_prefix != None)
+			representative_genbanks.add(gbk_prefix)
 
 		# create input tracks
 		ml_track_file = work_dir + 'HG_Median_Length_Info.txt'
@@ -1232,7 +1490,7 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 		try:
 			assert(len(gn_labs) == len(gn_lab_keys))
 		except:
-			logObject.write('Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.')
+			logObject.info('Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.')
 			sys.stderr.write('Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.\n')
 			sys.exit(1)
 

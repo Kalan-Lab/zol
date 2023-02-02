@@ -856,7 +856,7 @@ def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, 
 					with open(gcs_gbk) as oggbk:
 						for line in oggbk:
 							sample_gbk_handle.write(line)
-			sample_gbk_handle.close()
+				sample_gbk_handle.close()
 	except Exception as e:
 		logObject.error('Issues resolving paralogous gene segments.')
 		sys.stderr.write('Issues resolving paralogous gene segments.\n')

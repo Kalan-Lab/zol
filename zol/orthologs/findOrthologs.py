@@ -374,7 +374,7 @@ def findOrthologs():
 				if qh_pair in qh_pairs_accounted: continue
 				qh_pairs_accounted.add(qh_pair)
 				if query_samp == hit_samp:
-					scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(bs) + '\n')
+					scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(bs/100.0) + '\n')
 				else:
 					sample_pair = tuple(sorted([query_samp, hit_samp]))
 					scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(float(bs)/qshs_rbh_avg[sample_pair]) + '\n')

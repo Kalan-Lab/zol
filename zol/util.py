@@ -134,6 +134,9 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 						end = max(all_ends)
 
 					feature_coords = set(range(start, end + 1))
+					edgy_feat = 'False'
+					if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
+						edgy_feat = 'True'
 					if len(feature_coords.intersection(pruned_coords)) > 0:
 						fls = []
 						for sc, ec, dc in all_coords:
@@ -162,6 +165,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 							if len(fls) > 1:
 								updated_location = sum(fls)
 							feature.location = updated_location
+							feature.qualifiers['near_scaffold_edge'] = edgy_feat
 							updated_features.append(feature)
 				updated_rec.features = updated_features
 				SeqIO.write(updated_rec, ngf_handle, 'genbank')
@@ -310,7 +314,7 @@ def checkValidGenBank(genbank_file, quality_assessment=False):
 	except:
 		return False
 
-def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
+def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 	try:
 		proteins = {}
 		nucleotides = {}
@@ -360,10 +364,17 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject):
 						if sc - 100 >= 0:
 							upstream_region = str(Seq(full_sequence[sc-100:sc]))
 
-					proteins[lt] = prot_seq
-					nucleotides[lt] = nucl_seq
-					if upstream_region:
-						upstream_regions[lt] = upstream_region
+					edgy_cds = False
+					try:
+						edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
+						print(edgy_cds)
+					except:
+						edgy_cds = False
+					if allow_edge_cds or not edgy_cds:
+						proteins[lt] = prot_seq
+						nucleotides[lt] = nucl_seq
+						if upstream_region:
+							upstream_regions[lt] = upstream_region
 
 		return([proteins, nucleotides, upstream_regions])
 	except Exception as e:

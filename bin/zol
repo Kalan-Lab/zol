@@ -82,9 +82,10 @@ def create_parser():
 	parser.add_argument('-it', '--identity_threshold', type=float, help='Minimum identity coverage for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 30.', required=False, default=30.0)
 	parser.add_argument('-ct', '--coverage_threshold', type=float, help='Minimum query coverage for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 50.', required=False, default=50.0)
 	parser.add_argument('-et', '--evalue_threshold', type=float, help='Maximum E-value for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 0.001.', required=False, default=0.001)
-	parser.add_argument('-fl', '--filter_low_quality', action='store_true', help="Filter genomes which feature alot of missing bases (>10 percent).", required=False, default=False)
+	parser.add_argument('-fl', '--filter_low_quality', action='store_true', help="Filter gene-clusters which feature alot of missing bases (>10 percent).", required=False, default=False)
 	parser.add_argument('-r', '--rename_lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
 	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using MASH.', required=False, default=False)
+	parser.add_argument('-aec', '--allow_edge_cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute "near_scaffold_edge=True", which is set by fai for features within 2kb of contig edges. Default is False.', required=False, default=False)
 	parser.add_argument('-dt', '--derep_threshold', type=float, help='MASH distance threshold to use for dereplication. Default is 0.01.', required=False, default=0.01)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate. Default is False.", required=False, default=False)
 	parser.add_argument('-s', '--selection_analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
@@ -128,6 +129,7 @@ def zolMain():
 	derep_threshold = myargs.derep_threshold
 	filter_lq_flag = myargs.filter_low_quality
 	custom_database = myargs.custom_database
+	allow_edge_cds_flag = myargs.allow_edge_cds
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -161,15 +163,16 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, type,  use_super5, fubar_selection, skip_gard,
-						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, rename_lt_flag,
-						dereplicate_flag, derep_threshold, length, width, full_genbank_labels, cpus]
-	parameter_names = ["Input directory with Loci GenBanks", "Output directory", "Locus type",
+	parameter_values = [input_dir, outdir,  use_super5, fubar_selection, skip_gard,
+					   focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, rename_lt_flag,
+					   dereplicate_flag, allow_edge_cds_flag, derep_threshold, length, width, full_genbank_labels, cpus]
+	parameter_names = ["Input directory with Loci GenBanks", "Output directory",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
 					   "Skip GARD Partitioning by Recombination Breakpoints?", "Focal GenBanks Listing",
 					   "Comparator GenBanks Listing", "Filter Low Quality?",
-					   "Rename Locus Tags?", "Perform Dereplication?", "Dereplication Threshold", "Plot Height",
-					   "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested"]
+					   "Rename Locus Tags?", "Perform Dereplication?", "Dereplication Threshold",
+					   "Use CDS features with attribute near_scaffold_edge=True."
+					   "Plot Height", "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -242,7 +245,7 @@ def zolMain():
 			for gbk in genbanks:
 				try:
 					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
+					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=allow_edge_cds_flag)
 					protein_outf = prot_dir + prefix + '.faa'
 					nucleotide_outf = nucl_dir + prefix + '.fna'
 					upstream_outf = nucl_upstream_dir + prefix + '.fna'

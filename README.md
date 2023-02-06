@@ -34,6 +34,14 @@ pip install -e .
 setup_annotation_dbs.py
 ```
 
+### Test case:
+
+Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
+
+```bash
+bash run_tests.sh
+```
+
 ### Usage:
 
 ### prepTG (preparing to run fai)

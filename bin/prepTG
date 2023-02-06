@@ -68,7 +68,8 @@ def create_parser():
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. 3 for primary genomes; 4 for additional genomes (default).', required=False, default=4)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.", required=False, default=1)
-	parser.add_argument('-py', '--use_pyrodigal', action='store_true', help='Use pyrodigal instead of prodigal.', required=False, default=False)
+	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Use prodigal instead of pyrodigal.', required=False, default=False)
+	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -88,7 +89,8 @@ def readifyAdditionalGenomes():
 	locus_tag_length = myargs.locus_tag_length
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus
-	use_pyrodigal = myargs.use_pyrodigal
+	use_prodigal = myargs.use_prodigal
+	meta_mode = myargs.meta_mode
 
 	if os.path.isdir(outdir):
 		sys.stderr.write("Output directory exists! Exiting\n ")
@@ -111,8 +113,9 @@ def readifyAdditionalGenomes():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [target_genomes_dir, outdir, cpus]
-	parameter_names = ["Target Genomes Directory", "Output Directory", "Number of cpus"]
+	parameter_values = [target_genomes_dir, outdir, use_prodigal, meta_mode, cpus]
+	parameter_names = ["Target Genomes Directory", "Output Directory", "Use Prodigal?", "Use Meta Mode?",
+					   "Number of cpus"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -149,7 +152,7 @@ def readifyAdditionalGenomes():
 
 		util.processGenomes(additional_sample_genomes, additional_prodigal_outdir, additional_proteomes_directory,
 							additional_genbanks_directory, logObject, cpus=cpus, locus_tag_length=locus_tag_length,
-							use_pyrodigal=use_pyrodigal)
+							use_prodigal=use_prodigal, meta_mode=meta_mode)
 	else:
 		# genomes are provided as Genbanks with CDS features
 		gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'

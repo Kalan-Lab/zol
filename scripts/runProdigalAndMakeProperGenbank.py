@@ -63,8 +63,8 @@ def create_parser():
 	parser.add_argument('-o', '--output_directory', help='Path to output directory. Should already be created!', required=True)
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default='AAA', required=False)
-	parser.add_argument('-py', '--use_pyrodigal', action='store_true', help='Use pyrodigal instead of prodigal.',
-						required=False, default=False)
+	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Use prodigal instead of pyrodigal.', required=False, default=False)
+	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -81,7 +81,8 @@ def prodigalAndReformat():
 
 	input_genomic_fasta_file = os.path.abspath(myargs.input_genomic_fasta)
 	outdir = os.path.abspath(myargs.output_directory) + '/'
-	use_pyrodigal = myargs.use_pyrodigal
+	use_prodigal = myargs.use_prodigal
+	meta_mode = myargs.meta_mode
 
 	try:
 		assert(os.path.isfile(input_genomic_fasta_file))
@@ -116,12 +117,14 @@ def prodigalAndReformat():
 	# Step 1: Run Prodigal (if needed)
 	og_prod_pred_prot_file = outdir + sample_name + '.original_predicted_proteome'
 	prodigal_cmd = []
-	if not use_pyrodigal:
+	if not use_prodigal:
 		prodigal_cmd = ['pyrodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
 	else:
 		prodigal_cmd = ['prodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+	if meta_mode:
+		prodigal_cmd += ['-p', 'meta']
 
+	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 	try:
 		assert(os.path.isfile(og_prod_pred_prot_file))
 	except:

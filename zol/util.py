@@ -289,11 +289,13 @@ def is_genbank(gbk):
 	except:
 		return False
 
-def checkValidGenBank(genbank_file, quality_assessment=False):
+def checkValidGenBank(genbank_file, quality_assessment=True, draft_assessment=True):
 	try:
 		number_of_cds = 0
 		lt_has_comma = False
 		seqs = ''
+		recs = 0
+		edgy_cds = False
 		with open(genbank_file) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
@@ -302,11 +304,17 @@ def checkValidGenBank(genbank_file, quality_assessment=False):
 						lt = feature.qualifiers.get('locus_tag')[0]
 						if ',' in lt:
 							lt_has_comma = True
+						try:
+							edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
+							#print(edgy_cds)
+						except:
+							pass
 				seqs += str(rec.seq)
+				recs += 1
 		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])])/len(seqs)
 		if number_of_cds > 0 and not lt_has_comma:
-			if quality_assessment and prop_missing >= 0.1:
-				return False
+			if (quality_assessment and prop_missing >= 0.1) or (draft_assessment and (recs > 1 or edgy_cds)):
+					return False
 			else:
 				return True
 		else:
@@ -367,7 +375,7 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 					edgy_cds = False
 					try:
 						edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
-						print(edgy_cds)
+						#print(edgy_cds)
 					except:
 						edgy_cds = False
 					if allow_edge_cds or not edgy_cds:
@@ -382,7 +390,6 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 		logObject.error('Issues with parsing the GenBank %s' % gbk_path)
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
-
 
 def parseVersionFromSetupPy():
 	"""
@@ -617,7 +624,7 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 		return False
 
 def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject, cpus=1,
-				   locus_tag_length=3, use_pyrodigal=False, avoid_locus_tags=set([])):
+				   locus_tag_length=3, use_prodigal=False, meta_mode=False, avoid_locus_tags=set([])):
 	"""
 	Void function to run Prodigal based gene-calling and annotations.
 	:param sample_genomes: dictionary with keys as sample names and values as genomic assembly paths.
@@ -643,8 +650,10 @@ def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal
 
 			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample,
 							'-l', sample_locus_tag, '-o', prodigal_outdir]
-			if use_pyrodigal:
-				prodigal_cmd += ['-py']
+			if use_prodigal:
+				prodigal_cmd += ['-p']
+			if meta_mode:
+				prodigal_cmd += ['-m']
 			prodigal_cmds.append(prodigal_cmd + [logObject])
 
 		p = multiprocessing.Pool(cpus)
@@ -775,18 +784,27 @@ def parseSampleGenomes(genome_listing_file, logObject):
 		logObject.error(traceback.format_exc())
 		raise RuntimeError(traceback.format_exc())
 
-def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, filter_low_quality=True):
+def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_assessment=True, draft_assessment=True):
 	try:
 		number_of_cds = 0
 		seqs = ""
+		recs = 0
+		edgy_cds = False
 		with open(genbank_file) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type == 'CDS':
 						number_of_cds += 1
+						try:
+							edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
+							#print(edgy_cds)
+						except:
+							pass
+
 				seqs += str(rec.seq)
+				recs += 1
 		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])]) / len(seqs)
-		if number_of_cds > 0 and (prop_missing <= 0.1 or not filter_low_quality):
+		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and ((recs == 1 and not edgy_cds) or not draft_assessment):
 			out_handle = open(rn_genbank_file, 'w')
 			locus_tag_iterator = 1
 			with open(genbank_file) as ogbk:

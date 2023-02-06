@@ -672,7 +672,7 @@ def identify_gc_instances(input_args):
 		if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits) or (gc_segment[7]) or (gc_segment[3] >= 3 and gc_segment[6] and not gc_segment[5] in visited_scaffolds_with_edge_gc_segment):
 			# code to determine whether syntenically, the considered segment aligns with what is expected.
 			# (skipped if input mode was 3)
-
+			print(gc_segment)
 			input_mode_3 = False
 			if query_gene_info == None:
 				input_mode_3 = True

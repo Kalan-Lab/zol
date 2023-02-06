@@ -415,8 +415,11 @@ def faiMain():
 	homologous_gbk_dir = outdir + 'Homologous_GenBanks_Directory/'
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
-		min_hits = min_prop*len(query_information['protein_to_hg'].values())
-		key_protein_min_hits = key_protein_min_prop*len(query_information['protein_to_hg'].values())
+		min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
+		print(min_hits)
+		key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
+		print(key_protein_min_hits)
+
 		fai.identifyGCInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
 								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,
 								 gc_to_gc_transition_prob=gc_transition, bg_to_bg_transition_prob=bg_transition,

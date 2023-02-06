@@ -20,7 +20,7 @@ import shutil
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
 
-def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, mash_dist_threshold=0.01, cpus=1):
+def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0, skani_coverage_threshold=95.0, mcl_inflation=None, cpus=1):
 	derep_genbanks = set([])
 	try:
 		full_nucl_seq_dir = derep_dir + 'FASTAs/'
@@ -46,31 +46,31 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 			gbk_fasta_handle.close()
 		flf_handle.close()
 
-		mash_sketch_db_file = derep_dir + 'MASH_Database.msh'
-		mash_sketch_cmd = ['mash', 'sketch', '-s', '1000', '-p', str(cpus), '-l', fasta_listing_file, '-o', mash_sketch_db_file]
+		skani_sketch_db = derep_dir + 'skani_sketch/'
+		skani_sketch_cmd = ['skani', 'sketch', '-t', str(cpus), '-l', fasta_listing_file, '-o', skani_sketch_db]
 		try:
-			subprocess.call(' '.join(mash_sketch_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+			subprocess.call(' '.join(skani_sketch_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
-			assert (os.path.isfile(mash_sketch_db_file))
-			logObject.info('Successfully ran: %s' % ' '.join(mash_sketch_cmd))
+			assert (os.path.isdir(skani_sketch_db))
+			logObject.info('Successfully ran skani: %s' % ' '.join(skani_sketch_cmd))
 		except Exception as e:
-			logObject.error('Had an issue running MASH: %s' % ' '.join(mash_sketch_cmd))
-			sys.stderr.write('Had an issue running MASH: %s\n' % ' '.join(mash_sketch_cmd))
+			logObject.error('Had an issue running skani: %s' % ' '.join(skani_sketch_cmd))
+			sys.stderr.write('Had an issue running skani: %s\n' % ' '.join(skani_sketch_cmd))
 			logObject.error(e)
 			sys.exit(1)
 
-		mash_result_file = derep_dir + 'MASH_Results.tsv'
-		mash_dist_cmd = ['mash', 'dist', '-s', '1000', '-p', str(cpus), mash_sketch_db_file, mash_sketch_db_file, '>',
-						   mash_result_file]
+		skani_result_file = derep_dir + 'skani_results.tsv'
+		skani_dist_cmd = ['skani', 'dist', '-t', str(cpus), '-q', skani_sketch_db + '*', '-r', skani_sketch_db + '*',
+						  '--min-af', str(skani_coverage_threshold), '-o', skani_result_file]
 
 		try:
-			subprocess.call(' '.join(mash_dist_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+			subprocess.call(' '.join(skani_dist_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
-			assert (os.path.isfile(mash_result_file))
-			logObject.info('Successfully ran: %s' % ' '.join(mash_dist_cmd))
+			assert (os.path.isfile(skani_result_file))
+			logObject.info('Successfully ran skani: %s' % ' '.join(skani_dist_cmd))
 		except Exception as e:
-			logObject.error('Had an issue running MASH: %s' % ' '.join(mash_dist_cmd))
-			sys.stderr.write('Had an issue running MASH: %s\n' % ' '.join(mash_dist_cmd))
+			logObject.error('Had an issue running skani: %s' % ' '.join(skani_dist_cmd))
+			sys.stderr.write('Had an issue running skani: %s\n' % ' '.join(skani_dist_cmd))
 			logObject.error(e)
 			sys.exit(1)
 
@@ -79,16 +79,20 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 		all_gcs = set([])
 		paired_gcs = set([])
 		visited = set([])
-		with open(mash_result_file) as omrf:
-			for line in omrf:
+		with open(skani_result_file) as osrf:
+			for i, line in enumerate(osrf):
+				if i == 0: continue
 				line = line.strip()
-				f1, f2, mash_dist, pvalue, matching_hashes = line.split('\t')
+				f1, f2, ani, _, _, _, _ = line.split('\t')
 				s1 = '.fasta'.join(f1.split('/')[-1].split('.fasta')[:-1])
 				s2 = '.fasta'.join(f2.split('/')[-1].split('.fasta')[:-1])
-				if float(mash_dist) <= mash_dist_threshold:
+				if float(ani) >= skani_identiy_threshold:
 					pair_tup = sorted([s1, s2])
 					if not tuple(pair_tup) in visited:
-						similar_pairs_handle.write(pair_tup[0] + '\t' + pair_tup[1] + '\n')
+						if mcl_inflation == None:
+							similar_pairs_handle.write(pair_tup[0] + '\t' + pair_tup[1] + '\n')
+						else:
+							similar_pairs_handle.write(pair_tup[0] + '\t' + pair_tup[1] + '\t' + str(ani) + '\n')
 						if s1 != s2:
 							paired_gcs.add(s1)
 							paired_gcs.add(s2)
@@ -109,19 +113,25 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 					assert(gbk_prefix != None)
 					focal.add(gbk_prefix)
 
-		clusters_file = derep_dir + 'SLClusters.txt'
-		slclust_cmd = ['slclust', '<', similar_pairs_file, '>', clusters_file]
+		clusters_file = derep_dir + 'Cluster_Families.txt'
+		if mcl_inflation == None:
+			clust_cmd = ['slclust', '<', similar_pairs_file, '>', clusters_file]
+		else:
+			clust_cmd = ['mcl', similar_pairs_file, '--abc', '-I', str(mcl_inflation), '-o', clusters_file,
+						 '-te', str(cpus)]
+
 		try:
-			subprocess.call(' '.join(slclust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			subprocess.call(' '.join(clust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 			assert (os.path.isfile(clusters_file))
-			logObject.info('Successfully ran: %s' % ' '.join(slclust_cmd))
+			logObject.info('Successfully ran: %s' % ' '.join(clust_cmd))
 		except Exception as e:
-			logObject.error('Had an issue running slclust: %s' % ' '.join(slclust_cmd))
-			sys.stderr.write('Had an issue running slclust: %s\n' % ' '.join(slclust_cmd))
+			logObject.error('Had an issue running slclust or mcl: %s' % ' '.join(clust_cmd))
+			sys.stderr.write('Had an issue running slclust or mcl: %s\n' % ' '.join(clust_cmd))
 			logObject.error(e)
 			sys.exit(1)
 
 		representatives = set([])
+		rep_genbank_members = defaultdict(set)
 		with open(clusters_file) as ocf:
 			for line in ocf:
 				line = line.strip()
@@ -135,9 +145,11 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 				if focal == None or len(gcs.intersection(focal)) == 0:
 					focal_not_relevant = True
 				rep = [x[0] for x in sorted(cluster_gc_stats, key=itemgetter(1,2), reverse=True) if focal_not_relevant or x[0] in focal][0]
+				rep_genbank_members[rep] = gcs
 				representatives.add(rep)
 
 		for gc in all_gcs.difference(paired_gcs):
+			rep_genbank_members[gc] = set([gc])
 			representatives.add(gc)
 
 		for gbk in genbanks:
@@ -158,12 +170,12 @@ def dereplicateUsingFastANI(genbanks, focal_genbanks, derep_dir, kept_dir, logOb
 			logObject.info('Found %d GenBanks retained after dereplication.' % num_gbk)
 
 	except Exception as e:
-		sys.stderr.write('Issues with run MASH based dereplication of input GenBanks.\n')
-		logObject.error('Issues with run MASH based dereplication of input GenBanks.')
+		sys.stderr.write('Issues with run skani based dereplication of input GenBanks.\n')
+		logObject.error('Issues with run skani based dereplication of input GenBanks.')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-	return(derep_genbanks)
+	return([derep_genbanks, rep_genbank_members])
 
 def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject):
 	try:
@@ -764,30 +776,42 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def determineHGStats(orthogroup_matrix_file, hg_nucl_dir, logObject):
+def determineHGStats(orthogroup_matrix_file, hg_nucl_dir, logObject, representative_associated_members=None, impute_broad_conservation=False):
 	try:
 		hg_single_copy_status = {}
 		hg_prop_samples = {}
 		hg_lts = defaultdict(set)
+		samples = []
 		with open(orthogroup_matrix_file) as omf:
 			for i, line in enumerate(omf):
 				line = line.rstrip('\n')
 				ls = line.split('\t')
-				if i == 0: continue
+				if i == 0:
+					samples = ls[1:]
+					continue
 				hg = ls[0]
 				is_single_copy = True
 				sample_count = 0
-				for lts in ls[1:]:
+				weighted_count = 0
+				total_weighted_count = 0
+				for j, lts in enumerate(ls[1:]):
+					samp = samples[j]
+					if representative_associated_members != None and impute_broad_conservation:
+						total_weighted_count += len(representative_associated_members[samp])
 					if ',' in lts:
 						is_single_copy = False
 					if lts.strip() != '':
 						sample_count += 1
+						if representative_associated_members != None and impute_broad_conservation:
+							weighted_count += len(representative_associated_members[samp])
 					for lt in lts.split(', '):
 						if lt.strip() == '': continue
 						hg_lts[hg].add(lt)
 				hg_single_copy_status[hg] = is_single_copy
-				hg_prop_samples[hg] = sample_count/float(len(ls[1:]))
-
+				if representative_associated_members != None and impute_broad_conservation:
+					hg_prop_samples[hg] = weighted_count/float(total_weighted_count)
+				else:
+					hg_prop_samples[hg] = sample_count/float(len(ls[1:]))
 		hg_median_lengths = {}
 		for f in os.listdir(hg_nucl_dir):
 			hg = f.split('.fna')[0]
@@ -886,8 +910,6 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			hg_full_codo_tree_file = tree_dir + hg + '.tre'
 			gard_output = gard_results_dir + hg + '.json'
 			best_gard_output = gard_results_dir + hg + '.best'
-			fubar_output = fubar_results_dir + hg + '.json'
-
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
 							skip_gard, gard_mode, logObject])
 
@@ -907,6 +929,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 
 		fubar_sel_props = {}
 		fubar_sel_sites = {}
+		fubar_deba = {}
 		for f in os.listdir(fubar_results_dir):
 			if f.endswith('.json'):
 				hg = f.split('.msa.fna.FUBAR.json')[0]
@@ -917,9 +940,13 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 					fubar_results = json.load(ofjr)
 				pos_selected_sites = 0
 				neg_selected_sites = 0
+				sum_deba = 0
+				tot_sites= 0
 				for partition in fubar_results['MLE']['content']:
 					for site_mle_info in fubar_results['MLE']['content'][partition]:
+						tot_sites += 1
 						alpha, beta, diff, prob_agb, prob_alb, bayesfactor, _, _ = site_mle_info
+						sum_deba += (beta - alpha)
 						if prob_agb >= 0.9:
 							neg_selected_sites += 1
 						if prob_alb >= 0.9:
@@ -930,7 +957,12 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 					prop_selected_sites_positive = float(pos_selected_sites)/float(neg_selected_sites+pos_selected_sites)
 				fubar_sel_props[hg] = prop_selected_sites_positive
 				fubar_sel_sites[hg] = tot_selected_sites
-		return([gard_partitions, fubar_sel_props, fubar_sel_sites])
+				avg_deba = "NA"
+				if tot_sites > 0:
+					avg_deba = sum_deba/float(tot_sites)
+				fubar_deba[hg] = avg_deba
+
+		return([gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_deba])
 	except Exception as e:
 		sys.stderr.write('Issues with running GARD or FUBAR analyses.\n')
 		logObject.error('Issues with running GARD or FUBAR analyses.')
@@ -1031,6 +1063,55 @@ def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, logObject):
 		sys.exit(1)
 	return([hg_entropy, hg_upst_entropy])
 
+def calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject):
+	full_amb_prop = {}
+	trim_amb_prop = {}
+	try:
+		for caf in os.listdir(codo_algn_dir):
+			if not caf.endswith('.msa.fna'): continue
+			hg = caf.split('.msa.fna')[0]
+			codo_algn_file = codo_algn_dir + caf
+			codo_sequences = []
+			with open(codo_algn_file) as ocaf:
+				for rec in SeqIO.parse(ocaf, 'fasta'):
+					codo_sequences.append(list(str(rec.seq)))
+			tot = 0
+			amb = 0
+			for al in zip(*codo_sequences):
+				tot += 1
+				all = list(al)
+				amb_site_prop = sum([1 for x in all if not x in set(['A', 'C', 'G', 'T'])])/float(len(all))
+				if amb_site_prop >= 0.1:
+					amb += 1
+			amb_prop = float(amb)/float(tot)
+			full_amb_prop[hg] = amb_prop
+
+		for catf in os.listdir(codo_algn_trim_dir):
+			if not catf.endswith('.msa.fna'): continue
+			hg = catf.split('.msa.fna')[0]
+			codo_algn_trimmed_file = codo_algn_trim_dir + catf
+			codo_sequences = []
+			with open(codo_algn_trimmed_file) as ocatf:
+				for rec in SeqIO.parse(ocatf, 'fasta'):
+					codo_sequences.append(list(str(rec.seq)))
+			tot = 0
+			amb = 0
+			for al in zip(*codo_sequences):
+				tot += 1
+				all = list(al)
+				amb_site_prop = sum([1 for x in all if not x in set(['A', 'C', 'G', 'T'])])/float(len(all))
+				if amb_site_prop >= 0.1:
+					amb += 1
+			amb_prop = float(amb)/float(tot)
+			trim_amb_prop[hg] = amb_prop
+
+	except Exception as e:
+		sys.stderr.write('Issues with calculating ambiguity for full or trimmed codon alignments.\n')
+		logObject.error('Issues with calculating ambiguity for full or trimmed codon alignments.')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+	return([full_amb_prop, trim_amb_prop])
+
 def runTajimasDAnalysis(codo_algn_trim_dir, logObject):
 	try:
 		hg_tajimas_d = {}
@@ -1119,14 +1200,27 @@ def calculateTajimasD(sequences):
 		return (["< 3 segregating sites!", S])
 
 
-def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, logObject):
+def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, logObject, representative_associated_members=None, impute_broad_conservation=False):
 	comp_stats = {}
 	try:
+		total_foc_broad = set([])
+		total_com_broad = set([])
+		if impute_broad_conservation and representative_associated_members != None:
+			for gc in focal_genbank_ids:
+				total_foc_broad.add(gc)
+				for orthogc in representative_associated_members[gc]:
+					total_foc_broad.add(orthogc)
+			for gc in comparator_genbank_ids:
+				total_com_broad.add(gc)
+				for orthogc in representative_associated_members[gc]:
+					total_com_broad.add(orthogc)
 		for f in os.listdir(codo_algn_trim_dir):
 			hg = f.split('.msa.fna')[0]
 			codo_algn_trim_file = codo_algn_trim_dir + f
 			focal_samps_with_hg = set([])
+			focal_samps_with_hg_broad = set([])
 			compa_samps_with_hg = set([])
+			compa_samps_with_hg_broad = set([])
 			focal_seqs = []
 			compa_seqs = []
 			with open(codo_algn_trim_file) as opatf:
@@ -1135,9 +1229,17 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 					seq = str(rec.seq)
 					if sample in focal_genbank_ids:
 						focal_samps_with_hg.add(sample)
+						focal_samps_with_hg_broad.add(sample)
+						if impute_broad_conservation and representative_associated_members != None:
+							for orthogc in representative_associated_members[sample]:
+								focal_samps_with_hg_broad.add(orthogc)
 						focal_seqs.append(seq)
 					elif sample in comparator_genbank_ids:
 						compa_samps_with_hg.add(sample)
+						compa_samps_with_hg_broad.add(sample)
+						if impute_broad_conservation and representative_associated_members != None:
+							for orthogc in representative_associated_members[sample]:
+								compa_samps_with_hg_broad.add(orthogc)
 						compa_seqs.append(seq)
 
 			diff_between = 0
@@ -1166,8 +1268,8 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 			# Fst estimated according to Hudson, Slatkin and Maddison 1989
 			# which is closely related to Nei and Chesser 1983.
 			# While the derivations were specific to diploid organisms,
-			# the concept of the estimation can more simplictically be applied
-			# to haploid.
+			# the concept of the estimation can more simply be applied
+			# to haploid and that is what is assumed here.
 			pi_between, pi_within, fst = ['NA']*3
 			if pw_between > 0 and pw_foc_within > 0:
 				pi_between = diff_between/float(pw_between)
@@ -1178,8 +1280,12 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 			#pi_foc = diff_foc_within/float(pw_foc_within)
 			#pi_com = diff_com_within/float(pw_com_within)
 
-			prop_foc_with = len(focal_samps_with_hg)/float(len(focal_genbank_ids))
-			prop_com_with = len(compa_samps_with_hg)/float(len(comparator_genbank_ids))
+			if impute_broad_conservation and representative_associated_members != None:
+				prop_foc_with = len(focal_samps_with_hg_broad)/float(len(total_foc_broad))
+				prop_com_with = len(compa_samps_with_hg_broad)/float(len(total_com_broad))
+			else:
+				prop_foc_with = len(focal_samps_with_hg)/float(len(focal_genbank_ids))
+				prop_com_with = len(compa_samps_with_hg)/float(len(comparator_genbank_ids))
 
 			upst_algn_file = upst_algn_dir + hg + '.msa.fna'
 			upst_fst = 'NA'
@@ -1231,7 +1337,6 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 
 			comp_stats[hg] = {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst, 'fst_upst': upst_fst}
 
-
 	except Exception as e:
 		sys.stderr.write('Issues with performing comparative analyses between user-defined Gene Cluster groups.\n')
 		logObject.error('Issues with performing comparative analyses between user-defined Gene Cluster groups.')
@@ -1251,14 +1356,17 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		# to avoid having columns with NA values.
 		header = ['Homolog Group (HG) ID', 'HG is Single Copy?', 'Proportion of Total Gene Clusters with HG',
 				  'HG Median Length (bp)', 'HG Consensus Order', 'HG Consensus Direction']
-		if comp_stats:
+		if comp_stats != None:
 			header += ['Proportion of Focal Gene Clusters with HG', 'Proportion of Comparator Gene Clusters with HG',
 					   'Fixation Index', 'Upstream Region Fixation Index']
 		header += ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 'Entropy',
 				   'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
+				   'Proportion of sites which are highly ambiguous in codon alignment',
+				   'Proportion of sites which are highly ambiguous in trimmed codon alignment',
 				   'GARD Partitions Based on Recombination Breakpoints',
-				  'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-				  'Proportion of Sites Under Selection which are Positive', 'Custom Annotation (E-value)',
+				   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
+				   'Average delta(Beta, Alpha) by FUBAR across sites',
+				   'Proportion of Sites Under Selection which are Positive', 'Custom Annotation (E-value)',
 				   'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
 				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
@@ -1279,17 +1387,22 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			hg_cons = hg_stats['hg_prop_samples'][hg]
 			hg_mlen = hg_stats['hg_median_lengths'][hg]
 			hg_lts = '; '.join(sorted(hg_stats['hg_locus_tags'][hg]))
+			hg_full_amb = hg_stats['hg_full_ambiguity'][hg]
+			hg_trim_amb = hg_stats['hg_trim_ambiguity'][hg]
 			hg_ordr = hg_tup[1][0]
 			hg_dire = '"' + hg_tup[1][1] + '"'
-			hg_tajd = util.gatherValueFromDictForHomologGroup(hg, evo_stats['tajimas_d'])
-			hg_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy'])
-			hg_upst_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy_upst'])
-			hg_segs = util.gatherValueFromDictForHomologGroup(hg, evo_stats['segregating_sites_prop'])
-			hg_gpar = util.gatherValueFromDictForHomologGroup(hg, evo_stats['gard_partitions'])
-			hg_ssit = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_sites'])
-			hg_spro = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_props'])
-			hg_med_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['median_beta_rd_gc'])
-			hg_max_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['max_beta_rd_gc'])
+			hg_tajd, hg_entr, hg_upst_entr, hg_segs, hg_gpar, hg_ssit, hg_deba, hg_spro, hg_med_brdgc, hg_max_brdgc, fst, fst_upst = ['NA']*12
+			if hg_scs == True:
+				hg_tajd = util.gatherValueFromDictForHomologGroup(hg, evo_stats['tajimas_d'])
+				hg_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy'])
+				hg_upst_entr = util.gatherValueFromDictForHomologGroup(hg, evo_stats['entropy_upst'])
+				hg_segs = util.gatherValueFromDictForHomologGroup(hg, evo_stats['segregating_sites_prop'])
+				hg_gpar = util.gatherValueFromDictForHomologGroup(hg, evo_stats['gard_partitions'])
+				hg_ssit = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_sites'])
+				hg_spro = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_props'])
+				hg_deba = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_dba'])
+				hg_med_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['median_beta_rd_gc'])
+				hg_max_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['max_beta_rd_gc'])
 			cust_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'custom', annotations)
 			ko_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'ko', annotations)
 			pgap_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'pgap', annotations)
@@ -1304,15 +1417,16 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				pfam_annots = '; '.join(annotations['pfam'][hg][0])
 			con_seq = seqs[hg]
 			row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire]
-			if comp_stats:
+			if comp_stats != None:
 				fp = comp_stats[hg]['prop_foc_with']
 				cp = comp_stats[hg]['prop_com_with']
-				fst = comp_stats[hg]['fst']
-				fst_upst = comp_stats[hg]['fst_upst']
+				if hg_scs == True:
+					fst = comp_stats[hg]['fst']
+					fst_upst = comp_stats[hg]['fst_upst']
 				row += [fp, cp, fst, fst_upst]
-			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_gpar, hg_ssit,
-					hg_spro, cust_annot, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot,
-					mibig_annot, vog_annot, vfdb_annot, pfam_annots, hg_lts, con_seq]
+			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_full_amb, hg_trim_amb,
+					hg_gpar, hg_ssit, hg_deba, hg_spro, cust_annot, ko_annot, pgap_annot, pb_annot, card_annot,
+					isf_annot, mibig_annot, vog_annot, vfdb_annot, pfam_annots, hg_lts, con_seq]
 			row = [str(x) for x in row]
 			frt_handle.write('\t'.join(row) + '\n')
 			num_rows += 1
@@ -1333,7 +1447,10 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 						   'GARD Partitions Based on Recombination Breakpoints',
 						   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
 						   'Proportion of Sites Under Selection which are Positive', 'Median Beta-RD-gc',
-						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites'}
+						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites',
+						   'Proportion of sites which are highly ambiguous in codon alignment',
+						   'Proportion of sites which are highly ambiguous in trimmed codon alignment',
+						   'Average delta(Beta, Alpha) by FUBAR across sites'}
 
 		warn_format = workbook.add_format({'bg_color': '#bf241f', 'bold': True, 'font_color': '#FFFFFF'})
 		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
@@ -1391,11 +1508,22 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			# beta-rd gc
 			worksheet.conditional_format('O2:O' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
-                                         'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+										 'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 			# max beta-rd gc
 			worksheet.conditional_format('P2:P' + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
+
+			# ambiguity full ca
+			worksheet.conditional_format('Q2:Q' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
+
+			# ambiguity trim ca
+			worksheet.conditional_format('R2:R' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
+
 
 		else:
 			# taj-d
@@ -1427,8 +1555,18 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 										 {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
 										  'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
 
+			# ambiguity full ca
+			worksheet.conditional_format('M2:M' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
+
+			# ambiguity trim ca
+			worksheet.conditional_format('N2:N' + str(num_rows),
+										 {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num',
+										  'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
+
 		worksheet.autofilter('A1:BA' + str(num_rows))
-		worksheet.filter_column(2, 'x >= 0.25')
+		worksheet.filter_column(2, 'x >= 0.1')
 		workbook.close()
 
 	except Exception as e:

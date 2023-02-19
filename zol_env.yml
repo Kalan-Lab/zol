@@ -23,7 +23,7 @@ dependencies:
   - conda-forge::xlsxwriter=3.0.3
   - conda-forge::scikit-learn
   - conda-forge::axel
-  - bioconda::hyphy=2.5.47
+  - bioconda::hyphy
   - bioconda::fastme
   - conda-forge::pomegranate=0.13.3
   - bioconda::cd-hit

@@ -40,9 +40,8 @@ import sys
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
-from zol import util
 import gzip
-
+from zol import util
 
 def create_parser():
 	""" Parse arguments """
@@ -203,8 +202,8 @@ def processAndReformatNCBIGenbanks():
 							new_locus_tag += str(locus_tag_iterator)
 						locus_tag_iterator += 1
 						feature.qualifiers['locus_tag'] = new_locus_tag
-					pro_outfile_handle.write('>' + new_locus_tag + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
-					map_outfile_handle.write(old_locus_tag + '\t' + new_locus_tag + '\n')
+					pro_outfile_handle.write('>' + str(new_locus_tag) + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
+					map_outfile_handle.write(str(old_locus_tag) + '\t' + str(new_locus_tag) + '\n')
 			SeqIO.write(rec, gbk_outfile_handle, 'genbank')
 		oigf.close()
 		gbk_outfile_handle.close()

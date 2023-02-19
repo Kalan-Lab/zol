@@ -41,8 +41,10 @@ import argparse
 from Bio import SeqIO
 from time import sleep
 from zol import util, zol
+import shutil
 import subprocess
 import pickle
+from datetime import datetime
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
@@ -72,7 +74,7 @@ def create_parser():
 
 	- It is advised that multiple GenBanks from the same genome/sample be concatenated into a multi-record
 	  GenBank to account for fragmentation of gene-clusters and properly calculate copy count of homolog groups.
-	- Locus tags cannot contain commas!
+	- Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag to request new locus tags!
 	- Selection analyses will only be performed for homolog groups which are present in at least 4 input GenBanks.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
@@ -86,21 +88,23 @@ def create_parser():
 	parser.add_argument('-fd', '--filter_draft_quality', action='store_true', help="Filter gene-clusters which feature CDS features on the edge of contigs (those marked with attribute near_contig_edge=True by fai) or which are multi-record.", required=False, default=False)
 	parser.add_argument('-r', '--rename_lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
 	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani and single-linkage clustering or MCL.', required=False, default=False)
+	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform re-inflation with all gene-clusters of ortho-groups identified via dereplicated analysis.', required=False, default=False)
 	parser.add_argument('-dt', '--derep_identity', type=float, help='skani ANI threshold to use for dereplication. Default is 99.0.', required=False, default=99.0)
 	parser.add_argument('-dc', '--derep_coverage', type=float, help='skani aligned fraction threshold to use for dereplication. Default is 95.0', required=False, default=95.0)
 	parser.add_argument('-di', '--derep_inflation', type=float, help='Inflation parameter for MCL to use for dereplication of gene-clusters. If not specified single-linkage clustering will be used instead.', required=False, default=None)
 	parser.add_argument('-ibc', '--impute_broad_conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated with dereplicated representatives.')
+	parser.add_argument('-ces', '--comprehensive_evo_stats', action='store_true', help='Allow computing of evolutionary statistics for non-single-copy genes.', required=False, default=False)
 	parser.add_argument('-aec', '--allow_edge_cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute "near_scaffold_edge=True", which is set by fai for features within 2kb of contig edges. Default is False.', required=False, default=False)
 	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate. Default is False.", required=False, default=False)
 	parser.add_argument('-s', '--selection_analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
 	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster. Default is False because these are\ncomputationally intensive.", required=False, default=False)
 	parser.add_argument('-cd', '--custom_database', help='Path to FASTA file of protein sequences corresponding to a custom annotation database.', required=False, default=None)
+	parser.add_argument('-rgc', '--refine_gene_calling', action='store_true', help='Perform gene-calling refinement using custom database. All ortholog groups which don\'t match to a protein in the custom database will be ignored.', required=False, default=False)
 	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the heatmap plot. Default is 7.', required=False, default=7)
 	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot. Default is 10.', required=False, default=14)
 	parser.add_argument('-fgl', '--full_genbank_labels', action='store_true', help='Use full GenBank labels instead of just the first 20 characters.', required=False, default=False)
 	parser.add_argument('-f', '--focal_genbanks', help='File with focal genbank(s) listed (one per line).', required=False, default=None)
 	parser.add_argument('-fc', '--comparator_genbanks', help='Optional file with comparator genbank(s) listed.\nDefault is to use remaining GenBanks as comparators to focal listing.', required=False, default=None)
-
 	args = parser.parse_args()
 	return args
 
@@ -130,7 +134,9 @@ def zolMain():
 	comparator_genbanks_listing_file = myargs.comparator_genbanks
 	rename_lt_flag = myargs.rename_lt
 	ibc_flag = myargs.impute_broad_conservation
+	ces_flag = myargs.comprehensive_evo_stats
 	dereplicate_flag = myargs.dereplicate
+	reinflate_flag = myargs.reinflate
 	derep_identity = myargs.derep_identity
 	derep_coverage = myargs.derep_coverage
 	derep_inflation = myargs.derep_inflation
@@ -138,6 +144,7 @@ def zolMain():
 	filter_dq_flag = myargs.filter_draft_quality
 	custom_database = myargs.custom_database
 	allow_edge_cds_flag = myargs.allow_edge_cds
+	refine_gene_calling_flag = myargs.refine_gene_calling
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -169,20 +176,28 @@ def zolMain():
 	logObject.info('Running zol version %s' % version_string)
 	sys.stdout.write('Running zol version %s\n' % version_string)
 
+	if ibc_flag and reinflate_flag:
+		sys.stderr.write('Warning: can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.')
+		logObject.warning('can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.\n')
+		ibc_flag = False
+
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [input_dir, outdir,  use_super5, fubar_selection, skip_gard,
 					    focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag,
-						ibc_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, derep_identity, derep_coverage,
-						derep_inflation, length, width, full_genbank_labels, cpus]
+						ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, reinflate_flag, derep_identity,
+						derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, length, width,
+						full_genbank_labels, cpus]
 	parameter_names = ["Input directory with Loci GenBanks", "Output directory",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
 					   "Skip GARD Partitioning by Recombination Breakpoints?", "Focal GenBanks Listing",
 					   "Comparator GenBanks Listing", "Filter Low Quality?", "Filter Draft/Incomplete?",
 					   "Perform Broad Level Estimation of Homolog Group Conservation if Dereplication Requested?",
+					   "Comprehensive Reporting of Evolutionary Statistics, Including for Non-Single Copy Homolog Groups",
 					   "Rename Locus Tags?", "Use CDS features with attribute near_scaffold_edge=True.",
-					   "Perform Dereplication?", "Dereplication Identity Threshold",
+					   "Perform Dereplication?", "Perform Reinflation?", "Dereplication Identity Threshold",
 					   "Dereplication Coverage Threshold", "Dereplication Clustering Method / MCL Inflation",
+					   "Custom Annotation Database", "Refine Gene Calling using the Custom Annotation Database",
 					   "Plot Height", "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
@@ -194,7 +209,7 @@ def zolMain():
 	genbanks = set([])
 	kept_dir = outdir + 'Dereplicated_GenBanks/'
 	local_gbk_dir = outdir + 'GenBanks_LT_Renamed/'
-	if os.path.isdir(kept_dir):
+	if os.path.isdir(kept_dir) and not reinflate_flag:
 		sys.stderr.write('Warning: Will be using previously dereplicated set of GenBanks located at %s\n' % kept_dir)
 		logObject.warning('Will be using previously dereplicated set of GenBanks located at %s' % kept_dir)
 		input_dir = kept_dir
@@ -239,19 +254,29 @@ def zolMain():
 	step1_check_file = check_dir + 'step1.txt'
 	derep_dir = outdir + 'Dereplication_Processing/'
 	representative_associated_members = None
+	drep_genbanks = None
+	drep_genbanks_prefices = None
 	rep_gbk_weights_pickle_file = outdir + 'Dereplication_Rep_Weights.pkl'
+	ref_gbks_pickle_file = outdir + 'Dereplication_GBKs.pkl'
 	if dereplicate_flag:
 		if not os.path.isfile(step1_check_file):
 			util.setupReadyDirectory([derep_dir, kept_dir])
-			genbanks, representative_associated_members = zol.dereplicateUsingSkani(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, skani_identiy_threshold=derep_identity, skani_coverage_threshold=derep_coverage, mcl_inflation=derep_inflation, cpus=cpus)
+			drep_genbanks, representative_associated_members = zol.dereplicateUsingSkani(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, skani_identiy_threshold=derep_identity, skani_coverage_threshold=derep_coverage, mcl_inflation=derep_inflation, cpus=cpus)
+			drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[:-1]) for x in drep_genbanks])
+			with open(ref_gbks_pickle_file, 'wb') as pickle_file:
+				pickle.dump(drep_genbanks, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 			with open(rep_gbk_weights_pickle_file, 'wb') as pickle_file:
 				pickle.dump(representative_associated_members, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 			os.system('touch %s' % step1_check_file)
 
-	if representative_associated_members == None and dereplicate_flag:
+	if (representative_associated_members == None or drep_genbanks == None) and dereplicate_flag:
 		try:
 			with open(rep_gbk_weights_pickle_file, 'rb') as handle:
 				representative_associated_members = pickle.load(handle)
+			with open(ref_gbks_pickle_file, 'rb') as handle:
+				drep_genbanks = pickle.load(handle)
+				drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[:-1]) for x in drep_genbanks])
+
 		except Exception as e:
 			sys.stderr.write('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
 			logObject.error('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
@@ -263,15 +288,20 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 2\n--------------------\nDetermining orthogroups\n')
 
 	prot_dir = outdir + 'CDS_Protein/'
+	fo_prot_dir = outdir + 'Prots_for_de_novo_Orthology_Finding/'
 	nucl_dir = outdir + 'CDS_Nucleotide/'
 	nucl_upstream_dir = outdir + 'CDS_Upstream_Nucleotide/'
 	og_dir = outdir + 'Determine_Orthogroups/'
 	ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+	core_ortho_matrix_file = og_dir + 'Orthogroups.tsv'
 	step2_check_file = check_dir + 'step2.txt'
 	if not os.path.isfile(step2_check_file):
-		util.setupReadyDirectory([prot_dir, nucl_dir, nucl_upstream_dir])
+		util.setupReadyDirectory([prot_dir, fo_prot_dir, nucl_dir, nucl_upstream_dir])
 		try:
-			for gbk in genbanks:
+			gset = genbanks
+			if drep_genbanks != None and not reinflate_flag:
+				gset = drep_genbanks
+			for gbk in gset:
 				try:
 					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
 					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=allow_edge_cds_flag)
@@ -289,12 +319,17 @@ def zolMain():
 					protein_handle.close()
 					nucleotide_handle.close()
 					upstream_handle.close()
+
+					if drep_genbanks_prefices == None or (drep_genbanks_prefices != None and prefix in drep_genbanks_prefices):
+						shutil.copy(protein_outf, fo_prot_dir)
+
+
 				except Exception as e:
 					sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
 					logObject.error('Issues with parsing the GenBank %s' % gbk)
 					sys.stderr.write(str(e) + '\n')
 					sys.exit(1)
-			fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
+			fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
 					  str(identity_threshold), '-q', str(coverage_threshold), '-c', str(cpus)]
 			try:
 				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
@@ -305,12 +340,24 @@ def zolMain():
 				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
 				logObject.error(e)
 				raise RuntimeError(e)
+			if reinflate_flag:
+				rog_dir = outdir + 'Reinflate_Orthogroups/'
+				util.setupReadyDirectory([rog_dir])
+				zol.reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=cpus)
 		except Exception as e:
-			sys.stderr.write('Issues with determining ortholog/homolog groups!\n')
+			sys.stderr.write('Issues with determining ortholog/homolog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
 			logObject.error('Issues with determining ortholog/homolog groups!')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 		os.system('touch %s' % step2_check_file)
+
+	if reinflate_flag:
+		og_dir = outdir + 'Reinflate_Orthogroups/'
+		ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+		assert(os.path.isfile(ortho_matrix_file))
+	elif dereplicate_flag:
+		genbanks = drep_genbanks
+		assert(os.path.isfile(ortho_matrix_file))
 
 	# Step 3: Create Alignments, Phylogenies and Consensus Sequences
 	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for homolog groups')
@@ -333,6 +380,10 @@ def zolMain():
 		util.setupReadyDirectory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir,
 								  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir, hg_upst_dir, upst_algn_dir])
 		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
+		if refine_gene_calling_flag and custom_database:
+			refine_workpace_dir = proc_dir + 'Refine_Gene_Calling_WorkSpace/'
+			util.setupReadyDirectory([refine_workpace_dir])
+			hg_prot_dir, hg_nucl_dir = zol.refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace_dir, logObject, cpus=cpus, use_super5=use_super5)
 		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
 		zol.createCodonAlignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, logObject)
 		zol.partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir, logObject, cpus=cpus, use_super5=use_super5)
@@ -382,10 +433,11 @@ def zolMain():
 	hg_stats_pickle_file = outdir + 'HG_Statistics.pkl'
 	hg_stats = None
 	if not os.path.isfile(step5_check_file):
-		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_lts  = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
-		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject)
+		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
+		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, logObject)
 		hg_full_amb, hg_trim_amb = zol.calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject)
 		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
+					'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc,
 					'hg_median_lengths': hg_median_lengths, 'hg_order_scores': hg_order_scores, 'hg_locus_tags': hg_lts,
 					'hg_full_ambiguity': hg_full_amb, 'hg_trim_ambiguity': hg_trim_amb}
 		with open(hg_stats_pickle_file, 'wb') as pickle_file:
@@ -412,22 +464,22 @@ def zolMain():
 	evo_results_dir = outdir + 'Evolutionary_Analyses/'
 	gard_results_dir = evo_results_dir + 'GARD_Results/'
 	fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
-	gtc_results_dir = evo_results_dir + 'Gene_Tree_Congruence_Results/'
 	if not os.path.isfile(step6_check_file):
-		util.setupReadyDirectory([evo_results_dir, gard_results_dir, fubar_results_dir, gtc_results_dir])
-		tajimas_d, segregating_sites_prop = zol.runTajimasDAnalysis(codo_algn_trim_dir, logObject)
-		hg_entropy, hg_upst_entropy = zol.runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, logObject)
+		util.setupReadyDirectory([evo_results_dir])
+		tajimas_d, segregating_sites_prop = zol.runTajimasDAnalysis(codo_algn_trim_dir, evo_results_dir, logObject, cpus=cpus)
+		hg_entropy, hg_upst_entropy = zol.runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_results_dir, logObject, cpus=cpus)
 		gard_partitions = {}
 		fubar_sel_props = {}
 		fubar_sel_sites = {}
 		fubar_dBa = {}
 		if fubar_selection:
+			util.setupReadyDirectory([gard_results_dir, fubar_results_dir])
 			gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa = zol.runHyphyAnalyses(codo_algn_dir, tree_dir,
 																					 gard_results_dir,
 																					 fubar_results_dir, logObject,
 																				  	 gard_mode='Faster',
 																					 skip_gard=skip_gard, cpus=cpus)
-		hg_med_beta_rd, hg_max_beta_rd = zol.computeBetaRDgc(prot_algn_dir, logObject)
+		hg_med_beta_rd, hg_max_beta_rd = zol.computeBetaRDgc(prot_algn_dir, evo_results_dir, logObject, cpus=cpus)
 		evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop,
 					 'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
 					 'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'median_beta_rd_gc': hg_med_beta_rd,
@@ -502,7 +554,7 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
 	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject)
+	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, ces=ces_flag)
 
 	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
 	logObject.info('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')

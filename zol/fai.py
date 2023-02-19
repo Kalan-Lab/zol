@@ -17,6 +17,7 @@ import _pickle as cPickle
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/plotSegments.R'
+split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
 
 def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, reference_contig, reference_start, reference_end, logObject):
 	try:
@@ -210,64 +211,100 @@ def processGenomeWideGenbanks(annotation_pickle_file, valid_tg_samples, logObjec
 							   'gene_order_to_id': gene_order_to_id}
 	return(target_genome_gene_info)
 
-def runDiamondBlastp(target_annot_information, query_fasta, work_dir, logObject, evalue_cutoff=1e-10, cpus=1):
+def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, logObject, diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1):
+	diamond_results_file = diamond_work_dir + 'DIAMOND_Results.txt'
+	try:
+		diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--' + diamond_sensitivity,
+					   '--query', query_fasta, '--db', target_concat_genome_db, '--outfmt', '6', 'qseqid', 'sseqid',
+					   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
+					   'bitscore', 'qlen', 'slen', '-k0', '--out', diamond_results_file, '--evalue', str(evalue_cutoff)]
+		try:
+			subprocess.call(' '.join(diamond_blastp_cmd), shell=True, stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			logObject.info('Successfully ran: %s' % ' '.join(diamond_blastp_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running: %s' % ' '.join(diamond_blastp_cmd))
+			sys.stderr.write('Had an issue running: %s' % ' '.join(diamond_blastp_cmd))
+			logObject.error(e)
+			sys.exit(1)
+		assert(os.path.isfile(diamond_results_file) and os.path.getsize(diamond_results_file) > 0)
+
+	except Exception as e:
+		logObject.error('Issues with running DIAMOND blastp.')
+		sys.stderr.write('Issues with running DIAMOND blastp.\n')
+		sys.stderr.write(str(e) + '\n')
+		raise RuntimeError(traceback.format_exc())
+		sys.exit(1)
+	return(diamond_results_file)
+
+def processDiamondBlastp(target_annot_information, diamond_results_file, work_dir, logObject):
 	"""
-	Function to run Diamond blastp and process results
+	Function to process DIAMOND results
 	"""
 	diamond_results = defaultdict(list)
 	try:
 		search_res_dir = work_dir + 'Alignment_Results/'
 		util.setupReadyDirectory([search_res_dir])
 
-		alignment_cmds = []
+		split_mapping_file = work_dir + 'Sample_to_Listing.txt'
+		split_mapping_handle = open(split_mapping_file, 'w')
 		for sample in target_annot_information:
-			sample_proteome = target_annot_information[sample]['predicted_proteome']
-			sample_proteome_db = sample_proteome.split('.faa')[0] + '.dmnd'
-			result_file = search_res_dir + sample + '.txt'
-			diamond_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', sample_proteome, '-d', sample_proteome_db,
-						   ';', 'diamond', 'blastp', '--ignore-warnings', '--threads', '1', '--very-sensitive',
-						   '--query', query_fasta, '--db', sample_proteome_db, '--outfmt', '6', 'qseqid', 'sseqid',
-						   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
-						   'bitscore', 'qlen', 'slen', '--out', result_file, '--evalue', str(evalue_cutoff), logObject]
-			alignment_cmds.append(diamond_cmd)
+			sample_result_file = search_res_dir + sample + '.txt'
+			split_mapping_handle.write(sample + '\t' + sample_result_file + '\n')
+		split_mapping_handle.close()
 
-		p = multiprocessing.Pool(cpus)
-		p.map(util.multiProcess, alignment_cmds)
-		p.close()
+		split_diamond_cmd = [split_diamond_results_prog, diamond_results_file, split_mapping_file]
+
+		try:
+			subprocess.call(' '.join(split_diamond_cmd), shell=True, stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			logObject.info('Successfully ran: %s' % ' '.join(split_diamond_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running: %s' % ' '.join(split_diamond_cmd))
+			sys.stderr.write('Had an issue running: %s' % ' '.join(split_diamond_cmd))
+			logObject.error(e)
+			sys.exit(1)
 
 		for sample in target_annot_information:
 			result_file = search_res_dir + sample + '.txt'
-			assert (os.path.isfile(result_file))
+			try:
+				assert (os.path.isfile(result_file))
+				best_hit_per_lt = defaultdict(lambda: [[], 0.0, [], [], []])
+				with open(result_file) as orf:
+					for line in orf:
+						line = line.strip()
+						ls = line.split()
+						hg = ls[0]
+						lt = ls[1].split('|')[1]
+						identity = float(ls[2])
+						eval = decimal.Decimal(ls[10])
+						bitscore = float(ls[11])
+						qlen = int(ls[12])
+						slen = int(ls[13])
+						sql_ratio = float(slen)/float(qlen)
+						if bitscore > best_hit_per_lt[lt][1]:
+							best_hit_per_lt[lt][0] = [hg]
+							best_hit_per_lt[lt][1] = bitscore
+							best_hit_per_lt[lt][2] = [eval]
+							best_hit_per_lt[lt][3] = [identity]
+							best_hit_per_lt[lt][4] = [sql_ratio]
+						elif bitscore == best_hit_per_lt[lt][1]:
+							best_hit_per_lt[lt][0].append(hg)
+							best_hit_per_lt[lt][2].append(eval)
+							best_hit_per_lt[lt][3].append(identity)
+							best_hit_per_lt[lt][4].append(sql_ratio)
 
-			best_hit_per_lt = defaultdict(lambda: [[], 0.0, [], [], []])
-			with open(result_file) as orf:
-				for line in orf:
-					line = line.strip()
-					ls = line.split()
-					hg = ls[0]
-					lt = ls[1]
-					identity = float(ls[2])
-					eval = decimal.Decimal(ls[10])
-					bitscore = float(ls[11])
-					qlen = int(ls[12])
-					slen = int(ls[13])
-					sql_ratio = float(slen)/float(qlen)
-					if bitscore > best_hit_per_lt[lt][1]:
-						best_hit_per_lt[lt][0] = [hg]
-						best_hit_per_lt[lt][1] = bitscore
-						best_hit_per_lt[lt][2] = [eval]
-						best_hit_per_lt[lt][3] = [identity]
-						best_hit_per_lt[lt][4] = [sql_ratio]
-					elif bitscore == best_hit_per_lt[lt][1]:
-						best_hit_per_lt[lt][0].append(hg)
-						best_hit_per_lt[lt][2].append(eval)
-						best_hit_per_lt[lt][3].append(identity)
-						best_hit_per_lt[lt][4].append(sql_ratio)
+				for lt in best_hit_per_lt:
+					for i, hg in enumerate(best_hit_per_lt[lt][0]):
+						diamond_results[lt].append([hg, best_hit_per_lt[lt][1], best_hit_per_lt[lt][2][i], sample,
+													best_hit_per_lt[lt][3][i], best_hit_per_lt[lt][4][i]])
+			except:
+				raise RuntimeError(traceback.format_exc())
+				sys.stderr.write('Warning: Did not detect homology whatsoever at requested e-value for sample %s\'s proteome.\n' % sample)
+				logObject.warning('Did not detect homology whatsoever at requested e-value for sample %s\'s proteome.' % sample)
 
-			for lt in best_hit_per_lt:
-				for i, hg in enumerate(best_hit_per_lt[lt][0]):
-					diamond_results[lt].append([hg, best_hit_per_lt[lt][1], best_hit_per_lt[lt][2][i], sample,
-												best_hit_per_lt[lt][3][i], best_hit_per_lt[lt][4][i]])
 	except Exception as e:
 		logObject.error('Issues with running DIAMOND blastp or processing of results.')
 		sys.stderr.write('Issues with running DIAMOND blastp or processing of results.\n')
@@ -672,7 +709,6 @@ def identify_gc_instances(input_args):
 		if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits) or (gc_segment[7]) or (gc_segment[3] >= 3 and gc_segment[6] and not gc_segment[5] in visited_scaffolds_with_edge_gc_segment):
 			# code to determine whether syntenically, the considered segment aligns with what is expected.
 			# (skipped if input mode was 3)
-			print(gc_segment)
 			input_mode_3 = False
 			if query_gene_info == None:
 				input_mode_3 = True

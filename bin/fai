@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-#TODO make sure multi-record genbanks are created from lsaBGC conversion to properly account for gene cluster fragmentation.
 
+# TODO add exclude option to avoid finding gene-clusters with certain auxiliary genes that correspond to different BGCs
+# TODO - concatenate proteins prior to DIAMOND alignment and split results after to speed up search step similar to
+# cblaster.
 ### Program: fai
 ### Author: Rauf Salamzade
 ### Kalan Lab
@@ -84,9 +86,6 @@ def create_parser():
 	    	    
     CONSIDERATIONS:
     *******************************************************************************************************************                                       
-	- Unlike zol, fai only works for bacterial genomes. Sorry Eukaryotic folks! 
-		- In the future I will let you provide your own full-GenBanks so this should make it usable for Eukaryotic 
-		  genomes, but trying to avoid getting into the complexities of Eukaryotic gene-calliing! 
 	- fai is a generalizable and simplified (in terms of probability determination) variant of lsaBGC-Expansion.py and 
 	  features a very similar algorithm. It is inspired by ClusterFinder, cblaster, and other similar tools. 
 	- FASTA sequences of genomes to search should be nucleotides and correspond to scaffolds/contigs/sub-regions, not 
@@ -106,7 +105,7 @@ def create_parser():
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a target genome a hit to a query protein. Default is 1e-10.", required=False, default=1e-10)
 	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/homolog groups needed to report discrete segments of the gene-cluster. Note, that a minimum of 3 distinct proteins/homolog groups are needed per segment reported.", required=False, default=0.5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences which, if present within a potential segment identified by the HMM, will automatically report the segment without further consideration. Compatible with all three input modes.", required=False, default=None)
-	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20.', required=False, default=1e-20)
+	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20. Disregarded if less strict than the general --evalue cutoff.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.0.', required=False, default=0.0)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. Default is 0.6", required=False, default=0.6)
 	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to merge segments together. Allows for more inclusivity of novel auxiliary genes. Default is 0.", required=False, default=0)
@@ -116,6 +115,7 @@ def create_parser():
 	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is found at the e-value cutoff. Default is 0.95.", required=False, default=0.95)
 	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog gis found at the e-value cutoff. Default is 0.2.", required=False, default=0.2)
 	parser.add_argument('-gp', '--generate_plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
+	parser.add_argument('-ds', '--diamond_sensitivity', help='DIAMOND alignment sensitivity. Default is very-sensitive. Options include: fast, mid-sensitive, sensitive, more-sensitive, very-sensitive, and ultra-sensitive.', required=False, default="very-sensitive")
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use.", required=False, default=1)
 	args = parser.parse_args()
 	return args
@@ -153,6 +153,7 @@ def faiMain():
 	draft_mode = myargs.draft_mode
 	filter_paralogs = myargs.filter_paralogs
 	plotting_flag = myargs.generate_plots
+	diamond_sensitivity = myargs.diamond_sensitivity.lower()
 	cpus = myargs.cpus
 
 	# create output directory if needed, or warn of over-writing
@@ -165,6 +166,13 @@ def faiMain():
 	check_dir = outdir + 'Checkpoint_Files/'
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])
+
+	try:
+		assert(diamond_sensitivity in set(['fast', 'very-sensitive', 'ultra-sensitive', 'mid-sensitive',
+										   'more-sensitive']))
+	except:
+		sys.stderr.write('Invalid value provided for --diamond_sensitivity option.\n')
+		logObject.error('Invalid value provided for --diamond_sensitivity option.')
 
 	# create logging object
 	log_file = outdir + 'Progress.log'
@@ -179,7 +187,7 @@ def faiMain():
 						protein_queries_fasta, target_genomes, outdir, draft_mode, filter_paralogs, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
-						be_emission, gc_transition, bg_transition, plotting_flag, cpus]
+						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity, cpus]
 	parameter_names = ["Input directory with Gene-Cluster GenBanks", "Reference Genome for Gene Cluster",
 					   "Reference Scaffold for Gene Cluster", "Reference Start Coordinate of Gene Cluster",
 					   "Reference End Coordinate of Gene Cluster", "Protein Queries",
@@ -196,7 +204,7 @@ def faiMain():
 					   "Emission probability of gene being in background state with homologous hit to gene-cluster",
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
 					   "Probability for background to background transition in HMM",
-					   "Perform plotting?", "Number of CPUs Requested"]
+					   "Perform plotting?", "DIAMOND Sensitivity", "Number of CPUs Requested"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -344,8 +352,10 @@ def faiMain():
 			preptg_dir = os.path.abspath(target_genomes) + '/'
 			target_genomes_pkl_file = preptg_dir + 'Target_Genomes.pkl'
 			target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
+			target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
+
 			try:
-				assert(os.path.isfile(target_genomes_pkl_file) and os.path.isfile(target_annot_listing_file))
+				assert(os.path.isfile(target_genomes_pkl_file) and os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
 			except Exception as e:
 				sys.stderr.write('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
 				logObject.error('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
@@ -366,8 +376,10 @@ def faiMain():
 
 			target_genome_gene_info = fai.processGenomeWideGenbanks(target_genomes_pkl_file, valid_tg_samples, logObject, cpus=cpus)
 
+
 			target_information = {'target_annotation_information': target_annotation_information,
-								  'target_genome_gene_info': target_genome_gene_info}
+								  'target_genome_gene_info': target_genome_gene_info,
+								  'target_concat_genome_db': target_genome_dmnd_db}
 			with open(target_info_pickle_file, 'wb') as pickle_file:
 				pickle.dump(target_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step2_check_file)
@@ -392,7 +404,8 @@ def faiMain():
 	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
 	if not os.path.isfile(step3_check_file):
 		util.setupReadyDirectory([diamond_work_dir])
-		diamond_results = fai.runDiamondBlastp(target_information['target_annotation_information'], query_information['query_fasta'], diamond_work_dir, logObject, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		diamond_results_file = fai.runDiamondBlastp(target_information['target_concat_genome_db'], query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		diamond_results = fai.processDiamondBlastp(target_information['target_annotation_information'], diamond_results_file, diamond_work_dir, logObject)
 		with open(diamond_results_pickle_file, 'wb') as pickle_file:
 			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step3_check_file)
@@ -416,9 +429,9 @@ def faiMain():
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
 		min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
-		print(min_hits)
+		#print(min_hits)
 		key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
-		print(key_protein_min_hits)
+		#print(key_protein_min_hits)
 
 		fai.identifyGCInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
 								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,

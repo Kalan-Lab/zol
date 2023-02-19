@@ -17,9 +17,13 @@ setup(name='zol',
                'scripts/setup_annotation_dbs.py',
                'scripts/processNCBIGenBank.py',
                'scripts/extractBiG-SCAPEclusters.py',
-               'zol/orthologs/findOrthologs.py'],
+               'zol/orthologs/findOrthologs.py',
+               'scripts/generateSyntenicVisual.py',
+               'scripts/convertMiniprotGffToGbkAndProt.py',
+               'scripts/expandDereplicatedAlignment.py'],
       zip_safe=False)
 
 # compile RBH/InParanoid-esque programs written in C++
 os.system("g++ -std=c++11 -o zol/orthologs/runRBH zol/orthologs/runRBH.cpp")
 os.system("g++ -std=c++11 -o zol/orthologs/splitDiamondResults zol/orthologs/splitDiamondResults.cpp")
+os.system("g++ -std=c++11 -o zol/splitDiamondResultsForFai zol/splitDiamondResultsForFai.cpp")

@@ -1,7 +1,7 @@
 /*
 AUTHOR - Rauf Salamzade
 DATE - 12/24/22
-PROGRAM NAME - splitDiamondResults.cpp
+PROGRAM NAME - splitDiamondResultsForFai.cpp
 DESCRIPTION - Split Diamond alignment results to different files based on queries.
 
 Large
@@ -52,12 +52,11 @@ int main (int argc, char* argv[]) {
         Read in sample listing and create map of sample names to out-files
         */
         map<string, string> sample_to_outfile_path;
-        string line, sample, outfile_path, query, subject, query_sample, subject_sample;
+        string line, sample, outfile_path, subject, subject_sample;
         int split_counter;
         vector<string> v;
         ifstream input_file;
         input_file.open (argv[2]);
-        set<string> all_samples;
         if (input_file.is_open()) {
             while (input_file.good()) {
                 getline (input_file,line);
@@ -74,7 +73,6 @@ int main (int argc, char* argv[]) {
                         split_counter++;
                     }
                     sample_to_outfile_path[sample] = outfile_path;
-                    all_samples.insert(sample);
                 }
             }
         } else {
@@ -85,9 +83,9 @@ int main (int argc, char* argv[]) {
         /*
         Parse DIAMOND results and start writing to individual files.
         */
-        ofstream outfile_query, outfile_subject, outfile;
         input_file.open (argv[1]);
         string line_with_newline;
+        ofstream outfile;
         string sid;
         if ( input_file.is_open() ) {
             while ( input_file.good()  ) {
@@ -96,30 +94,16 @@ int main (int argc, char* argv[]) {
                     split_counter = 0;
                     v = split(line, delim);
                     for (auto i: v) {
-                         if (split_counter == 0) {
-                             query = i;
-			                 query_sample = i.substr(0, i.find('|'));
-                         } else if (split_counter == 1) {
+                         if (split_counter == 1) {
 		                     subject = i;
                              subject_sample = i.substr(0, i.find('|'));
                          }
                          split_counter++;
                     }
                     line_with_newline = line + '\n';
-	                if (query_sample.compare(subject_sample) == 0) {
-	                    for (auto sid: all_samples) {
-	                        outfile.open(sample_to_outfile_path[sid], std::ios_base::app);
-	                        outfile << line_with_newline;
-	                        outfile.close();
-                        }
-	                } else {
-	                    outfile_subject.open(sample_to_outfile_path[subject_sample], std::ios_base::app);
-                        outfile_query.open(sample_to_outfile_path[query_sample], std::ios_base::app);
-	                    outfile_subject << line_with_newline;
-	                    outfile_query << line_with_newline;
-	                    outfile_subject.close();
-	                    outfile_query.close();
-	                }
+                    outfile.open(sample_to_outfile_path[subject_sample], std::ios_base::app);
+                    outfile << line_with_newline;
+                    outfile.close();
 		        }
             }
         } else {

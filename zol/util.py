@@ -43,15 +43,14 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=
 				sample, genbank, predicted_proteome = line.split('\t')
 				sample = cleanUpSampleName(sample)
 				try:
-					assert (is_genbank(genbank))
-					assert (is_fasta(predicted_proteome))
+					assert(os.path.isfile(genbank) and os.path.isfile(genbank))
 					sample_annotation_data[sample]['genbank'] = genbank
 					sample_annotation_data[sample]['predicted_proteome'] = predicted_proteome
 				except Exception as e:
 					if logObject:
-						logObject.warning('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.' % sample)
+						logObject.warning('Ignoring sample %s, because at least one of two annotation files does not seem to exist.' % sample)
 					else:
-						sys.stderr.write('Ignoring sample %s, because at least one of two annotation files does not seem to exist or be in the expected format.\n' % sample)
+						sys.stderr.write('Ignoring sample %s, because at least one of two annotation files does not seem to exist.\n' % sample)
 		assert (len(sample_annotation_data) >= 1)
 		return (sample_annotation_data)
 	except Exception as e:
@@ -89,11 +88,15 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				updated_rec.seq = new_seq_object
 
 				updated_features = []
+				#print(start_coord)
+				#print(end_coord)
+				#print('--------')
 				for feature in rec.features:
 					start = None
 					end = None
 					direction = None
 					all_coords = []
+					#print(str(feature.location))
 
 					if not 'join' in str(feature.location) and not 'order' in str(feature.location):
 						start = min([int(x.strip('>').strip('<')) for x in
@@ -137,6 +140,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 					edgy_feat = 'False'
 					if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
 						edgy_feat = 'True'
+					part_of_cds_hanging = False
 					if len(feature_coords.intersection(pruned_coords)) > 0:
 						fls = []
 						for sc, ec, dc in all_coords:
@@ -148,11 +152,13 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 								# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
 								# with boundary proteins found by the HMM.
 								if feature.type == 'CDS':
+									part_of_cds_hanging = True
 									continue
 								else:
 									updated_end = end_coord - start_coord + 1  # ; flag1 = True
 							if sc < start_coord:
 								if feature.type == 'CDS':
+									part_of_cds_hanging = True
 									continue
 								else:
 									updated_start = 1  # ; flag2 = True
@@ -160,7 +166,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 							if dc == '-':
 								strand = -1
 							fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
-						if len(fls) > 0:
+						if len(fls) > 0 and not part_of_cds_hanging:
 							updated_location = fls[0]
 							if len(fls) > 1:
 								updated_location = sum(fls)
@@ -249,10 +255,12 @@ def is_fasta(fasta):
 			with gzip.open(fasta, 'rt') as ogf:
 				for rec in SeqIO.parse(ogf, 'fasta'):
 					recs += 1
+					break
 		else:
 			with open(fasta) as of:
 				for rec in SeqIO.parse(of, 'fasta'):
 					recs += 1
+					break
 		if recs > 0:
 			return True
 		else:
@@ -267,21 +275,34 @@ def is_integer(x):
 	except:
 		return False
 
-def is_genbank(gbk):
+def is_genbank(gbk, check_for_cds=False):
 	"""
 	Function to check in Genbank file is correctly formatted.
 	"""
 	try:
 		recs = 0
+		cds_flag = False
 		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz'))
 		if gbk.endswith('.gz'):
 			with gzip.open(gbk, 'rt') as ogf:
 				for rec in SeqIO.parse(ogf, 'genbank'):
-					recs += 1
+					if check_for_cds:
+						for feature in rec.features:
+							if feature.type == 'CDS':
+								cds_flag = True
+					if not check_for_cds or cds_flag:
+						recs += 1
+						break
 		else:
 			with open(gbk) as ogf:
 				for rec in SeqIO.parse(ogf, 'genbank'):
-					recs += 1
+					if check_for_cds:
+						for feature in rec.features:
+							if feature.type == 'CDS':
+								cds_flag = True
+					if not check_for_cds or cds_flag:
+						recs += 1
+						break
 		if recs > 0:
 			return True
 		else:
@@ -404,29 +425,15 @@ def parseVersionFromSetupPy():
 				version = line.split('version=')[1][:-1]
 	return version
 
-def calculateMSAEntropy(nucl_algn_fasta, logObject):
-	try:
-		seqs = []
-		with open(nucl_algn_fasta) as onaf:
-			for rec in SeqIO.parse(onaf, 'fasta'):
-				seqs.append(list(str(rec.seq)))
-		accounted_sites = 0
-		all_entropy = 0.0
-		for tup in zip(*seqs):
-			als = list(tup)
-			missing_prop = sum([1 for al in als if not al in set(['A', 'C', 'G', 'T'])])/float(len(als))
-			if missing_prop >= 0.1: continue
-			filt_als = [al for al in als if al in set(['A', 'C', 'G', 'T'])]
-			a_freq = sum([1 for al in filt_als if al == 'A'])/float(len(filt_als))
-			c_freq = sum([1 for al in filt_als if al == 'C'])/float(len(filt_als))
-			g_freq = sum([1 for al in filt_als if al == 'G'])/float(len(filt_als))
-			t_freq = sum([1 for al in filt_als if al == 'T'])/float(len(filt_als))
-			site_entropy = stats.entropy([a_freq, c_freq, g_freq, t_freq],base=4)
-			all_entropy += site_entropy
-			accounted_sites += 1
-		return(all_entropy/accounted_sites)
-	except:
-		sys.exit(1)
+def default_to_regular(d):
+	"""
+	Function to convert defaultdict of defaultdict to dict of dict
+	Taken from Martijn Pieters response in StackOverflow:
+	https://stackoverflow.com/questions/26496831/how-to-convert-defaultdict-of-defaultdicts-of-defaultdicts-to-dict-of-dicts-o
+	"""
+	if isinstance(d, defaultdict):
+		d = {k: default_to_regular(v) for k, v in d.items()}
+	return d
 
 def createLoggerObject(log_file):
 	"""
@@ -623,7 +630,46 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 	except:
 		return False
 
-def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject, cpus=1,
+def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_miniprot_outdir,
+								additional_proteomes_directory, addtitional_genbanks_directory, logObject, cpus=1,
+								locus_tag_length=3):
+	try:
+		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+		possible_locustags = sorted(list([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]))
+
+		miniprot_cmds = []
+		for i, sample in enumerate(sample_genomes):
+			sample_assembly = sample_genomes[sample]
+			sample_locus_tag = ''.join(list(possible_locustags[i]))
+
+			sample_mp_db = additional_miniprot_outdir + sample + '.mpi'
+			sample_mp_gff = additional_miniprot_outdir + sample + '.gff'
+			sample_mp_gbk = addtitional_genbanks_directory + sample + '.gbk'
+			sample_mp_faa = additional_proteomes_directory + sample + '.faa'
+
+			miniprot_index_cmd = ['miniprot', '-t1', '-d', sample_mp_db, sample_assembly]
+			miniprot_run_cmd = ['miniprot', '--gff', '-t1', sample_mp_db, reference_proteome, '>', sample_mp_gff]
+			miniprot_process_cmd = ['convertMiniprotGffToGbkAndProt.py', '-g', sample_mp_gff, '-f', sample_assembly,
+									'-l', sample_locus_tag, '-og', sample_mp_gbk, '-op', sample_mp_faa]
+			miniprot_cmds.append(miniprot_index_cmd + [';'] + miniprot_run_cmd + [';'] + miniprot_process_cmd + [logObject])
+
+		p = multiprocessing.Pool(cpus)
+		p.map(multiProcess, miniprot_cmds)
+		p.close()
+
+		for sample in sample_genomes:
+			try:
+				sample_mp_gbk = addtitional_genbanks_directory + sample + '.gbk'
+				sample_mp_faa = additional_proteomes_directory + sample + '.faa'
+				assert (os.path.isfile(sample_mp_gbk) and os.path.isfile(sample_mp_faa))
+			except:
+				raise RuntimeError("Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+	except Exception as e:
+		logObject.error("Problem with creating commands for running miniprot or convertMiniprotGffToGbkAndProt.py. Exiting now ...")
+		logObject.error(traceback.format_exc())
+		raise RuntimeError(traceback.format_exc())
+
+def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject, cpus=1,
 				   locus_tag_length=3, use_prodigal=False, meta_mode=False, avoid_locus_tags=set([])):
 	"""
 	Void function to run Prodigal based gene-calling and annotations.
@@ -637,13 +683,13 @@ def processGenomes(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal
 	:param locus_tag_length: length of locus tags to generate using unique character combinations.
 	Note length of locus tag must be 3 beause this is substituting for base lsaBGC analysis!!
 	"""
-
-	prodigal_cmds = []
 	try:
 		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 		possible_locustags = sorted(list(
 			set([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]).difference(
 				avoid_locus_tags)))
+
+		prodigal_cmds = []
 		for i, sample in enumerate(sample_genomes):
 			sample_assembly = sample_genomes[sample]
 			sample_locus_tag = ''.join(list(possible_locustags[i]))
@@ -693,23 +739,6 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 
 		for i, sample in enumerate(sample_genomes):
 			sample_genbank = sample_genomes[sample]
-			ogh = None
-			if sample_genbank.endswith('.gz'):
-				ogh = gzip.open(sample_genbank, 'rt')
-			else:
-				ogh = open(sample_genbank)
-			cds_flag = False
-			for rec in SeqIO.parse(ogh, 'genbank'):
-				for feature in rec.features:
-					if feature.type == 'CDS':
-						cds_flag = True
-						break
-			ogh.close()
-			sample_locus_tag = ''.join(list(possible_locustags[i]))
-			if not cds_flag:
-				lacking_cds_gbks.add(sample)
-				logObject.warning('NCBI genbank file %s for sample %s lacks CDS features' % (sample_genbank, sample))
-				continue
 			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample,
 						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]
 			if rename_locus_tags:
@@ -737,18 +766,33 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 		raise RuntimeError(traceback.format_exc())
 	return sample_genomes
 
-def parseSampleGenomes(genome_listing_file, logObject):
+def determineGenomeFormat(inputs):
+	sample, genome_file, format_assess_dir, logObject = inputs
+	try:
+		gtype = 'unknown'
+		if is_fasta(genome_file):
+			gtype = 'fasta'
+		if is_genbank(genome_file, check_for_cds=True):
+			if gtype == 'fasta':
+				gtype = 'unknown'
+			else:
+				gtype = 'genbank'
+		sample_res_handle = open(format_assess_dir + sample + '.txt', 'w')
+		sample_res_handle.write(sample + '\t' + str(gtype) + '\n')
+		sample_res_handle.close()
+	except:
+		sys.exit(1)
+
+def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=1):
 	try:
 		sample_genomes = {}
-		all_genbanks = True
-		all_fastas = True
-		at_least_one_genbank = False
-		at_least_one_fasta = False
+		assess_inputs = []
 		with open(genome_listing_file) as oglf:
 			for line in oglf:
 				line = line.strip()
 				ls = line.split('\t')
 				sample, genome_file = ls
+				assess_inputs.append([sample, genome_file, format_assess_dir, logObject])
 				try:
 					assert (os.path.isfile(genome_file))
 				except:
@@ -756,26 +800,30 @@ def parseSampleGenomes(genome_listing_file, logObject):
 						"Problem with finding genome file %s for sample %s, skipping" % (genome_file, sample))
 					continue
 				if sample in sample_genomes:
-					logObject.warning(
-						'Skipping genome %s for sample %s because a genome file was already provided for this sample' % (
-						genome_file, sample))
+					logObject.warning('Skipping genome %s for sample %s because a genome file was already provided for this sample' % (genome_file, sample))
 					continue
-
 				sample_genomes[sample] = genome_file
-				if not is_fasta(genome_file):
-					all_fastas = False
-				else:
-					at_least_one_fasta = True
-				if not is_genbank(genome_file):
-					all_genbanks = False
-				else:
-					at_least_one_genbank = True
+		p = multiprocessing.Pool(cpus)
+		p.map(determineGenomeFormat, assess_inputs)
+		p.close()
+
+		os.system('find %s -maxdepth 1 -type f | xargs cat >> %s' % (format_assess_dir, format_predictions_file))
 
 		format_prediction = 'mixed'
-		if all_genbanks and at_least_one_genbank:
-			format_prediction = 'genbank'
-		elif all_fastas and at_least_one_fasta:
-			format_prediction = 'fasta'
+		gtypes = set([])
+		with open(format_predictions_file) as ofpf:
+			for line in ofpf:
+				line = line.strip()
+				sample, gtype = line.split('\t')
+				if gtype == 'unknown':
+					sys.stderr.write('unsure about format for genome %s for sample %s, skipping inclusion...\n' % (sample_genomes[sample], sample))
+					logObject.warning('unsure about format for genome %s for sample %s, skipping inclusion...' % (sample_genomes[sample], sample))
+					del sample_genomes[sample]
+				else:
+					gtypes.add(gtype)
+
+		if len(gtypes) == 1:
+			format_prediction = list(gtypes)[0]
 
 		return ([sample_genomes, format_prediction])
 

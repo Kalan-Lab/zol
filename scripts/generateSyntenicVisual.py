@@ -93,6 +93,8 @@ def genSynVis():
 	pif_handle.write('\t'.join(['HG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
 	for index, row in df.iterrows():
 		hg = row['Homolog Group (HG) ID']
+		hg_cons = row['Proportion of Total Gene Clusters with HG']
+		if float(hg_cons) < 0.25: continue
 		hg_mlen = float(row['HG Median Length (bp)'])
 		hg_dir = row['HG Consensus Direction']
 		sc_flag = row['HG is Single Copy?']
@@ -108,7 +110,7 @@ def genSynVis():
 		metric_val = row[metric_name]
 		print_row = [hg, start, end, dir, sc_mark, metric_val]
 		pif_handle.write('\t'.join([str(x) for x in print_row]) + '\n')
-		prev_end = end + 10
+		prev_end = end + 200
 	pif_handle.close()
 
 	plot_result_pdf = outdir + 'Plot.pdf'

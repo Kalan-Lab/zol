@@ -115,8 +115,6 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-
-
 def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0, skani_coverage_threshold=95.0, mcl_inflation=None, cpus=1):
 	derep_genbanks = set([])
 	try:
@@ -1216,11 +1214,13 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 				if tot_selected_sites >= 1:
 					prop_selected_sites_positive = float(pos_selected_sites)/float(neg_selected_sites+pos_selected_sites)
 				fubar_sel_props[hg] = prop_selected_sites_positive
-				fubar_sel_sites[hg] = tot_selected_sites
+				fubar_sel_sites[hg] = tot_selected_sites # /float(tot_sites) TODO: make this proportion - more useful!!
 				avg_deba = "NA"
 				if tot_sites > 0:
 					avg_deba = sum_deba/float(tot_sites)
 				fubar_deba[hg] = avg_deba
+				# TODO: process "grid" field in FUBAR results to get most probable dN/dS ratio
+
 
 		return([gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_deba])
 	except Exception as e:
@@ -1688,7 +1688,7 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 		sys.exit(1)
 	return (comp_stats)
 
-def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, ces=False):
+def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, run_hyphy=False, ces=False):
 	"""
 	dict_keys(['pfam', 'vfdb', 'paperblast', 'pgap', 'vog', 'isfinder', 'card', 'mibig'])
 	dict_keys(['hg_single_copy_status', 'hg_prop_samples', 'hg_median_lengths', 'hg_order_scores'])
@@ -1706,11 +1706,13 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				   'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
 				   'Proportion of sites which are highly ambiguous in codon alignment',
 				   'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC',
-				   'Median GC Skew', 'GARD Partitions Based on Recombination Breakpoints',
-				   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-				   'Average delta(Beta, Alpha) by FUBAR across sites',
-				   'Proportion of Sites Under Selection which are Positive', 'Custom Annotation (E-value)',
-				   'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
+				   'Median GC Skew']
+		if run_hyphy:
+			header += ['GARD Partitions Based on Recombination Breakpoints',
+			           'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
+				       'Average delta(Beta, Alpha) by FUBAR across sites',
+				       'Proportion of Sites Under Selection which are Positive']
+		header += ['Custom Annotation (E-value)', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
 				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
 				   'Pfam Domains', 'CDS Locus Tags', 'HG Consensus Sequence']
@@ -1771,8 +1773,11 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 					fst_upst = comp_stats[hg]['fst_upst']
 				row += [fp, cp, fst, fst_upst]
 			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_full_amb, hg_trim_amb,
-					hg_gc, hg_gcs, hg_gpar, hg_ssit, hg_deba, hg_spro, cust_annot, ko_annot, pgap_annot, pb_annot,
-					card_annot, isf_annot, mibig_annot, vog_annot, vfdb_annot, pfam_annots, hg_lts, con_seq]
+					hg_gc, hg_gcs]
+			if run_hyphy:
+				row += [hg_gpar, hg_ssit, hg_deba, hg_spro]
+			row += [cust_annot, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot, mibig_annot, vog_annot,
+					vfdb_annot, pfam_annots, hg_lts, con_seq]
 			row = [str(x) for x in row]
 			frt_handle.write('\t'.join(row) + '\n')
 			num_rows += 1

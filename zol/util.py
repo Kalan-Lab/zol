@@ -354,8 +354,10 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 				for feature in rec.features:
 					if feature.type != 'CDS': continue
 					lt = feature.qualifiers.get('locus_tag')[0]
-					prot_seq = feature.qualifiers.get('translation')[0]
+
 					all_coords = []
+					all_starts = []
+					all_ends = []
 					if not 'join' in str(feature.location):
 						start = min([int(x.strip('>').strip('<')) for x in
 									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
@@ -363,6 +365,8 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 								   str(feature.location)[1:].split(']')[0].split(':')])
 						direction = str(feature.location).split('(')[1].split(')')[0]
 						all_coords.append([start, end, direction])
+						all_starts.append(start)
+						all_ends.append(end)
 					else:
 						all_starts = []
 						all_ends = []
@@ -378,32 +382,53 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 							all_directions.append(direction)
 							all_coords.append([start, end, direction])
 						assert (len(set(all_directions)) == 1)
+
+
+					max_ec = max(all_ends)
+					min_sc = min(all_starts)
 					nucl_seq = ''
 					for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
 						if ec >= len(full_sequence):
 							nucl_seq += full_sequence[sc - 1:]
 						else:
 							nucl_seq += full_sequence[sc - 1:ec]
+
 					upstream_region = None
 					if direction == '-':
 						nucl_seq = str(Seq(nucl_seq).reverse_complement())
 						if ec + 100 >= len(full_sequence):
-							upstream_region = str(Seq(full_sequence[ec:ec+100]).reverse_complement())
+							upstream_region = str(Seq(full_sequence[max_ec:max_ec+100]).reverse_complement())
 					else:
 						if sc - 100 >= 0:
-							upstream_region = str(Seq(full_sequence[sc-100:sc]))
+							upstream_region = str(Seq(full_sequence[min_sc-101:min_sc-1]))
 
+					final_prot_seq = None
+					final_nucl_seq = None
+					final_upstream_region = None
 					edgy_cds = False
+
+					#try:
+					#	final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
+					#except:
+					final_upstream_region = upstream_region
+
+					try:
+						final_nucl_seq = feature.qualifiers.get('open_reading_frame')[0]
+					except:
+						final_nucl_seq = nucl_seq
+					try:
+						final_prot_seq = feature.qualifiers.get('translation')[0]
+					except:
+						final_prot_seq = str(Seq(nucl_seq).translate())
 					try:
 						edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
-						#print(edgy_cds)
 					except:
 						edgy_cds = False
 					if allow_edge_cds or not edgy_cds:
-						proteins[lt] = prot_seq
-						nucleotides[lt] = nucl_seq
-						if upstream_region:
-							upstream_regions[lt] = upstream_region
+						proteins[lt] = final_prot_seq
+						nucleotides[lt] = final_nucl_seq
+						if upstream_region != None:
+							upstream_regions[lt] = final_upstream_region
 
 		return([proteins, nucleotides, upstream_regions])
 	except Exception as e:

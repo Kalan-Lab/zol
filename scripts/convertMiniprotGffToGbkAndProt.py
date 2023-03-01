@@ -38,6 +38,7 @@
 import os
 import sys
 import argparse
+import re
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -78,6 +79,33 @@ def convertMiniProtGFFtoGenbank():
 	except:
 		raise RuntimeError('Issue with validating inputs for miniprot_gff3 and/or genome_fasta are existing files.')
 
+	# Step 1: Parse GFF3 for PAF CIGAR Strings
+	query_mrna_paf_info = defaultdict(list)
+	paf = None
+	with open(miniprot_gff3) as omg:
+		for line in omg:
+			line = line.strip()
+			ls = line.split('\t')
+			if line.startswith('##PAF'):
+				paf = ls[1:]
+			elif len(ls) >= 6:
+				if ls[2] == 'mRNA' and paf != None:
+					query = line.split('Target=')[1].split(';')[0].split()[0]
+					mrna_start_coord = int(ls[3])
+					mrna_end_coord = int(ls[4])
+					scaffold = ls[0]
+					paf_start_coord = int(paf[7])
+					paf_end_coord = int(paf[8])
+					mrna_coords = set(range(mrna_start_coord, mrna_end_coord+1))
+					paf_coords = set(range(paf_start_coord, paf_end_coord+1))
+					if len(mrna_coords.intersection(paf_coords))/len(paf_coords) >= 0.95 and len(mrna_coords.intersection(paf_coords))/len(paf_coords) <= 1.05:
+						paf_cigar = paf[17]
+						paf_matches = re.findall(r'(\d+)([A-Z]{1})', paf_cigar)
+						paf_cigar_parsed = [{'type': m[1], 'length': int(m[0])} for m in paf_matches]
+						query_mrna_paf_info[tuple([query, mrna_start_coord])] = [scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, '\t'.join(paf)]
+				else:
+					paf = None
+
 	# Step 1: Parse GFF3 for transcript coordinates
 	query_mrna_coords = defaultdict(list)
 	scaffold_queries = defaultdict(list)
@@ -92,13 +120,13 @@ def convertMiniProtGFFtoGenbank():
 			start_coord = int(ls[3])
 			end_coord = int(ls[4])
 			score = float(ls[5])
-			identity = ls[8].split('Identity=')[1].split(';')[0].split()[0]
+			identity = float(ls[8].split('Identity=')[1].split(';')[0].split()[0])
 			if identity < 0.80: continue
-			dir = 1
+			dire = 1
 			if ls[6] == '-':
-				dir = -1
+				dire = -1
 			# in case there are paralogs
-			query_mrna_coords[tuple([query, start_coord])] = [scaffold, start_coord, end_coord, dir, score]
+			query_mrna_coords[tuple([query, start_coord])] = [scaffold, start_coord, end_coord, dire, score]
 			scaffold_queries[scaffold].append([query, start_coord])
 
 	# Step 2: Resolve overlap between mRNA transcripts
@@ -130,10 +158,10 @@ def convertMiniProtGFFtoGenbank():
 			scaffold = ls[0]
 			start_coord = int(ls[3])
 			end_coord = int(ls[4])
-			dir = 1
+			dire = 1
 			if ls[6] == '-':
-				dir = -1
-			query_cds_coords[query].append([scaffold, start_coord, end_coord, dir])
+				dire = -1
+			query_cds_coords[query].append([scaffold, start_coord, end_coord, dire])
 
 	# Step 4: Go through FASTA scaffold/contig by scaffold/contig and create output GenBank
 	gbk_handle = open(output_genbank, 'w')
@@ -178,6 +206,7 @@ def convertMiniProtGFFtoGenbank():
 					lt = str(lt_iter + 1)
 				lt_iter += 1
 
+				"""
 				nucl_seq = ''
 				prot_seq = None
 				for sc, ec in sorted(all_coords, key=itemgetter(0)):
@@ -190,9 +219,56 @@ def convertMiniProtGFFtoGenbank():
 				else:
 					prot_seq = str(Seq(nucl_seq).translate())
 				assert(prot_seq != None)
-				faa_handle.write('>' + locus_tag + '_' + lt + '\n' + prot_seq + '\n')
+				"""
+
+				scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key]
+
+				paf_nucl_seq = ''
+				paf_coord = paf_start_coord
+				if mrna_info[3] == -1:
+					paf_cigar_parsed.reverse()
+				for op in paf_cigar_parsed:
+					length = op['length']
+					if op['type'] == 'M':
+						paf_nucl_seq += seq[paf_coord:(paf_coord+(length*3))]
+						paf_coord += length*3
+					elif op['type'] == 'D':
+						paf_coord += length*3
+					elif op['type'] == 'G':
+						#paf_coord += seq[paf_coord:paf_coord+length]
+						paf_coord += length
+					elif op['type'] in set(['F', 'N', 'U', 'V']):
+						paf_coord += length
+
+				paf_prot_seq = None
+				paf_upstream_nucl_seq = None
+				#paf_upstream_check = None
+				if mrna_info[3] == -1:
+					paf_nucl_seq = str(Seq(paf_nucl_seq).reverse_complement())
+					paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+					paf_upstream_nucl_seq = str(Seq(seq[paf_end_coord:paf_end_coord+100]).reverse_complement())
+					#paf_upstream_check = str(Seq(seq[paf_end_coord-1:paf_end_coord+99]).reverse_complement())
+				else:
+					paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+					paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
+
+				"""
+				print('----------------------')
+				print(paf_string)
+				print(locus_tag + '_' + lt)
+				print(paf_nucl_seq)
+				print('++++++++++++++++++++++')
+				print(paf_upstream_nucl_seq)
+				print('++++++++++++++++++++++')
+				print(paf_upstream_check)
+				#print(paf_prot_seq)
+				"""
+
+				faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
 				feature.qualifiers['locus_tag'] = locus_tag + '_' + lt
-				feature.qualifiers['translation'] = prot_seq
+				feature.qualifiers['translation'] = paf_prot_seq
+				feature.qualifiers['open_reading_frame'] = paf_nucl_seq
+				feature.qualifiers['orf_upstream'] = paf_upstream_nucl_seq
 				feature_list.append(feature)
 			gbk_rec.features = feature_list
 			SeqIO.write(gbk_rec, gbk_handle, 'genbank')

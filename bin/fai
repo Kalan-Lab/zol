@@ -108,8 +108,9 @@ def create_parser():
 	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative gene-cluster homolog segment to regard it as a smoking-gun. Default is 1e-20. Disregarded if less strict than the general --evalue cutoff.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct homolog groups matching key proteins needed to report a homologous gene-cluster in a genome. Default is 0.0.', required=False, default=0.0)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. Default is 0.6", required=False, default=0.6)
-	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to merge segments together. Allows for more inclusivity of novel auxiliary genes. Default is 0.", required=False, default=0)
+	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to merge segments together. Allows for more inclusivity of novel auxiliary genes. Default is 5.", required=False, default=5)
 	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster segments identified. Default is 1000.', required=False, default=1000)
+	#parser.add_argument('-gcm', '--gene_clumper_mode', action='store_true', help='Instead of HMM-based approach, use gene-distance approach - clumping together genes separated by max_genes_disconnect into the same cluster.', required=False, default=False)
 	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. Default is 0.9.", required=False, default=0.9)
 	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is found at the e-value cutoff. Default is 0.95.", required=False, default=0.95)
@@ -172,7 +173,6 @@ def faiMain():
 										   'more-sensitive']))
 	except:
 		sys.stderr.write('Invalid value provided for --diamond_sensitivity option.\n')
-		logObject.error('Invalid value provided for --diamond_sensitivity option.')
 
 	# create logging object
 	log_file = outdir + 'Progress.log'
@@ -280,13 +280,20 @@ def faiMain():
 			if num_gbk == 0:
 				sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\n')
 				logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...')
+				sys.exit(1)
 			else:
 				sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
 				logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
 
-			ortho_matrix_file, query_fasta = fai.genConsensusSequences(genbanks, outdir, logObject, cpus=cpus)
+			if num_gbk == 1:
+				query_fasta = work_dir + 'NR_Reference_Query.faa'
+				protein_queries_fasta = work_dir + '.'.join(list(genbanks)[0].split('/')[-1].split('.')[:-1]) + '.faa'
+				util.convertGenbankToCDSProtsFasta(list(genbanks)[0], protein_queries_fasta, logObject)
+				protein_to_hg = fai.collapseProteinsUsingCDHit(protein_queries_fasta, query_fasta, logObject)
+			else:
+				ortho_matrix_file, query_fasta = fai.genConsensusSequences(genbanks, work_dir, logObject, cpus=cpus)
+				protein_to_hg = fai.parseHomologGroupMatrix(ortho_matrix_file, logObject)
 			comp_gene_info = fai.parseCoordsFromGenbank(genbanks, logObject)
-			protein_to_hg = fai.parseHomologGroupMatrix(ortho_matrix_file, logObject)
 
 		elif input_type_2_observed:
 			reference_genome = os.path.abspath(reference_genome)
@@ -295,7 +302,7 @@ def faiMain():
 			if not util.is_genbank(reference_genome) and util.is_fasta(reference_genome):
 				reference_genome_gbk = work_dir + 'reference.gbk'
 				gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', reference_genome, '-s', 'reference', '-l',
-								 'REF', '-o', work_dir]
+								 'OG', '-o', work_dir]
 				try:
 					subprocess.call(' '.join(gene_call_cmd), shell=True, stdout=subprocess.DEVNULL,
 									stderr=subprocess.DEVNULL,
@@ -318,8 +325,8 @@ def faiMain():
 			# simplest case - just take the protein queries provided by the user. Unfortunately, syntenic information is
 			# not present for such inputs.
 			protein_queries_fasta = os.path.abspath(protein_queries_fasta)
-			query_fasta = work_dir + 'Query.faa'
-			protein_to_hg = fai.createDummyProteinToHomologGroupMapping(protein_queries_fasta, query_fasta, logObject)
+			query_fasta = work_dir + 'NR_Reference_Query.faa'
+			protein_to_hg = fai.collapseProteinsUsingCDHit(protein_queries_fasta, query_fasta, logObject)
 
 		key_hgs = set([])
 		if key_protein_queries_fasta != None:
@@ -341,13 +348,65 @@ def faiMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
-	logObject.info('--------------------\nStep 2\n--------------------\nLoading target genomes database prepared by prepTG.')
-	sys.stdout.write('--------------------\nStep 2\n--------------------\nLoading target genomes database prepared by prepTG.\n')
+	# Quickly read target genomes information (don't load the database yet!)
+	target_genome_dmnd_db = None
+	target_annotation_information = None
+	if os.path.isdir(target_genomes):
+		preptg_dir = os.path.abspath(target_genomes) + '/'
+		target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
+		target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
+
+		try:
+			assert(os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
+		except Exception as e:
+			sys.stderr.write('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
+			logObject.error('Issues finding expected files within prepTG output directory provided to --target_genomes argument.\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+		target_annotation_information = {}
+		valid_tg_samples = set([])
+		with open(target_annot_listing_file) as otalf:
+			for line in otalf:
+				line = line.strip()
+				sample, gbk = line.split('\t')
+				if os.path.isfile(gbk) and os.path.getsize(gbk) > 0:
+					target_annotation_information[sample] = {}
+					target_annotation_information[sample]['genbank'] = gbk
+					valid_tg_samples.add(sample)
+
+	logObject.info('--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.\n')
 
 	step2_check_file = check_dir + 'step2.txt'
+	diamond_work_dir = outdir + 'DIAMOND_Analysis/'
+	diamond_results = None
+	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
+	if not os.path.isfile(step2_check_file):
+		util.setupReadyDirectory([diamond_work_dir])
+		diamond_results_file = fai.runDiamondBlastp(target_genome_dmnd_db, query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		diamond_results = fai.processDiamondBlastp(target_annotation_information, diamond_results_file, diamond_work_dir, logObject)
+		with open(diamond_results_pickle_file, 'wb') as pickle_file:
+			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+		os.system('touch %s' % step2_check_file)
+
+	if diamond_results == None:
+		try:
+			with open(diamond_results_pickle_file, 'rb') as handle:
+				diamond_results = pickle.load(handle)
+		except Exception as e:
+			sys.stderr.write('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			logObject.error('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+	logObject.info('--------------------\nStep 3\n--------------------\nLoading target genomes database prepared by prepTG.')
+	sys.stdout.write('--------------------\nStep 3\n--------------------\nLoading target genomes database prepared by prepTG.\n')
+
+	step3_check_file = check_dir + 'step3.txt'
 	target_information = None
 	target_info_pickle_file = outdir + 'Target_Information.pkl'
-	if not os.path.isfile(step2_check_file):
+	if not os.path.isfile(step3_check_file):
 		if os.path.isdir(target_genomes):
 			preptg_dir = os.path.abspath(target_genomes) + '/'
 			target_genomes_pkl_file = preptg_dir + 'Target_Genomes.pkl'
@@ -367,22 +426,20 @@ def faiMain():
 			with open(target_annot_listing_file) as otalf:
 				for line in otalf:
 					line = line.strip()
-					sample, gbk, faa = line.split('\t')
-					if os.path.isfile(faa) and os.path.getsize(faa) > 0 and os.path.isfile(gbk) and os.path.getsize(gbk) > 0:
+					sample, gbk = line.split('\t')
+					if os.path.isfile(gbk) and os.path.getsize(gbk) > 0:
 						target_annotation_information[sample] = {}
-						target_annotation_information[sample]['predicted_proteome'] = faa
 						target_annotation_information[sample]['genbank'] = gbk
 						valid_tg_samples.add(sample)
 
-			target_genome_gene_info = fai.processGenomeWideGenbanks(target_genomes_pkl_file, valid_tg_samples, logObject, cpus=cpus)
-
+			target_genome_gene_info = fai.loadTargetGenomeInfo(target_genomes_pkl_file, diamond_results, valid_tg_samples, logObject)
 
 			target_information = {'target_annotation_information': target_annotation_information,
 								  'target_genome_gene_info': target_genome_gene_info,
 								  'target_concat_genome_db': target_genome_dmnd_db}
 			with open(target_info_pickle_file, 'wb') as pickle_file:
 				pickle.dump(target_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-		os.system('touch %s' % step2_check_file)
+		os.system('touch %s' % step3_check_file)
 
 	if target_information == None:
 		try:
@@ -394,31 +451,6 @@ def faiMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
-
-	logObject.info('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
-	sys.stdout.write('--------------------\nStep 3\n--------------------\nRunning DIAMOND BLASTp and Processing Results.\n')
-
-	step3_check_file = check_dir + 'step3.txt'
-	diamond_work_dir = outdir + 'DIAMOND_Analysis/'
-	diamond_results = None
-	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
-	if not os.path.isfile(step3_check_file):
-		util.setupReadyDirectory([diamond_work_dir])
-		diamond_results_file = fai.runDiamondBlastp(target_information['target_concat_genome_db'], query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, cpus=cpus)
-		diamond_results = fai.processDiamondBlastp(target_information['target_annotation_information'], diamond_results_file, diamond_work_dir, logObject)
-		with open(diamond_results_pickle_file, 'wb') as pickle_file:
-			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-		os.system('touch %s' % step3_check_file)
-
-	if diamond_results == None:
-		try:
-			with open(diamond_results_pickle_file, 'rb') as handle:
-				diamond_results = pickle.load(handle)
-		except Exception as e:
-			sys.stderr.write('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
-			logObject.error('Issues with reading in diamond results from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step2.txt.!\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
 
 	logObject.info('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.')
 	sys.stdout.write('--------------------\nStep 4\n--------------------\nRunning HMM to infer homologous gene-clusters.\n')
@@ -440,7 +472,7 @@ def faiMain():
 								 syntenic_correlation_threshold=syntenic_correlation_threshold,
 								 kq_evalue_threshold=key_protein_evalue_cutoff,
 								 max_int_genes_for_merge=max_genes_disconnect, flanking_context=flanking_context,
-								 cpus=1, block_size=3000)
+								 cpus=cpus, block_size=1000)
 		if draft_mode or filter_paralogs:
 			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, logObject)
 		else:
@@ -451,13 +483,14 @@ def faiMain():
 
 	step5_check_file = check_dir + 'step5.txt'
 	plot_dir = outdir + 'Plotting_Files/'
-	plot_result_pdf = outdir + 'Overview_of_Homologous_Gene-Cluster_Segments.pdf'
+	plot_result_pdf = outdir + 'Homologous_Gene-Cluster_Segments.pdf'
+	plot_naming_pdf = outdir + 'Name_Mapping_of_Queries_to_Original_LocusTags.pdf'
 	if not os.path.isfile(step5_check_file) and plotting_flag:
 		logObject.info('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.')
 		sys.stdout.write('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.\n')
 		util.setupReadyDirectory([plot_dir])
-		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir, plot_dir,
-						  plot_result_pdf, logObject, height=5, width=15)
+		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
+						  query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, logObject, height=5, width=15)
 		os.system('touch %s' % step5_check_file)
 
 	# Close logging object and exit

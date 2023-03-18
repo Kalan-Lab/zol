@@ -12,6 +12,8 @@ from pomegranate import *
 import numpy
 import traceback
 from scipy.stats import pearsonr
+import copy
+import concurrent.futures
 import shutil
 import _pickle as cPickle
 
@@ -156,6 +158,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
 				logObject.error(e)
 				raise RuntimeError(e)
+
 		except Exception as e:
 			sys.stderr.write('Issues with determining ortholog/homolog groups!\n')
 			logObject.error('Issues with determining ortholog/homolog groups!')
@@ -182,22 +185,47 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 		consensus_prot_seqs_handle.close()
 		return([ortho_matrix_file, consensus_prot_seqs_faa])
 
-def processGenomeWideGenbanks(annotation_pickle_file, valid_tg_samples, logObject, cpus=1):
+def loadTargetGenomeInfo(annotation_pickle_file, diamond_reuslts, valid_tg_samples, logObject, min_genes_per_scaffold=2):
 	gene_locations = {}
 	scaffold_genes = {}
 	boundary_genes = {}
 	gene_id_to_order = {}
 	gene_order_to_id = {}
+
+	genes_hit_in_diamond_search = set(diamond_reuslts.keys())
 	try:
 		with open(annotation_pickle_file, "rb") as input_file:
 			genbank_info = cPickle.load(input_file)
 			for sample in genbank_info:
 				if not sample in valid_tg_samples: continue
-				gene_locations[sample] = genbank_info[sample][0]
-				scaffold_genes[sample] = genbank_info[sample][1]
-				boundary_genes[sample] = genbank_info[sample][2]
-				gene_id_to_order[sample] = genbank_info[sample][3]
-				gene_order_to_id[sample] = genbank_info[sample][4]
+
+				valid_scaffolds = set([])
+				gene_locs = genbank_info[sample][0]
+				scaff_genes = genbank_info[sample][1]
+				bound_genes = genbank_info[sample][2]
+				gito = genbank_info[sample][3]
+				goti = genbank_info[sample][4]
+
+				gene_locs_filt = {}
+				scaff_genes_filt = defaultdict(set)
+				bound_genes_filt = set([])
+				gito_filt = defaultdict(dict)
+				goti_filt = defaultdict(dict)
+				for scaffold in scaff_genes:
+					if len(scaff_genes[scaffold].intersection(genes_hit_in_diamond_search)) >= min_genes_per_scaffold:
+						valid_scaffolds.add(scaffold)
+						scaff_genes_filt[scaffold] = scaff_genes[scaffold]
+						gito_filt = gito[scaffold]
+						goti_filt = goti[scaffold]
+						for lt in scaff_genes[scaffold]:
+							gene_locs_filt[lt] = gene_locs[lt]
+						bound_genes_filt = bound_genes_filt.union(scaff_genes[scaffold].intersection(bound_genes))
+				gene_locations[sample] = gene_locs_filt
+				scaffold_genes[sample] = scaff_genes_filt
+				boundary_genes[sample] = bound_genes_filt
+				gene_id_to_order[sample] = gito_filt
+				gene_order_to_id[sample] = goti_filt
+
 	except Exception as e:
 		logObject.error('Issues with parsing CDS location information from genes of target genomes.')
 		sys.stderr.write('Issues with parsing CDS location information from genes of target genomes.\n')
@@ -445,6 +473,11 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 		sys.exit(1)
 	return key_hgs
 
+
+gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, target_annotation_info, boundary_genes = [None]*7
+sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore = [None]*4
+lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id = [None]*5
+
 def identifyGCInstances(query_information, target_information, diamond_results, work_dir, logObject, min_hits=5,
 						 min_key_hits=3, draft_mode=False, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
 						 gc_emission_prob_with_hit=0.95,  gc_emission_prob_without_hit=0.2,
@@ -452,15 +485,18 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 						 flanking_context=1000, cpus=1, block_size=3000):
 	"""
 	Function to search for instances of Gene Cluster in samples using HMM based approach based on homolog groups as
-	characters, "part of Gene Cluster" and "not part of Gene Cluster" as states - all trained on initial BGCs
-	constituting GCF as identified by lsaBGC-Cluster.py. This function utilizes the convenient Python library
-	Pomegranate.
+	characters. This function utilizes the convenient Python library Pomegranate.
+
 	:param query_information: Dictionary with 3 keys: protein_to_hg (dict), query_fasta (file path), comp_gene_info (dict)
 	:param target_information: Dictionary with 2 keys: target_annotation_information (dict), target_genome_gene_info (dict)
 	:param diamond_results: Dictionary of DIAMOND alignment results meeting e-value threshold
 	"""
 
 	try:
+		global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, target_annotation_info, boundary_genes
+		global sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore
+		global lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id
+
 		gc_genbanks_dir = os.path.abspath(work_dir + 'GeneCluster_Genbanks') + '/'
 		gc_info_dir = os.path.abspath(work_dir + 'GeneCluster_Info') + '/'
 		util.setupReadyDirectory([gc_genbanks_dir, gc_info_dir])
@@ -543,10 +579,10 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 						sample_lt_to_identity[hits[3]][lt] = float(hits[4])
 						sample_lt_to_sqlratio[hits[3]][lt] = float(hits[5])
 			identify_gc_segments_input = []
+			hgs_ordered_dict = defaultdict(dict)
+			lts_ordered_dict = defaultdict(dict)
 			for sample in sample_hgs:
 				if len(sample_hgs[sample]) < 3: continue
-				hgs_ordered_dict = {}
-				lts_ordered_dict = {}
 				for scaffold in scaffold_genes[sample]:
 					lts_with_start = []
 					for lt in scaffold_genes[sample][scaffold]:
@@ -561,25 +597,21 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 							hgs_ordered.append(sample_lt_to_hg[sample][lt])
 						else:
 							hgs_ordered.append('background')
-					hgs_ordered_dict[scaffold] = hgs_ordered
-					lts_ordered_dict[scaffold] = lts_ordered
+					hgs_ordered_dict[sample][scaffold] = hgs_ordered
+					lts_ordered_dict[sample][scaffold] = lts_ordered
 
-				identify_gc_segments_input.append([gc_info_dir, gc_genbanks_dir, sample, target_annotation_info[sample],
-													sample_lt_to_evalue[sample], sample_lt_to_identity[sample],
-												   sample_lt_to_sqlratio[sample], sample_lt_to_bitscore[sample], model,
-												   lts_ordered_dict, hgs_ordered_dict, query_gene_info,
-												   dict(gene_locations[sample]), dict(gene_id_to_order[sample]),
-												   dict(gene_order_to_id[sample]), boundary_genes[sample],
-												   lt_to_hg, min_hits, min_key_hits, key_hgs,
-												   kq_evalue_threshold, syntenic_correlation_threshold,
-												   max_int_genes_for_merge, flanking_context, draft_mode])
+				# TODO switch to using global variables for large dictionaries to reference in parallelized task directly
+				identify_gc_segments_input.append([sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold,
+												   syntenic_correlation_threshold, max_int_genes_for_merge,
+												   flanking_context, draft_mode])
+				identify_gc_instances([sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold,
+												   syntenic_correlation_threshold, max_int_genes_for_merge,
+												   flanking_context, draft_mode])
 			#with multiprocessing.Manager() as manager:
 			#	with manager.Pool(cpus) as pool:
 			#		pool.map(identify_gc_instances, identify_gc_segments_input)
-			for gci in identify_gc_segments_input:
-				identify_gc_instances(gci)
-		os.system('find %s -type f -name "*.bgcs.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_list_file))
 
+		os.system('find %s -type f -name "*.bgcs.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_list_file))
 		os.system('find %s -type f -name "*.hg_evalues.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_hmm_evalues_file))
 
 	except Exception as e:
@@ -590,12 +622,11 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		sys.exit(1)
 
 def identify_gc_instances(input_args):
-	gc_info_dir, gc_genbanks_dir, sample, target_annotation_info, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore, model, lts_ordered_dict, hgs_ordered_dict, query_gene_info, gene_locations, gene_id_to_order, gene_order_to_id, boundary_genes, lt_to_hg, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode = input_args
-
+	sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode = input_args
 	sample_gc_predictions = []
-	for scaffold in hgs_ordered_dict:
-		hgs_ordered = hgs_ordered_dict[scaffold]
-		lts_ordered = lts_ordered_dict[scaffold]
+	for scaffold in hgs_ordered_dict[sample]:
+		hgs_ordered = hgs_ordered_dict[sample][scaffold]
+		lts_ordered = lts_ordered_dict[sample][scaffold]
 		hg_seq = numpy.array(list(hgs_ordered))
 		hmm_predictions = model.predict(hg_seq)
 
@@ -625,9 +656,9 @@ def identify_gc_instances(input_args):
 					features_key_hg = False
 					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue and sample_lt_to_evalue[lt] <= kq_evalue_threshold:
+							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 								features_key_hg = True
-					if len(boundary_genes.intersection(set(gc_state_lts).difference('background'))) > 0:
+					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 						boundary_lt_featured = True
 					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 												   len(set(gc_state_hgs).difference("background")),
@@ -636,7 +667,6 @@ def identify_gc_instances(input_args):
 					gcs_id += 1
 				gc_state_lts = []
 				gc_state_hgs = []
-
 
 		gc_state_lts = []
 		gc_state_hgs = []
@@ -659,9 +689,9 @@ def identify_gc_instances(input_args):
 					features_key_hg = False
 					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue and sample_lt_to_evalue[lt] <= kq_evalue_threshold:
+							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 								features_key_hg = True
-					if len(boundary_genes.intersection(set(gc_state_lts).difference('background'))) > 0:
+					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 						boundary_lt_featured = True
 					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 												   len(set(gc_state_hgs).difference("background")),
@@ -683,9 +713,9 @@ def identify_gc_instances(input_args):
 					features_key_hg = False
 					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue and sample_lt_to_evalue[lt] <= kq_evalue_threshold:
+							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 								features_key_hg = True
-					if len(boundary_genes.intersection(set(gc_state_lts).difference('background'))) > 0:
+					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 						boundary_lt_featured = True
 					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 												   len(set(gc_state_hgs).difference("background")),
@@ -728,9 +758,9 @@ def identify_gc_instances(input_args):
 				for gi, g in enumerate(gc_segment[0]):
 					hg = gc_segment[1][gi]
 					if copy_count_of_hgs_in_segment[hg] != 1: continue
-					gene_midpoint = (gene_locations[g]['start'] + gene_locations[g]['end']) / 2.0
+					gene_midpoint = (gene_locations[sample][g]['start'] + gene_locations[sample][g]['end']) / 2.0
 					segment_hg_order.append(gene_midpoint)
-					segment_hg_direction.append(gene_locations[g]['direction'])
+					segment_hg_direction.append(gene_locations[sample][g]['direction'])
 
 					for gc in query_gene_info:
 						g_matching = []
@@ -780,8 +810,7 @@ def identify_gc_instances(input_args):
 					except:
 						raise RuntimeError(traceback.format_exc())
 						pass
-
-			if best_corr == None or best_corr < syntenic_correlation_threshold: continue
+			if best_corr != 'irrelevant' and (best_corr == None or best_corr < syntenic_correlation_threshold): continue
 			if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits):
 				sample_gc_predictions_filtered.append(gc_segment)
 				if gc_segment[6]:
@@ -817,13 +846,13 @@ def identify_gc_instances(input_args):
 		sample_gc_id += 1
 
 		gc_segment_scaff = gc_segment[5]
-		min_gc_pos = min([gene_locations[g]['start'] for g in gc_segment[0]])-flanking_context
-		max_gc_pos = max([gene_locations[g]['end'] for g in gc_segment[0]])+flanking_context
+		min_gc_pos = min([gene_locations[sample][g]['start'] for g in gc_segment[0]])-flanking_context
+		max_gc_pos = max([gene_locations[sample][g]['end'] for g in gc_segment[0]])+flanking_context
 
 		#print(gc_segment)
 		#print([gene_locations[g]['start'] for g in gc_segment[0]])
 		#print([gene_locations[g]['end'] for g in gc_segment[0]])
-		util.createGenbank(target_annotation_info['genbank'], gc_genbank_file, gc_segment_scaff,
+		util.createGenbank(target_annotation_info[sample]['genbank'], gc_genbank_file, gc_segment_scaff,
 							  min_gc_pos, max_gc_pos)
 		gc_sample_listing_handle.write('\t'.join([sample, gc_genbank_file]) + '\n')
 
@@ -832,9 +861,9 @@ def identify_gc_instances(input_args):
 			identity = 0.0
 			sqlratio = 0.0
 			bitscore = 0.0
-			if lt in sample_lt_to_identity: identity = sample_lt_to_identity[lt]
-			if lt in sample_lt_to_sqlratio: sqlratio = sample_lt_to_sqlratio[lt]
-			if lt in sample_lt_to_bitscore: bitscore = sample_lt_to_bitscore[lt]
+			if lt in sample_lt_to_identity[sample]: identity = sample_lt_to_identity[sample][lt]
+			if lt in sample_lt_to_sqlratio[sample]: sqlratio = sample_lt_to_sqlratio[sample][lt]
+			if lt in sample_lt_to_bitscore[sample]: bitscore = sample_lt_to_bitscore[sample][lt]
 			gc_hg_evalue_handle.write('\t'.join([gc_genbank_file, sample, lt, hg, str(bitscore), str(identity), str(sqlratio), str(hg in key_hgs)]) + '\n')
 
 	gc_hg_evalue_handle.close()
@@ -900,8 +929,18 @@ def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, 
 		raise RuntimeError(traceback.format_exc())
 		sys.exit(1)
 
-def plotOverviews(target_annotation_info, hmm_work_dir, plot_work_dir, plot_result_pdf, logObject, height=10, width=15):
+def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work_dir, plot_result_pdf, plot_naming_pdf, logObject, height=10, width=15):
 	try:
+		que_info_table_file = plot_work_dir + 'Name_Mapping.txt'
+		que_info_table_handle = open(que_info_table_file, 'w')
+		que_info_table_handle.write('NR_ID\tCDS_Locus_Tags\n')
+		hg_prots = defaultdict(set)
+		for p in protein_to_hg:
+			hg_prots[protein_to_hg[p]].add(p)
+		for hg in hg_prots:
+			que_info_table_handle.write(hg + '\t' + ', '.join(sorted(list([x.split('|')[-1].strip() for x in hg_prots[hg]]))) + '\n')
+		que_info_table_handle.close()
+
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
 		gbk_filt_dir = hmm_work_dir + 'GeneCluster_Filtered_Segments/'
 
@@ -995,7 +1034,7 @@ def plotOverviews(target_annotation_info, hmm_work_dir, plot_work_dir, plot_resu
 					plot_input_handle.write('\t'.join([sample, seg_to_name[gc_seg_gbk], hg_id, is_key_hg, str(lt_starts[sample][lt]), str(iden), str(sqlr)]) + '\n')
 		plot_input_handle.close()
 
-		plot_cmd = ['Rscript', plot_prog, plot_input_file, plot_result_pdf, str(height), str(width)]
+		plot_cmd = ['Rscript', plot_prog, que_info_table_file, plot_input_file, plot_result_pdf, plot_naming_pdf, str(height), str(width)]
 		try:
 			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')

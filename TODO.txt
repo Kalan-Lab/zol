@@ -1,0 +1,5 @@
+# TODO
+
+1. have flag in fai specifically for allowing parallelization for hmm step with warning of heavy memory usage.
+
+3. [after public release]: create docker image + installation guide and submit to bioconda

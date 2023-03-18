@@ -36,6 +36,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import shutil
 import sys
 import argparse
 from Bio import SeqIO
@@ -165,12 +166,14 @@ def prepTG():
 											 additional_proteomes_directory, additional_genbanks_directory, logObject,
 											 cpus=cpus, locus_tag_length=locus_tag_length, use_prodigal=use_prodigal,
 											 meta_mode=meta_mode)
+			shutil.rmtree(additional_prodigal_outdir)
 		else:
 			additional_miniprot_outdir = outdir + 'Miniprot_Gene_Calling_Additional/'
 			util.setupReadyDirectory([additional_miniprot_outdir])
 			util.processGenomesUsingMiniprot(reference_proteome, additional_sample_genomes, additional_miniprot_outdir,
 											 additional_proteomes_directory, additional_genbanks_directory, logObject,
 											 cpus=cpus, locus_tag_length=locus_tag_length)
+			shutil.rmtree(additional_miniprot_outdir)
 	else:
 		# genomes are provided as Genbanks with CDS features
 		gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
@@ -184,7 +187,7 @@ def prepTG():
 	target_genomes_concat_db_handle = open(target_genomes_concat_db_faa, 'w')
 	for f in os.listdir(additional_proteomes_directory):
 		sample = f.split('.faa')[0]
-		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory + sample + '.gbk' + '\t' + additional_proteomes_directory + f + '\n')
+		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory + sample + '.gbk\n')
 		try:
 			with open(additional_proteomes_directory + sample + '.faa') as ospf:
 				for rec in SeqIO.parse(ospf, 'fasta'):
@@ -193,6 +196,9 @@ def prepTG():
 			pass
 	target_genome_annotation_listing_handle.close()
 	target_genomes_concat_db_handle.close()
+
+	# remove individual proteome files
+	shutil.rmtree(additional_proteomes_directory)
 
 	target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'
 	diamond_makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', target_genomes_concat_db_faa, '-d',
@@ -203,11 +209,13 @@ def prepTG():
 		logObject.info('Successfully ran: %s' % ' '.join(diamond_makedb_cmd))
 	except Exception as e:
 		logObject.error('Had an issue running: %s' % ' '.join(diamond_makedb_cmd))
-		sys.stderr.write('Had an issue running: %s' % ' '.join(diamond_makedb_cmd))
+		sys.stderr.write('Had an issue running: %s\n' % ' '.join(diamond_makedb_cmd))
 		logObject.error(e)
 		sys.exit(1)
 
 	target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file)
+
+	# TODO: switch to sqllite inplace of pickle for dynamic loading of each samples data to avoid memory spikes
 
 	pickle_output = outdir + 'Target_Genomes.pkl'
 	try:
@@ -225,7 +233,10 @@ def prepTG():
 			cPickle.dump(dict(sample_gbk_info), of)
 			of.close()
 	except Exception as e:
-		sys.stderr.write('')
+		sys.stderr.write('Issues creating pickle file needed for fai.')
+		sys.stderr.write(e + '\n')
+		logObject.error(e)
+		sys.exit(1)
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

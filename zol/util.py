@@ -30,7 +30,7 @@ def cleanUpSampleName(original_name):
 
 def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=None):
 	"""
-	Function to read in GenBank and Predicted proteome annotation paths from expansion listing file and load into dictionary with keys corresponding to sample IDs.
+	Function to read in GenBank paths from expansion listing file and load into dictionary with keys corresponding to sample IDs.
 	:param expansion_listing_file: tab-delimited file with three columns: (1) sample ID (2) Genbank path (3) predicted proteome path.
 	:param logObject: python logging object handler.
 	:return sample_annotation_data: dictionary of dictionaries with primary keys as sample names and secondary keys as either "genbank" or "predicted_proteome", with final values being paths to corresponding files.
@@ -40,12 +40,11 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=
 		with open(expansion_listing_file) as oalf:
 			for line in oalf:
 				line = line.strip()
-				sample, genbank, predicted_proteome = line.split('\t')
+				sample, genbank = line.split('\t')
 				sample = cleanUpSampleName(sample)
 				try:
 					assert(os.path.isfile(genbank) and os.path.isfile(genbank))
 					sample_annotation_data[sample]['genbank'] = genbank
-					sample_annotation_data[sample]['predicted_proteome'] = predicted_proteome
 				except Exception as e:
 					if logObject:
 						logObject.warning('Ignoring sample %s, because at least one of two annotation files does not seem to exist.' % sample)
@@ -496,7 +495,22 @@ def logParameters(parameter_names, parameter_values):
 		pn = parameter_names[i]
 		sys.stderr.write(pn + ': ' + str(pv) + '\n')
 
-
+def convertGenbankToCDSProtsFasta(genbank, protein, logObject):
+	try:
+		print(genbank)
+		prot_handle = open(protein, 'w')
+		with open(genbank) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				for feature in rec.features:
+					if feature.type != 'CDS': continue
+					lt = feature.qualifiers.get('locus_tag')[0]
+					prot_seq = feature.qualifiers.get('translation')[0]
+					prot_handle.write('>' + lt + '\n' + str(prot_seq) + '\n')
+		prot_handle.close()
+	except:
+		sys.stderr.write('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!\n')
+		logObject.error('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!')
+		sys.exit(1)
 def logParametersToFile(parameter_file, parameter_names, parameter_values):
 	"""
 	Function to log parameters of executable program to text file.
@@ -506,7 +520,6 @@ def logParametersToFile(parameter_file, parameter_names, parameter_values):
 		pn = parameter_names[i]
 		parameter_handle.write(pn + ': ' + str(pv) + '\n')
 	parameter_handle.close()
-
 
 def logParametersToObject(logObject, parameter_names, parameter_values):
 	"""
@@ -527,8 +540,11 @@ def is_numeric(x):
 
 def castToNumeric(x):
 	try:
-		x = float(x)
-		return (x)
+		if x == '< 3 segregating sites!':
+			return(x)
+		else:
+			x = float(x)
+			return (x)
 	except:
 		return float('nan')
 
@@ -763,6 +779,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 		lacking_cds_gbks = set([])
 
 		for i, sample in enumerate(sample_genomes):
+			sample_locus_tag = possible_locustags[i]
 			sample_genbank = sample_genomes[sample]
 			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample,
 						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]

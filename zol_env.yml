@@ -32,6 +32,7 @@ dependencies:
   - conda-forge::r-ggplot2=3.3.5
   - conda-forge::r-cowplot=1.1.1
   - conda-forge::r-gggenes=0.4.1
+  - conda-forge::r-gridextra
   - bioconda::skani
   - bioconda::slclust
   - bioconda::trimal

@@ -1,5 +1,7 @@
 # TODO
 
-1. have flag in fai specifically for allowing parallelization for hmm step with warning of heavy memory usage.
+1. Switch from pickle to SQLite for sample-by-sample loading of gene location data - to help limit peak memory usage during peak.
 
-3. [after public release]: create docker image + installation guide and submit to bioconda
+2. Implement simple aggregate mode for defining homologous gene-cluster segments based on maximum number of genes between two genes.
+
+3. [after public release]: create docker image + installation guide and submit to bioconda.

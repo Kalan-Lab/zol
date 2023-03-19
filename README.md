@@ -144,3 +144,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Major Updates 
+
+### Version 1.01
+
+- Remove unused individual proteome files in prepTG database directory.
+- Store only gene-location information for scaffolds with hits by query proteins in fai to keep memory use low.
+- Introduce parallelization to HMM step of fai and use global variables to access common data without duplicating in memory.
+- Improve parsing of different input formats for fai and generate new PDF at end mapping individual protein names to non-redundantified protein queries.
+- Declare "< 3 segrating sites found" as reason for inability to calculate Tajima's D instead of just "NA", which could also arise from not enough sequences or the sequence length threshold being met. 

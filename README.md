@@ -10,6 +10,8 @@ zol produces a basic heatmap, but for visualizations of gene-clusters we recomme
 
 Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC). This includes HyPhy-based selection inference and gene tree to gene-cluster tree concordance statistics.
 
+![overview_for_github](https://user-images.githubusercontent.com/4260723/229955061-64d32132-f016-485d-9cd9-8493f2de5dd5.png)
+
 ### Zoom on Locus (zol) and Find Additional Instances (fai)
 
 **`zol`** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).

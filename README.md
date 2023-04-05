@@ -6,14 +6,15 @@ zol and fai are similar to functionalities offered in lsaBGC but are designed to
 
 The tools are also designed to explore a single set of homologous gene-clusters (e.g. a single GCF), not the BGC-ome of an entire genus or species like lsaBGC.
 
+zol produces a basic heatmap, but for visualizations of gene-clusters we recommend awesome tools such as [clinker](https://github.com/gamcil/clinker) and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
+
 Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC). This includes HyPhy-based selection inference and gene tree to gene-cluster tree concordance statistics.
 
 ### Zoom on Locus (zol) and Find Additional Instances (fai)
 
-**zol** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).
+**`zol`** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).
 
-**fai** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific, soon to work for eukaryotes). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript. Users would need to prepare a set of genomes for searching using **prepTG**. It aims to find really similar instances of gene-clusters in a rapid and automated fashion, for more divergent searches, we recommend users check out [cblaster](https://github.com/gamcil/cblaster), which offers a more interactive experience for users to select desired gene-clusters.
-
+**`fai`** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific, soon to work for eukaryotes). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript. Users would need to prepare a set of genomes for searching using **`prepTG`**. It aims to find really similar instances of gene-clusters in a rapid and automated fashion, for more divergent searches, we recommend users check out [cblaster](https://github.com/gamcil/cblaster), which offers a more interactive experience for users to select desired gene-clusters. 
 ### Installation:
 
 ```bash
@@ -30,6 +31,8 @@ python setup.py install
 pip install -e .
 
 # 4. depending on internet speed, this can take 20-30 minutes
+# end product will be 28 GB! but can also run in minimal mode
+# (which will only download PGAP HMM models < 5 GB) using -m.
 # within zol Git repo with conda environment activated, run:
 setup_annotation_dbs.py
 ```
@@ -52,7 +55,7 @@ prepTG formats and parses information in provided GenBank files or can run prodi
 prepTG -i Folder_with_Target_Genomes/ -o prepTG_DB/
 ```
 
-For additoinal details on prepTG (e.g. how to download genomes from NCBI), please check out the [1. more info on prepTG]() wiki page.
+For additoinal details on prepTG (e.g. how to download genomes from NCBI), please check out the [1. more info on prepTG](https://github.com/Kalan-Lab/zol/wiki/1.-more-info-on-prepTG) wiki page.
 
 ### fai (finding homologous instances)
 
@@ -76,7 +79,7 @@ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -
 fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
 
-For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai']() wiki page.
+For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai](https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai) wiki page.
 
 ### zol (generating table reports)
 
@@ -84,17 +87,13 @@ For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expans
 zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
 ```
 
-zol produces an xlsx spreadsheet report similar to lsaBGC-PopGene.py where rows correspond to each individual orthogroup/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
+zol produces an xlsx spreadsheet report where rows correspond to each individual orthogroup/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
 
-Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage gene clusters), MI-BiG (characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
+Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MI-BiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 
-zol also produces a heatmap and can also be run in dereplication mode to obtain a diverse and representative set of GenBanks/gene-clusters for visual exploration with the wonderful [clinker](https://github.com/gamcil/clinker) tool. 
+For details on the stats/annotations zol infers, please refer to the [zol](https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol/) wiki page.
 
-For details on the stats/annotations zol infers, please refer to the [3. more info on zol](https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol/) wiki page.
-
-
-![image](https://user-images.githubusercontent.com/4260723/214199267-81546d36-c98d-4394-a146-f9679e0628fe.png)
-
+![image](https://user-images.githubusercontent.com/4260723/229951285-787042d3-d93b-43d8-b897-63c10d3d9a1a.png)
 
 ## Dependencies and Citation
 
@@ -144,6 +143,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Major Updates 
+
+### Version 1.2
+
+- prepTG sample to GenBank relations now specified locally so creation of database is not locked into one location.
+- Individual pickle files produced by prepTG per genome/metagenome for lower memory use with fai.
+- New "Gene-Clumper" mode for gene-cluster discovery in fai, which is now the default.
+- Fixed bug pertaining to overlap between merged gene-clusters based on `--max_gene_disconnect` parameter when using "HMM" mode.
+- Improved filtering and retention of GenBanks in zol.
 
 ### Version 1.01
 

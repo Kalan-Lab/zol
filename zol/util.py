@@ -16,11 +16,18 @@ import pathlib
 import copy
 import itertools
 import multiprocessing
+import pickle
+import resource
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
 main_dir = '/'.join(curr_dir.split('/')[:-2]) + '/'
 
+def memory_limit(mem):
+	max_virtual_memory = mem*1000000000
+	soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+	resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
+	print(resource.getrlimit(resource.RLIMIT_AS))
 def cleanUpSampleName(original_name):
 	return original_name.replace('#', '').replace('*', '_').replace(':', '_').replace(';', '_').replace(' ',
 																										'_').replace(
@@ -28,7 +35,7 @@ def cleanUpSampleName(original_name):
 																													'').replace(
 		')', '').replace('/', '').replace('\\', '').replace('[', '').replace(']', '').replace(',', '')
 
-def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=None):
+def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, full_dir, logObject=None):
 	"""
 	Function to read in GenBank paths from expansion listing file and load into dictionary with keys corresponding to sample IDs.
 	:param expansion_listing_file: tab-delimited file with three columns: (1) sample ID (2) Genbank path (3) predicted proteome path.
@@ -41,6 +48,7 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, logObject=
 			for line in oalf:
 				line = line.strip()
 				sample, genbank = line.split('\t')
+				genbank = full_dir + genbank.split('/')[-1]
 				sample = cleanUpSampleName(sample)
 				try:
 					assert(os.path.isfile(genbank) and os.path.isfile(genbank))
@@ -178,7 +186,6 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	except Exception as e:
 		raise RuntimeError(traceback.format_exc())
 
-
 def multiProcess(input):
 	"""
 	Genralizable function to be used with multiprocessing to parallelize list of commands. Inputs should correspond
@@ -309,10 +316,11 @@ def is_genbank(gbk, check_for_cds=False):
 	except:
 		return False
 
-def checkValidGenBank(genbank_file, quality_assessment=True, draft_assessment=True):
+def checkValidGenBank(genbank_file, quality_assessment=False, draft_assessment=False, use_either_lt_or_pi=False):
 	try:
 		number_of_cds = 0
 		lt_has_comma = False
+		lt_is_none = False
 		seqs = ''
 		recs = 0
 		edgy_cds = False
@@ -321,7 +329,21 @@ def checkValidGenBank(genbank_file, quality_assessment=True, draft_assessment=Tr
 				for feature in rec.features:
 					if feature.type == 'CDS':
 						number_of_cds += 1
-						lt = feature.qualifiers.get('locus_tag')[0]
+						lt = None
+						pi = None
+						try:
+							lt = feature.qualifiers.get('locus_tag')[0]
+						except:
+							pass
+						try:
+							pi = feature.qualifiers.get('protein_id')[0]
+						except:
+							pass
+						if use_either_lt_or_pi:
+							if lt == None and pi != None:
+								lt = pi
+						if lt == None:
+							lt_is_none = True
 						if ',' in lt:
 							lt_has_comma = True
 						try:
@@ -332,7 +354,7 @@ def checkValidGenBank(genbank_file, quality_assessment=True, draft_assessment=Tr
 				seqs += str(rec.seq)
 				recs += 1
 		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])])/len(seqs)
-		if number_of_cds > 0 and not lt_has_comma:
+		if number_of_cds > 0 and not lt_is_none and not lt_has_comma:
 			if (quality_assessment and prop_missing >= 0.1) or (draft_assessment and (recs > 1 or edgy_cds)):
 					return False
 			else:
@@ -495,7 +517,7 @@ def logParameters(parameter_names, parameter_values):
 		pn = parameter_names[i]
 		sys.stderr.write(pn + ': ' + str(pv) + '\n')
 
-def convertGenbankToCDSProtsFasta(genbank, protein, logObject):
+def convertGenbankToCDSProtsFasta(genbank, protein, logObject, use_either_lt_or_pi=False):
 	try:
 		print(genbank)
 		prot_handle = open(protein, 'w')
@@ -503,7 +525,17 @@ def convertGenbankToCDSProtsFasta(genbank, protein, logObject):
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type != 'CDS': continue
-					lt = feature.qualifiers.get('locus_tag')[0]
+					try:
+						lt = feature.qualifiers.get('locus_tag')[0]
+					except:
+						pass
+					try:
+						pi = feature.qualifiers.get('protein_id')[0]
+					except:
+						pass
+					if use_either_lt_or_pi:
+						if lt == None and pi != None:
+							lt = pi
 					prot_seq = feature.qualifiers.get('translation')[0]
 					prot_handle.write('>' + lt + '\n' + str(prot_seq) + '\n')
 		prot_handle.close()
@@ -845,6 +877,7 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 					logObject.warning('Skipping genome %s for sample %s because a genome file was already provided for this sample' % (genome_file, sample))
 					continue
 				sample_genomes[sample] = genome_file
+
 		p = multiprocessing.Pool(cpus)
 		p.map(determineGenomeFormat, assess_inputs)
 		p.close()
@@ -874,31 +907,78 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 		logObject.error(traceback.format_exc())
 		raise RuntimeError(traceback.format_exc())
 
-def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_assessment=True, draft_assessment=True):
+def filterRecordsNearScaffoldEdge(genbank_file, filt_genbank_file, logObject, quality_assessment=False):
 	try:
 		number_of_cds = 0
 		seqs = ""
 		recs = 0
-		edgy_cds = False
+		recs_with_edgy_cds = set([])
 		with open(genbank_file) as ogbk:
-			for rec in SeqIO.parse(ogbk, 'genbank'):
+			for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+				edgy_cds = False
 				for feature in rec.features:
 					if feature.type == 'CDS':
 						number_of_cds += 1
 						try:
-							edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
-							#print(edgy_cds)
+							if feature.qualifiers.get('near_scaffold_edge')[0] == 'True':
+								recs_with_edgy_cds.add(rec_it)
+								edgy_cds = True
 						except:
 							pass
-
-				seqs += str(rec.seq)
+				if not edgy_cds:
+					seqs += str(rec.seq)
 				recs += 1
+
+		if len(seqs) == 0: 
+			return
 		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])]) / len(seqs)
-		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and ((recs == 1 and not edgy_cds) or not draft_assessment):
+		recs_without_edgy_cds = recs-len(recs_with_edgy_cds)
+		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and recs_without_edgy_cds > 0:
+			out_handle = open(filt_genbank_file, 'w')
+			with open(genbank_file) as ogbk:
+				for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+					if rec_it in recs_with_edgy_cds: continue
+					SeqIO.write(rec, out_handle, 'genbank')
+			out_handle.close()
+
+	except Exception as e:
+		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % genbank_file)
+		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % genbank_file)
+		sys.stderr.write(str(e) + '\n')
+		raise RuntimeError(traceback.format_exc())
+		sys.exit(1)
+
+def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_assessment=False, draft_assessment=False):
+	try:
+		number_of_cds = 0
+		seqs = ""
+		recs = 0
+		recs_with_edgy_cds = set([])
+		with open(genbank_file) as ogbk:
+			for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+				edgy_cds = False
+				for feature in rec.features:
+					if feature.type == 'CDS':
+						number_of_cds += 1
+						try:
+							if feature.qualifiers.get('near_scaffold_edge')[0] == 'True':
+								recs_with_edgy_cds.add(rec_it)
+								edgy_cds = True
+						except:
+							pass
+				if not edgy_cds:
+					seqs += str(rec.seq)
+				recs += 1
+		if len(seqs) == 0:
+			return
+		prop_missing = sum([1 for bp in seqs if not bp in set(['A', 'C', 'G', 'T'])]) / len(seqs)
+		recs_without_edgy_cds = recs-len(recs_with_edgy_cds)
+		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and (recs_without_edgy_cds > 0 or not draft_assessment):
 			out_handle = open(rn_genbank_file, 'w')
 			locus_tag_iterator = 1
 			with open(genbank_file) as ogbk:
-				for rec in SeqIO.parse(ogbk, 'genbank'):
+				for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+					if rec_it in recs_with_edgy_cds and draft_assessment: continue
 					for feature in rec.features:
 						if feature.type != 'CDS': continue
 						new_locus_tag = lt + '_'
@@ -1040,7 +1120,7 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 	gene_id_to_order = defaultdict(dict)
 	gene_order_to_id = defaultdict(dict)
 
-	sample, sample_genbank, sample_gbk_info = inputs
+	sample, sample_genbank, pkl_result_file = inputs
 	osg = None
 	if sample_genbank.endswith('.gz'):
 		osg = gzip.open(sample_genbank, 'rt')
@@ -1092,6 +1172,9 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 			gene_id_to_order[scaffold][g[0]] = i
 			gene_order_to_id[scaffold][i] = g[0]
 	osg.close()
-	sample_gbk_info[sample] = [gene_location, dict(scaffold_genes), boundary_genes, dict(gene_id_to_order),
-							   dict(gene_order_to_id)]
 
+
+	sample_data = [gene_location, dict(scaffold_genes), boundary_genes, dict(gene_id_to_order), dict(gene_order_to_id)]
+
+	with open(pkl_result_file, 'wb') as pickle_file:
+		pickle.dump(sample_data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)

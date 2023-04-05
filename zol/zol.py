@@ -1259,8 +1259,7 @@ def determineSeqSimProteinAlignment(inputs):
 			general_matching_percentage = 0.0
 			if tot_comp_pos > 0:
 				general_matching_percentage = float(match_pos) / float(tot_comp_pos)
-			if pair_seq_matching[s1][s2] < general_matching_percentage and pair_seq_matching[s2][
-				s1] < general_matching_percentage:
+			if pair_seq_matching[s1][s2] < general_matching_percentage and pair_seq_matching[s2][s1] < general_matching_percentage:
 				pair_seq_matching[s1][s2] = general_matching_percentage
 				pair_seq_matching[s2][s1] = general_matching_percentage
 
@@ -1298,7 +1297,7 @@ def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
 			hg_sims_dict[hg] = sims_dict
 			for i, s1 in enumerate(sorted(sims_dict)):
 				for j, s2 in enumerate(sorted(sims_dict)):
-					if s1 != s2:
+					if s1 != s2 and s2 in sims_dict[s1]:
 						gc_wide_sims_dict[s1][s2].append(sims_dict[s1][s2])
 					else:
 						gc_wide_sims_dict[s1][s2].append(0.0)
@@ -1380,8 +1379,11 @@ def calculateMSAEntropy(inputs):
 			site_entropy = stats.entropy([a_freq, c_freq, g_freq, t_freq],base=4)
 			all_entropy += site_entropy
 			accounted_sites += 1
+		avg_entropy = "NA"
+		if accounted_sites > 0:
+			avg_entropy = all_entropy/accounted_sites
 		outf_handle = open(outf, 'w')
-		outf_handle.write(hg + '\t' + str(all_entropy/accounted_sites) + '\n')
+		outf_handle.write(hg + '\t' + str(avg_entropy) + '\n')
 		outf_handle.close()
 	except Exception as e:
 		sys.stderr.write(str(e) + '\n')

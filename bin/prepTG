@@ -40,15 +40,10 @@ import shutil
 import sys
 import argparse
 from Bio import SeqIO
-from collections import defaultdict
-from time import sleep
 from zol import util
 import subprocess
-import traceback
 import multiprocessing
-import math
-from ete3 import Tree
-import _pickle as cPickle
+
 
 def create_parser():
 	""" Parse arguments """
@@ -62,22 +57,25 @@ def create_parser():
 	Target genomes can either be in GenBank (with CDS features!!!) or FASTA format.
 	
 	Considerations
-	--------------------------------------------------------------------------------------------------------------
-	If FASTA format is provided, assumption is that genomes are prokaryotic and pyrodigal/prodigal will be used to
-	perform gene-calling. Eukaryotic genomes can be provided as FASTA format but the --reference_proteome file should
-	be used in such case to map proteins from a reference proteome (from the same species ideally) on to the target
-	genomes. This will prevent detection of new genes in gene-clusters detected by fai but synchronize gene-calling and
-	allow for better similarity assessment between orthologous genes.
+	--------------------------------------------------------------------------------------
+	If FASTA format is provided, assumption is that genomes are prokaryotic and 
+	pyrodigal/prodigal will be used to perform gene-calling. Eukaryotic genomes can 
+	be provided as FASTA format but the --reference_proteome file should be used in 
+	such case to map proteins from a reference proteome (from the same species ideally) 
+	on to the target genomes. This will prevent detection of new genes in gene-clusters 
+	detected by fai but synchronize gene-calling and allow for better similarity 
+	assessment between orthologous genes.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--target_genomes_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=True)
 	parser.add_argument('-o', '--output_directory', help='Output directory to stored input for fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
-	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.", required=False, default=1)
 	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Flag to use prodigal instead of pyrodigal.', required=False, default=False)
 	parser.add_argument('-m', '--meta_mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
-	parser.add_argument('-rf', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling in target genomes - which should be in FASTA format.', default=None, required=False)
+	parser.add_argument('-rf', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
+	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.\n[Default is 1].", required=False, default=1)
+	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -97,6 +95,7 @@ def prepTG():
 	locus_tag_length = myargs.locus_tag_length
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus
+	max_memory = myargs.max_memory
 	use_prodigal = myargs.use_prodigal
 	meta_mode = myargs.meta_mode
 	reference_proteome = myargs.reference_proteome
@@ -122,11 +121,20 @@ def prepTG():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [target_genomes_dir, outdir, use_prodigal, meta_mode, cpus]
+	parameter_values = [target_genomes_dir, outdir, use_prodigal, meta_mode, cpus, max_memory]
 	parameter_names = ["Target Genomes Directory", "Output Directory", "Use Prodigal?", "Use Meta Mode?",
-					   "Number of cpus"]
+					   "Number of Cpus", "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
+
+	# set max memory limit
+	if max_memory != None:
+		logObject.info("Setting maximum memory usage to: %dGB" % max_memory)
+		try:
+			util.memory_limit(max_memory)
+		except Exception as e:
+			logObject.info("Error setting memory limit")
+			sys.stdout.write("Error setting memory limit\n")
 
 	# Step 1: List genomes in directory
 	target_listing_file = outdir + 'Target_Genomes.txt'
@@ -157,6 +165,7 @@ def prepTG():
 
 	additional_proteomes_directory = outdir + 'Predicted_Proteomes_Additional/'
 	additional_genbanks_directory = outdir + 'Genomic_Genbanks_Additional/'
+	additional_genbanks_directory_local = 'Genomic_Genbanks_Additional/'
 	util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory])
 	if additional_format_prediction == 'fasta':
 		if reference_proteome == None:
@@ -187,7 +196,7 @@ def prepTG():
 	target_genomes_concat_db_handle = open(target_genomes_concat_db_faa, 'w')
 	for f in os.listdir(additional_proteomes_directory):
 		sample = f.split('.faa')[0]
-		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory + sample + '.gbk\n')
+		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory_local + sample + '.gbk\n')
 		try:
 			with open(additional_proteomes_directory + sample + '.faa') as ospf:
 				for rec in SeqIO.parse(ospf, 'fasta'):
@@ -213,25 +222,22 @@ def prepTG():
 		logObject.error(e)
 		sys.exit(1)
 
-	target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file)
+	target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file, additional_genbanks_directory)
 
 	# TODO: switch to sqllite inplace of pickle for dynamic loading of each samples data to avoid memory spikes
 
-	pickle_output = outdir + 'Target_Genomes.pkl'
+	pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
+	util.setupReadyDirectory([pickle_output_dir])
 	try:
-		with multiprocessing.Manager() as manager:
-			sample_gbk_info = manager.dict()
-			genbanks = []
-			for sample in target_genome_annotation_data:
-				sample_genbank = target_genome_annotation_data[sample]['genbank']
-				genbanks.append([sample, sample_genbank, sample_gbk_info])
+		sample_genbank_info = []
+		for sample in target_genome_annotation_data:
+			sample_genbank = target_genome_annotation_data[sample]['genbank']
+			result_pkl_file = pickle_output_dir + sample + '.pkl'
+			sample_genbank_info.append([sample, sample_genbank, result_pkl_file])
 
-			with manager.Pool(cpus) as pool:
-				pool.map(util.parseGenbankAndFindBoundaryGenes, genbanks)
-
-			of = open(pickle_output, 'wb')
-			cPickle.dump(dict(sample_gbk_info), of)
-			of.close()
+		p = multiprocessing.Pool(cpus)
+		p.map(util.parseGenbankAndFindBoundaryGenes, sample_genbank_info)
+		p.close()
 	except Exception as e:
 		sys.stderr.write('Issues creating pickle file needed for fai.')
 		sys.stderr.write(e + '\n')

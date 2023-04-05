@@ -12,10 +12,8 @@ from pomegranate import *
 import numpy
 import traceback
 from scipy.stats import pearsonr
-import copy
-import concurrent.futures
 import shutil
-import _pickle as cPickle
+import pickle
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/plotSegments.R'
@@ -78,17 +76,26 @@ def collapseProteinsUsingCDHit(protein_fasta, nr_protein_fasta, logObject):
 			raise RuntimeError(e)
 
 		prefix = '.'.join(protein_fasta.split('/')[-1].split('.')[:-1])
-		# maybe make more robust later - assumption that representative is first in clusters file
 		cluster_rep = None
+		tmp = []
 		with open(cdhit_cluster_file) as occf:
 			for line in occf:
 				line = line.strip()
-				if line.startswith('>'): continue
+				if line.startswith('>'):
+					if len(tmp) > 0 and cluster_rep != None:
+						for plt in tmp:
+							protein_to_hg[plt] = cluster_rep
+					tmp = []
+					cluster_rep = None
+					continue
 				ls = line.split()
 				lt = ls[2][1:-3]
 				if line.endswith(' *'):
 					cluster_rep = lt
-				protein_to_hg[prefix + '|' + lt] = cluster_rep
+				tmp.append(prefix + '|' + lt)
+		if len(tmp) > 0 and cluster_rep != None:
+			for plt in tmp:
+				protein_to_hg[plt] = cluster_rep
 	except Exception as e:
 		sys.stderr.write('Issues running CD-hit.\n')
 		logObject.error('Issues running CD-hit.\n')
@@ -185,7 +192,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 		consensus_prot_seqs_handle.close()
 		return([ortho_matrix_file, consensus_prot_seqs_faa])
 
-def loadTargetGenomeInfo(annotation_pickle_file, diamond_reuslts, valid_tg_samples, logObject, min_genes_per_scaffold=2):
+def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_reuslts, valid_tg_samples, logObject, min_genes_per_scaffold=2, lowmem_mode=True):
 	gene_locations = {}
 	scaffold_genes = {}
 	boundary_genes = {}
@@ -194,18 +201,27 @@ def loadTargetGenomeInfo(annotation_pickle_file, diamond_reuslts, valid_tg_sampl
 
 	genes_hit_in_diamond_search = set(diamond_reuslts.keys())
 	try:
-		with open(annotation_pickle_file, "rb") as input_file:
-			genbank_info = cPickle.load(input_file)
-			for sample in genbank_info:
-				if not sample in valid_tg_samples: continue
+		for sample in target_annotation_information:
+			if not sample in valid_tg_samples: continue
+			sample_info_pkl_file = target_genomes_pkl_dir + sample + '.pkl'
+			genbank_info = None
+			try:
+				assert(os.path.isfile(sample_info_pkl_file))
+				with open(sample_info_pkl_file, 'rb') as handle:
+					genbank_info = pickle.load(handle)
+			except:
+				sys.stderr.write('Could not find pickle file with CDS coordinate information for sample %s\n' % sample)
+				logObject.error('Could not find pickle file with CDS coordinate information for sample %s' % sample)
+				sys.exit(1)
 
+			gene_locs = genbank_info[0]
+			scaff_genes = genbank_info[1]
+			bound_genes = genbank_info[2]
+			gito = genbank_info[3]
+			goti = genbank_info[4]
+
+			if lowmem_mode:
 				valid_scaffolds = set([])
-				gene_locs = genbank_info[sample][0]
-				scaff_genes = genbank_info[sample][1]
-				bound_genes = genbank_info[sample][2]
-				gito = genbank_info[sample][3]
-				goti = genbank_info[sample][4]
-
 				gene_locs_filt = {}
 				scaff_genes_filt = defaultdict(set)
 				bound_genes_filt = set([])
@@ -225,6 +241,12 @@ def loadTargetGenomeInfo(annotation_pickle_file, diamond_reuslts, valid_tg_sampl
 				boundary_genes[sample] = bound_genes_filt
 				gene_id_to_order[sample] = gito_filt
 				gene_order_to_id[sample] = goti_filt
+			else:
+				gene_locations[sample] = gene_locs
+				scaffold_genes[sample] = scaff_genes
+				boundary_genes[sample] = bound_genes
+				gene_id_to_order[sample] = gito
+				gene_order_to_id[sample] = goti
 
 	except Exception as e:
 		logObject.error('Issues with parsing CDS location information from genes of target genomes.')
@@ -329,7 +351,7 @@ def processDiamondBlastp(target_annot_information, diamond_results_file, work_di
 						diamond_results[lt].append([hg, best_hit_per_lt[lt][1], best_hit_per_lt[lt][2][i], sample,
 													best_hit_per_lt[lt][3][i], best_hit_per_lt[lt][4][i]])
 			except:
-				raise RuntimeError(traceback.format_exc())
+				#raise RuntimeError(traceback.format_exc())
 				sys.stderr.write('Warning: Did not detect homology whatsoever at requested e-value for sample %s\'s proteome.\n' % sample)
 				logObject.warning('Did not detect homology whatsoever at requested e-value for sample %s\'s proteome.' % sample)
 
@@ -482,7 +504,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 						 min_key_hits=3, draft_mode=False, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
 						 gc_emission_prob_with_hit=0.95,  gc_emission_prob_without_hit=0.2,
 						 syntenic_correlation_threshold=0.8, max_int_genes_for_merge=0,  kq_evalue_threshold=1e-20,
-						 flanking_context=1000, cpus=1, block_size=3000):
+						 flanking_context=1000, cpus=1, block_size=3000, gc_delineation_mode="GENE-CLUMPER"):
 	"""
 	Function to search for instances of Gene Cluster in samples using HMM based approach based on homolog groups as
 	characters. This function utilizes the convenient Python library Pomegranate.
@@ -603,13 +625,11 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 				# TODO switch to using global variables for large dictionaries to reference in parallelized task directly
 				identify_gc_segments_input.append([sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold,
 												   syntenic_correlation_threshold, max_int_genes_for_merge,
-												   flanking_context, draft_mode])
-				identify_gc_instances([sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold,
-												   syntenic_correlation_threshold, max_int_genes_for_merge,
-												   flanking_context, draft_mode])
-			#with multiprocessing.Manager() as manager:
-			#	with manager.Pool(cpus) as pool:
-			#		pool.map(identify_gc_instances, identify_gc_segments_input)
+												   flanking_context, draft_mode, gc_delineation_mode])
+
+			p = multiprocessing.Pool(cpus)
+			p.map(identify_gc_instances, identify_gc_segments_input)
+			p.close()
 
 		os.system('find %s -type f -name "*.bgcs.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_list_file))
 		os.system('find %s -type f -name "*.hg_evalues.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_hmm_evalues_file))
@@ -622,109 +642,183 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		sys.exit(1)
 
 def identify_gc_instances(input_args):
-	sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode = input_args
+	sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode, gc_delineation_mode = input_args
 	sample_gc_predictions = []
-	for scaffold in hgs_ordered_dict[sample]:
-		hgs_ordered = hgs_ordered_dict[sample][scaffold]
-		lts_ordered = lts_ordered_dict[sample][scaffold]
-		hg_seq = numpy.array(list(hgs_ordered))
-		hmm_predictions = model.predict(hg_seq)
-
-		int_bg_coords = set([])
-		tmp = []
-		for i, hg_state in enumerate(hmm_predictions):
-			if hg_state == 1:
-				tmp.append(i)
-			else:
-				if len(tmp) <= max_int_genes_for_merge:
-					for lt_index in tmp:
-						int_bg_coords.add(lt_index)
-				tmp = []
-
+	if gc_delineation_mode == 'GENE-CLUMPER':
 		gcs_id = 1
-		gc_state_lts = []
-		gc_state_hgs = []
-		for i, hg_state in enumerate(hmm_predictions):
-			lt = lts_ordered[i]
-			hg = hgs_ordered[i]
-			if hg_state == 0:
-				gc_state_lts.append(lt)
-				gc_state_hgs.append(hg)
-			if hg_state == 1 or i == (len(hmm_predictions) - 1):
-				if len(set(gc_state_hgs).difference('background')) >= 3:
-					boundary_lt_featured = False
-					features_key_hg = False
-					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
-						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
-								features_key_hg = True
-					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
-						boundary_lt_featured = True
-					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
-												   len(set(gc_state_hgs).difference("background")),
-												   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
-												   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
-					gcs_id += 1
-				gc_state_lts = []
-				gc_state_hgs = []
-
-		gc_state_lts = []
-		gc_state_hgs = []
-		gc_states = []
-		for i, hg_state in enumerate(hmm_predictions):
-			lt = lts_ordered[i]
-			hg = hgs_ordered[i]
-			if hg_state == 0 or i in int_bg_coords:
-				gc_state_lts.append(lt)
-				gc_state_hgs.append(hg)
-				gc_states.append(hg_state)
-			elif hg_state == 1:
-				if len(set(gc_state_hgs).difference('background')) >= 3:
-					if '1' in set(gc_states):
+		for scaffold in hgs_ordered_dict[sample]:
+			hgs_ordered = hgs_ordered_dict[sample][scaffold]
+			lts_ordered = lts_ordered_dict[sample][scaffold]
+			tmp = []
+			dist_counter = 0
+			hg_counter = 0
+			last_hg_i = 0
+			active_search_mode = False
+			for i, hg in enumerate(hgs_ordered):
+				if hg != 'background':
+					tmp.append(i)
+					dist_counter = 0
+					hg_counter += 1
+					last_hg_i = i
+					active_search_mode = True
+				elif dist_counter < max_int_genes_for_merge and active_search_mode:
+					tmp.append(i)
+					dist_counter += 1
+				else:
+					if hg_counter >= 3:
 						gc_state_lts = []
 						gc_state_hgs = []
-						gc_states = []
-						continue
-					boundary_lt_featured = False
-					features_key_hg = False
-					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
-						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
-								features_key_hg = True
-					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
-						boundary_lt_featured = True
-					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
-												   len(set(gc_state_hgs).difference("background")),
-												   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
-												   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
 
-					gcs_id += 1
+						begin_i = min(tmp)
+						if last_hg_i == (len(hgs_ordered)-1):
+							gc_state_lts = lts_ordered[begin_i:]
+							gc_state_hgs = hgs_ordered[begin_i:]
+						else:
+							gc_state_lts = lts_ordered[min(tmp):last_hg_i+1]
+							gc_state_hgs = hgs_ordered[min(tmp):last_hg_i+1]
+						boundary_lt_featured = False
+						features_key_hg = False
+						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
+							for j, lt in enumerate(gc_state_lts):
+								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+									features_key_hg = True
+						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
+							boundary_lt_featured = True
+						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
+													   len(set(gc_state_hgs).difference("background")),
+													   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+						gcs_id += 1
+					tmp = []
+					hg_counter = 0
+					dist_counter = 0
+					active_search_mode = False
+			if hg_counter >= 3:
 				gc_state_lts = []
 				gc_state_hgs = []
-				gc_states = []
-			if i == (len(hmm_predictions) - 1):
-				if len(set(gc_state_hgs).difference('background')) >= 3:
-					if '1' in set(gc_states):
-						gc_state_lts = []
-						gc_state_hgs = []
-						gc_states = []
-						continue
-					boundary_lt_featured = False
-					features_key_hg = False
-					if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
-						for j, lt in enumerate(gc_state_lts):
-							if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
-								features_key_hg = True
-					if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
-						boundary_lt_featured = True
-					sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
-												   len(set(gc_state_hgs).difference("background")),
-												   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
-												   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
-					gcs_id += 1
-				gc_state_lts = []
-				gc_state_hgs = []
-				gc_states = []
+				begin_i = min(tmp)
+				if last_hg_i == (len(hgs_ordered)-1):
+					gc_state_lts = lts_ordered[begin_i:]
+					gc_state_hgs = hgs_ordered[begin_i:]
+				else:
+					gc_state_lts = lts_ordered[min(tmp):last_hg_i + 1]
+					gc_state_hgs = hgs_ordered[min(tmp):last_hg_i + 1]
+				boundary_lt_featured = False
+				features_key_hg = False
+				if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
+					for j, lt in enumerate(gc_state_lts):
+						if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][
+							lt] <= kq_evalue_threshold:
+							features_key_hg = True
+				if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
+					boundary_lt_featured = True
+				sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
+											  len(set(gc_state_hgs).difference("background")),
+											  len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
+											  scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+				gcs_id += 1
+	else:
+		gcs_id = 1
+		for scaffold in hgs_ordered_dict[sample]:
+			hgs_ordered = hgs_ordered_dict[sample][scaffold]
+			lts_ordered = lts_ordered_dict[sample][scaffold]
+			hg_seq = numpy.array(list(hgs_ordered))
+			hmm_predictions = model.predict(hg_seq)
+
+			int_bg_coords = set([])
+			tmp = []
+			for i, hg_state in enumerate(hmm_predictions):
+				if hg_state == 1:
+					tmp.append(i)
+				else:
+					if len(tmp) <= max_int_genes_for_merge:
+						for lt_index in tmp:
+							int_bg_coords.add(lt_index)
+					tmp = []
+
+			gc_state_lts = []
+			gc_state_hgs = []
+			for i, hg_state in enumerate(hmm_predictions):
+				lt = lts_ordered[i]
+				hg = hgs_ordered[i]
+				if hg_state == 0:
+					gc_state_lts.append(lt)
+					gc_state_hgs.append(hg)
+				if hg_state == 1 or i == (len(hmm_predictions) - 1):
+					if len(set(gc_state_hgs).difference('background')) >= 3:
+						boundary_lt_featured = False
+						features_key_hg = False
+						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
+							for j, lt in enumerate(gc_state_lts):
+								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+									features_key_hg = True
+						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
+							boundary_lt_featured = True
+						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
+													   len(set(gc_state_hgs).difference("background")),
+													   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+						gcs_id += 1
+					gc_state_lts = []
+					gc_state_hgs = []
+
+			gc_state_lts = []
+			gc_state_hgs = []
+			gc_states = []
+			for i, hg_state in enumerate(hmm_predictions):
+				lt = lts_ordered[i]
+				hg = hgs_ordered[i]
+				if hg_state == 0 or i in int_bg_coords:
+					gc_state_lts.append(lt)
+					gc_state_hgs.append(hg)
+					gc_states.append(hg_state)
+				elif hg_state == 1:
+					if len(set(gc_state_hgs).difference('background')) >= 3:
+						if '1' in set(gc_states):
+							gc_state_lts = []
+							gc_state_hgs = []
+							gc_states = []
+							continue
+						boundary_lt_featured = False
+						features_key_hg = False
+						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
+							for j, lt in enumerate(gc_state_lts):
+								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+									features_key_hg = True
+						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
+							boundary_lt_featured = True
+						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
+													   len(set(gc_state_hgs).difference("background")),
+													   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+
+						gcs_id += 1
+					gc_state_lts = []
+					gc_state_hgs = []
+					gc_states = []
+				if i == (len(hmm_predictions) - 1):
+					if len(set(gc_state_hgs).difference('background')) >= 3:
+						if '1' in set(gc_states):
+							gc_state_lts = []
+							gc_state_hgs = []
+							gc_states = []
+							continue
+						boundary_lt_featured = False
+						features_key_hg = False
+						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
+							for j, lt in enumerate(gc_state_lts):
+								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+									features_key_hg = True
+						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
+							boundary_lt_featured = True
+						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
+													   len(set(gc_state_hgs).difference("background")),
+													   len(set(gc_state_hgs).difference("background").intersection(key_hgs)),
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+						gcs_id += 1
+					gc_state_lts = []
+					gc_state_hgs = []
+					gc_states = []
 
 	if len(sample_gc_predictions) == 0: return
 
@@ -744,7 +838,7 @@ def identify_gc_instances(input_args):
 				input_mode_3 = True
 
 			best_corr = 'irrelevant'
-			if not input_mode_3:
+			if not input_mode_3 and syntenic_correlation_threshold > 0.0:
 				best_corr = None
 				segment_hg_order = []
 				segment_hg_direction = []
@@ -945,12 +1039,17 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 		gbk_filt_dir = hmm_work_dir + 'GeneCluster_Filtered_Segments/'
 
 		relevant_samples = set([])
+		relevant_lts = set([])
 		if os.path.isdir(gbk_info_dir):
 			for gcs_info in os.listdir(gbk_info_dir):
 				if not gcs_info.endswith('.hg_evalues.txt') or os.path.getsize(gbk_info_dir + gcs_info) == 0: continue
 				sample = gcs_info.split('.hg_evalues.txt')[0]
 				relevant_samples.add(sample)
-
+				with open(gbk_info_dir + gcs_info) as ogif:
+					for line in ogif:
+						line = line.strip()
+						ls = line.split('\t')
+						relevant_lts.add(ls[2])
 		lt_dists_to_scaff_starts = defaultdict(dict)
 		lt_dists_to_scaff_ends = defaultdict(dict)
 		lt_starts = defaultdict(dict)
@@ -959,8 +1058,15 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 			with open(target_annotation_info[sample]['genbank']) as osgbk:
 				for rec in SeqIO.parse(osgbk, 'genbank'):
 					scaff_len = len(str(rec.seq))
+					scaff_is_relevant = False
 					for feature in rec.features:
 						if feature.type != 'CDS': continue
+						lt = feature.qualifiers.get('locus_tag')[0]
+						if lt in relevant_lts:
+							scaff_is_relevant = True
+							break
+					if not scaff_is_relevant: continue
+					for feature in rec.features:
 						lt = feature.qualifiers.get('locus_tag')[0]
 						all_coords = []
 						if not 'join' in str(feature.location):

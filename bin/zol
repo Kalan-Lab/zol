@@ -55,7 +55,7 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 		
-	*******************************************************************************************************************								
+	**************************************************************************************							
 		
                       oooooooooooo           ooooo        
                      d'''''''d888'           `888'        
@@ -65,46 +65,50 @@ def create_parser():
                        d888'    .P 888   888  888       o 
                      .8888888888P  `Y8bod8P' o888ooooood8 
 				
-	*******************************************************************************************************************								
+	**************************************************************************************
 	
-	zol is a lightweight alternative that can generate reports on conservation, annotation, and evolutionary 
-	statistics for defined orthologous/homologous loci (e.g. BGCs, phages, MGEs, or any genomic island / operon!).
+	zol is a lightweight alternative that can generate reports on conservation, annotation, 
+	and evolutionary statistics for defined orthologous/homologous loci (e.g. BGCs, phages, 
+	MGEs, or any genomic island / operon!).
 	
 	CONSIDERATIONS:
 
-	- It is advised that multiple GenBanks from the same genome/sample be concatenated into a multi-record
-	  GenBank to account for fragmentation of gene-clusters and properly calculate copy count of homolog groups.
-	- Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag to request new locus tags!
-	- Selection analyses will only be performed for homolog groups which are present in at least 4 input GenBanks.
+	* It is advised that multiple GenBanks from the same genome/sample be concatenated into 
+	  a multi-record GenBank to account for fragmentation of gene-clusters and properly 
+	  calculate copy count of homolog groups.
+	* Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag 
+	  to request new locus tags!
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
-	parser.add_argument('-it', '--identity_threshold', type=float, help='Minimum identity coverage for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 30.', required=False, default=30.0)
-	parser.add_argument('-ct', '--coverage_threshold', type=float, help='Minimum query coverage for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 50.', required=False, default=50.0)
-	parser.add_argument('-et', '--evalue_threshold', type=float, help='Maximum E-value for an alignment between protein pairs from two gene-clusters to consider in search for orthologs. Default is 0.001.', required=False, default=0.001)
-	parser.add_argument('-fl', '--filter_low_quality', action='store_true', help="Filter gene-clusters which feature alot of missing bases (>10 percent).", required=False, default=False)
-	parser.add_argument('-fd', '--filter_draft_quality', action='store_true', help="Filter gene-clusters which feature CDS features on the edge of contigs (those marked with attribute near_contig_edge=True by fai) or which are multi-record.", required=False, default=False)
+	parser.add_argument('-it', '--identity_threshold', type=float, help='Minimum identity coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 30].', required=False, default=30.0)
+	parser.add_argument('-ct', '--coverage_threshold', type=float, help='Minimum query coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 50].', required=False, default=50.0)
+	parser.add_argument('-et', '--evalue_threshold', type=float, help='Maximum E-value for an alignment between protein pairs from\ntwo gene-clusters to consider in search for orthologs.\n[Default is 0.001].', required=False, default=0.001)
+	parser.add_argument('-fl', '--filter_low_quality', action='store_true', help="Filter gene-clusters which feature alot of missing\nbases (>10 percent).", required=False, default=False)
+	parser.add_argument('-fd', '--filter_draft_quality', action='store_true', help="Filter records of gene-clusters which feature CDS\nfeatures on the edge of contigs (those marked with\nattribute near_contig_edge=True by fai) or which are\nmulti-record.", required=False, default=False)
 	parser.add_argument('-r', '--rename_lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
-	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani and single-linkage clustering or MCL.', required=False, default=False)
-	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform re-inflation with all gene-clusters of ortho-groups identified via dereplicated analysis.', required=False, default=False)
-	parser.add_argument('-dt', '--derep_identity', type=float, help='skani ANI threshold to use for dereplication. Default is 99.0.', required=False, default=99.0)
-	parser.add_argument('-dc', '--derep_coverage', type=float, help='skani aligned fraction threshold to use for dereplication. Default is 95.0', required=False, default=95.0)
-	parser.add_argument('-di', '--derep_inflation', type=float, help='Inflation parameter for MCL to use for dereplication of gene-clusters. If not specified single-linkage clustering will be used instead.', required=False, default=None)
-	parser.add_argument('-ibc', '--impute_broad_conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated with dereplicated representatives.')
+	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani\nand single-linkage clustering or MCL.', required=False, default=False)
+	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform re-inflation with all gene-clusters of\northo-groups identified via dereplicated analysis.', required=False, default=False)
+	parser.add_argument('-dt', '--derep_identity', type=float, help='skani ANI threshold to use for dereplication. [Default is 99.0].', required=False, default=99.0)
+	parser.add_argument('-dc', '--derep_coverage', type=float, help='skani aligned fraction threshold to use for\ndereplication. [Default is 95.0].', required=False, default=95.0)
+	parser.add_argument('-di', '--derep_inflation', type=float, help='Inflation parameter for MCL to use for dereplication of\ngene-clusters. If not specified single-linkage clustering\nwill be used instead.', required=False, default=None)
+	parser.add_argument('-ibc', '--impute_broad_conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated\nwith dereplicated representatives.')
 	parser.add_argument('-ces', '--comprehensive_evo_stats', action='store_true', help='Allow computing of evolutionary statistics for non-single-copy genes.', required=False, default=False)
-	parser.add_argument('-aec', '--allow_edge_cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute "near_scaffold_edge=True", which is set by fai for features within 2kb of contig edges. Default is False.', required=False, default=False)
-	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate. Default is False.", required=False, default=False)
-	parser.add_argument('-s', '--selection_analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Default is False because these are computationally intensive.", required=False, default=False)
+	parser.add_argument('-aec', '--allow_edge_cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute\n"near_scaffold_edge=True", which is set by fai for features\nwithin 2kb of contig edges.', required=False, default=False)
+	parser.add_argument('-q', '--use_super5', action='store_true', help="Use MUSCLE super5 for alignments - faster\nbut less accurate.", required=False, default=False)
+	parser.add_argument('-s', '--selection_analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. These are turned off by default because\nthey are computationally intensive.", required=False, default=False)
 	parser.add_argument('-sg', '--skip_gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster. Default is False because these are\ncomputationally intensive.", required=False, default=False)
-	parser.add_argument('-cd', '--custom_database', help='Path to FASTA file of protein sequences corresponding to a custom annotation database.', required=False, default=None)
-	parser.add_argument('-rgc', '--refine_gene_calling', action='store_true', help='Perform gene-calling refinement using custom database. All ortholog groups which don\'t match to a protein in the custom database will be ignored.', required=False, default=False)
+	parser.add_argument('-cd', '--custom_database', help='Path to FASTA file of protein sequences corresponding to a\ncustom annotation database.', required=False, default=None)
+	parser.add_argument('-rgc', '--refine_gene_calling', action='store_true', help='Perform gene-calling refinement using custom database.\nAll ortholog groups which don\'t match to a protein in the\ncustom database will be ignored.', required=False, default=False)
 	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the heatmap plot. Default is 7.', required=False, default=7)
 	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot. Default is 10.', required=False, default=14)
 	parser.add_argument('-fgl', '--full_genbank_labels', action='store_true', help='Use full GenBank labels instead of just the first 20 characters.', required=False, default=False)
 	parser.add_argument('-f', '--focal_genbanks', help='File with focal genbank(s) listed (one per line).', required=False, default=None)
 	parser.add_argument('-fc', '--comparator_genbanks', help='Optional file with comparator genbank(s) listed.\nDefault is to use remaining GenBanks as comparators to focal listing.', required=False, default=None)
+	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
+	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
+
 	args = parser.parse_args()
 	return args
 
@@ -145,6 +149,7 @@ def zolMain():
 	custom_database = myargs.custom_database
 	allow_edge_cds_flag = myargs.allow_edge_cds
 	refine_gene_calling_flag = myargs.refine_gene_calling
+	max_memory = myargs.max_memory
 
 	try:
 		assert (os.path.isdir(input_dir))
@@ -187,7 +192,7 @@ def zolMain():
 					    focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag,
 						ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, reinflate_flag, derep_identity,
 						derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, length, width,
-						full_genbank_labels, cpus]
+						full_genbank_labels, cpus, max_memory]
 	parameter_names = ["Input directory with Loci GenBanks", "Output directory",
 					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
 					   "Skip GARD Partitioning by Recombination Breakpoints?", "Focal GenBanks Listing",
@@ -198,9 +203,20 @@ def zolMain():
 					   "Perform Dereplication?", "Perform Reinflation?", "Dereplication Identity Threshold",
 					   "Dereplication Coverage Threshold", "Dereplication Clustering Method / MCL Inflation",
 					   "Custom Annotation Database", "Refine Gene Calling using the Custom Annotation Database",
-					   "Plot Height", "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested"]
+					   "Plot Height", "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested",
+					   "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
+
+	# set max memory limit
+	if max_memory != None:
+		logObject.info("Setting maximum memory usage to: %dGB" % max_memory)
+		sys.stdout.write("Setting maximum memory usage to: %dGB\n" % max_memory)
+		try:
+			util.memory_limit(max_memory)
+		except Exception as e:
+			logObject.info("Error setting memory limit")
+			sys.stdout.write("Error setting memory limit\n")
 
 	# Step 1: Gather Genbanks in Input Directory and Perform Dereplication if Specified
 	logObject.info('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory')
@@ -208,7 +224,7 @@ def zolMain():
 
 	genbanks = set([])
 	kept_dir = outdir + 'Dereplicated_GenBanks/'
-	local_gbk_dir = outdir + 'GenBanks_LT_Renamed/'
+	local_gbk_dir = outdir + 'Local_Modified_GenBanks/'
 	if os.path.isdir(kept_dir) and not reinflate_flag:
 		sys.stderr.write('Warning: Will be using previously dereplicated set of GenBanks located at %s\n' % kept_dir)
 		logObject.warning('Will be using previously dereplicated set of GenBanks located at %s' % kept_dir)
@@ -216,7 +232,7 @@ def zolMain():
 	try:
 		possible_lts = util.determinePossibleLTs()
 		lt_iter = 0
-		if rename_lt_flag:
+		if rename_lt_flag or filter_dq_flag:
 			util.setupReadyDirectory([local_gbk_dir])
 
 		ignored_files = 0
@@ -224,7 +240,7 @@ def zolMain():
 			for filename in files:
 				if filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank"):
 					genbank_file = os.path.join(dirpath, filename)
-					if not rename_lt_flag and util.checkValidGenBank(genbank_file, quality_assessment=filter_lq_flag, draft_assessment=filter_dq_flag):
+					if not rename_lt_flag and not filter_dq_flag and util.checkValidGenBank(genbank_file, quality_assessment=filter_lq_flag):
 						genbanks.add(genbank_file)
 					elif rename_lt_flag:
 						new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
@@ -232,6 +248,15 @@ def zolMain():
 						if os.path.isfile(new_gbk):
 							genbanks.add(new_gbk)
 							lt_iter += 1
+						else:
+							ignored_files += 1
+					elif filter_dq_flag:
+						new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
+						util.filterRecordsNearScaffoldEdge(genbank_file, new_gbk, logObject, quality_assessment=filter_lq_flag)
+						if os.path.isfile(new_gbk):
+							genbanks.add(new_gbk)
+						else:
+							ignored_files += 1
 					else:
 						ignored_files += 1
 

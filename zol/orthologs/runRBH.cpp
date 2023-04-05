@@ -13,6 +13,7 @@ intraClusterRBH <BLAST/DIAMOND output format 6 Result file>
 ""
 */
 
+#include <sys/resource.h>
 #include <iostream>
 #include <algorithm>
 #include <fstream>
@@ -23,7 +24,6 @@ intraClusterRBH <BLAST/DIAMOND output format 6 Result file>
 #include <map>
 #include <math.h>
 #include <tuple>
-
 using namespace std;
 
 string delim = "\t";
@@ -72,6 +72,7 @@ string doubleToString(double val) {
 	result = convertd.str();
 	return result;
 }
+
 
 int main (int argc, char* argv[]) {
     if ( argv[1]==NULL || argv[2]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {

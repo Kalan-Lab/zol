@@ -8,6 +8,7 @@ Large
 
 */
 
+#include <sys/resource.h>
 #include <iostream>
 #include <algorithm>
 #include <fstream>
@@ -18,6 +19,54 @@ Large
 #include <map>
 #include <math.h>
 using namespace std;
+
+
+/*
+NOT USED - INSTEAD MEMORY LIMITS APPLIED IN PYTHON PER SUBPROCESS JOB
+Code for limiting memory taken from Raul Salinas-Monteagudo's response:
+https://stackoverflow.com/questions/3774858/artificially-limit-c-c-memory-usage
+class RLimit {
+public:
+    RLimit(int cmd) : mCmd(cmd) {
+    }
+
+    void set(rlim_t value) {
+        clog << "Setting " << mCmd << " to " << value << endl;
+        struct rlimit rlim;
+        rlim.rlim_cur = value;
+        //rlim.rlim_max = value;
+        int ret = setrlimit(mCmd, &rlim);
+        if (ret) {
+            clog << "Error setting rlimit" << endl;
+        }
+    }
+
+    rlim_t getCurrent() {
+        struct rlimit rlim = {0, 0};
+        if (getrlimit(mCmd, &rlim)) {
+            clog << "Error in getrlimit" << endl;
+            return 0;
+        }
+        return rlim.rlim_cur;
+    }
+    rlim_t getMax() {
+        struct rlimit rlim = {0, 0};
+        if (getrlimit(mCmd, &rlim)) {
+            clog << "Error in getrlimit" << endl;
+            return 0;
+        }
+        return rlim.rlim_max;
+    }
+
+private:
+    int mCmd;
+};
+
+//Code which would be placed in main function
+RLimit dataLimit(RLIMIT_DATA);
+dataLimit.set(X*1024*1024);  // X = MB
+clog << "soft: " << dataLimit.getCurrent() << " hard: " << dataLimit.getMax() << endl;
+*/
 
 string delim = "\t";
 
@@ -40,6 +89,7 @@ vector<string> split (string s, string delimiter) {
     res.push_back (s.substr (pos_start));
     return res;
 }
+
 
 int main (int argc, char* argv[]) {
     if ( argv[1]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {

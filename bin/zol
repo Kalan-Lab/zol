@@ -579,7 +579,7 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
 	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, ces=ces_flag)
+	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, ces=ces_flag, run_hyphy=fubar_selection)
 
 	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
 	logObject.info('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')

@@ -25,16 +25,19 @@ plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
 def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1):
 	try:
 		reps = set([])
+		rep_to_hg = {}
 		with open(ortho_matrix_file) as oomf:
 			for i, line in enumerate(oomf):
 				if i == 0: continue
 				line = line.strip('\n')
 				ls = line.split('\t')
+				hg = ls[0]
 				for pids in ls[1:]:
 					for pid in pids.split(','):
 						pid = pid.strip()
 						reps.add(pid)
-				
+						rep_to_hg[pid] = hg
+
 		comp_prot_file = rog_dir + 'All_Proteins.faa'
 		os.system('find %s -type f -name "*.faa" -exec cat {} + >> %s' % (prot_dir, comp_prot_file))
 
@@ -53,18 +56,28 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 			logObject.error(e)
 			raise RuntimeError(e)
 
-		# maybe make more robust later - assumption that representative is first in clusters file
 		cluster_rep = None
-		protein_to_clust = {}
 		clust_proteins = defaultdict(set)
+		protein_to_clust = {}
+		tmp = []
 		with open(cdhit_cluster_file) as occf:
 			for line in occf:
 				line = line.strip()
-				if line.startswith('>'): continue
+				if line.startswith('>'):
+					if len(tmp) > 0 and cluster_rep != None:
+						for lt in tmp:
+							protein_to_clust[lt] = cluster_rep
+							clust_proteins[cluster_rep].add(lt)
+					tmp = []
+					cluster_rep = None
+					continue
 				ls = line.split()
 				lt = ls[2][1:-3]
 				if line.endswith(' *'):
 					cluster_rep = lt
+				tmp.append(lt)
+		if len(tmp) > 0 and cluster_rep != None:
+			for lt in tmp:
 				protein_to_clust[lt] = cluster_rep
 				clust_proteins[cluster_rep].add(lt)
 
@@ -89,15 +102,18 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 					for pid in pids.split(','):
 						pid = pid.strip()
 						if pid == '': continue
-						if pid in accounted:
-							sys.stderr.write('Warning: The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.\n' % (pid, hg))
-							logObject.warning('The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.' % (pid, hg))
-						accounted.add(pid)
 						cluster_obs.add(protein_to_clust[pid])
 						all_pids_by_sample[pid.split('|')[0]].add(pid)
 				for clust in cluster_obs:
 					for pid in clust_proteins[clust]:
-						all_pids_by_sample[pid.split('|')[0]].add(pid)
+						if pid in reps and rep_to_hg[pid] != hg:
+							sys.stderr.write('Warning: The protein %s is a representative of homolog group %s, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.\n' % (pid, rep_to_hg[pid], hg))
+							logObject.warning('The protein %s is a representative of a homolog group %s, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.' % (pid, rep_to_hg[pid], hg))
+						elif pid in accounted:
+							sys.stderr.write('Warning: The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.\n' % (pid, hg))
+							logObject.warning('The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.' % (pid, hg))
+						else:
+							all_pids_by_sample[pid.split('|')[0]].add(pid)
 						accounted.add(pid)
 				row = [hg]
 				for sample in sorted(list(all_samples)):
@@ -1194,33 +1210,37 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 				if f.endswith('.best.FUBAR.json'):
 					hg = f.split('.best.FUBAR.json')[0]
 				fubar_json_result = fubar_results_dir + f
-				with open(fubar_json_result) as ofjr:
-					fubar_results = json.load(ofjr)
-				pos_selected_sites = 0
-				neg_selected_sites = 0
-				sum_deba = 0
-				tot_sites= 0
-				for partition in fubar_results['MLE']['content']:
-					for site_mle_info in fubar_results['MLE']['content'][partition]:
-						tot_sites += 1
-						alpha, beta, diff, prob_agb, prob_alb, bayesfactor, _, _ = site_mle_info
-						sum_deba += (beta - alpha)
-						if prob_agb >= 0.9:
-							neg_selected_sites += 1
-						if prob_alb >= 0.9:
-							pos_selected_sites += 1
-				tot_selected_sites = pos_selected_sites + neg_selected_sites
-				prop_selected_sites_positive = 'NA'
-				if tot_selected_sites >= 1:
-					prop_selected_sites_positive = float(pos_selected_sites)/float(neg_selected_sites+pos_selected_sites)
-				fubar_sel_props[hg] = prop_selected_sites_positive
-				fubar_sel_sites[hg] = tot_selected_sites # /float(tot_sites) TODO: make this proportion - more useful!!
-				avg_deba = "NA"
-				if tot_sites > 0:
-					avg_deba = sum_deba/float(tot_sites)
-				fubar_deba[hg] = avg_deba
-				# TODO: process "grid" field in FUBAR results to get most probable dN/dS ratio
-
+				try:
+					with open(fubar_json_result) as ofjr:
+						fubar_results = json.load(ofjr)
+					pos_selected_sites = 0
+					neg_selected_sites = 0
+					sum_deba = 0
+					tot_sites= 0
+					for partition in fubar_results['MLE']['content']:
+						for site_mle_info in fubar_results['MLE']['content'][partition]:
+							tot_sites += 1
+							alpha, beta, diff, prob_agb, prob_alb, bayesfactor, _, _ = site_mle_info
+							sum_deba += (beta - alpha)
+							if prob_agb >= 0.9:
+								neg_selected_sites += 1
+							if prob_alb >= 0.9:
+								pos_selected_sites += 1
+					tot_selected_sites = pos_selected_sites + neg_selected_sites
+					prop_selected_sites_positive = 'NA'
+					if tot_selected_sites >= 1:
+						prop_selected_sites_positive = float(pos_selected_sites)/float(neg_selected_sites+pos_selected_sites)
+					fubar_sel_props[hg] = prop_selected_sites_positive
+					fubar_sel_sites[hg] = tot_selected_sites # /float(tot_sites) TODO: make this proportion - more useful!!
+					avg_deba = "NA"
+					if tot_sites > 0:
+						avg_deba = sum_deba/float(tot_sites)
+					fubar_deba[hg] = avg_deba
+					# TODO: process "grid" field in FUBAR results to get most probable dN/dS ratio
+				except:
+					fubar_sel_props[hg] = 'NA'
+					fubar_sel_sites[hg] = 'NA'
+					fubar_deba[hg] = 'NA'
 
 		return([gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_deba])
 	except Exception as e:

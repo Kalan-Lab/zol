@@ -144,7 +144,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Major Updates 
+## Major Updates  
 
 ### Version 1.2
 
@@ -153,6 +153,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - New "Gene-Clumper" mode for gene-cluster discovery in fai, which is now the default.
 - Fixed bug pertaining to overlap between merged gene-clusters based on `--max_gene_disconnect` parameter when using "HMM" mode.
 - Improved filtering and retention of GenBanks in zol.
+- Fixed bug in re-inflation method in zol.
 
 ### Version 1.01
 

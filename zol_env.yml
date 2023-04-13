@@ -8,8 +8,6 @@ dependencies:
   - pip=22.1.2
   - biopython=1.79
   - conda-forge::cxx-compiler
-  - bioconda::bowtie2=2.4.5
-  - bioconda::samtools=1.12
   - bioconda::muscle
   - bioconda::mcl=14.137
   - bioconda::pal2nal=14.1
@@ -24,7 +22,6 @@ dependencies:
   - conda-forge::scikit-learn
   - conda-forge::axel
   - bioconda::hyphy
-  - bioconda::fastme
   - conda-forge::pomegranate=0.13.3
   - bioconda::cd-hit
   - bioconda::ncbi-genome-download

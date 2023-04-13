@@ -102,10 +102,12 @@ For details on the stats/annotations zol infers, please refer to the [zol](https
 #### Manuscript in preparation! Please cite this GitRepo in the meantime if you find it useful!
 
 **Please consider citing the following dependencies!**
+* **pyrodigal**, **prodigal**, and **miniprot** for gene-calling/mapping.
 * **MUSCLE5** for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
 * **DIAMOND** for alignments in determining homolog groups and **FastTree2** for subsequent phylogeny construction.
+* **CD-HIT** for query protein clustering in fai and 're-inflation' approach in zol.
 * **HyPhy** and **FASTME** for selection analyses.
-* **FastANI** for dereplication of gene-clusters/GenBanks.
+* **skani** for dereplication of gene-clusters/GenBanks.
 * **antiSMASH, GECCO, DeepBGC, VIBRANT**, or **ICEfinder** if you used to identify a BGC, phage, or ICEs.
 * **PFAM, KEGG, NCBI's PGAP, MIBIG, VOG, VFDB, CARD,** and **ISFinder** databases used for annotation. 
 * **lsaBGC, BiG-SCAPE/CORASON, cblaster**, or **BiG-SLICE** studies if you used them to identify homologous BGCs.

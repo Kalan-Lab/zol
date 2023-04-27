@@ -8,7 +8,7 @@ The tools are also designed to explore a single set of homologous gene-clusters 
 
 zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker) and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
 
-Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC). This includes HyPhy-based selection inference and gene tree to gene-cluster tree concordance statistics.
+Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC), including HyPhy-based site-specific selection inferences.
 
 ![overview_for_github](https://user-images.githubusercontent.com/4260723/229955061-64d32132-f016-485d-9cd9-8493f2de5dd5.png)
 

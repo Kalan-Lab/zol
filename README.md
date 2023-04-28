@@ -148,7 +148,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Major Updates  
 
-### Version 1.2
+### Version 1.02
 
 - prepTG sample to GenBank relations now specified locally so creation of database is not locked into one location.
 - Individual pickle files produced by prepTG per genome/metagenome for lower memory use with fai.

@@ -6,7 +6,7 @@ zol and fai are similar to functionalities offered in [lsaBGC](https://github.co
 
 The tools are also designed to explore a single set of homologous gene-clusters (e.g. a single GCF), not the BGC-ome of an entire genus or species like [lsaBGC](https://github.com/Kalan-Lab/lsaBGC).
 
-zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker) and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
+zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
 
 Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC), including HyPhy-based site-specific selection inferences.
 

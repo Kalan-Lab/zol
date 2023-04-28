@@ -154,7 +154,7 @@ def zolMain():
 	try:
 		assert (os.path.isdir(input_dir))
 	except:
-		sys.stderr.write('Input .\n')
+		sys.stderr.write('Input directory does not exist.\n')
 		sys.exit(1)
 
 	if os.path.isdir(outdir):

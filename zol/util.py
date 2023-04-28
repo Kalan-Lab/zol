@@ -428,10 +428,10 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 					final_upstream_region = None
 					edgy_cds = False
 
-					#try:
-					#	final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
-					#except:
-					final_upstream_region = upstream_region
+					try:
+						final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
+					except:
+						final_upstream_region = upstream_region
 
 					try:
 						final_nucl_seq = feature.qualifiers.get('open_reading_frame')[0]

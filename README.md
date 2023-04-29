@@ -1,22 +1,25 @@
 # *zol (& fai)*
 
-zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!)
+Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!)
 
 zol and fai are similar to functionalities offered in [lsaBGC](https://github.com/Kalan-Lab/lsaBGC) but are designed to broadly look at similarities between a variety of gene clusters.
 
 The tools are also designed to explore a single set of homologous gene-clusters (e.g. a single GCF), not the BGC-ome of an entire genus or species like [lsaBGC](https://github.com/Kalan-Lab/lsaBGC).
 
+Critically, ***with the development of some key options, together, fai and zol enable high-throughput detection of orthologs across multi-species datasets comprising of thousands of genomes.***
+
 zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
 
 Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC), including HyPhy-based site-specific selection inferences.
 
-![overview_for_github](https://user-images.githubusercontent.com/4260723/229955061-64d32132-f016-485d-9cd9-8493f2de5dd5.png)
+![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 
 ### Zoom on Locus (zol) and Find Additional Instances (fai)
 
-**`zol`** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest (works for eukaryotes, but designed for bacteria).
+**`zol`** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports.
 
-**`fai`** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes (bacteria specific, soon to work for eukaryotes). Inspired by cblaster (in concept) and ClusterFinder (in algorithm). Works similar to our lsaBGC-Expansion.py program described in the lsaBGC manuscript. Users would need to prepare a set of genomes for searching using **`prepTG`**. It aims to find really similar instances of gene-clusters in a rapid and automated fashion, for more divergent searches, we recommend users check out [cblaster](https://github.com/gamcil/cblaster), which offers a more interactive experience for users to select desired gene-clusters. 
+**`fai`** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes. Inspired by cblaster, CORASON, ClusterFinder, MultiGeneBlast, etc. It leverages DIAMOND alignment similar to [cblaster](https://github.com/gamcil/cblaster) and runs fairly rapidly (allowing it to scale to thousands of genomes and even work on metagenomic assemblies). fai features some key differentiating options relative to other software: (i) can assess syntenic similarity of candidate homologous gene clusters to the query gene cluster, (ii) can allow for looser criteria thresholds for gene cluster detection in target genomes if multiple neighborhoods are identified as homologous and on scaffold edges (thus improving fragmented gene cluster identification due to assembly issues) - similar to lsaBGC-Expansion, (iii) filter secondary neighborhoods - e.g. homologous gene neighborhoods to the query which meet the criteria but are not the best match.
+
 ### Installation:
 
 ```bash
@@ -61,7 +64,7 @@ For additoinal details on prepTG (e.g. how to download genomes from NCBI), pleas
 
 ### fai (finding homologous instances)
 
-fai uses an HMM-based approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters using an approach very much analogous to lsaBGC-Expansion.py. It is more general, has flexibility in input types, and offers additional parameters/conditions for user adjustment:
+fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters:
 
 1. Provide GenBank(s) of known instance(s) of gene cluster in an input directory
 
@@ -80,16 +83,15 @@ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -
 ```bash
 fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
-
 For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai](https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai) wiki page.
 
 ### zol (generating table reports)
 
 ```bash
-zol.py -i Genbanks_Directory/ -g Genomes_Directory/ -o Results/
+zol.py -i Genbanks_Directory/ -o zol_Results/
 ```
 
-zol produces an xlsx spreadsheet report where rows correspond to each individual orthogroup/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
+zol produces an xlsx spreadsheet report where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
 
 Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MI-BiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 

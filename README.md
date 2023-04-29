@@ -69,7 +69,7 @@ fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" appr
 1. Provide GenBank(s) of known instance(s) of gene cluster in an input directory
 
 ```bash
-fai -i Known_GeneCluster_Genbanks/ -sg Search_Genomes/ -tg prepTG_Database/ -o fai_Results/
+fai -i Known_GeneCluster_Genbanks/ -tg prepTG_Database/ -o fai_Results/
 ```
 
 2. Provide gene-cluster coordinates along a FASTA reference genome 

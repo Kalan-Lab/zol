@@ -4,13 +4,9 @@ Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative 
 
 zol and fai are similar to functionalities offered in [lsaBGC](https://github.com/Kalan-Lab/lsaBGC) but are designed to broadly look at similarities between a variety of gene clusters.
 
-The tools are also designed to explore a single set of homologous gene-clusters (e.g. a single GCF), not the BGC-ome of an entire genus or species like [lsaBGC](https://github.com/Kalan-Lab/lsaBGC).
-
 Critically, ***with the development of some key options, together, fai and zol enable high-throughput detection of orthologs across multi-species datasets comprising of thousands of genomes.***
 
 zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
-
-Some features in zol reports are more up to date than lsaBGC (but we plan to incorporate these in future versions of lsaBGC), including HyPhy-based site-specific selection inferences.
 
 ![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 

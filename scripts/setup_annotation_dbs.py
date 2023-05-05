@@ -77,9 +77,9 @@ def setup_annot_dbs():
             print('Setting up PGAP database!')
             os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
             assert (os.path.isfile(pgap_info_file))
-            assert (os.path.isdir(download_path + 'hmm_PGAP/'))
-            for f in os.listdir(download_path + 'hmm_PGAP/'):
-                os.system(' '.join(['cat', download_path + 'hmm_PGAP/' + f, '>>', pgap_phmm_file]))
+            assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+            for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
+                os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
             pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
             pdf_handle = open(pgap_descriptions_file, 'w')
             with open(pgap_info_file) as opil:
@@ -95,7 +95,7 @@ def setup_annot_dbs():
             os.system(' '.join(['hmmpress', pgap_phmm_file]))
             listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\n')
             os.system(' '.join(
-                ['rm', '-rf', download_path + 'hmm_PGAP/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+                ['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
         except Exception as e:
             sys.stderr.write('Issues setting up PGAP database.\n')
             sys.stderr.write(str(e) + '\n')

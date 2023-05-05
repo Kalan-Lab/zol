@@ -142,9 +142,13 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-## Major Updates  
+## Updates  
 
-### Version 1.02
+### Minor Update - 05/05/2023
+
+- update parsing of PGAP HMMs directory after extracting with tar.
+
+### Version 1.2/1.02
 
 - prepTG sample to GenBank relations now specified locally so creation of database is not locked into one location.
 - Individual pickle files produced by prepTG per genome/metagenome for lower memory use with fai.
@@ -153,7 +157,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 - Improved filtering and retention of GenBanks in zol.
 - Fixed bug in re-inflation method in zol.
 
-### Version 1.01
+### Version 1.1/1.01
 
 - Remove unused individual proteome files in prepTG database directory.
 - Store only gene-location information for scaffolds with hits by query proteins in fai to keep memory use low.

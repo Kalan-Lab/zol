@@ -9,7 +9,6 @@ from operator import itemgetter
 from collections import defaultdict
 import traceback
 from scipy import stats
-from ete3 import Tree
 import numpy as np
 import gzip
 import pathlib
@@ -226,18 +225,6 @@ def p_adjust_bh(p):
 	steps = float(len(p)) / np.arange(len(p), 0, -1)
 	q = np.minimum(1, np.minimum.accumulate(steps * p[by_descend]))
 	return q[by_orig]
-
-
-def is_newick(newick):
-	"""
-	Function to validate if Newick phylogeny file is correctly formatted.
-	"""
-	try:
-		t = Tree(newick)
-		return True
-	except:
-		return False
-
 
 def is_fastq(fastq):
 	"""
@@ -621,69 +608,10 @@ def loadSampleToGCFIntoPandaDataFrame(gcf_listing_dir):
 		raise RuntimeError(traceback.format_exc())
 	return panda_df
 
-def calculateSelectDistances(newick_file, selected_pairs):
-	try:
-		t = Tree(newick_file)
-		leafs = set([])
-		for node in t.traverse('postorder'):
-			if node.is_leaf():
-				leafs.add(node.name)
-		pw_info = defaultdict(lambda: "nan")
-		for i, n1 in enumerate(sorted(leafs)):
-			for j, n2 in enumerate(sorted(leafs)):
-				if i >= j: continue
-				if n1 == n2: continue
-				gn1 = n1.split('|')[0]
-				gn2 = n2.split('|')[0]
-				pw_key = tuple([gn1, gn2])
-				pw_dist = t.get_distance(n1, n2)
-				if pw_key in selected_pairs:
-					if pw_key in pw_info and pw_dist < pw_info[pw_key]:
-						pw_info[pw_key] = pw_dist
-					else:
-						pw_info[pw_key] = pw_dist
-		return (pw_info)
-	except Exception as e:
-		sys.stderr.write('Issues with calculating pairwise distances for tree: %s.\n' % newick_file)
-		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
-		sys.exit(1)
-
-def computeCongruence(hg, gene_tree, gc_pw_info, selected_pairs, outf, logObject):
-	try:
-		hg_pw_info = calculateSelectDistances(gene_tree, selected_pairs)
-		hg_pw_dists_filt = []
-		gc_pw_dists_filt = []
-		for pair in selected_pairs:
-			if hg_pw_info[pair] != 'nan' and gc_pw_info[pair] != 'nan':
-				hg_pw_dists_filt.append(hg_pw_info[pair])
-				gc_pw_dists_filt.append(gc_pw_info[pair])
-
-		congruence_slope = 'NA'
-		congruence_rvalue = 'NA'
-		if hg_pw_dists_filt == gc_pw_dists_filt:
-			congruence_slope = '1.0'
-			congruence_rvalue = '1.0'
-		elif len(hg_pw_dists_filt) >= 3:
-			try:
-				slope, _, rvalue, pvalue, _ = stats.linregress(gc_pw_dists_filt, hg_pw_dists_filt)
-			except:
-				slope = 'nan'
-				rvalue = 'nan'
-			if slope != 'nan' and rvalue != 'nan':
-				congruence_slope = float(slope)
-				congruence_rvalue = float(rvalue)
-		out_handle = open(outf, 'w')
-		out_handle.write(str(congruence_slope) + '\t' + str(congruence_rvalue) + '\n')
-		out_handle.close()
-
-	except Exception as e:
-		sys.stderr.write('Issues with computing congruence of gene tree for homolog group %s to gene-cluster consensus tree.\n' % hg)
-		logObject.error('Issues with computing congruence of gene tree for homolog group %s to gene-cluster consensus tree.' % hg)
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-
 def checkCoreHomologGroupsExist(ortho_matrix_file):
+	"""
+	Function to check that a core ortholog/homolog group exists across homologous gene-clusters.
+	"""
 	try:
 		core_hgs = set([])
 		with open(ortho_matrix_file) as omf:

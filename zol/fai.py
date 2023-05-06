@@ -622,7 +622,6 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 					hgs_ordered_dict[sample][scaffold] = hgs_ordered
 					lts_ordered_dict[sample][scaffold] = lts_ordered
 
-				# TODO switch to using global variables for large dictionaries to reference in parallelized task directly
 				identify_gc_segments_input.append([sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold,
 												   syntenic_correlation_threshold, max_int_genes_for_merge,
 												   flanking_context, draft_mode, gc_delineation_mode])

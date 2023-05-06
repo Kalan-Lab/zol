@@ -1811,7 +1811,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
 		dd_sheet.write(0, 0, 'WARNING: some evolutionary statistics are experimental - evaluate with caution!!!')
 		dd_sheet.write(1, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki at:')
-		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-zol#explanation-of-report')
+		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
 
 		numeric_columns = {'Proportion of Total Gene Clusters with HG', 'Proportion of Focal Gene Clusters with HG',
 						   'Proportion of Comparator Gene Clusters with HG', 'Fixation Index',
@@ -2032,8 +2032,8 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 			assert (os.path.isfile(plot_result_pdf))
 			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
 		except Exception as e:
-			logObject.error('Had an issue running R based plotting: %s' % ' '.join(plot_cmd))
-			sys.stderr.write('Had an issue running R based plotting: %s\n' % ' '.join(plot_cmd))
+			logObject.error('Had an issue running R based plotting - potentially because of R setup issues in conda: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
 			logObject.error(e)
 			sys.exit(1)
 	except Exception as e:
@@ -2041,141 +2041,3 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 		logObject.error('Issues creating visualizations.')
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
-
-"""
-def runTreemmer(genbanks, gene_cluster_tree, max_for_visualization, logObject):
-	representative_genbanks = set([])
-	try:
-		if len(genbanks) <= max_for_visualization:
-			for gbk in genbanks:
-				representative_genbanks.add('.'.join(gbk.split('/')[-1].split('.')[:-1]))
-		else:
-			retain_listing_file = gene_cluster_tree + '_trimmed_list_X_' + str(max_for_visualization)
-			treemmer_cmd = ['python', treemmer_prog, '-X=' + str(max_for_visualization), gene_cluster_tree]
-			try:
-				subprocess.call(' '.join(treemmer_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-								executable='/bin/bash')
-				assert (os.path.isfile(retain_listing_file))
-				logObject.info('Successfully ran: %s' % ' '.join(treemmer_cmd))
-			except Exception as e:
-				logObject.error('Had an issue running Treemmer: %s' % ' '.join(treemmer_cmd))
-				sys.stderr.write('Had an issue running Treemmer: %s\n' % ' '.join(treemmer_cmd))
-				logObject.error(e)
-				sys.exit(1)
-			with open(retain_listing_file) as orlf:
-				for line in orlf:
-					line = line.strip()
-					representative_genbanks.add(line)
-	except Exception as e:
-		sys.stderr.write('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.\n')
-		logObject.error('Issues running Treemmer to reduce the set of input GenBanks to a representative set for easier visualization with clinker.')
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-	return(representative_genbanks)
-
-def runGeneTreeCongruenceAnalysis(genbanks, tree_dir, gtc_results_dir, logObject, subsample_max=1000):
-	try:
-		# Run STAG by David Emms and Steve Kelley
-		stag_map_file = gtc_results_dir + 'Species_Mapping.txt'
-		smf_handle = open(stag_map_file, 'w')
-		prefices = []
-		for gbk in genbanks:
-			prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-			prefices.append(prefix)
-			smf_handle.write(prefix + '|*\t' + prefix + '\n')
-		smf_handle.close()
-
-		stag_cmd = [stag_prog, stag_map_file, tree_dir]
-		result_gc_tree = None
-		try:
-			subprocess.call(' '.join(stag_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			par_dir_with_species_tree = '/'.join(os.path.abspath(tree_dir).split('/')[:-1]) + '/'
-			for sd in os.listdir(par_dir_with_species_tree):
-				if sd.startswith("STAG"):
-					result_gc_tree = par_dir_with_species_tree + sd + '/SpeciesTree.tre'
-			assert(os.path.isfile(result_gc_tree))
-			logObject.info('Successfully ran: %s' % ' '.join(stag_cmd))
-		except Exception as e:
-			logObject.error('Had an issue running STAG: %s' % ' '.join(stag_cmd))
-			sys.stderr.write('Had an issue running STAG: %s\n' % ' '.join(stag_cmd))
-			logObject.error(e)
-			sys.exit(1)
-
-		all_pairwise_combinations = itertools.combinations(sorted(prefices), 2)
-		all_pairwise_combinations = sorted(list(all_pairwise_combinations))
-		num_total_pairwise = len(all_pairwise_combinations)
-		subsample_size = min(subsample_max, num_total_pairwise)
-		selected_pairs = random.sample(all_pairwise_combinations, k=subsample_size)
-
-		gc_pw_info = util.calculateSelectDistances(result_gc_tree, selected_pairs)
-		hg_to_gc_congruence_slope = {}
-		hg_to_gc_congruence_rvalue = {}
-		for hgt in os.listdir(tree_dir):
-			hg = hgt.split('.tre')[0]
-			outf = gtc_results_dir + hg + '.txt'
-			util.computeCongruence(hg, tree_dir + hgt, gc_pw_info, selected_pairs, outf, logObject)
-
-		for f in os.listdir(gtc_results_dir):
-			if f == 'Species_Mapping.txt': continue
-			hg = f.split('.txt')[0]
-			with open(gtc_results_dir + f) as ogf:
-				for line in ogf:
-					line = line.strip()
-					slope, rvalue = line.split('\t')
-					hg_to_gc_congruence_slope[hg] = slope
-					hg_to_gc_congruence_rvalue[hg] = rvalue
-		return([result_gc_tree, hg_to_gc_congruence_slope, hg_to_gc_congruence_rvalue])
-	except Exception as e:
-		sys.stderr.write('Issues with running gene tree to gene-cluster tree congruence analysis.\n')
-		logObject.error('Issues with running gene tree to gene-cluster tree congruence analysis.')
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-
-# clinker is great but I was having trouble with mapping proteins to homolog groups so it will be akin 
-# running the tool itself on the raw data. If you are reading this check out clinker!
-def runClinker(genbanks, hg_lts, representative_genbanks, fin_dir, work_dir, logObject):
-	try:
-		renamed_lts_dir = work_dir + 'GenBanks_LTs_Renamed/'
-		util.setupReadyDirectory([renamed_lts_dir])
-		input_gbks = []
-		for gbk in genbanks:
-			gbk_name = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-			if not gbk_name in representative_genbanks: continue
-			updated_gbk = renamed_lts_dir + gbk.split('/')[-1]
-			ug_handle = open(updated_gbk, 'w')
-			with open(gbk) as ogbk:
-				for rec in SeqIO.parse(ogbk, 'genbank'):
-					for feature in rec.features:
-						if not feature.type == 'CDS': continue
-						lt = feature.qualifiers.get('locus_tag')[0]
-						feature.qualifiers['locus_tag'] = gbk_name + '|' + lt
-					SeqIO.write(rec, ug_handle, 'genbank')
-			ug_handle.close()
-			input_gbks.append(updated_gbk)
-		hg_mapping_file = work_dir + 'Locus_Tag_to_Homolog_Group_Mapping.csv'
-		hmf_handle = open(hg_mapping_file, 'w')
-		for hg in hg_lts:
-			for lt in hg_lts[hg]:
-				if lt.split('|')[0] in representative_genbanks:
-					hmf_handle.write(lt.split('|')[-1] + ',' + hg + '\n')
-		hmf_handle.close()
-
-		result_html = fin_dir + 'clinker_Visual_of_Representative_Gene_Clusters.html'
-		clinker_cmd = ['clinker', '-gf', hg_mapping_file, '-p', result_html] + input_gbks
-		try:
-			subprocess.call(' '.join(clinker_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			assert (os.path.isfile(result_html))
-			logObject.info('Successfully ran: %s' % ' '.join(clinker_cmd))
-		except Exception as e:
-			logObject.error('Had an issue running clinker: %s' % ' '.join(clinker_cmd))
-			sys.stderr.write('Had an issue running clinker: %s\n' % ' '.join(clinker_cmd))
-			logObject.error(e)
-			sys.exit(1)
-	except Exception as e:
-		sys.stderr.write('Issues running clinker or creating inputs for clinker.\n')
-		logObject.error('Issues running clinker or creating inputs for clinker.')
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-"""

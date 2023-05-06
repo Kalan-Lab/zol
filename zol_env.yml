@@ -4,24 +4,23 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.9
-  - pip=22.1.2
+  - "python>=3.8"
+  - pip
   - biopython=1.79
   - conda-forge::cxx-compiler
   - bioconda::muscle
-  - bioconda::mcl=14.137
-  - bioconda::pal2nal=14.1
-  - bioconda::hmmer=3.3.2
-  - bioconda::fasttree=2.1.11
-  - conda-forge::ete3=3.1.2
-  - bioconda::diamond=2.0.15
-  - bioconda::prodigal=2.6.3
-  - bioconda::pyrodigal
-  - conda-forge::pandas
-  - conda-forge::xlsxwriter=3.0.3
-  - conda-forge::scikit-learn
-  - conda-forge::axel
-  - bioconda::hyphy
+  - bioconda::mcl
+  - "pal2nal>=14.1"
+  - "hmmer>=3.0.0"
+  - "fasttree>=2.0.0"
+  - bioconda:diamond=2.0.15
+  - prodigal
+  - pyrodigal
+  - "pandas>=2.0"
+  - "xlsxwriter>=3.0.3"
+  - scikit-learn
+  - axel
+  - "hyphy>=2.5.14"
   - conda-forge::pomegranate=0.13.3
   - bioconda::cd-hit
   - bioconda::ncbi-genome-download

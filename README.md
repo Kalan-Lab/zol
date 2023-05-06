@@ -144,6 +144,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### Version 1.2.1
+
+- add line in beginning of fai to request "fork" method for multiprocessing to work on macOS with python >=v3.8.
+- clean up unused functions and simplify yaml file for specifying conda environment.
+
 ### Minor Update - 05/05/2023
 
 - update parsing of PGAP HMMs directory after extracting with tar.

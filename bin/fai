@@ -41,14 +41,12 @@
 import os
 import sys
 import argparse
-from Bio import SeqIO
 from time import sleep
 from zol import util, fai
 import subprocess
 import pickle
 import shutil
-import math
-
+import multiprocessing
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
 def create_parser():
@@ -524,4 +522,5 @@ def faiMain():
 	sys.exit(0)
 
 if __name__ == '__main__':
+	multiprocessing.set_start_method('fork')
 	faiMain()

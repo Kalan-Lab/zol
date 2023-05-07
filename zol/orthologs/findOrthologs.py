@@ -49,6 +49,14 @@ import shutil
 split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResults'
 rbh_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/runRBH'
 
+if not os.path.isfile(rbh_prog) or not os.path.isfile(split_diamond_results_prog):
+	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+	rbh_prog = zol_exec_directory + 'runRBH'
+	split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
+	if not os.path.isfile(rbh_prog) or not os.path.isfile(split_diamond_results_prog):
+		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
+		sys.exit(1)
+
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""               

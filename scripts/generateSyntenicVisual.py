@@ -6,7 +6,6 @@ from time import sleep
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'scripts/generateSyntenicVisual.R'
-
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""

@@ -41,9 +41,6 @@ import argparse
 from time import sleep
 import shutil
 from zol import util
-
-lsaBGC_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""

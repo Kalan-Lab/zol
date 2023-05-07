@@ -18,6 +18,13 @@ import pickle
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/plotSegments.R'
 split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
+if not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
+	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+	plot_prog = zol_exec_directory + 'plotSegments.R'
+	split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
+	if not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
+		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
+		sys.exit(1)
 
 def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, reference_contig, reference_start, reference_end, logObject):
 	try:

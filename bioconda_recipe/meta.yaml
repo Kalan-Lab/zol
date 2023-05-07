@@ -1,0 +1,66 @@
+{% set name = "zol" %}
+{% set version = "1.2.2" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/rauf/zol/releases/download/v.1.2.2/zol-1.2.2.tar.gz
+
+build:
+  noarch: python
+  script: python -m pip install --no-deps --ignore-installed .
+
+requirements:
+  build:
+    - cxx-compiler
+  host:
+    - python
+    - cxx-compiler
+    - pip
+    - numpy
+    - zlib
+    - axel
+  run:
+    - biopython=1.79
+    - muscle
+    - mcl
+    - pal2nal>=14.1
+    - hmmer>=3.0.0
+    - fasttree>=2.0.0
+    - diamond=2.0.15
+    - prodigal
+    - pyrodigal
+    - pandas>=2.0
+    - xlsxwriter>=3.0.3
+    - scikit-learn
+    - axel
+    - hyphy=2.5.14
+    - pomegranate=0.13.3
+    - cd-hit
+    - ncbi-genome-download
+    - r-base
+    - r-ggplot2
+    - r-cowplot
+    - r-gggenes
+    - r-gridextra
+    - skani
+    - slclust
+    - trimal
+    - gzip
+
+test:
+  commands:
+    - prepTG --help
+    - fai --help
+    - zol --help
+
+about:
+  home: https://github.com/AnantharamanLab/vRhyme
+  license: GPL-3.0
+  license_file: LICENSE
+  license_family: GPL
+  summary: "Binning Virus Genomes from Metagenomes."
+  dev_url: https://github.com/AnantharamanLab/vRhyme
+

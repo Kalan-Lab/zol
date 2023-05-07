@@ -44,7 +44,6 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from collections import defaultdict
-import subprocess
 from operator import itemgetter
 
 def create_parser():

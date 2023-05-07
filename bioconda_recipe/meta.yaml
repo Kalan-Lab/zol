@@ -10,7 +10,7 @@ source:
   sha256: {{ sha256 }}
 
 build:
-  noarch: python
+  noarch: generic
   script: {{ PYTHON }} -m pip install . -vv
 
 requirements:

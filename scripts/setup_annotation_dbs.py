@@ -28,7 +28,7 @@ def setup_annot_dbs():
     myargs = create_parser()
 
     download_path = str(os.getenv("ZOL_DATA_PATH"))
-    if download_path.strip() == '':
+    if download_path.strip() == '' or download_path.strip() == None:
         download_path = myargs.download_path
     download_path = os.path.abspath(download_path) + '/'
 

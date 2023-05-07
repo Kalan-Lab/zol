@@ -19,8 +19,17 @@ import pickle
 import shutil
 from scipy import stats
 
+zol_exec_directory = ''
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
+
+if not os.path.isfile(plot_prog):
+	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+	plot_prog = zol_exec_directory + 'clusterHeatmap.R'
+	if not os.path.isfile(plot_prog):
+		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
+		sys.exit(1)
+
 
 def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1):
 	try:
@@ -695,6 +704,13 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
 	db_locations = zol_main_directory + 'db/database_location_paths.txt'
+	if not os.path.isfile(db_locations):
+		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+		db_locations = zol_data_directory + 'database_location_paths.txt'
+		if not os.path.isfile(db_locations):
+			sys.stderr.write('Databases do not appear to be setup or setup properly!\n')
+			annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
+			return (default_to_regular(annotations))
 	try:
 		individual_cpus = 1
 		pool_size = cpus

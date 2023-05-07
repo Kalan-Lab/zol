@@ -1,9 +1,9 @@
 import os
 import sys
 import argparse
-import subprocess
 from Bio import SeqIO
 import shutil
+
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
 def create_parser():
@@ -16,7 +16,7 @@ def create_parser():
     Downloads annotation databases for KO, PGAP, 
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is /path/to/zol_Github_clone/db/', required=False, default=zol_main_directory + 'db/')
+    parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=zol_main_directory + 'db/')
     parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=4)
     parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
 
@@ -27,7 +27,11 @@ def create_parser():
 def setup_annot_dbs():
     myargs = create_parser()
 
-    download_path = os.path.abspath(myargs.download_path) + '/'
+    download_path = str(os.getenv("ZOL_DATA_PATH"))
+    if download_path.strip() == '' or download_path.strip() == 'None':
+        download_path = myargs.download_path
+    download_path = os.path.abspath(download_path) + '/'
+
     cpus = myargs.cpus
     minimal_mode = myargs.minimal
 
@@ -50,7 +54,7 @@ def setup_annot_dbs():
         sys.stderr.write(str(e) + '\n')
         sys.exit(1)
 
-    listing_file = zol_main_directory + 'db/database_location_paths.txt'
+    listing_file = download_path + 'database_location_paths.txt'
     listing_handle = open(listing_file, 'w')
 
     if minimal_mode:
@@ -206,9 +210,9 @@ def setup_annot_dbs():
             print('Setting up PGAP database!')
             os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
             assert(os.path.isfile(pgap_info_file))
-            assert(os.path.isdir(download_path + 'hmm_PGAP/'))
-            for f in os.listdir(download_path + 'hmm_PGAP/'):
-                os.system(' '.join(['cat', download_path + 'hmm_PGAP/' + f, '>>', pgap_phmm_file]))
+            assert(os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+            for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
+                os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
             pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
             pdf_handle = open(pgap_descriptions_file, 'w')
             with open(pgap_info_file) as opil:
@@ -223,7 +227,7 @@ def setup_annot_dbs():
             assert(os.path.isfile(pgap_phmm_file))
             os.system(' '.join(['hmmpress', pgap_phmm_file]))
             listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\n')
-            os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+            os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
         except Exception as e:
             sys.stderr.write('Issues setting up PGAP database.\n')
             sys.stderr.write(str(e) + '\n')

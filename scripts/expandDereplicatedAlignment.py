@@ -1,8 +1,6 @@
 import os
 import sys
-import pandas
 import argparse
-from time import sleep
 from zol import util
 import subprocess
 from Bio import SeqIO

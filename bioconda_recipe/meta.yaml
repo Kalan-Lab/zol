@@ -4,9 +4,10 @@
 package:
   name: {{ name|lower }}
   version: {{ version }}
-
+  version: {% set sha256 = "7edfac0e2665943df17bf7a8f7fb4ee59c05a67d2c1c41a3535d4c57e0a7052f" %}
 source:
-  url: https://github.com/rauf/zol/releases/download/v.1.2.2/zol-1.2.2.tar.gz
+  url: https://github.com/raufs/zol/archive/refs/tags/v1.2.2.tar.gz
+  sha256: {{ sha256 }}
 
 build:
   noarch: python

@@ -15,7 +15,7 @@ build:
 
 requirements:
   build:
-    - cxx-compiler
+    - {{ compiler('cxx') }}
   host:
     - python
     - cxx-compiler
@@ -27,6 +27,7 @@ requirements:
     - biopython=1.79
     - muscle
     - mcl
+    - zlib
     - pal2nal>=14.1
     - hmmer>=3.0.0
     - fasttree>=2.0.0

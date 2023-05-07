@@ -42,7 +42,7 @@ prog_set = set(['prepTG', 'fai', 'zol'])
 
 if __name__ == '__main__':
 	args = sys.argv[1:]
-	if '--help' == args[0] or '-h' == args[0] or '-v' == args[0] or '--version' == args[0] or not (args[0] in prog_set):
+	if len(args) == 0 or '--help' == args[0] or '-h' == args[0] or '-v' == args[0] or '--version' == args[0] or not (args[0] in prog_set):
 		print("""	
 		Program: ZOL
 		Author: Rauf Salamzade

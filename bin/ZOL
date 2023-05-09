@@ -37,14 +37,19 @@
 
 import os
 import sys
+from zol import util
 
 prog_set = set(['prepTG', 'fai', 'zol'])
+
+version = util.getVersion()
 
 if __name__ == '__main__':
 	args = sys.argv[1:]
 	if len(args) == 0 or '--help' == args[0] or '-h' == args[0] or '-v' == args[0] or '--version' == args[0] or not (args[0] in prog_set):
 		print("""	
 		Program: ZOL
+		Version: %s""" % (version))
+		print("""
 		Author: Rauf Salamzade
 		Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 	
@@ -53,7 +58,7 @@ if __name__ == '__main__':
 		- prepTG: prepare/setup a database directory of target genomes to search against using fai.
 		- fai: perform targeted detection of query gene cluster(s) in genome database.
 		- zol: create a tabular report profiling conservation, evo stats, and annotation for ortholog groups found 
-			   across homologous/orthologous gene-cluster instance.
+		  across homologous/orthologous gene-cluster instance.
 		
 		Usage examples:
 		

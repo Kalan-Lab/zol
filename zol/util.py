@@ -8,19 +8,17 @@ import subprocess
 from operator import itemgetter
 from collections import defaultdict
 import traceback
-from scipy import stats
 import numpy as np
 import gzip
-import pathlib
 import copy
 import itertools
 import multiprocessing
 import pickle
 import resource
+import pkg_resources  # part of setuptools
+version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
-curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
-main_dir = '/'.join(curr_dir.split('/')[:-2]) + '/'
 
 def memory_limit(mem):
 	max_virtual_memory = mem*1000000000
@@ -445,18 +443,11 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
-def parseVersionFromSetupPy():
+def getVersion():
 	"""
 	Parses version from setup.py program.
 	"""
-	setup_py_prog = main_dir + 'setup.py'
-	version = 'NA'
-	with open(setup_py_prog) as osppf:
-		for line in osppf:
-			line = line.strip()
-			if line.startswith('version='):
-				version = line.split('version=')[1][:-1]
-	return version
+	return(str(version))
 
 def default_to_regular(d):
 	"""

@@ -5,12 +5,12 @@ authors:
     orcid: https://orcid.org/0000-0002-1923-5948
 
 title: "zol (& fai): large-scale targeted detection and evolutionary investigation of gene clusters."
-version: 1.7.0
-date-released: 2023-05-05
+version: 1.2.3
+date-released: 2023-05-08
 keywords:
   - bioinformatics
   - genomics
   - evolution
   - detection
   - gene-clusters
-license: BSD-3
+license: bsd-3-clause

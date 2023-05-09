@@ -36,6 +36,8 @@ pip install -e .
 setup_annotation_dbs.py
 ```
 
+Docker and bioconda installation options are currently in development.
+
 ### Test case:
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
@@ -143,6 +145,18 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.2.3 
+
+- updated argument names to prepTG.
+- updated the way version information was being reported in programs to make more compatible with bioconda.
+- added initial attempt at Dockerfile for creating Docker image and auxiliary scripts to ease usage.
+- will likely make another update or two in the near future to get Docker and bioconda options working.
+
+### version 1.2.2
+
+- added initial attempt at bioconda recipe - no changes to core programs.
+- introduced ZOL (all captials) - wrapper of the 3 main programs - for use as entrypoint in Docker image.
 
 ### Version 1.2.1
 

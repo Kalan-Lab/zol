@@ -80,17 +80,7 @@ def create_parser():
     (proteins are collapsed for high-similarity using cd-hit)
     Similar to input for cblaster
     -----------------------------------------------------
-    $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
-	    	    
-    CONSIDERATIONS:
-    *********************************************************************************                                       
-	* fai is a generalizable and simplified (in terms of probability determination) 
-	  variant of lsaBGC-Expansion.py and features a very similar algorithm. It is 
-	  inspired by ClusterFinder, cblaster, and other similar tools. 
-	* FASTA sequences of genomes to search should be nucleotides and correspond
-	  to scaffolds/contigs/sub-regions, not ORFs.
-	* If FASTA provided for --input_dir argument, it must >20,000 to allow 
-	  prodigal based gene-calling.
+    $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/	    	    
 	""", formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nWill use to build a profile to search additional genomes\nwith. Directory can contain just a single reference GenBank\nfor the cluster. Files must end\nwith ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
@@ -119,6 +109,7 @@ def create_parser():
 	parser.add_argument('-ds', '--diamond_sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use. [Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Generally memory shouldn\'t be a major concern unless\nworking with hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
+	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -127,6 +118,13 @@ def faiMain():
 	"""
 	Void function which runs primary workflow for program.
 	"""
+
+	# get version
+	version = util.getVersion()
+
+	if len(sys.argv)>1 and ('-v' in set(sys.argv) or '--version' in set(sys.argv)):
+		sys.stdout.write(version + '\n')
+		sys.exit(0)
 
 	"""
 	PARSE INPUTS
@@ -187,7 +185,7 @@ def faiMain():
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
-	version_string = util.parseVersionFromSetupPy()
+	version_string = util.getVersion()
 	logObject.info('Running fai version %s' % version_string)
 	sys.stdout.write('Running fai version %s\n' % version_string)
 

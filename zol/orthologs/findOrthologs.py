@@ -186,15 +186,15 @@ def findOrthologs():
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
 
-	version_string = util.parseVersionFromSetupPy()
-	sys.stdout.write('Running version: %s\n' % version_string)
-	logObject.info("Running version: %s" % version_string)
+	version = util.getVersion()
+	sys.stdout.write('Running version: %s\n' % version)
+	logObject.info("Running version: %s" % version)
 
 	parameters_file = outdir + 'Command_Issued.txt'
 	sys.stdout.write("Appending command issued for future records to: %s\n" % parameters_file)
 	sys.stdout.write("Logging more details at: %s\n" % log_file)
 	logObject.info("\nNEW RUN!!!\n**************************************")
-	logObject.info('Running version %s' % version_string)
+	logObject.info('Running version %s' % version)
 	logObject.info("Appending command issued for future records to: %s" % parameters_file)
 
 	parameters_handle = open(parameters_file, 'a+')

@@ -4,8 +4,9 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - "python>=3.8"
+  - "python=3.10"
   - pip
+  - setuptools<=58.2.0
   - biopython=1.79
   - conda-forge::cxx-compiler
   - bioconda::muscle

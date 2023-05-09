@@ -96,8 +96,8 @@ def prepTG():
 	"""
 	myargs = create_parser()
 
-	outdir = os.path.abspath(myargs.output_directory) + '/'
-	target_genomes_dir = myargs.target_genomes_dir
+	outdir = os.path.abspath(myargs.output_dir) + '/'
+	target_genomes_dir = myargs.input_dir
 	locus_tag_length = myargs.locus_tag_length
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus

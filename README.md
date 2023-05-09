@@ -16,6 +16,8 @@ Critically, ***with the development of some key options, together, fai and zol e
 
 ### Installation:
 
+#### Conda Manual - (current recommended)
+
 ```bash
 # 1. clone Git repo and cd into it!
 git clone https://github.com/Kalan-Lab/zol
@@ -36,14 +38,50 @@ pip install -e .
 setup_annotation_dbs.py
 ```
 
-Docker and bioconda installation options are currently in development.
+#### Docker 
+
+___Requires docker to be installed on your system!___
+
+To keep the Docker image size relatively low (currently ~8GB), only the PGAP database is included.
+
+```bash
+# get wrapper script from GitHub
+wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/docker/run_ZOL.sh
+
+# change permissions to allow execution
+chmod a+x ./run_ZOL.sh
+
+# run script
+./run_ZOL.sh
+```
+
+#### Conda (through bioconda channel)
+
+Development/incorporation in progress. Please wait for this to be updated to install zol through bioconda, in case there are issues with the first bioconda recipe.
 
 ### Test case:
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
 
+### Conda
+
+Within the zol GitHub repo, run the following:
+
 ```bash
 bash run_tests.sh
+```
+
+#### Docker testing:
+
+```bash
+# download test scripts from (bash script which you can reference for learning how to run zol).
+wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/docker/test_docker.sh
+
+# change permissions to allow execution
+chmod a+x ./test_docker.sh
+
+# run tests
+./test_docker.sh
 ```
 
 ### Usage:
@@ -145,6 +183,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.2.4
+
+- Docker set up should now work.
+- fixed bug introduced in 1.2.3 related to new names for arguments in prepTG in prepTG 
+- note, will update bioconda recipe after release to get size of release tar.gz.
 
 ### version 1.2.3 
 

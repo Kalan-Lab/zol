@@ -1767,14 +1767,15 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		for hg_tup in sorted(hg_stats['hg_order_scores'].items(), key=lambda e: e[1][0]):
 			hg = hg_tup[0]
 			if not hg in hg_stats['hg_median_lengths']: continue
-			hg_scs = hg_stats['hg_single_copy_status'][hg]
-			hg_cons = hg_stats['hg_prop_samples'][hg]
-			hg_mlen = hg_stats['hg_median_lengths'][hg]
-			hg_lts = '; '.join(sorted(hg_stats['hg_locus_tags'][hg]))
-			hg_full_amb = hg_stats['hg_full_ambiguity'][hg]
-			hg_trim_amb = hg_stats['hg_trim_ambiguity'][hg]
-			hg_gc = hg_stats['hg_median_gc'][hg]
-			hg_gcs = hg_stats['hg_median_gcskew'][hg]
+			hg_scs = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_single_copy_status'])
+			hg_cons = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_prop_samples'])
+			hg_mlen = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_median_lengths'])
+			hg_lts = 'NA'
+			if hg in hg_stats['hg_locus_tags']: hg_lts = '; '.join(sorted(hg_stats['hg_locus_tags'][hg]))
+			hg_full_amb = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_full_ambiguity'])
+			hg_trim_amb = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_trim_ambiguity'])
+			hg_gc = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_median_gc'])
+			hg_gcs = util.gatherValueFromDictForHomologGroup(hg, hg_stats['hg_median_gcskew'])
 			hg_ordr = hg_tup[1][0]
 			hg_dire = '"' + hg_tup[1][1] + '"'
 			hg_tajd, hg_entr, hg_upst_entr, hg_segs, hg_gpar, hg_ssit, hg_deba, hg_spro, hg_med_brdgc, hg_max_brdgc, fst, fst_upst = ['NA']*12

@@ -63,7 +63,7 @@ Development/incorporation in progress. Please wait for this to be updated to ins
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
 
-### Conda
+#### Conda
 
 Within the zol GitHub repo, run the following:
 
@@ -83,6 +83,8 @@ chmod a+x ./test_docker.sh
 # run tests
 ./test_docker.sh
 ```
+
+Note, the script `test_docker.sh` must be run in the same folder as run_ZOL.sh!
 
 ### Usage:
 
@@ -183,6 +185,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.2.5
+
+- Additional safety for when statistics are unavailable to incorporate into the consolidated report.
 
 ### version 1.2.4
 

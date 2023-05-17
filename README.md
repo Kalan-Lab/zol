@@ -186,7 +186,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
-### version 1.2.6
+### version 1.2.6 & 1.2.7
 
 - Additional changes to allow for better incorporation into bioconda.
 

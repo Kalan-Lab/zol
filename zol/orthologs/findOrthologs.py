@@ -54,7 +54,7 @@ if zol_exec_directory != 'None':
 	try:
 		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
 		rbh_prog = zol_exec_directory + 'runRBH'
-		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
+		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResults'
 		conda_setup_success = True
 	except:
 		conda_setup_success = False

@@ -15,16 +15,25 @@ from scipy.stats import pearsonr
 import shutil
 import pickle
 
-zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-plot_prog = zol_main_directory + 'zol/plotSegments.R'
-split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
-if not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
-	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
-	plot_prog = zol_exec_directory + 'plotSegments.R'
-	split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
-	if not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
-		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
-		sys.exit(1)
+zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+conda_setup_success = None
+plot_prog = None
+split_diamond_results_prog = None
+if zol_exec_directory != 'None':
+	try:
+		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
+		plot_prog = zol_exec_directory + 'plotSegments.R'
+		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
+		conda_setup_success = True
+	except:
+		conda_setup_success = False
+if zol_exec_directory == 'None' or conda_setup_success == False:
+	zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
+	plot_prog = zol_main_directory + 'zol/plotSegments.R'
+	split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
+if plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
+	sys.stderr.write('Issues in setup of the zol-suite (in fai.py) - please describe your installation process and post an issue on GitHub!\n')
+	sys.exit(1)
 
 def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, reference_contig, reference_start, reference_end, logObject):
 	try:

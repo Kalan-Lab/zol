@@ -1,10 +1,10 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import argparse
 from Bio import SeqIO
 import shutil
-
-zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 
 def create_parser():
     """ Parse arguments """
@@ -16,7 +16,7 @@ def create_parser():
     Downloads annotation databases for KO, PGAP, 
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=zol_main_directory + 'db/')
+    parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
     parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=4)
     parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
 
@@ -27,10 +27,17 @@ def create_parser():
 def setup_annot_dbs():
     myargs = create_parser()
 
-    download_path = str(os.getenv("ZOL_DATA_PATH"))
-    if download_path.strip() == '' or download_path.strip() == 'None':
-        download_path = myargs.download_path
-    download_path = os.path.abspath(download_path) + '/'
+    download_path = None
+    if myargs.download_path != None:
+        download_path = os.path.abspath(myargs.download_path) + '/'
+    elif str(os.getenv("ZOL_DATA_PATH")) != 'None':
+        download_path = str(os.getenv("ZOL_DATA_PATH"))
+    else:
+        download_path = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/'
+
+    if download_path == None or not os.path.isdir(download_path):
+        sys.stderr.write('Issues validing database download directory exists.\n')
+        sys.exit(1)
 
     cpus = myargs.cpus
     minimal_mode = myargs.minimal

@@ -63,8 +63,8 @@ if __name__ == '__main__':
 		Usage examples:
 		
 		prepTG -i Genomes/ -o prepTG_DB/ -c 10
-		fai -pq query_proteins.faa -tg prepTG_DB/ -o fai_Results/ -c 10
-		zol -i fai_Results/Homologous_GenBanks_Directory/ -o zol_Results/
+		./run_ZOL.sh fai -pq query_proteins.faa -tg prepTG_DB/ -o fai_Results/ -c 10
+		./run_ZOL.sh zol -i fai_Results/Homologous_GenBanks_Directory/ -o zol_Results/
 		""")
 	else:
 		os.system(' '.join(args))

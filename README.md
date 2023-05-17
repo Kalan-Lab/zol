@@ -186,6 +186,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.2.6
+
+- Additional changes to allow for better incorporation into bioconda.
+
 ### version 1.2.5
 
 - Additional safety for when statistics are unavailable to incorporate into the consolidated report.

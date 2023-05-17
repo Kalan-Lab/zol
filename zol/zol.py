@@ -19,17 +19,22 @@ import pickle
 import shutil
 from scipy import stats
 
-zol_exec_directory = ''
-zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-plot_prog = zol_main_directory + 'zol/clusterHeatmap.R'
+zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+conda_setup_success = None
+plot_prog = None
+if zol_exec_directory != 'None':
+	try:
+		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
+		plot_prog = zol_exec_directory + 'clusterHeatmap.R'
+		conda_setup_success = True
+	except:
+		conda_setup_success = False
+if zol_exec_directory == 'None' or conda_setup_success == False:
+	plot_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/clusterHeatmap.R'
 
-if not os.path.isfile(plot_prog):
-	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
-	plot_prog = zol_exec_directory + 'clusterHeatmap.R'
-	if not os.path.isfile(plot_prog):
-		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
-		sys.exit(1)
-
+if plot_prog == None or not os.path.isfile(plot_prog):
+	sys.stderr.write('Issues in setup of the zol-suite (in zol.py) - please describe your installation process and post an issue on GitHub!\n')
+	sys.exit(1)
 
 def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1):
 	try:
@@ -703,14 +708,24 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 	return(custom_annotations)
 
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
-	db_locations = zol_main_directory + 'db/database_location_paths.txt'
-	if not os.path.isfile(db_locations):
-		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
-		db_locations = zol_data_directory + 'database_location_paths.txt'
-		if not os.path.isfile(db_locations):
-			sys.stderr.write('Databases do not appear to be setup or setup properly!\n')
-			annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
-			return (default_to_regular(annotations))
+	zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+	db_locations = None
+	conda_setup_success = None
+	if zol_data_directory != 'None':
+		try:
+			zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+			db_locations = zol_data_directory + 'database_location_paths.txt'
+			conda_setup_success = True
+		except:
+			conda_setup_success = False
+	if zol_data_directory == 'None' or conda_setup_success == False:
+		db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+
+	if db_locations == None or not os.path.isfile(db_locations):
+		sys.stderr.write('Warning: databases do not appear to be setup or setup properly!\n')
+		annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
+		return (default_to_regular(annotations))
+
 	try:
 		individual_cpus = 1
 		pool_size = cpus

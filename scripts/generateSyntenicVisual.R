@@ -8,7 +8,7 @@ width <- as.numeric(args[3])
 pdf.file <- args[4]
 
 input.data <- read.table(file=input.file, sep='\t', header=T)
-# 	pif_handle.write('\t'.join(['HG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
+# 	pif_handle.write('\t'.join(['OG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
 
 pdf(pdf.file, height=height, width=width)
 ggplot(input.data, aes(xmin=Start, xmax = End, y = "", forward = Direction, label=SC)) +

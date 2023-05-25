@@ -15,6 +15,7 @@ from scipy.stats import pearsonr
 import shutil
 import pickle
 
+# code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 plot_prog = None
@@ -36,6 +37,20 @@ if plot_prog == None or split_diamond_results_prog == None or not os.path.isfile
 	sys.exit(1)
 
 def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, reference_contig, reference_start, reference_end, logObject):
+	"""
+	Description:
+	This function extracts a locus specific GenBank from a reference genome based on user provided coordinates.
+	********************************************************************************************************************
+	Parameters:
+	- full_gw_genbank: Reference genome GenBank file - should have CDS features.
+	- locus_genbank: The locus-specific GenBank file to create.
+	- locus_proteins: The locus-specific protein FASTA file to create.
+	- reference_contig: The identifier of the refernece scaffold/contig with the locus.
+	- reference_start: The starting position of the locus in the reference genome.
+	- reference_end: The ending position of the locus in the reference genome.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
 	try:
 		util.createGenbank(full_gw_genbank, locus_genbank, reference_contig, reference_start, reference_end)
 
@@ -53,12 +68,25 @@ def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, r
 		sys.stderr.write('Issues subsetting locus-specific GenBank from genome-wide GenBank.\n')
 		logObject.error('Issues subsetting locus-specific GenBank from genome-wide GenBank.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-
-def parseHomologGroupMatrix(orthogroup, logObject):
+def parseHomologGroupMatrix(orthogroup_matrix_file, logObject):
+	"""
+	Description:
+	This function parses an ortholog group matrix and returns a dictionary mapping protein names/locus_tags to ortholog
+	groups.
+	********************************************************************************************************************
+	Parameters:
+	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	Return:
+	- protein_to_hg: A dictionary mapping proteins names/locus_tags to ortholog groups.
+	********************************************************************************************************************
+	"""
 	protein_to_hg = {}
 	try:
-		with open(orthogroup) as oog:
+		with open(orthogroup_matrix_file) as oog:
 			for i, line in enumerate(oog):
 				line = line.strip()
 				ls = line.split('\t')
@@ -68,13 +96,27 @@ def parseHomologGroupMatrix(orthogroup, logObject):
 					for lt in lts.split(', '):
 						protein_to_hg[lt] = hg
 	except Exception as e:
-		sys.stderr.write('Issues mapping proteins to homolog groups.\n')
-		logObject.error('Issues mapping proteins to homolog groups.')
-		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write('Issues mapping proteins to ortholog groups.\n')
+		logObject.error('Issues mapping proteins to ortholog groups.')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return protein_to_hg
 
 def collapseProteinsUsingCDHit(protein_fasta, nr_protein_fasta, logObject):
+	"""
+	Description:
+	This function collapses query proteins using CD-HIT.
+	********************************************************************************************************************
+	Parameters:
+	- protein_fasta: A file with the original set of protein queries in FASTA form.
+	- nr_protein_fasta: The path to the non-redudnant (nr) protein queries after CD-HIT representative selection in
+	                    FASTA format.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	Return:
+	- protein_to_hg: A dictionary mapping proteins names/locus_tags to representative proteins.
+	********************************************************************************************************************
+	"""
 	protein_to_hg = {}
 	try:
 		cdhit_cluster_file = nr_protein_fasta + '.clstr'
@@ -89,7 +131,8 @@ def collapseProteinsUsingCDHit(protein_fasta, nr_protein_fasta, logObject):
 		except Exception as e:
 			logObject.error("Issue with running: %s" % ' '.join(cdhit_cmd))
 			logObject.error(e)
-			raise RuntimeError(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
 
 		prefix = '.'.join(protein_fasta.split('/')[-1].split('.')[:-1])
 		cluster_rep = None
@@ -116,24 +159,25 @@ def collapseProteinsUsingCDHit(protein_fasta, nr_protein_fasta, logObject):
 		sys.stderr.write('Issues running CD-hit.\n')
 		logObject.error('Issues running CD-hit.\n')
 		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-	return protein_to_hg
-
-def createDummyProteinToHomologGroupMapping(protein_fasta, logObject):
-	protein_to_hg = {}
-	try:
-		with open(protein_fasta, 'fasta') as opf:
-			for rec in SeqIO.parse(opf, 'fasta'):
-				protein_to_hg[rec.id] = rec.id
-	except Exception as e:
-		sys.stderr.write('Issues creating fake mapping between protein IDs to themselves.\n')
-		logObject.error('Issues creating fake mapping between protein IDs to themselves.\n')
-		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return protein_to_hg
 
 def parseCoordsFromGenbank(genbanks, logObject):
-	""" Simple function to parse """
+	"""
+	Description:
+	This function gathers the coordinates for CDS features from multiple GenBank files.
+	********************************************************************************************************************
+	Parameters:
+	- genbanks: A set of GenBank files.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	Return:
+	- comp_gene_info: A 3-tier dicitonary with the first key corresponding to the gene cluster prefix/name, the second
+	                  key corresponding to the locus tag identifier, and the third is information pertaining to CDS
+	                  locations (scaffold, start position, end position).
+	********************************************************************************************************************
+	"""
 	# get coords for individual genes
 	comp_gene_info = defaultdict(dict)
 	try:
@@ -146,69 +190,118 @@ def parseCoordsFromGenbank(genbanks, logObject):
 		sys.stderr.write('Issues with parsing coordinates of genes in GenBanks!\n')
 		logObject.error('Issues with parsing coordinates of genes in GenBanks!')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return dict(comp_gene_info)
 
 def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False):
-		# determine orthologs
-		prot_dir = outdir + 'CDS_Protein/'
-		nucl_dir = outdir + 'CDS_Nucleotide/'
-		og_dir = outdir + 'Determine_Orthogroups/'
-		ortho_matrix_file = og_dir + 'Orthogroups.tsv'
-		util.setupReadyDirectory([prot_dir, nucl_dir])
-		try:
-			for gbk in genbanks:
-				try:
-					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
-					protein_outf = prot_dir + prefix + '.faa'
-					protein_handle = open(protein_outf, 'w')
-					for lt in proteins:
-						protein_handle.write('>' + prefix + '|' + lt + '\n' + proteins[lt] + '\n')
-					protein_handle.close()
-				except Exception as e:
-					sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
-					logObject.error('Issues with parsing the GenBank %s' % gbk)
-					sys.stderr.write(str(e) + '\n')
-					sys.exit(1)
-			fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-c', str(cpus)]
+	"""
+	Description:
+	This function performs zol-based ortholog group determination across CDS protein sequences from query GenBank files
+	provided and then determines consensus protein sequences for each ortholog group identified.
+	********************************************************************************************************************
+	Parameters:
+	- genbanks: A set of query GenBank files.
+	- outdir: The output directory/workspace where to write intermediate files/analyses.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE based alignment.
+	********************************************************************************************************************
+	Return:
+	- orthogroup_matrix_file: An ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	- consensus_prot_seqs_faa: Path to a FASTA file containing consensus protein sequences for ortholog groups
+	                           determined.
+	********************************************************************************************************************
+	"""
+	# determine orthologs
+	prot_dir = outdir + 'CDS_Protein/'
+	nucl_dir = outdir + 'CDS_Nucleotide/'
+	og_dir = outdir + 'Determine_Orthogroups/'
+	ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+	util.setupReadyDirectory([prot_dir, nucl_dir])
+	try:
+		for gbk in genbanks:
 			try:
-				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
-								stderr=subprocess.DEVNULL, executable='/bin/bash')
-				assert (os.path.isfile(ortho_matrix_file))
-				assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
+				prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
+				proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject)
+				protein_outf = prot_dir + prefix + '.faa'
+				protein_handle = open(protein_outf, 'w')
+				for lt in proteins:
+					protein_handle.write('>' + prefix + '|' + lt + '\n' + proteins[lt] + '\n')
+				protein_handle.close()
 			except Exception as e:
-				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
-				logObject.error(e)
-				raise RuntimeError(e)
-
+				sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
+				logObject.error('Issues with parsing the GenBank %s' % gbk)
+				sys.stderr.write(str(e) + '\n')
+				sys.stderr.write(traceback.format_exc())
+				sys.exit(1)
+		fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-c', str(cpus)]
+		try:
+			subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(ortho_matrix_file))
+			assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
 		except Exception as e:
-			sys.stderr.write('Issues with determining ortholog/homolog groups!\n')
-			logObject.error('Issues with determining ortholog/homolog groups!')
-			sys.stderr.write(str(e) + '\n')
+			logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
-		# create Alignments, phylogenies and consensus sequences
-		proc_dir = outdir + 'Homolog_Group_Processing/'
-		hg_prot_dir = proc_dir + 'HG_Protein_Sequences/'
-		hg_nucl_dir = proc_dir + 'HG_Nucleotide_Sequences/'
-		prot_algn_dir = proc_dir + 'HG_Protein_Alignments/'
-		phmm_dir = proc_dir + 'HG_Profile_HMMs/'
-		cons_dir = proc_dir + 'HG_Consensus_Sequences/'
-		consensus_prot_seqs_faa = outdir + 'HG_Consensus_Seqs.faa'
-		util.setupReadyDirectory([proc_dir, prot_algn_dir, phmm_dir, cons_dir, hg_prot_dir])
-		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
-		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
-		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
-		consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
-		for f in os.listdir(cons_dir):
-			with open(cons_dir + f) as ocf:
-				for rec in SeqIO.parse(ocf, 'fasta'):
-					consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
-		consensus_prot_seqs_handle.close()
-		return([ortho_matrix_file, consensus_prot_seqs_faa])
+	except Exception as e:
+		sys.stderr.write('Issues with determining ortholog/ortholog groups!\n')
+		logObject.error('Issues with determining ortholog/ortholog groups!')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 
-def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_reuslts, valid_tg_samples, logObject, min_genes_per_scaffold=2, lowmem_mode=True):
+	# some of these folders are needed for the function (as it is used in zol) but just
+	# created here to apease the function requirements.
+	proc_dir = outdir + 'Homolog_Group_Processing/'
+	hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
+	hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
+	prot_algn_dir = proc_dir + 'OG_Protein_Alignments/'
+	phmm_dir = proc_dir + 'OG_Profile_HMMs/'
+	cons_dir = proc_dir + 'OG_Consensus_Sequences/'
+	consensus_prot_seqs_faa = outdir + 'OG_Consensus_Seqs.faa'
+	util.setupReadyDirectory([proc_dir, prot_algn_dir, phmm_dir, cons_dir, hg_prot_dir])
+	zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
+	zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
+	zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
+	consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
+	for f in os.listdir(cons_dir):
+		with open(cons_dir + f) as ocf:
+			for rec in SeqIO.parse(ocf, 'fasta'):
+				consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
+	consensus_prot_seqs_handle.close()
+	return([ortho_matrix_file, consensus_prot_seqs_faa])
+
+def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_reuslts, valid_tg_samples,
+						 logObject, lowmem_mode=True,  min_genes_per_scaffold=2):
+	"""
+	Description:
+	Load information pertaining to CDS locations from target genomes from sample pickle files created during prepTG.
+	********************************************************************************************************************
+	Parameters:
+	- target_annotation_information: A set/dictionary of target genome sample identifiers.
+	- target_genomes_pkl_dir: The directory where pickle files on target genome CDS location information are stored.
+	- diamond_results: 
+	- valid_tg_samples:
+	- logObject: A logging object.
+	- lowmem_mode: Whether to only regard CDS found on scaffolds with hits from the gene cluster queries.
+	- min_genes_per_scaffold: The minimum number of ORFs hit by query proteins for the scaffold to be considered and
+	                          CDS information for it stored.
+	********************************************************************************************************************
+	Return:
+	- target_genome_info: A dictionary of dictionaries:
+		- gene_locations: A multi-tiered dictionary with location information for CDS features.
+		- scaffold_genes: A double dictionary with keys corresponding to samples and secondary keys to scaffolds and
+		                  values to CDS features found on them.
+		- boundary_genes: A dictionary with keys corresponding to samples and values to sets of CDS features nearby
+		                  scaffold edges.
+		- gene_id_to_order: A multi-tiered dictionary mapping CDS identifiers to their order along scaffolds.
+		- gene_order_to_id: A multi-tiered dictionary mapping gene order indices along scaffolds to CDS identifiers.
+	********************************************************************************************************************
+	"""
 	gene_locations = {}
 	scaffold_genes = {}
 	boundary_genes = {}
@@ -228,6 +321,7 @@ def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, 
 			except:
 				sys.stderr.write('Could not find pickle file with CDS coordinate information for sample %s\n' % sample)
 				logObject.error('Could not find pickle file with CDS coordinate information for sample %s' % sample)
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
 			gene_locs = genbank_info[0]
@@ -268,7 +362,7 @@ def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, 
 		logObject.error('Issues with parsing CDS location information from genes of target genomes.')
 		sys.stderr.write('Issues with parsing CDS location information from genes of target genomes.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 
@@ -277,7 +371,28 @@ def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, 
 							   'gene_order_to_id': gene_order_to_id}
 	return(target_genome_gene_info)
 
-def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, logObject, diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1):
+def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, logObject,
+					 diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1):
+	"""
+	Description:
+	This functions runs DIAMOND blastp analysis in fai for assessing homology of target genome proteins to query
+	proteins.
+	********************************************************************************************************************
+	Parameters:
+	- target_concat_genome_db: The path to the concatenated FASTA file comprising proteomes from all target genomes.
+	- query_fasta: The path to the query/reference FASTA file.
+	- diamond_work_dir: The workspace directory where DIAMOND blastp alignment and intermediate files should be written.
+	- logObject: A logging object.
+	- diamond_sensitivity: The sensitivity mode to run DIAMOND blastp with.
+	- evalue_cutoff: The maximum E-value cutoff to regard an alignment to a target genome protein as homologous to a
+	                 query protein.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	Return:
+	- diamond_results_file: Path to the DIAMOND blastp resulting alignment file.
+	********************************************************************************************************************
+	"""
+
 	diamond_results_file = diamond_work_dir + 'DIAMOND_Results.txt'
 	try:
 		diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--' + diamond_sensitivity,
@@ -293,6 +408,7 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 			logObject.error('Had an issue running: %s' % ' '.join(diamond_blastp_cmd))
 			sys.stderr.write('Had an issue running: %s' % ' '.join(diamond_blastp_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 		assert(os.path.isfile(diamond_results_file) and os.path.getsize(diamond_results_file) > 0)
 
@@ -300,13 +416,30 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 		logObject.error('Issues with running DIAMOND blastp.')
 		sys.stderr.write('Issues with running DIAMOND blastp.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return(diamond_results_file)
 
 def processDiamondBlastp(target_annot_information, diamond_results_file, work_dir, logObject):
 	"""
-	Function to process DIAMOND results
+	Description:
+	This functions processes DIAMOND blastp results.
+	********************************************************************************************************************
+	Parameters:
+	- target_annot_information: A multi-tiered dictionary with
+	- diamond_results_file: The path to the query/reference FASTA file.
+	- work_dir: The workspace directory where DIAMOND blastp alignment and intermediate files should be written.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	Return:
+	- diamond_results: A dictionary with locus tags as keys and values as a list of 5 items:
+		- hg: The best matching query/reference ortholog group.
+		- best_hit_per_lt_bitscore: The bitscore of the best hit for the CDS.
+		- best_hit_per_lt_eval: The E-value of the best hit for the CDS.
+		- sample: The sample identifier.
+		- best_hit_per_lt_identity: The identity of the best hit for the CDS.
+		- best_hit_per_lt_sqlratio: The identity of the subject to query length ratio for the best hit for the CDS.
+	********************************************************************************************************************
 	"""
 	diamond_results = defaultdict(list)
 	try:
@@ -331,6 +464,7 @@ def processDiamondBlastp(target_annot_information, diamond_results_file, work_di
 			logObject.error('Had an issue running: %s' % ' '.join(split_diamond_cmd))
 			sys.stderr.write('Had an issue running: %s' % ' '.join(split_diamond_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 		for sample in target_annot_information:
@@ -375,88 +509,29 @@ def processDiamondBlastp(target_annot_information, diamond_results_file, work_di
 		logObject.error('Issues with running DIAMOND blastp or processing of results.')
 		sys.stderr.write('Issues with running DIAMOND blastp or processing of results.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 	return(dict(diamond_results))
 
-def parseGenbankAndFindBoundaryGenes(inputs):
-	"""
-	Function to parse Genbanks from Prokka and return a dictionary of genes per scaffold, gene to scaffold, and a
-	set of genes which lie on the boundary of scaffolds.
-	:param sample_genbank: Prokka generated Genbank file.
-	:param distance_to_scaffold_boundary: Distance to scaffold edge considered as boundary.
-	:return gene_to_scaffold: Dictionary mapping each gene's locus tag to the scaffold it is found on.
-	:return scaffold_genes: Dictionary with keys as scaffolds and values as a set of genes found on that scaffold.
-	:return boundary_genes: Set of gene locus tag ids which are found within proximity to scaffold edges.
-	"""
-
-	distance_to_scaffold_boundary = 2000
-	gene_location = {}
-	scaffold_genes = defaultdict(set)
-	boundary_genes = set([])
-	gene_id_to_order = defaultdict(dict)
-	gene_order_to_id = defaultdict(dict)
-
-	sample, sample_genbank, sample_gbk_info = inputs
-	osg = None
-	if sample_genbank.endswith('.gz'):
-		osg = gzip.open(sample_genbank, 'rt')
-	else:
-		osg = open(sample_genbank)
-	for rec in SeqIO.parse(osg, 'genbank'):
-		scaffold = rec.id
-		scaffold_length = len(str(rec.seq))
-		boundary_ranges = set(range(1, distance_to_scaffold_boundary + 1)).union(
-			set(range(scaffold_length - distance_to_scaffold_boundary, scaffold_length + 1)))
-		gene_starts = []
-		for feature in rec.features:
-			if not feature.type == 'CDS': continue
-			locus_tag = feature.qualifiers.get('locus_tag')[0]
-
-			start = None
-			end = None
-			direction = None
-			if not 'join' in str(feature.location):
-				start = min(
-					[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
-				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-				direction = str(feature.location).split('(')[1].split(')')[0]
-			else:
-				all_starts = []
-				all_ends = []
-				all_directions = []
-				for exon_coord in str(feature.location)[5:-1].split(', '):
-					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-					direction = exon_coord.split('(')[1].split(')')[0]
-					all_starts.append(start)
-					all_ends.append(end)
-					all_directions.append(direction)
-				start = min(all_starts)
-				end = max(all_ends)
-				direction = all_directions[0]
-
-			gene_location[locus_tag] = {'scaffold': scaffold, 'start': start, 'end': end, 'direction': direction}
-			scaffold_genes[scaffold].add(locus_tag)
-
-			gene_range = set(range(start, end + 1))
-			if len(gene_range.intersection(boundary_ranges)) > 0:
-				boundary_genes.add(locus_tag)
-
-			gene_starts.append([locus_tag, start])
-
-		for i, g in enumerate(sorted(gene_starts, key=itemgetter(1))):
-			gene_id_to_order[scaffold][g[0]] = i
-			gene_order_to_id[scaffold][i] = g[0]
-	osg.close()
-	sample_gbk_info[sample] = [gene_location, dict(scaffold_genes), boundary_genes, dict(gene_id_to_order),
-							   dict(gene_order_to_id)]
-
-
 def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, cpus=1):
 	"""
-	Function to align key protein queries fasta to query hg fasta file and determine set of hgs which are key.
+	Description:
+	Function to align key protein queries FASTA to general query ortholog FASTA file and determine which general
+	query ortholog groups / non-redundant protein sequences correspond to the key ones provided by the user. The best
+	hit for key proteins to general query sequences will be taken and assigned by bitscore (assuming an E-value
+	theshold of 1e-10 is met).
+	********************************************************************************************************************
+	Parameters:
+	- query_fasta: A FASTA file of query ortholog group (consensus) sequences.
+	- key_protein_queries_fasta: A FASTA file of key sequences.
+	- work_dir: The workspace directory where to perform mapping alignment and write intermediate files.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	Return:
+	- key_hgs: A set of "key" designated query ortholog groups.
+	********************************************************************************************************************
 	"""
 	key_hgs = set([])
 	try:
@@ -477,7 +552,8 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 		except Exception as e:
 			logObject.error("Issue with running: %s" % ' '.join(diamond_cmd))
 			logObject.error(e)
-			raise RuntimeError(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
 
 		kq_top_hits = defaultdict(lambda: [[], 0.0])
 		with open(align_result_file) as oarf:
@@ -501,13 +577,15 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 					logObject.error('Found no mapping for key query protein %s to general proteins.' % rec.id)
 					sys.stderr.write('Found no mapping for key query protein %s to general proteins.\n' % rec.id)
 					sys.stderr.write(str(e2) + '\n')
+					sys.stderr.write(traceback.format_exc())
 					sys.exit(1)
 
 	except Exception as e:
-		logObject.error('Issues with mapping key proteins to general proteins or consensus sequence of homolog groups.')
-		sys.stderr.write('Issues with mapping key proteins to general proteins or consensus sequence of homolog groups.\n')
+		logObject.error('Issues with mapping key proteins to general proteins or consensus sequence of ortholog groups.')
+		sys.stderr.write('Issues with mapping key proteins to general proteins or consensus sequence of ortholog groups.\n')
 		sys.stderr.write(str(e) + '\n')
 		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return key_hgs
 
@@ -522,12 +600,55 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 						 syntenic_correlation_threshold=0.8, max_int_genes_for_merge=0,  kq_evalue_threshold=1e-20,
 						 flanking_context=1000, cpus=1, block_size=3000, gc_delineation_mode="GENE-CLUMPER"):
 	"""
-	Function to search for instances of Gene Cluster in samples using HMM based approach based on homolog groups as
-	characters. This function utilizes the convenient Python library Pomegranate.
-
-	:param query_information: Dictionary with 3 keys: protein_to_hg (dict), query_fasta (file path), comp_gene_info (dict)
-	:param target_information: Dictionary with 2 keys: target_annotation_information (dict), target_genome_gene_info (dict)
-	:param diamond_results: Dictionary of DIAMOND alignment results meeting e-value threshold
+	Description:
+	This function sets up identification of homologous/orthologous instances of gene clusters in target genomes based
+	on DIAMOND blastp results and location information of genes in the query and target genomes. It is void and produces
+	two types of files in subdirectories of work_dir, one being an extracted instance of homologous gene-clusters from
+	target genomes and the other a TSV with information for individual CDS genes on how well they are matching query
+	sequence.
+	********************************************************************************************************************
+	Parameters:
+	- query_information: A multi-tiered dictionary with query sequence information:
+		- protein_to_hg: Dictionary mapping individual query sequences to ortholog groups.
+		- query_fasta: The path to a FASTA of query sequences.
+	    - comp_gene_info: Dictionary linking to query CDS location/syntenic information.
+	- target_information: A multi-tiered dictionary with information on CDS feature locations across target genomes.
+	- diamond_results: A dictionary with locus tags as keys and values as a list of 5 items:
+		- hg: The best matching query/reference ortholog group.
+		- best_hit_per_lt_bitscore: The bitscore of the best hit for the CDS.
+		- best_hit_per_lt_eval: The E-value of the best hit for the CDS.
+		- sample: The sample identifier.
+		- best_hit_per_lt_identity: The identity of the best hit for the CDS.
+		- best_hit_per_lt_sqlratio: The identity of the subject to query length ratio for the best hit for the CDS.
+	- work_dir: The workspace where to write files to for the analysis/function.
+	- logObject: A logging object.
+	- min_hits: The minimum number of non-redundant or ortholog group query sequences needed to be hit for gene cluster
+	            detection.
+	- min_key_hits: The minimum number of key non-redundant or ortholog group query sequences needed to be hit for gene
+	                cluster detection.
+	- draft_mode: Whether to use draft mode and regard cutoffs in aggregate across candidate gene cluster instances
+	              found near scaffold edges.
+	- gc_to_gc_transition_prob: The gene cluster to gene cluster transition probability to set for HMM.
+	- bg_to_bg_transition_prob: The background to background transition probability to set for HMM.
+	- gc_emission_prob_with_hit: The gene cluster emission probability for the gene cluster state when a DIAMOND hit is
+	                             present at a CDS/ORF.
+	- gc_emission_prob_without_hit: The gene cluster emission probability for the gene cluster state  when no DIAMOND
+	                                hit is present at a CDS/ORF.
+	- syntenic_correlation_threshold: The threshold for the absolute syntenic correlation between the candidate gene
+									  cluster homologous instance and the query gene cluster.
+	- max_int_genes_for_merge: The maximum number of intermediate genes between those aligning to the query proteins to
+	                           be regarded as co-located enough to correspond to a potential single instance of the
+	                           gene cluster.
+	- kq_evalue_threshold: The E-value threshold for "key" designated ortholog groups to be regarded as actually being
+	                       hit.
+	- flanking_context: The number of basepairs to take around identified gene clusters when extracting the gene cluster
+	                    specific GenBank from the full target genome GenBank.
+	- cpus: The number of CPUs to use.
+	- block_size: The maximum number of samples to consider at a time. This might be good to make an adjustable option
+	              for those interested in applying fai to metagenomes, where setting it to a much lower value likely
+	              makes sense.
+	- gc_delineation_mode: The method to use for gene-cluster delineation, can either be "GENE-CLUMPER" or "HMM"
+	********************************************************************************************************************
 	"""
 
 	try:
@@ -540,7 +661,6 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		util.setupReadyDirectory([gc_genbanks_dir, gc_info_dir])
 
 		# unpack information in dictionaries
-
 		query_gene_info = query_information['comp_gene_info']
 		lt_to_hg = query_information['protein_to_hg']
 		all_hgs = set(lt_to_hg.values())
@@ -653,10 +773,36 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		logObject.error('Issues with managing running of HMM to find gene-cluster homolog segments.')
 		sys.stderr.write('Issues with managing running of HMM to find gene-cluster homolog segments.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def identify_gc_instances(input_args):
+	"""
+	Description:
+	This function is the actual one which identifies gene-clusters and is separated from identifyGCInstances() to allow
+	multiple processing. It is sample specific. It uses global variable set by identifyGCInstances().
+	********************************************************************************************************************
+	Parameters:
+	- sample: The sample identifier.
+	- min_hits: The minimum number of non-redundant or ortholog group query sequences needed to be hit for gene cluster
+	            detection.
+	- min_key_hits: The minimum number of key non-redundant or ortholog group query sequences needed to be hit for gene
+	                cluster detection.
+	- key_hgs: The set of key query ortholog group identifiers.
+	- kq_evalue_threshold: The E-value threshold for "key" designated ortholog groups to be regarded as actually being
+	                       hit.
+	- syntenic_correlation_threshold: The threshold for the absolute syntenic correlation between the candidate gene
+									  cluster homologous instance and the query gene cluster.
+	- max_int_genes_for_merge: The maximum number of intermediate genes between those aligning to the query proteins to
+	                           be regarded as co-located enough to correspond to a potential single instance of the
+	                           gene cluster.
+	- flanking_context: The number of basepairs to take around identified gene clusters when extracting the gene cluster
+	                    specific GenBank from the full target genome GenBank.
+	- draft_mode: Whether to use draft mode and regard cutoffs in aggregate across candidate gene cluster instances
+	              found near scaffold edges.
+	- gc_delineation_mode: The method to use for gene-cluster delineation, can either be "GENE-CLUMPER" or "HMM"
+	********************************************************************************************************************
+	"""
 	sample, min_hits, min_key_hits, key_hgs, kq_evalue_threshold, syntenic_correlation_threshold, max_int_genes_for_merge, flanking_context, draft_mode, gc_delineation_mode = input_args
 	sample_gc_predictions = []
 	if gc_delineation_mode == 'GENE-CLUMPER':
@@ -917,8 +1063,9 @@ def identify_gc_instances(input_args):
 							if (pval < 0.1) and ((best_corr and best_corr < corr) or (not best_corr)):
 								best_corr = corr
 					except:
-						raise RuntimeError(traceback.format_exc())
-						pass
+						sys.stderr.write(traceback.format_exc())
+						sys.exit(1)
+						#pass
 			if best_corr != 'irrelevant' and (best_corr == None or best_corr < syntenic_correlation_threshold): continue
 			if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits):
 				sample_gc_predictions_filtered.append(gc_segment)
@@ -958,9 +1105,6 @@ def identify_gc_instances(input_args):
 		min_gc_pos = min([gene_locations[sample][g]['start'] for g in gc_segment[0]])-flanking_context
 		max_gc_pos = max([gene_locations[sample][g]['end'] for g in gc_segment[0]])+flanking_context
 
-		#print(gc_segment)
-		#print([gene_locations[g]['start'] for g in gc_segment[0]])
-		#print([gene_locations[g]['end'] for g in gc_segment[0]])
 		util.createGenbank(target_annotation_info[sample]['genbank'], gc_genbank_file, gc_segment_scaff,
 							  min_gc_pos, max_gc_pos)
 		gc_sample_listing_handle.write('\t'.join([sample, gc_genbank_file]) + '\n')
@@ -979,6 +1123,20 @@ def identify_gc_instances(input_args):
 	gc_sample_listing_handle.close()
 
 def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, logObject):
+	"""
+	Description:
+	This function allows for filtering paralogous gene-cluster segments identified in target genomes where the segments
+	have overlap in the query non-redundant/ortholog groups they are mapping to. Gene cluster instances are considered
+	paralogous if at least two overlapping query hits are found. Gene-clusters retained are prioritized based on
+	cumulative bitscores to query genes.
+	********************************************************************************************************************
+	Parameters:
+	- hmm_work_dir: The workspace where identifyGCInstances() saved extracted GenBanks for gene cluster instances from
+	                target genomes along with homology information to the query gene cluster.
+	- homologous_gbk_dir: The directory where to save the final extracted gene-cluster files.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
 	try:
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
 		gbk_filt_dir = hmm_work_dir + 'GeneCluster_Filtered_Segments/'
@@ -1009,7 +1167,7 @@ def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, 
 					if i >= j: continue
 					gcs1_hg = sample_gcs_hgs[sample][gcs1]
 					gcs2_hg = sample_gcs_hgs[sample][gcs2]
-					# consider segments paralogous if more than 2 reference proteins/homolog groups are overlapping
+					# consider segments paralogous if more than 2 reference proteins/ortholog groups are overlapping
 					# suggesting paralogy beyond fragmentation that might have split a gene in two.
 					intersection_hgs = gcs1_hg.intersection(gcs2_hg)
 					if len(intersection_hgs) >= 2:
@@ -1035,10 +1193,31 @@ def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, 
 		logObject.error('Issues resolving paralogous gene segments.')
 		sys.stderr.write('Issues resolving paralogous gene segments.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work_dir, plot_result_pdf, plot_naming_pdf, logObject, height=10, width=15):
+def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work_dir, plot_result_pdf, plot_naming_pdf,
+				  logObject, height=10, width=15):
+	"""
+	Description:
+	This function serves to create plots from fai analysis showing the similarity of homologous / orthologous
+	gene-cluster instances identified to the query gene cluster proteins.
+	********************************************************************************************************************
+	Parameters:
+	- target_annotation_info: Dictionary linking sample names to their respective full genome GenBank files.
+	- hmm_work_dir: The workspace where identifyGCInstances() saved extracted GenBanks for gene cluster instances from
+	     			target genomes along with homology information to the query gene cluster.
+	- protein_to_hg: A dictionary linking query proteins to non-redundant clusters / ortholog groups.
+	- plot_work_dir: The workspace where to write intermediate files used for creating plots.
+	- plot_result_pdf: A final plot (PDF) showcasing homology of target genome gene clusters to the query
+	                   gene cluster(s).
+	- plot_naming_pdf: A plot (PDF) based table which shows the mapping of query protein identifiers to ortholog group
+	                   or non-redudnant cluster identifiers.
+	- logObject: A logging object.
+	- height: The height of the plot in inches.
+	- width: The width of the plot in inches.
+	********************************************************************************************************************
+	"""
 	try:
 		que_info_table_file = plot_work_dir + 'Name_Mapping.txt'
 		que_info_table_handle = open(que_info_table_file, 'w')
@@ -1091,6 +1270,14 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 									   str(feature.location)[1:].split(']')[0].split(':')])
 							direction = str(feature.location).split('(')[1].split(')')[0]
 							all_coords.append([start, end, direction])
+						elif 'order' in str(feature.location):
+							for exon_coord in str(feature.location)[6:-1].split(', '):
+								start = min(
+									[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+								end = max(
+									[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+								direction = exon_coord.split('(')[1].split(')')[0]
+								all_coords.append([start, end, direction])
 						else:
 							for exon_coord in str(feature.location)[5:-1].split(', '):
 								start = min([int(x.strip('>').strip('<')) for x in
@@ -1165,11 +1352,12 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 			logObject.error('Had an issue running R based plotting: %s' % ' '.join(plot_cmd))
 			sys.stderr.write('Had an issue running R based plotting: %s\n' % ' '.join(plot_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 	except Exception as e:
 		logObject.error('Issues with plotting overviews of homologous gene-cluster segments identified.')
 		sys.stderr.write('Issues with plotting overviews of homologous gene-cluster segments identified.\n')
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

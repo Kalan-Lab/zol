@@ -73,9 +73,13 @@ def create_parser():
 	---------------
 	* It is advised that multiple GenBanks from the same genome/sample be concatenated into 
 	  a multi-record GenBank to account for fragmentation of gene-clusters and properly 
-	  calculate copy count of homolog groups.
+	  calculate copy count of ortholog groups.
 	* Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag 
 	  to request new locus tags!
+	* Ortholog group and homolog group are/were used inter-changeably in the code/comments. We 
+	  recommend using the term ortholog group which is more commonly used in literature for 
+	  the type of protein clustering we perform in zol. Since v1.28 - result files and logging
+	  messages should largely use "ortholog group" or "OG".
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
@@ -197,18 +201,19 @@ def zolMain():
 						ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, reinflate_flag, derep_identity,
 						derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, length, width,
 						full_genbank_labels, cpus, max_memory]
-	parameter_names = ["Input directory with Loci GenBanks", "Output directory",
-					   "Use super5 Mode in MUSCLE Alignments?", "Run FUBAR Selection Analyses?",
-					   "Skip GARD Partitioning by Recombination Breakpoints?", "Focal GenBanks Listing",
-					   "Comparator GenBanks Listing", "Filter Low Quality?", "Filter Draft/Incomplete?",
-					   "Perform Broad Level Estimation of Homolog Group Conservation if Dereplication Requested?",
-					   "Comprehensive Reporting of Evolutionary Statistics, Including for Non-Single Copy Homolog Groups",
-					   "Rename Locus Tags?", "Use CDS features with attribute near_scaffold_edge=True.",
-					   "Perform Dereplication?", "Perform Reinflation?", "Dereplication Identity Threshold",
-					   "Dereplication Coverage Threshold", "Dereplication Clustering Method / MCL Inflation",
-					   "Custom Annotation Database", "Refine Gene Calling using the Custom Annotation Database",
-					   "Plot Height", "Plot Width", "Use Full GenBank Labels?", "Number of CPUs Requested",
-					   "Maximum Memory in GB"]
+	parameter_names = ["Input directory with loci GenBanks", "Output directory",
+					   "Use super5 mode in MUSCLE alignments?", "Run FUBAR selection analyses?",
+					   "Skip GARD partitioning by recombination breakpoints?", "Focal GenBanks listing",
+					   "Comparator GenBanks listing", "Filter low quality gene clusters?",
+					   "Filter draft/incomplete gene clusters?",
+					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
+					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
+					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
+					   "Perform Dereplication?", "Perform reinflation?", "Dereplication identity threshold",
+					   "Dereplication coverage threshold", "Dereplication clustering method / MCL inflation",
+					   "Custom annotation database", "Refine gene calling using the custom annotation database",
+					   "Plot height", "Plot width", "Use full GenBank labels?", "Number of CPUs requested",
+					   "Maximum memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -374,8 +379,8 @@ def zolMain():
 				util.setupReadyDirectory([rog_dir])
 				zol.reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=cpus)
 		except Exception as e:
-			sys.stderr.write('Issues with determining ortholog/homolog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
-			logObject.error('Issues with determining ortholog/homolog groups!')
+			sys.stderr.write('Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
+			logObject.error('Issues with determining ortholog/ortholog groups!')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 		os.system('touch %s' % step2_check_file)
@@ -389,22 +394,22 @@ def zolMain():
 		assert(os.path.isfile(ortho_matrix_file))
 
 	# Step 3: Create Alignments, Phylogenies and Consensus Sequences
-	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for homolog groups')
-	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for homolog groups\n')
+	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups')
+	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups\n')
 	step3_check_file = check_dir + 'step3.txt'
-	proc_dir = outdir + 'Homolog_Group_Processing/'
-	hg_prot_dir = proc_dir + 'HG_Protein_Sequences/'
-	hg_nucl_dir = proc_dir + 'HG_Nucleotide_Sequences/'
-	hg_upst_dir = proc_dir + 'HG_Upstream_Sequences/'
-	prot_algn_dir = proc_dir + 'HG_Protein_Alignments/'
-	prot_algn_trim_dir = proc_dir + 'HG_Protein_Alignments_Trimmed/'
-	codo_algn_dir = proc_dir + 'HG_Codon_Alignments/'
-	upst_algn_dir = proc_dir + 'HG_Upstream_Alignments/'
-	codo_algn_trim_dir = proc_dir + 'HG_Codon_Alignments_Trimmed/'
-	tree_dir = proc_dir + 'HG_Trees/'
-	phmm_dir = proc_dir + 'HG_Profile_HMMs/'
-	cons_dir = proc_dir + 'HG_Consensus_Sequences/'
-	consensus_prot_seqs_faa = outdir + 'HG_Consensus_Seqs.faa'
+	proc_dir = outdir + 'Ortholog_Group_Processing/'
+	hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
+	hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
+	hg_upst_dir = proc_dir + 'OG_Upstream_Sequences/'
+	prot_algn_dir = proc_dir + 'OG_Protein_Alignments/'
+	prot_algn_trim_dir = proc_dir + 'OG_Protein_Alignments_Trimmed/'
+	codo_algn_dir = proc_dir + 'OG_Codon_Alignments/'
+	upst_algn_dir = proc_dir + 'OG_Upstream_Alignments/'
+	codo_algn_trim_dir = proc_dir + 'OG_Codon_Alignments_Trimmed/'
+	tree_dir = proc_dir + 'OG_Trees/'
+	phmm_dir = proc_dir + 'OG_Profile_HMMs/'
+	cons_dir = proc_dir + 'OG_Consensus_Sequences/'
+	consensus_prot_seqs_faa = outdir + 'OG_Consensus_Seqs.faa'
 	if not os.path.isfile(step3_check_file):
 		util.setupReadyDirectory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir,
 								  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir, hg_upst_dir, upst_algn_dir])
@@ -412,10 +417,13 @@ def zolMain():
 		if refine_gene_calling_flag and custom_database:
 			refine_workpace_dir = proc_dir + 'Refine_Gene_Calling_WorkSpace/'
 			util.setupReadyDirectory([refine_workpace_dir])
-			hg_prot_dir, hg_nucl_dir = zol.refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace_dir, logObject, cpus=cpus, use_super5=use_super5)
+			hg_prot_dir, hg_nucl_dir = zol.refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir,
+															 refine_workpace_dir, logObject, cpus=cpus,
+															 use_super5=use_super5)
 		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
 		zol.createCodonAlignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, logObject)
-		zol.partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir, logObject, cpus=cpus, use_super5=use_super5)
+		zol.partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir,
+													 logObject, cpus=cpus, use_super5=use_super5)
 		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1)
 		zol.createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1)
 		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
@@ -438,7 +446,8 @@ def zolMain():
 		util.setupReadyDirectory([annotation_dir])
 		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, cpus=cpus)
 		if custom_database != None:
-			custom_annots = zol.annotateCustomDatabase(consensus_prot_seqs_faa, custom_database, annotation_dir, logObject, cpus=cpus)
+			custom_annots = zol.annotateCustomDatabase(consensus_prot_seqs_faa, custom_database, annotation_dir,
+													   logObject, cpus=cpus)
 			annotations['custom'] = custom_annots
 		with open(annotations_pickle_file, 'wb') as pickle_file:
 			pickle.dump(annotations, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -455,11 +464,11 @@ def zolMain():
 			sys.exit(1)
 	#print(annotations.keys())
 
-	# Step 5: Determine consensus order, conservation, and median homolog group lengths
-	logObject.info('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of homolog groups')
-	sys.stdout.write('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of homolog groups\n')
+	# Step 5: Determine consensus order, conservation, and median ortholog group lengths
+	logObject.info('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups')
+	sys.stdout.write('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups\n')
 	step5_check_file = check_dir + 'step5.txt'
-	hg_stats_pickle_file = outdir + 'HG_Statistics.pkl'
+	hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
 	hg_stats = None
 	if not os.path.isfile(step5_check_file):
 		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
@@ -478,8 +487,8 @@ def zolMain():
 			with open(hg_stats_pickle_file, 'rb') as handle:
 				hg_stats = pickle.load(handle)
 		except Exception as e:
-			sys.stderr.write('Issues with reading in homolog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
-			logObject.error('Issues with reading in homolog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+			sys.stderr.write('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+			logObject.error('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
@@ -522,8 +531,8 @@ def zolMain():
 			with open(evo_stats_pickle_file, 'rb') as handle:
 				evo_stats = pickle.load(handle)
 		except Exception as e:
-			sys.stderr.write('Issues with reading in homolog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
-			logObject.error('Issues with reading in homolog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+			sys.stderr.write('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+			logObject.error('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 	#print(evo_stats.keys())

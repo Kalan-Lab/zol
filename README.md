@@ -8,7 +8,7 @@ zol produces a basic heatmap, but for visualizations of gene-clusters we recomme
 
 ### Zoom on Locus (zol) and Find Additional Instances (fai)
 
-**`zol`** is a program to create table reports showing homolog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports.
+**`zol`** is a program to create table reports showing ortholog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports.
 
 **`fai`** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes. Inspired by cblaster, CORASON, ClusterFinder, MultiGeneBlast, etc. It leverages DIAMOND alignment similar to [cblaster](https://github.com/gamcil/cblaster) and runs fairly rapidly (allowing it to scale to thousands of genomes and even work on metagenomic assemblies). fai features some key differentiating options relative to other software: (i) can assess syntenic similarity of candidate homologous gene clusters to the query gene cluster, (ii) can allow for looser criteria thresholds for gene cluster detection in target genomes if multiple neighborhoods are identified as homologous and on scaffold edges (thus improving fragmented gene cluster identification due to assembly issues) - similar to lsaBGC-Expansion, (iii) filter secondary neighborhoods - e.g. homologous gene neighborhoods to the query which meet the criteria but are not the best match.
 
@@ -16,23 +16,37 @@ Critically, ***with the development of some key options, together, fai and zol e
 
 ### Installation:
 
-#### Conda Manual - (current recommended)
+#### Bioconda (Recommended):
+
+Note, (for some setups at least) ***it is critical to specify the conda-forge channel before the bioconda channel to properly configure priority and lead to a successful installation.***
+ 
+```bash
+# 1. install zol via bioconda
+conda create -n zol_env -c conda-forge -c bioconda zol
+
+# 2. depending on internet speed, this can take 20-30 minutes
+# end product will be 28 GB! You can also run in minimal mode
+# (which will only download PGAP HMM models < 5 GB) using -m.
+setup_annotation_dbs.py
+```
+
+#### Conda Manual:
 
 ```bash
-# 1. clone Git repo and cd into it!
+# 1. clone Git repo and change directories into it!
 git clone https://github.com/Kalan-Lab/zol
 cd zol/
 
 # 2. create conda environment using yaml file and activate it!
-conda env create -f zol_env.yml -p /path/to/zol_conda_env/
-conda activate /path/to/zol_conda_env/
+conda env create -f zol_env.yml -n zol_env
+conda activate zol_env
 
 # 3. complete python installation with the following commands:
 python setup.py install
 pip install -e .
 
 # 4. depending on internet speed, this can take 20-30 minutes
-# end product will be 28 GB! but can also run in minimal mode
+# end product will be 28 GB! You can also run in minimal mode
 # (which will only download PGAP HMM models < 5 GB) using -m.
 # within zol Git repo with conda environment activated, run:
 setup_annotation_dbs.py
@@ -55,15 +69,22 @@ chmod a+x ./run_ZOL.sh
 ./run_ZOL.sh
 ```
 
-#### Conda (through bioconda channel)
-
-Development/incorporation in progress. Please wait for this to be updated to install zol through bioconda, in case there are issues with the first bioconda recipe.
-
 ### Test case:
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
 
-#### Conda
+#### Bioconda 
+
+```bash
+# download test data tar.gz and bash script for running tests
+wget https://github.com/Kalan-Lab/zol/raw/main/test_case.tar.gz
+wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/run_tests.sh
+
+# run bash-based testing script
+bash run_tests.sh
+```
+
+#### Conda Manual
 
 Within the zol GitHub repo, run the following:
 
@@ -142,7 +163,7 @@ For details on the stats/annotations zol infers, please refer to the [zol](https
 **Please consider citing the following dependencies!**
 * **pyrodigal**, **prodigal**, and **miniprot** for gene-calling/mapping.
 * **MUSCLE5** for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
-* **DIAMOND** for alignments in determining homolog groups and **FastTree2** for subsequent phylogeny construction.
+* **DIAMOND** for alignments in determining ortholog groups and **FastTree2** for subsequent phylogeny construction.
 * **CD-HIT** for query protein clustering in fai and 're-inflation' approach in zol.
 * **HyPhy** and **FASTME** for selection analyses.
 * **skani** for dereplication of gene-clusters/GenBanks.
@@ -185,6 +206,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.2.8
+
+- Update README to add Bioconda installation guide.
+- Add more comprehensive comments to python modules with the bulk of the code.
+- Add traceback statement to all functions to generate detailed reports of what might be causing issues if they arise.
+- Switch to consistently using the term ortholog groups (instead of ortholog groups) in the code/messages/results/comments. 
+- Updated to more flexible inputting of query GenBanks in fai.
+- Corrected processing of cases where GenBanks with CDS features are provided as ready to go in prepTG.
 
 ### version 1.2.6 & 1.2.7
 

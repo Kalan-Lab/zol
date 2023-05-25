@@ -30,6 +30,23 @@ conda create -n zol_env -c conda-forge -c bioconda zol
 setup_annotation_dbs.py
 ```
 
+#### Docker:
+
+___Requires docker to be installed on your system!___
+
+To keep the Docker image size relatively low (currently ~8GB), only the PGAP database is included.
+
+```bash
+# get wrapper script from GitHub
+wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/docker/run_ZOL.sh
+
+# change permissions to allow execution
+chmod a+x ./run_ZOL.sh
+
+# run script
+./run_ZOL.sh
+```
+
 #### Conda Manual:
 
 ```bash
@@ -52,28 +69,11 @@ pip install -e .
 setup_annotation_dbs.py
 ```
 
-#### Docker 
-
-___Requires docker to be installed on your system!___
-
-To keep the Docker image size relatively low (currently ~8GB), only the PGAP database is included.
-
-```bash
-# get wrapper script from GitHub
-wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/docker/run_ZOL.sh
-
-# change permissions to allow execution
-chmod a+x ./run_ZOL.sh
-
-# run script
-./run_ZOL.sh
-```
-
 ### Test case:
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
 
-#### Bioconda 
+#### Bioconda:
 
 ```bash
 # download test data tar.gz and bash script for running tests
@@ -84,15 +84,7 @@ wget https://raw.githubusercontent.com/Kalan-Lab/zol/main/run_tests.sh
 bash run_tests.sh
 ```
 
-#### Conda Manual
-
-Within the zol GitHub repo, run the following:
-
-```bash
-bash run_tests.sh
-```
-
-#### Docker testing:
+#### Docker:
 
 ```bash
 # download test scripts from (bash script which you can reference for learning how to run zol).
@@ -106,6 +98,14 @@ chmod a+x ./test_docker.sh
 ```
 
 Note, the script `test_docker.sh` must be run in the same folder as run_ZOL.sh!
+
+#### Conda Manual:
+
+Within the zol GitHub repo, run the following:
+
+```bash
+bash run_tests.sh
+```
 
 ### Usage:
 

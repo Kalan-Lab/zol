@@ -123,10 +123,10 @@ For additoinal details on prepTG (e.g. how to download genomes from NCBI), pleas
 
 fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters:
 
-1. Provide GenBank(s) of known instance(s) of gene cluster in an input directory
+1. Provide GenBank(s) of known instance(s) of gene cluster
 
 ```bash
-fai -i Known_GeneCluster_Genbanks/ -tg prepTG_Database/ -o fai_Results/
+fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
 ```
 
 2. Provide gene-cluster coordinates along a FASTA reference genome 

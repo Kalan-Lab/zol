@@ -67,7 +67,7 @@ def create_parser():
     Type 1: Directory of Homologous Gene-Cluster GenBanks 
     (GenBanks must have CDS features with locus_tag or protein_id names)
 	-----------------------------------------------------	    
-    $ fai -i Known_GeneCluster_Genbanks/ -tg prepTG_Database/ -o fai_Results/
+    $ fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
     
     Type 2: Reference Genome with Gene-Cluster/Locus Coordinates 
     (proteins are collapsed for high-similarity using cd-hit)

@@ -17,7 +17,7 @@ gg_ml <- ggplot(medlen.data, aes(x = reorder(og, og_order), y = med_length)) + t
 	theme(axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
 gg_hm <- ggplot(heatmap.data, aes(x = reorder(og, og_order), y = genbank, fill=as.factor(og_presence), label=copy_count)) +
          theme_classic() +
-         xlab("Homolog Group IDs in Consensus Order") + ylab("") + geom_tile(color='white', show.legend=F) + geom_text() +
+         xlab("ortholog group IDs in Consensus Order") + ylab("") + geom_tile(color='white', show.legend=F) + geom_text() +
 		 theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
 	     scale_fill_manual(values=c('#FFFFFF', '#889cbd'))
 

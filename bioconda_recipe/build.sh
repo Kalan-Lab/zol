@@ -1,6 +1,7 @@
 #!/bin/bash
 
-python -m pip install . -vv
+#$PYTHON setup.py install --single-version-externally-managed --record=record.txt
+$PYTHON -m pip install . --ignore-installed --no-deps -vv
 
 mkdir -p ${PREFIX}/bin
 
@@ -23,6 +24,7 @@ chmod +x ${PREFIX}/bin/splitDiamondResultsForFai
 ZOL_DATA_PATH=${PREFIX}/share/${PKG_NAME}-${PKG_VERSION}/db/
 ZOL_EXEC_PATH=${PREFIX}/bin/
 mkdir -p ${ZOL_DATA_PATH}
+echo 'Default conda space for downloading annotation databases.\n' > ${ZOL_DATA_PATH}/README.txt
 
 # set ZOL_DATA_PATH and ZOL_EXEC_PATH variables on env activation
 mkdir -p ${PREFIX}/etc/conda/activate.d ${PREFIX}/etc/conda/deactivate.d

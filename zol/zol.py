@@ -19,6 +19,7 @@ import pickle
 import shutil
 from scipy import stats
 
+# code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 plot_prog = None
@@ -37,6 +38,24 @@ if plot_prog == None or not os.path.isfile(plot_prog):
 	sys.exit(1)
 
 def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
+	The function first reads the ortholog group matrix and creates a set of protein IDs that are representatives of
+	ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses the CD-HIT
+	program to cluster all proteins in the prot_dir directory and reads the CD-HIT clustering output to create a
+	dictionary that maps non-representative protein IDs to ortholog groups.
+
+	IMPORTANT - CD-HIT PARAMETERS ARE: -c 0.98 -aL 0.95 -aS  0.95  (-n 5 implicit)
+	*******************************************************************************************************************
+	Parameters:
+	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	- prot_dir: A directory containing protein FASTA files.
+	- rog_dir: A directory to write temporary + result files pertaining to reinflation to.
+	- logObject: An object for logging messages.
+	- cpus: The number of CPUs to use for the CD-HIT clustering step.
+	*******************************************************************************************************************
+	"""
 	try:
 		reps = set([])
 		rep_to_hg = {}
@@ -121,11 +140,11 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 				for clust in cluster_obs:
 					for pid in clust_proteins[clust]:
 						if pid in reps and rep_to_hg[pid] != hg:
-							sys.stderr.write('Warning: The protein %s is a representative of homolog group %s, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.\n' % (pid, rep_to_hg[pid], hg))
-							logObject.warning('The protein %s is a representative of a homolog group %s, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.' % (pid, rep_to_hg[pid], hg))
+							sys.stderr.write('Warning: The protein %s is a representative of ortholog group %s, but can potentially belong to multiple. Skipping its incorporation for ortholog group %s.\n' % (pid, rep_to_hg[pid], hg))
+							logObject.warning('The protein %s is a representative of a ortholog group %s, but can potentially belong to multiple. Skipping its incorporation for ortholog group %s.' % (pid, rep_to_hg[pid], hg))
 						elif pid in accounted:
-							sys.stderr.write('Warning: The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.\n' % (pid, hg))
-							logObject.warning('The protein %s has already been clustered into a homolog group, but can potentially belong to multiple. Skipping its incorporation for homolog group %s.' % (pid, hg))
+							sys.stderr.write('Warning: The protein %s has already been clustered into a ortholog group, but can potentially belong to multiple. Skipping its incorporation for ortholog group %s.\n' % (pid, hg))
+							logObject.warning('The protein %s has already been clustered into a ortholog group, but can potentially belong to multiple. Skipping its incorporation for ortholog group %s.' % (pid, hg))
 						else:
 							all_pids_by_sample[pid.split('|')[0]].add(pid)
 						accounted.add(pid)
@@ -145,7 +164,35 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0, skani_coverage_threshold=95.0, mcl_inflation=None, cpus=1):
+def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0,
+						  skani_coverage_threshold=95.0, mcl_inflation=None, cpus=1):
+	"""
+	Description:
+	This function dereplicates a set of GenBank files using the skani to estimate pairwise gene-cluster ANI and either
+	single-linkage clustering (slclust) or MCL to cluster and select representative gene-clusters. If focal gene
+	clusters are noted by the user, they are given priority as representatives otherwise representatives are chosen
+	based on length (longest given priority).
+	*******************************************************************************************************************
+	Parameters:
+	- genbanks: A list of paths to GenBank files.
+	- focal_genbanks: A list of paths to GenBank files that should be included in the dereplicated set if possible,
+	                even if they are not the largest sequences in their cluster.
+	- derep_dir: The directory to write the dereplicated GenBank files to.
+	- kept_dir: The directory to write the GenBank files that were kept after dereplication to.
+	- logObject: An object for logging messages.
+	- skani_identiy_threshold: The minimum identity threshold for two sequences to be considered similar.
+	- skani_coverage_threshold: The minimum coverage threshold for two sequences to be considered similar.
+	- mcl_inflation: The inflation factor to use for the MCL clustering algorithm. If not provided (default), single-
+	                 linkage clustering (via slclust) will be used instead.
+	- cpus: The number of CPUs to use for the skani and MCL clustering algorithms.
+	*******************************************************************************************************************
+	Returns:
+	A tuple of two lists:
+		- The first list contains the paths to the dereplicated GenBank files.
+		- The second list contains the members of each cluster in the dereplicated set.
+	*******************************************************************************************************************
+	"""
+
 	derep_genbanks = set([])
 	try:
 		full_nucl_seq_dir = derep_dir + 'FASTAs/'
@@ -303,6 +350,19 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 	return([derep_genbanks, rep_genbank_members])
 
 def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject):
+	"""
+	Description:
+	This function partitions gene cluster gene/protein sequences by ortholog groups.
+	*******************************************************************************************************************
+	Parameters:
+	- ortho_matrix_file: A file containing an orthomatrix.
+	- prot_dir: A directory containing protein sequences.
+	- nucl_dir: A directory containing DNA sequences.
+	- hg_prot_dir: A directory to write protein sequences for each ortholog group.
+	- hg_nucl_dir: A directory to write DNA sequences for each ortholog group.
+	- logObject: A logging object.
+	*******************************************************************************************************************
+	"""
 	try:
 		g_to_hg = {}
 		samples = []
@@ -337,13 +397,27 @@ def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_
 					hnf_handle.write('>' + rec.description + '\n' + str(rec.seq) + '\n')
 					hnf_handle.close()
 	except Exception as e:
-		sys.stderr.write('Issues with partitioning sequences to homolog groups.\n')
-		logObject.error('Issues with partitioning sequences to homolog groups.')
+		sys.stderr.write('Issues with partitioning sequences to ortholog groups.\n')
+		logObject.error('Issues with partitioning sequences to ortholog groups.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-
-def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, hg_upst_dir, upst_algn_dir, logObject, cpus=1, use_super5=False):
+def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, hg_upst_dir, upst_algn_dir, logObject,
+											 cpus=1, use_super5=False):
+	"""
+	Description:
+	This function partitions upstream DNA sequences into ortholog groups and creates alignments for each group.
+	*******************************************************************************************************************
+	Parameters:
+	- ortho_matrix_file: A file containing an orthomatrix.
+	- nucl_upstr_dir: A directory containing upstream DNA sequences.
+	- hg_upst_dir: A directory to write upstream DNA sequences for each ortholog group.
+	- upst_algn_dir: A directory to write alignments for each ortholog group.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use for alignment.
+	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
+	"""
 	try:
 		g_to_hg = {}
 		samples = []
@@ -399,9 +473,21 @@ def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, 
 		sys.stderr.write('Issues with partitioning/aligning upstream sequences.\n')
 		logObject.error('Issues with partitioning/aligning upstream sequences.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False, cpus=1):
+	"""
+	Description:
+	This function creates protein alignments from a directory of protein sequences.
+	*******************************************************************************************************************
+	Parameters:
+	- prot_dir: A directory containing protein sequences.
+	- prot_algn_dir: A directory to write protein alignments.
+	- logObject: A logging object.
+	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
+	- cpus: The number of CPUs to use for alignment.
+	"""
 	try:
 		for pf in os.listdir(prot_dir):
 			prefix = '.faa'.join(pf.split('.faa')[:-1])
@@ -424,9 +510,21 @@ def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False
 		sys.stderr.write('Issues with creating protein alignments.\n')
 		logObject.error('Issues with creating protein alignments.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function creates codon alignments from a directory of protein alignments and a directory of DNA sequences.
+	*******************************************************************************************************************
+	Parameters:
+	- prot_algn_dir: A directory containing protein alignments.
+	- nucl_dir: A directory containing DNA sequences.
+	- codo_algn_dir: A directory to write codon alignments.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use for alignment.
+	"""
 	try:
 		pal2nal_cmds = []
 		for paf in os.listdir(prot_algn_dir):
@@ -442,9 +540,23 @@ def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpu
 		sys.stderr.write('Issues with creating codon alignments.\n')
 		logObject.error('Issues with creating codon alignments.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function trims protein and codon alignments using TrimAl.
+	*******************************************************************************************************************
+	Parameters:
+	- prot_algn_dir: The directory containing the protein alignments.
+	- codo_algn_dir: The directory containing the codon alignments.
+	- prot_algn_trim_dir: The directory where the trimmed protein alignments will be saved.
+	- codo_algn_trim_dir: The directory where the trimmed codon alignments will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use for trimming the alignments.
+	*******************************************************************************************************************
+	"""
 	try:
 		trim_cmds = []
 		for paf in os.listdir(prot_algn_dir):
@@ -462,9 +574,21 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write('Issues with trimming protein/codon alignments.\n')
 		logObject.error('Issues with trimming protein/codon alignments.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function creates gene trees from trimmed codon alignments using FastTree2 for ortholog groups.
+	*******************************************************************************************************************
+	Parameters:
+	- codo_algn_trim_dir: The directory containing trimmed codon alignments.
+	- tree_dir: The directory where trees in Newick format will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	"""
 	try:
 		fasttree_cmds = []
 		for catf in os.listdir(codo_algn_trim_dir):
@@ -480,9 +604,22 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
 		sys.stderr.write('Issues with creating gene-trees.\n')
 		logObject.error('Issues with creating gene-trees.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function creates profile HMMs and emits consensus sequences based on protein MSAs using HMMER.
+	*******************************************************************************************************************
+	Parameters:
+	- prot_algn_dir: The directory containing protein alignments.
+	- phmm_dir: The directory where profile HMMs in HMMER3 HMM format will be saved.
+	- cons_dir: The directory where consensus sequences in FASTA format will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	"""
 	try:
 		hmmbuild_cmds = []
 		hmmemit_cmds = []
@@ -505,11 +642,34 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.exit(1)
 
 def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace_dir, logObject, use_super5=True, cpus=1):
-	hg_prot_refined_dir = refine_workpace_dir + 'HG_Protein_Refined_Sequences/'
-	hg_nucl_refined_dir = refine_workpace_dir + 'HG_Nucleotide_Refined_Sequences/'
+	"""
+	Description:
+	This function refines protein alignments by DIAMOND BLASTing proteins from a reference gene cluster and filtering
+	sites which are not aligned. The intent of the function was to refine alignments when dealing with eukaryotic
+	gene clusters and miniprot based mapping of gene calls in genomes had resulted in inclusion of intronic sequences.
+	We have since improved the parsing of miniprot based gene mapping to make this function largely unecessary and might
+	remove the functionality in future versions.
+	*******************************************************************************************************************
+	Parameters:
+	- custom_database: Proteins in FASTA format from a reference gene cluster.
+	- hg_prot_dir: The directory where the original (un-refined) ortholog group protein alignments are stored.
+	- hg_nucl_dir: The directory where the origianl (un-refined) ortholog group nucleotide alignments are stored.
+	- refine_workspace_dir: The workspace to perform the refinement of protein and nucleotide alignments.
+	- logObject: A logging object.
+	- use_super5: Whether to use SUPER5 algorithm for MUSCLE based alignment.
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	Returns:
+	A list consisting of two items:
+	- hg_prot_refined_dir (first item): The directory where the refined ortholog group protein alignments are stored.
+	- hg_nucl_refined_dir (second item): The directory where the refined ortholog group protein alignments are stored.
+	*******************************************************************************************************************
+	"""
+	hg_prot_refined_dir = refine_workpace_dir + 'OG_Protein_Refined_Sequences/'
+	hg_nucl_refined_dir = refine_workpace_dir + 'OG_Nucleotide_Refined_Sequences/'
 	try:
-		tmp_hg_prot_seq_dir = refine_workpace_dir + 'HG_Prot_Seqs_with_References/'
-		tmp_hg_prot_aln_dir = refine_workpace_dir + 'HG_Prot_Alns_with_References/'
+		tmp_hg_prot_seq_dir = refine_workpace_dir + 'OG_Prot_Seqs_with_References/'
+		tmp_hg_prot_aln_dir = refine_workpace_dir + 'OG_Prot_Alns_with_References/'
 		util.setupReadyDirectory([hg_prot_refined_dir, hg_nucl_refined_dir, tmp_hg_prot_seq_dir, tmp_hg_prot_aln_dir])
 
 		concat_proteins_faa_file = refine_workpace_dir + 'All_Proteins.faa'
@@ -534,6 +694,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 			logObject.error('Had an issue running DIAMOND makedb: %s' % ' '.join(makedb_cmd))
 			sys.stderr.write('Had an issue running DIAMOND makedb: %s\n' % ' '.join(makedb_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 		try:
@@ -545,6 +706,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 			logObject.error('Had an issue running DIAMOND blastp: %s' % ' '.join(search_cmd))
 			sys.stderr.write('Had an issue running DIAMOND blastp: %s\n' % ' '.join(search_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 		best_query_hit = defaultdict(lambda: [set([]), 0.0])
@@ -596,6 +758,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 				logObject.error('Had an issue running MUSCLE: %s' % ' '.join(align_cmd))
 				sys.stderr.write('Had an issue running MUSCLE: %s\n' % ' '.join(align_cmd))
 				logObject.error(e)
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
 			msa_avoid_pos = set([])
@@ -643,7 +806,29 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 
 	return([hg_prot_refined_dir, hg_nucl_refined_dir])
 
-def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
+def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, logObject, cpus=1,
+						   max_annotation_evalue=1e-5):
+	"""
+	Description:
+	This function will annotate consensus sequences for ortholog groups with a custom database of protein sequences
+	provided by the user in FASTA format. The best hit per ortholog group is selected based on bitscore provided that
+	the E-value threshold is met.
+	*******************************************************************************************************************
+	Parameters:
+	- protein_faa: Consensus protein sequences for ortholog groups in FASTA format.
+	- custom_protein_db_faa: Custom database of reference proteins in FASTA format.
+	- annotation_dir: Directory where to perform annotation analysis.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- max_annotation_evalue: The maximum E-value by DIAMOND to regard an alignment between a consensus ortholog group
+	                         sequence and a reference protein sequence.
+	*******************************************************************************************************************
+	Returns:
+	A dictionary where the key in the ortholog group identifier and the value is a list of two lists, where the first
+	list contains identifiers/descriptions of the custom/reference proteins and the second is a list of the respective
+	E-values.
+	*******************************************************************************************************************
+	"""
 	custom_annotations = {}
 	try:
 		custom_annot_dir = annotation_dir + 'Custom_Annotation/'
@@ -663,6 +848,7 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 			logObject.error('Had an issue running DIAMOND makedb: %s' % ' '.join(makedb_cmd))
 			sys.stderr.write('Had an issue running DIAMOND makedb: %s\n' % ' '.join(makedb_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 		try:
@@ -674,6 +860,7 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 			logObject.error('Had an issue running DIAMOND blastp: %s' % ' '.join(search_cmd))
 			sys.stderr.write('Had an issue running DIAMOND blastp: %s\n' % ' '.join(search_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 
 		id_to_description = {}
@@ -708,6 +895,26 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 	return(custom_annotations)
 
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
+	"""
+	Description:
+	This function will attempt to annotate consensus sequences for ortholog groups with the default databases supported
+	within zol assuming they have been (properly) setup. The best hit per ortholog group per database is selected based
+	on bitscore (if FASTA database) or score (if pHMM database) provided that the E-value threshold is met.
+	*******************************************************************************************************************
+	Parameters:
+	- protein_faa: Consensus protein sequences for ortholog groups in FASTA format.
+	- annotation_dir: Directory where to perform annotation analysis.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- max_annotation_evalue: The maximum E-value by DIAMOND to regard an alignment between a consensus ortholog group
+	                         sequence and a database sequence.
+	*******************************************************************************************************************
+	Returns:
+	A dictionary of dictionaries where the primary key is the name of the database and the secondary key is the homolog
+	group identifier and the values are a list of two lists, where the first list contains identifiers/descriptions of
+	the best-hit database proteins and the second is a list of the respective E-values.
+	*******************************************************************************************************************
+	"""
 	zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
 	db_locations = None
 	conda_setup_success = None
@@ -822,7 +1029,9 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 
 def default_to_regular(d):
 	"""
-	Function taken from
+	Convert a defaultdict to a regular old dict.
+
+	Function taken from:
 	https://stackoverflow.com/questions/26496831/how-to-convert-defaultdict-of-defaultdicts-of-defaultdicts-to-dict-of-dicts-o
 	"""
 	try:
@@ -830,9 +1039,24 @@ def default_to_regular(d):
 			d = {k: default_to_regular(v) for k, v in d.items()}
 		return d
 	except:
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
+	"""
+	Description:
+	This function determines the consensus order and directionality of ortholog groups in a set of gene cluster
+	GenBanks. It is closely based on code from lsaBGC.
+	*******************************************************************************************************************
+	Parameters:
+	- genbanks: A list of gene cluster GenBank files.
+	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	- logObject: A logging object.
+	*******************************************************************************************************************
+	Results:
+	- hg_order_scores:
+	*******************************************************************************************************************
+	"""
 	try:
 		gc_gene_to_hg = {}
 		core_hgs = set([])
@@ -968,7 +1192,8 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 			try:
 				assert (anchor_edge != None)
 			except:
-				sys.stderr.write("Unexpected error, no anchor edge found, could be because no protocore homolog group exists, which shouldn't be the case!\n")
+				sys.stderr.write(traceback.format_exc())
+				sys.stderr.write("\nUnexpected error, no anchor edge found, could be because no protocore ortholog group exists, which shouldn't be the case!\n")
 				sys.exit(1)
 
 		# use to keep track of which HGs have been accounted for already at different steps of assigning order
@@ -1060,13 +1285,31 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 				i += 1
 		return hg_order_scores
 	except Exception as e:
-		sys.stderr.write('Issues in attempting to calculate order score for each homolog group.\n')
-		logObject.error("Issues in attempting to calculate order score for each homolog group.")
+		sys.stderr.write('Issues in attempting to calculate order score for each ortholog group.\n')
+		logObject.error("Issues in attempting to calculate order score for each ortholog group.")
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def determineHGStats(orthogroup_matrix_file, hg_nucl_dir, logObject, representative_associated_members=None, impute_broad_conservation=False):
+def determineHGStats(orthogroup_matrix_file, hg_nucl_dir, logObject, representative_associated_members=None,
+					 impute_broad_conservation=False):
+	"""
+	Description:
+	This function determines basic statistics for ortholog groups, including: (i) percentage of gene clusters which
+	feature theme, (ii) the median GC%, (iii) the median GC skew, (iv) whether they are found at max a copy-count of
+	one per gene cluster, and (v) the median legnth of nucleotide sequences.
+	*******************************************************************************************************************
+	Parameters:
+	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	- hg_nucl_dir: The directory of FASTA files with nucleotide sequence for each ortholog group.
+	- logObject: A logging object.
+	- representative_associated_members:
+	- impute_broad_conservation:
+	*******************************************************************************************************************
+	Results:
+	- hg_order_scores: a dictionary where the key is the ortholog group identifier
+	*******************************************************************************************************************
+	"""
 	try:
 		hg_single_copy_status = {}
 		hg_prop_samples = {}
@@ -1127,13 +1370,32 @@ def determineHGStats(orthogroup_matrix_file, hg_nucl_dir, logObject, representat
 			hg_median_gc[hg] = statistics.median(gcs)
 		return([hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, dict(hg_lts)])
 	except Exception as e:
-		logObject.error('Issues with determining basic stats for homolog groups.')
-		sys.stderr.write('Issues with determining basic stats for homolog groups.\n')
+		logObject.error('Issues with determining basic stats for ortholog groups.')
+		sys.stderr.write('Issues with determining basic stats for ortholog groups.\n')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def individualHyphyRun(inputs):
-	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, skip_gard, gard_mode, logObject = inputs
+	"""
+	Description:
+	This functions run HyPhy based analyses (GARD + FUBAR) for a single ortholog group.
+	*******************************************************************************************************************
+	Parameters:
+	- inputs: a list which can be expanded to the following items:
+		- hg: ortholog group identifier.
+		- hg_codo_algn_file: ortholog group codon alignment file in FASTA format.
+		- hg_codo_tree_file: ortholog group (approximate) phylogeny file in Newick format.
+		- gard_output: output *.json file from GARD analysis.
+		- best_gard_output: output *.best file from GARD analysis.
+		- fubar_outdir: results directory for FUBAR analysis.
+		- skip_gard: boolean flag for whether to skip GARD analysis.
+		- gard_mode: analysis mode for GARD - either "Faster" or "Normal".
+		- logObject: a logging object.
+	*******************************************************************************************************************
+	"""
+	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, skip_gard, gard_mode, \
+		logObject = inputs
 	try:
 		input_gbks_with_hg = set([])
 		with open(hg_codo_algn_file) as ohcaf:
@@ -1169,6 +1431,7 @@ def individualHyphyRun(inputs):
 				logObject.error('Had an issue running FUBAR: %s' % ' '.join(fubar_cmd))
 				sys.stderr.write('Had an issue running FUBAR: %s\n' % ' '.join(fubar_cmd))
 				logObject.error(e)
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 		else:
 			gard_cmd = ['hyphy', 'CPU=1', 'gard', '--mode', gard_mode, '--alignment', hg_codo_algn_file,
@@ -1183,6 +1446,7 @@ def individualHyphyRun(inputs):
 				logObject.error('Had an issue running GARD: %s' % ' '.join(gard_cmd))
 				sys.stderr.write('Had an issue running GARD: %s\n' % ' '.join(gard_cmd))
 				logObject.error(e)
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
@@ -1197,25 +1461,44 @@ def individualHyphyRun(inputs):
 				logObject.error('Had an issue running FUBAR: %s' % ' '.join(fubar_cmd))
 				sys.stderr.write('Had an issue running FUBAR: %s\n' % ' '.join(fubar_cmd))
 				logObject.error(e)
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
 	except Exception as e:
-		sys.stderr.write('Issues with running HYPHY based analyses for homolog group %s\n' % hg)
+		sys.stderr.write('Issues with running HYPHY based analyses for ortholog group %s\n' % hg)
 		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
 		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 
-def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, logObject, cpus=1, skip_gard=False, gard_mode="Faster"):
+def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, logObject, skip_gard=False,
+					 gard_mode="Faster", cpus=1):
+	"""
+	Description:
+	This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting
+	statistics from resulting JSON files to include in the consolidated report created at the end of zol.
+	*******************************************************************************************************************
+	Parameters:
+	- codo_algn_dir: The directory with codon alignments for each ortholog group.
+	- tree_dir: The directory with gene-trees for each ortholog group (recall - these are made using FastTree2 on
+			    trimmed codon alignments.
+	- gard_results_dir: The directory where GARD result files should be saved.
+	- fubar_results_dir: The directory where FUBAR result files should be saved.
+	- logObject: A logging object.
+	- skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
+	- gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	"""
 	try:
 		hyphy_inputs = []
 		for caf in os.listdir(codo_algn_dir):
 			if not caf.endswith('.msa.fna'): continue
 			hg = caf.split('.msa.fna')[0]
 			hg_codo_algn_file = codo_algn_dir + caf
-			hg_full_codo_tree_file = tree_dir + hg + '.tre'
+			hg_codo_tree_file = tree_dir + hg + '.tre'
 			gard_output = gard_results_dir + hg + '.json'
 			best_gard_output = gard_results_dir + hg + '.best'
-			hyphy_inputs.append([hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
+			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
 							skip_gard, gard_mode, logObject])
 
 		p = multiprocessing.Pool(cpus)
@@ -1282,6 +1565,18 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 		sys.exit(1)
 
 def determineSeqSimProteinAlignment(inputs):
+	"""
+	Description:
+	This function computes the sequence similarity/identity between proteins in a MSA.
+	*******************************************************************************************************************
+	Parameters:
+	- input: A list which can be expanded to the following items:
+		- hg: The ortholog group identifier.
+		- protein_alignment_file: The protein multiple sequence alignment file for the ortholog group in FASTA format.
+		- outf: The output file where to write pairwise sequence similarities.
+		- logObject: A logging object.
+	*******************************************************************************************************************
+	"""
 	use_only_core = True # hardcoded true at the moment
 	hg, protein_alignment_file, outf, logObject = inputs
 	protein_sequences = {}
@@ -1320,7 +1615,23 @@ def determineSeqSimProteinAlignment(inputs):
 
 def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
 	"""
-	Note, Beta-RD gene-cluster statistic here is being computed in a different manner than what we did in lsaBGC.
+	Description:
+	This function computes the BetaRD-gc statistic for each ortholog group - which is an estimate of how sequence
+	similarity varies for the ortholog group in relation to other ortholog groups from the gene cluster.
+	Note, Beta-RD gene-cluster statistic here is being computed in a different manner than what we did in lsaBGC, it is
+	a different statistic.
+	*******************************************************************************************************************
+	Parameters:
+	- prot_algn_dir: The directory with protein alignments for ortholog groups.
+	- evo_dir: The workspace/directory where evolutionary analyses are to be performed under.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	Returns:
+	- A list of two dictionaries:
+		- hg_med_beta_rd: A dictionary mapping ortholog groups to the median BetaRD-gc statistic.
+		- hg_max_beta_rd: A dictionary mapping ortholog groups to the max BetaRD-gc statistic.
+	*******************************************************************************************************************
 	"""
 	brd_results_dir = evo_dir + 'BetaRDgc_Calculations/'
 	util.setupReadyDirectory([brd_results_dir])
@@ -1363,14 +1674,75 @@ def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
 				hg_med_beta_rd[hg] = statistics.median(Brdgc)
 				hg_max_beta_rd[hg] = max(Brdgc)
 	except Exception as e:
-		sys.stderr.write('Issues with calculating Beta-RD gene-cluster for homolog groups.\n')
-		logObject.error('Issues with calculating Beta-RD gene-cluster for homolog groups.')
+		sys.stderr.write('Issues with calculating Beta-RD gene-cluster for ortholog groups.\n')
+		logObject.error('Issues with calculating Beta-RD gene-cluster for ortholog groups.')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return([hg_med_beta_rd, hg_max_beta_rd])
 
+def calculateMSAEntropy(inputs):
+	"""
+	Description:
+	This function computes the average entropy statistic for a MSA of proteins for an individual ortholog group.
+	*******************************************************************************************************************
+	Parameters:
+	- input: A list which can be expanded to the following items:
+		- hg: The ortholog group identifier.
+		- nucl_algn_fasta: The nucleotide/codon multiple sequence alignment file for the ortholog group in FASTA format.
+		- outf: The output file where to write the average entropy calculated.
+		- logObject: A logging object.
+	*******************************************************************************************************************
+	"""
+	hg, nucl_algn_fasta, outf, logObject = inputs
+	try:
+		seqs = []
+		with open(nucl_algn_fasta) as onaf:
+			for rec in SeqIO.parse(onaf, 'fasta'):
+				seqs.append(list(str(rec.seq)))
+		accounted_sites = 0
+		all_entropy = 0.0
+		for tup in zip(*seqs):
+			als = list(tup)
+			missing_prop = sum([1 for al in als if not al in set(['A', 'C', 'G', 'T'])])/float(len(als))
+			if missing_prop >= 0.1: continue
+			filt_als = [al for al in als if al in set(['A', 'C', 'G', 'T'])]
+			a_freq = sum([1 for al in filt_als if al == 'A'])/float(len(filt_als))
+			c_freq = sum([1 for al in filt_als if al == 'C'])/float(len(filt_als))
+			g_freq = sum([1 for al in filt_als if al == 'G'])/float(len(filt_als))
+			t_freq = sum([1 for al in filt_als if al == 'T'])/float(len(filt_als))
+			site_entropy = stats.entropy([a_freq, c_freq, g_freq, t_freq],base=4)
+			all_entropy += site_entropy
+			accounted_sites += 1
+		avg_entropy = "NA"
+		if accounted_sites > 0:
+			avg_entropy = all_entropy/accounted_sites
+		outf_handle = open(outf, 'w')
+		outf_handle.write(hg + '\t' + str(avg_entropy) + '\n')
+		outf_handle.close()
+	except Exception as e:
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
 def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function computes the average entropy statistic for ortholog groups.
+	*******************************************************************************************************************
+	Parameters:
+	- codon_algn_trim_dir: The directory with trimmed codon alignments for ortholog groups.
+	- upst_algn_dir: The directory with upstream nucleotide alignments for ortholog groups.
+	- evo_dir: The workspace/directory where evolutionary analyses are to be performed under.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	*******************************************************************************************************************
+	Returns:
+	- A list of two dictionaries:
+		- hg_entropy: A dictionary mapping ortholog groups to the average entropy statistic.
+		- hg_upst_entropy: A dictionary mapping ortholog groups to the upstream sequence average entropy statistic.
+	*******************************************************************************************************************
+	"""
 	try:
 		entropy_res_dir = evo_dir + 'Entropy_Calculations/'
 		util.setupReadyDirectory([entropy_res_dir])
@@ -1404,43 +1776,30 @@ def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, cp
 						hg_entropy[hg] = ep
 		return([hg_entropy, hg_upst_entropy])
 	except Exception as e:
-		sys.stderr.write('Issues with calculating entropy for homolog groups or their upstream regions.\n')
-		logObject.error('Issues with calculating entropy for homolog groups or their upstream regions.')
+		sys.stderr.write('Issues with calculating entropy for ortholog groups or their upstream regions.\n')
+		logObject.error('Issues with calculating entropy for ortholog groups or their upstream regions.')
 		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
-
-def calculateMSAEntropy(inputs):
-	hg, nucl_algn_fasta, outf, logObject = inputs
-	try:
-		seqs = []
-		with open(nucl_algn_fasta) as onaf:
-			for rec in SeqIO.parse(onaf, 'fasta'):
-				seqs.append(list(str(rec.seq)))
-		accounted_sites = 0
-		all_entropy = 0.0
-		for tup in zip(*seqs):
-			als = list(tup)
-			missing_prop = sum([1 for al in als if not al in set(['A', 'C', 'G', 'T'])])/float(len(als))
-			if missing_prop >= 0.1: continue
-			filt_als = [al for al in als if al in set(['A', 'C', 'G', 'T'])]
-			a_freq = sum([1 for al in filt_als if al == 'A'])/float(len(filt_als))
-			c_freq = sum([1 for al in filt_als if al == 'C'])/float(len(filt_als))
-			g_freq = sum([1 for al in filt_als if al == 'G'])/float(len(filt_als))
-			t_freq = sum([1 for al in filt_als if al == 'T'])/float(len(filt_als))
-			site_entropy = stats.entropy([a_freq, c_freq, g_freq, t_freq],base=4)
-			all_entropy += site_entropy
-			accounted_sites += 1
-		avg_entropy = "NA"
-		if accounted_sites > 0:
-			avg_entropy = all_entropy/accounted_sites
-		outf_handle = open(outf, 'w')
-		outf_handle.write(hg + '\t' + str(avg_entropy) + '\n')
-		outf_handle.close()
-	except Exception as e:
-		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject):
+	"""
+	Description:
+	This function computes the proportion of ambiguous sites (>10% gaps) in full and trimmed codon alignments.
+	*******************************************************************************************************************
+	Parameters:
+	- codon_algn_dir: The directory with codon alignments for ortholog groups.
+	- codon_algn_trim_dir: The directory with trimmed codon alignments for ortholog groups.
+	- logObject: A logging object.
+	*******************************************************************************************************************
+	Returns:
+	- A list of two dictionaries:
+		- full_amb_prop: A dictionary mapping ortholog groups to the proportion of ambiguous sites in the full codon
+		                 alignment.
+		- trim_amb_prop: A dictionary mapping ortholog groups to the proportion of ambiguous sites in the trimmed codon
+		                 alignment.
+	*******************************************************************************************************************
+	"""
 	full_amb_prop = {}
 	trim_amb_prop = {}
 	try:
@@ -1486,10 +1845,24 @@ def calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject):
 		sys.stderr.write('Issues with calculating ambiguity for full or trimmed codon alignments.\n')
 		logObject.error('Issues with calculating ambiguity for full or trimmed codon alignments.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 	return([full_amb_prop, trim_amb_prop])
 
 def runTajimasDAnalysisPerHG(inputs):
+	"""
+	Description:
+	This function oversees the calculation of Tajima's D and proportion of segregating sites per ortholog group.
+	*******************************************************************************************************************
+	Parameters:
+	- input: A list which can be expanded to the following items:
+		- hg: The ortholog group identifier.
+		- trim_codon_align: The trimmed codon multiple sequence alignment file for the ortholog group in FASTA format.
+		- outf: The output file where to write the Tajima's D statistic and the proportion of segregating sites for the
+		        ortholog group.
+		- logObject: A logging object.
+	*******************************************************************************************************************
+	"""
 	hg, trim_codon_align, outf, logObject = inputs
 	try:
 		outf_handle = open(outf, 'w')
@@ -1506,12 +1879,30 @@ def runTajimasDAnalysisPerHG(inputs):
 			seg_sites_prop = 'NA'
 		outf_handle.write('\t'.join([hg, str(taj_d), str(seg_sites_prop)]) + '\n')
 	except Exception as e:
-		sys.stderr.write('Issues with calculating Tajima\'s D for homolog group %s.\n' % hg)
-		logObject.error('Issues with calculating Tajima\'s D for homolog group %s.' % hg)
+		sys.stderr.write('Issues with calculating Tajima\'s D for ortholog group %s.\n' % hg)
+		logObject.error('Issues with calculating Tajima\'s D for ortholog group %s.' % hg)
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, cpus=1):
+	"""
+	Description:
+	This function runs Tajima's D analysis for all ortholog groups.
+	********************************************************************************************************************
+	Parameters:
+	- codo_algn_trim_dir: The directory where trimmed codon alignments are stored for ortholog groups.
+	- evo_dir: The workspace/directory where Tajima's D analyses should be performed under.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	Returns:
+	- A list with two items:
+		- hg_tajimas_d: A dictionary mapping ortholog groups to their Tajima's D estimates.
+		- hg_seg_sites: A dictionary mapping ortholog groups to the proportion of segregating sites in their trimmed
+		                codon alignments.
+	********************************************************************************************************************
+	"""
 	try:
 		tajd_resdir = evo_dir + 'TajimasD_and_SegSites_Calculations/'
 		util.setupReadyDirectory([tajd_resdir])
@@ -1539,15 +1930,25 @@ def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, cpus=1):
 					hg_seg_sites_prop[hg] = ssp
 		return([hg_tajimas_d, hg_seg_sites_prop])
 	except Exception as e:
-		sys.stderr.write('Issues with calculating Tajima\'s D for homolog groups.\n')
-		logObject.error('Issues with calculating Tajima\'s D for homolog groups.')
+		sys.stderr.write('Issues with calculating Tajima\'s D for ortholog groups.\n')
+		logObject.error('Issues with calculating Tajima\'s D for ortholog groups.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def calculateTajimasD(sequences):
 	"""
-	The code for this functionality was largely taken from Tom Whalley's Tajima's D implementation in Python and further
-	modified/corrected based on Wikipedia's page for Tajima's D (Mathematical details).
+	Description:
+	Takes a list of aligned sequences (trimmed codon alignments) and computes Tajima's D statistic. The code for this
+	functionality was largely taken from Tom Whalley's Tajima's D implementation in Python and further modified /
+	corrected to better match the calculation of the statistic as described by Tajima 1989.
+	********************************************************************************************************************
+	Parameters:
+	- sequences: a list of aligned nucleotide sequences.
+	********************************************************************************************************************
+	Returns:
+	- An estimate of Tajima's D for the input.
+	********************************************************************************************************************
 	"""
 
 	"""Calculate pi"""
@@ -1604,7 +2005,37 @@ def calculateTajimasD(sequences):
 		return (["< 3 segregating sites!", S])
 
 
-def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, logObject, representative_associated_members=None, impute_broad_conservation=False):
+def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir,
+										  logObject, representative_associated_members=None,
+										  impute_broad_conservation=False):
+	"""
+	Description:
+	This function performs comparative analyses between focal and comparator/complementary gene clusters if requested by
+	the user. Will compute conservation percentages between the two sets and also FST for each ortholog group for the
+	focal gene cluster and upstream regions.
+	*******************************************************************************************************************
+	Parameters:
+	- focal_genbank_ids: A set of gene cluster identifiers which correspond to the focal set delineated by the user.
+	- comparator_genbank_ids: A set of gene cluster identifiers which correspond to the comparator or complementary set
+	                          either specified by the user or automatically determined.
+	- codo_algn_trim_dir: The directory where the trimmed codon alignments for ortholog groups are stored.
+	- upst_algn_dir: The directory where the alignments of the upstream sequences for ortholog groups are stored.
+	- logObject: A logging object.
+	- representative_associated_members: A mapping of gene clusters (including those removed due to redundancy from
+	                                     dereplication) to representative gene clusters.
+	- impute_broad_conservation: Whether to impute conservation comprehensively, regarding members of a set of
+	                             similar gene clusters as featuring an ortholog group if their respetive representative
+	                             gene cluster had the ortholog group.
+	*******************************************************************************************************************
+	Returns:
+	- comp_stats: A dictionary which contains four dictionaries:
+		- prop_foc_with: A dictionary which maps ortholog groups to the proportion of focal gene clusters with them.
+		- prop_com_with: A dictionary which maps ortholog groups to the proportion of comparator gene clusters with them.
+		- fst: A dictionary which maps ortholog groups to the FST for the focal gene clusters.
+		- upst_fst:
+	comp_stats[hg] = {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst, 'fst_upst': upst_fst}
+	*******************************************************************************************************************
+	"""
 	comp_stats = {}
 	try:
 		total_foc_broad = set([])
@@ -1741,19 +2172,36 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 		sys.exit(1)
 	return (comp_stats)
 
-def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, run_hyphy=False, ces=False):
+def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx,
+					  final_report_tsv, logObject, run_hyphy=False, ces=False):
 	"""
-	dict_keys(['pfam', 'vfdb', 'paperblast', 'pgap', 'vog', 'isfinder', 'card', 'mibig'])
-	dict_keys(['hg_single_copy_status', 'hg_prop_samples', 'hg_median_lengths', 'hg_order_scores'])
-	dict_keys(['tajimas_d', 'gard_partitions', 'fubar_sel_props', 'fubar_sel_sites', 'gene_tree_congruence'])
+	Description:
+	This function creates the final consolidated TSV and XLSX report for zol where each row corresponds to an ortholog
+	group.
+	********************************************************************************************************************
+	Parameters:
+	- consensus_prot_seqs_faa: FASTA file with consensus protein sequences for each ortholog group.
+	- comp_stats: A dictionary with information from comparative analysis of gene-clusters in focal vs. rest/comparator
+	              set of gene-cluster for each ortholog group.
+	- hg_stats: A dictionary with general information/statistics for each ortholog group.
+	- annotations: A dictionary containing annotation information for each ortholog group.
+	- evo_stats: A dictionary containing evolutionary statistics for each ortholog group.
+	- final_report_xlsx: The path to the final XLSX report spreadsheet.
+	- final_report_tsv: The path to the final TSV report table.
+	- logObject: A logging object.
+	- run_hyphy: Whether HyPhy analysis was requested by the user.
+	- ces: Whether comprehensive reporting of stats for all ortholog groups, regardless of whether they are found in
+	       multiple copies in some gene clusters (some statistics are filtered by default for such ortholog groups).
+	********************************************************************************************************************
 	"""
+
 	try:
 		# Note to self, eventually quit being lazy and conditionally display all columns (e.g. FUBAR columns) when requested by user
 		# to avoid having columns with NA values.
-		header = ['Homolog Group (HG) ID', 'HG is Single Copy?', 'Proportion of Total Gene Clusters with HG',
-				  'HG Median Length (bp)', 'HG Consensus Order', 'HG Consensus Direction']
+		header = ['Oomolog Group (OG) ID', 'OG is Single Copy?', 'Proportion of Total Gene Clusters with OG',
+				  'OG Median Length (bp)', 'OG Consensus Order', 'OG Consensus Direction']
 		if comp_stats != None:
-			header += ['Proportion of Focal Gene Clusters with HG', 'Proportion of Comparator Gene Clusters with HG',
+			header += ['Proportion of Focal Gene Clusters with OG', 'Proportion of Comparator Gene Clusters with OG',
 					   'Fixation Index', 'Upstream Region Fixation Index']
 		header += ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 'Entropy',
 				   'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
@@ -1768,7 +2216,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		header += ['Custom Annotation (E-value)', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
 				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
-				   'Pfam Domains', 'CDS Locus Tags', 'HG Consensus Sequence']
+				   'Pfam Domains', 'CDS Locus Tags', 'OG Consensus Sequence']
 
 		seqs = {}
 		with open(consensus_prot_seqs_faa) as ocpsf:
@@ -1845,9 +2293,9 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		dd_sheet.write(1, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki at:')
 		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
 
-		numeric_columns = {'Proportion of Total Gene Clusters with HG', 'Proportion of Focal Gene Clusters with HG',
-						   'Proportion of Comparator Gene Clusters with HG', 'Fixation Index',
-						   'Upstream Region Fixation Index', 'HG Median Length (bp)', 'HG Consensus Order',
+		numeric_columns = {'Proportion of Total Gene Clusters with OG', 'Proportion of Focal Gene Clusters with OG',
+						   'Proportion of Comparator Gene Clusters with OG', 'Fixation Index',
+						   'Upstream Region Fixation Index', 'OG Median Length (bp)', 'OG Consensus Order',
 						   'Tajima\'s D', 'Entropy', 'Upstream Region Entropy',
 						   'GARD Partitions Based on Recombination Breakpoints',
 						   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
@@ -2000,7 +2448,24 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height=7, width=10, full_genbank_labels=False):
+def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height=7, width=10,
+				full_genbank_labels=False):
+	"""
+	Description:
+	This function create a heatmap figure showing the presence of ortholog groups across gene clusters.
+	********************************************************************************************************************
+	Parameters:
+	- hg_stats: A dictionary containing general statistics for each ortholog group (including which gene clusters have
+	            them).
+	- genbanks: The set of gene-clusters to account for in the heatmap.
+	- plot_result_pdf:
+	- work_dir: The workspace/directory where to store intermediate files for plotting.
+	- logObject: A logging object.
+	- height: The height of the plot in inches.
+	- width: The width of the plot in inches.
+	- full_genbank_labels: Whether to use the full gene cluster identifiers as labels.
+	********************************************************************************************************************
+	"""
 	try:
 		representative_genbanks = set([])
 		for gbk in genbanks:
@@ -2011,8 +2476,8 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 			representative_genbanks.add(gbk_prefix)
 
 		# create input tracks
-		ml_track_file = work_dir + 'HG_Median_Length_Info.txt'
-		hm_track_file = work_dir + 'HG_Heatmap_Info.txt'
+		ml_track_file = work_dir + 'OG_Median_Length_Info.txt'
+		hm_track_file = work_dir + 'OG_Heatmap_Info.txt'
 		ml_track_handle = open(ml_track_file, 'w')
 		hm_track_handle = open(hm_track_file, 'w')
 		ml_track_handle.write('og\tog_order\tmed_length\n')
@@ -2067,9 +2532,11 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 			logObject.error('Had an issue running R based plotting - potentially because of R setup issues in conda: %s' % ' '.join(plot_cmd))
 			sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
 			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 	except Exception as e:
 		sys.stderr.write('Issues creating visualizations.\n')
 		logObject.error('Issues creating visualizations.')
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

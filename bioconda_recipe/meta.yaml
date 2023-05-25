@@ -1,32 +1,36 @@
 {% set name = "zol" %}
-{% set version = "1.2.XXX" %}
+{% set version = "XXXX" %}
 
 package:
   name: {{ name|lower }}
-  version: {% set sha256 = "XXXXXXXXXXXXX" %}
+  version: {{ version }}
+
 source:
-  url: https://github.com/Kalan-Lab/zol/archive/refs/tags/v1.2.3.tar.gz
-  sha256: {{ sha256 }}
+  url: https://github.com/Kalan-Lab/zol/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 build:
   number: 0
-  no-arch: generic
+  skip: True # [py <= 39]
 
 requirements:
   build:
      - {{ compiler('cxx') }}
   host:
-    - python =3.10
+    - python
+    - setuptools
+    - pip
     - axel
   run:
+    - python =3.10
     - biopython =1.79
     - muscle
-    - setuptools <=58.2.0
+    - setuptools
     - mcl
     - pal2nal >=14.1
     - hmmer >=3.0.0
     - fasttree >=2.0.0
-    - diamond >=2.0.15
+    - diamond =2.0.15
     - prodigal
     - pyrodigal =2.1.0
     - pandas >=2.0
@@ -49,9 +53,9 @@ requirements:
 
 test:
   commands:
-    - prepTG --help
-    - fai --help
-    - zol --help
+    - prepTG -v
+    - fai -v
+    - zol -v
 
 about:
   home: https://github.com/Kalan-Lab/zol

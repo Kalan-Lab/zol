@@ -21,8 +21,9 @@ Critically, ***with the development of some key options, together, fai and zol e
 Note, (for some setups at least) ***it is critical to specify the conda-forge channel before the bioconda channel to properly configure priority and lead to a successful installation.***
  
 ```bash
-# 1. install zol via bioconda
+# 1. install and activate zol
 conda create -n zol_env -c conda-forge -c bioconda zol
+conda activate zol
 
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be 28 GB! You can also run in minimal mode

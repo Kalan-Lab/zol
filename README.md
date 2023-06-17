@@ -245,6 +245,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.2.10
+
+- Update CITATION.cff
+
 ### version 1.2.9
 
 - Minor changes to code documentation and updates to citation references README.

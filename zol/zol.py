@@ -2289,9 +2289,8 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		writer = pd.ExcelWriter(final_report_xlsx, engine='xlsxwriter')
 		workbook = writer.book
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
-		dd_sheet.write(0, 0, 'WARNING: some evolutionary statistics are experimental - evaluate with caution!!!')
-		dd_sheet.write(1, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki at:')
-		dd_sheet.write(2, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki at:')
+		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
 
 		numeric_columns = {'Proportion of Total Gene Clusters with OG', 'Proportion of Focal Gene Clusters with OG',
 						   'Proportion of Comparator Gene Clusters with OG', 'Fixation Index',

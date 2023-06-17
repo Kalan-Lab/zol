@@ -122,6 +122,9 @@ def prepTG():
 	START WORKFLOW
 	"""
 
+	sys.stdout.write('Input command:\n%s\n' % ' '.join(sys.argv))
+
+
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
@@ -143,6 +146,7 @@ def prepTG():
 			sys.stdout.write("Error setting memory limit\n")
 
 	# Step 1: List genomes in directory
+	sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')
 	target_listing_file = outdir + 'Target_Genomes.txt'
 	uncompress_dir = outdir + 'Uncompressed_Genomes/'
 	list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
@@ -158,6 +162,7 @@ def prepTG():
 		sys.exit(1)
 
 	# Step 2: Setup files needed for fai
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nRe-formatting genomes for usage in fai downstream.\n')
 	format_assess_dir = outdir + 'Format_Assessment/'
 	util.setupReadyDirectory([format_assess_dir])
 	format_predictions_file = outdir + 'All_Format_Inferences.txt'
@@ -213,6 +218,7 @@ def prepTG():
 	target_genomes_concat_db_handle.close()
 
 	# remove individual proteome files
+	sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
 	shutil.rmtree(additional_proteomes_directory)
 
 	target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'

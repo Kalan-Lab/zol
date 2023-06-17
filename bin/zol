@@ -65,7 +65,7 @@ def create_parser():
 				
 	**************************************************************************************
 	
-	zol is a lightweight alternative that can generate reports on conservation, annotation, 
+	zol is a lightweight software that can generate reports on conservation, annotation, 
 	and evolutionary statistics for defined orthologous/homologous loci (e.g. BGCs, phages, 
 	MGEs, or any genomic island / operon!).
 	

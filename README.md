@@ -1,5 +1,10 @@
 # *zol (& fai)*
 
+[![Preprint](https://img.shields.io/badge/Preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v1)
+[![Documentation](https://img.shields.io/badge/Documentation-Wiki-darkgreen?style=flat-square&maxAge=2678400)](https://github.com/Kalan-Lab/zol/wiki)
+[![Docker](https://img.shields.io/badge/Docker-DockerHub-darkred?style=flat-square&maxAge=2678400)](https://hub.docker.com/r/raufs/zol)
+
+
 Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). The main result from zol is a tabular report showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.
 
 zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
@@ -151,26 +156,58 @@ zol.py -i Genbanks_Directory/ -o zol_Results/
 
 zol produces an xlsx spreadsheet report where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
 
-Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MI-BiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
+Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MIBiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 
 For details on the stats/annotations zol infers, please refer to the [zol](https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol/) wiki page.
 
 ![image](https://user-images.githubusercontent.com/4260723/229951285-787042d3-d93b-43d8-b897-63c10d3d9a1a.png)
 
-## Dependencies and Citation
+## Citations for dependencies, databases, and related software
 
-#### Manuscript in preparation! Please cite this GitRepo in the meantime if you find it useful!
+***Please consider citing the following accordingly!***
 
-**Please consider citing the following dependencies!**
 * **pyrodigal**, **prodigal**, and **miniprot** for gene-calling/mapping.
-* **MUSCLE5** for performing multiple sequence alignments and PAL2NAL for converting to codon alignments.
+  * [Pyrodigal: Python bindings and interface to Prodigal, an efficient method for gene prediction in prokaryotes](https://joss.theoj.org/papers/10.21105/joss.04296)
+  * [Prodigal: prokaryotic gene recognition and translation initiation site identification](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-11-119)
+  * [Protein-to-genome alignment with miniprot](https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621)
+* **MUSCLE5** for performing multiple sequence alignments and **PAL2NAL** for converting to codon alignments.
+  * [Muscle5: High-accuracy alignment ensembles enable unbiased assessments of sequence homology and phylogeny](https://www.nature.com/articles/s41467-022-34630-w)
+  * [PAL2NAL: robust conversion of protein sequence alignments into the corresponding codon alignments 
+](https://academic.oup.com/nar/article/34/suppl_2/W609/2505720)
 * **DIAMOND** for alignments in determining ortholog groups and **FastTree2** for subsequent phylogeny construction.
+  * [Fast and sensitive protein alignment using DIAMOND](https://www.nature.com/articles/nmeth.3176)
+  * [FastTree 2 – Approximately Maximum-Likelihood Trees for Large Alignments](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0009490)
 * **CD-HIT** for query protein clustering in fai and 're-inflation' approach in zol.
+  * [CD-HIT: accelerated for clustering the next-generation sequencing data](https://academic.oup.com/bioinformatics/article/28/23/3150/192160)
 * **HyPhy** and **FASTME** for selection analyses.
+  * [HyPhy: hypothesis testing using phylogenies](https://academic.oup.com/bioinformatics/article/21/5/676/220389)
+  * [GARD: a genetic algorithm for recombination detection](https://academic.oup.com/bioinformatics/article/22/24/3096/208339)
+  * [FUBAR: A Fast, Unconstrained Bayesian AppRoximation for Inferring Selection](https://academic.oup.com/mbe/article/30/5/1196/998247)
+  * [FastME 2.0: A Comprehensive, Accurate, and Fast Distance-Based Phylogeny Inference Program](https://academic.oup.com/mbe/article/32/10/2798/1212138)
 * **skani** for dereplication of gene-clusters/GenBanks.
+  * [Fast and robust metagenomic sequence comparison through sparse chaining with skani](https://www.biorxiv.org/content/10.1101/2023.01.18.524587v2)
 * **antiSMASH, GECCO, DeepBGC, VIBRANT**, or **ICEfinder** if you used to identify a BGC, phage, or ICEs.
-* **PFAM, KEGG, NCBI's PGAP, MIBIG, VOG, VFDB, CARD,** and **ISFinder** databases used for annotation. 
-* **lsaBGC, BiG-SCAPE/CORASON, cblaster**, or **BiG-SLICE** studies if you used them to identify homologous BGCs.
+  * [antiSMASH 7.0: new and improved predictions for detection, regulation, chemical structures and visualisation](https://academic.oup.com/nar/advance-article/doi/10.1093/nar/gkad344/7151336)
+  * [Accurate de novo identification of biosynthetic gene clusters with GECCO](https://www.biorxiv.org/content/10.1101/2021.05.03.442509v1)
+  * [A deep learning genome-mining strategy for biosynthetic gene cluster prediction](https://academic.oup.com/nar/article/47/18/e110/5545735)
+  * [ICEberg 2.0: an updated database of bacterial integrative and conjugative elements](https://academic.oup.com/nar/article/47/D1/D660/5165266)
+* **PFAM, KEGG, NCBI's PGAP, MIBiG, VOG, PaperBlast, VFDB, CARD,** and **ISFinder** databases used for annotation. 
+  * [Pfam: The protein families database in 2021]()
+  * [KofamKOALA: KEGG Ortholog assignment based on profile HMM and adaptive score threshold](https://academic.oup.com/bioinformatics/article/36/7/2251/5631907)
+  * [RefSeq: expanding the Prokaryotic Genome Annotation Pipeline reach with protein family model curation](https://academic.oup.com/nar/article/49/D1/D1020/6018440?login=true)
+  * [MIBiG 3.0: a community-driven effort to annotate experimentally validated biosynthetic gene clusters](https://academic.oup.com/nar/article/51/D1/D603/6833236?login=true)
+  * [PaperBLAST: Text Mining Papers for Information about Homologs](https://journals.asm.org/doi/10.1128/mSystems.00039-17)
+  * [VFDB 2022: a general classification scheme for bacterial virulence factors](https://academic.oup.com/nar/article/50/D1/D912/6446532)
+  * [CARD 2020: antibiotic resistome surveillance with the comprehensive antibiotic resistance database](https://academic.oup.com/nar/article/48/D1/D517/5608993)
+  * [ISfinder: the reference centre for bacterial insertion sequences](https://academic.oup.com/nar/article/34/suppl_1/D32/1132247?login=true)
+* **lsaBGC, BiG-SCAPE/CORASON, cblaster/CAGECAT, BiG-SLICE, vConTACT v2.0**, or **** studies if you used them to identify homologous gene clusters.
+  * [Evolutionary investigations of the biosynthetic diversity in the skin microbiome using lsaBGC](https://www.microbiologyresearch.org/content/journal/mgen/10.1099/mgen.0.000988#tab2)
+  * [A computational framework to explore large-scale biosynthetic diversity](https://www.nature.com/articles/s41589-019-0400-9)
+  * [cblaster: a remote search tool for rapid identification and visualization of homologous gene clusters](https://academic.oup.com/bioinformaticsadvances/article/1/1/vbab016/6342405)
+  * [CAGECAT: The CompArative GEne Cluster Analysis Toolbox for rapid search and visualisation of homologous gene clusters](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-023-05311-2)
+  * [BiG-SLiCE: A highly scalable tool maps the diversity of 1.2 million biosynthetic gene clusters](https://academic.oup.com/gigascience/article/10/1/giaa154/6092777)
+  * [Taxonomic assignment of uncultivated prokaryotic virus genomes is enabled by gene-sharing networks](https://www.nature.com/articles/s41587-019-0100-8)
+  * [Enabling genomic island prediction and comparison in multiple genomes to investigate bacterial evolution and outbreaks](https://pubmed.ncbi.nlm.nih.gov/35584003/)
 
 ## License:
 
@@ -207,6 +244,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.2.9
+
+- Minor changes to code documentation and updates to citation references README.
+- Added reporting on steps to console for prepTG.
+- Slight updates to plotting function in fai to allow more robust parsing of GenBanks.
 
 ### version 1.2.8
 

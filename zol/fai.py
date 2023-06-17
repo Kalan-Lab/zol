@@ -45,7 +45,7 @@ def subsetGenBankForQueryLocus(full_gw_genbank, locus_genbank, locus_proteins, r
 	- full_gw_genbank: Reference genome GenBank file - should have CDS features.
 	- locus_genbank: The locus-specific GenBank file to create.
 	- locus_proteins: The locus-specific protein FASTA file to create.
-	- reference_contig: The identifier of the refernece scaffold/contig with the locus.
+	- reference_contig: The identifier of the reference scaffold/contig with the locus.
 	- reference_start: The starting position of the locus in the reference genome.
 	- reference_end: The ending position of the locus in the reference genome.
 	- logObject: A logging object.
@@ -1255,13 +1255,30 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 					scaff_is_relevant = False
 					for feature in rec.features:
 						if feature.type != 'CDS': continue
-						lt = feature.qualifiers.get('locus_tag')[0]
+						lt = None
+						try:
+							lt = feature.qualifiers.get('locus_tag')[0]
+						except:
+							try:
+								lt = feature.qualifiers.get('protein_id')[0]
+							except:
+								sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n' % target_annotation_info[sample]['genbank'])
+								sys.exit(1)
 						if lt in relevant_lts:
 							scaff_is_relevant = True
 							break
 					if not scaff_is_relevant: continue
 					for feature in rec.features:
-						lt = feature.qualifiers.get('locus_tag')[0]
+						if feature.type != 'CDS': continue
+						lt = None
+						try:
+							lt = feature.qualifiers.get('locus_tag')[0]
+						except:
+							try:
+								lt = feature.qualifiers.get('protein_id')[0]
+							except:
+								sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n' % target_annotation_info[sample]['genbank'])
+								sys.exit(1)
 						all_coords = []
 						if not 'join' in str(feature.location):
 							start = min([int(x.strip('>').strip('<')) for x in

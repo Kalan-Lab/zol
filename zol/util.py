@@ -34,6 +34,14 @@ def memory_limit(mem):
 	resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
 	print(resource.getrlimit(resource.RLIMIT_AS))
 def cleanUpSampleName(original_name):
+	"""
+	Description:
+	Function to clean up sample names for troublesome characters that makes unix based file creation tricky.
+	********************************************************************************************************************
+	Parameters:
+	- original_name: The original name of the sample.
+	********************************************************************************************************************
+	"""
 	return original_name.replace('#', '').replace('*', '_').replace(':', '_').replace(';', '_').replace(' ',
 																										'_').replace(
 		':', '_').replace('|', '_').replace('"', '_').replace("'", '_').replace("=", "_").replace('-', '_').replace('(',

@@ -151,7 +151,7 @@ For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expans
 ### zol (generating table reports)
 
 ```bash
-zol.py -i Genbanks_Directory/ -o zol_Results/
+zol -i Genbanks_Directory/ -o zol_Results/
 ```
 
 zol produces an xlsx spreadsheet report where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.

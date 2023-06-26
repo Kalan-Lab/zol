@@ -261,6 +261,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.1
+
+- Update for release.
+
 ### version 1.3.0
 
 - Add better support for query GenBanks without locus tags for CDS features in fai & clearer message to simply use the

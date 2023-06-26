@@ -269,7 +269,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 - Add better support for query GenBanks without locus tags for CDS features in fai & clearer message to simply use the
   `-r/--rename_lt` flag to automatically rename locus tags if this is the case for input GenBanks for zol. 
-- Switch to pyhmmer for faster annotation using pyhmmer databases and to save space in database files for annotation.
+- Switch to pyhmmer for faster annotation in zol.
 
 ### version 1.2.10
 

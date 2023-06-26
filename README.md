@@ -33,7 +33,7 @@ conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol
 
 # 2. depending on internet speed, this can take 20-30 minutes
-# end product will be 14 GB! You can also run in minimal mode
+# end product will be ~29 GB! You can also run in minimal mode
 # (which will only download PGAP HMM models < 5 GB) using -m.
 setup_annotation_dbs.py
 ```

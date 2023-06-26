@@ -18,6 +18,7 @@ import decimal
 import pickle
 import shutil
 from scipy import stats
+import pyhmmer
 
 # code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
@@ -894,6 +895,32 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 		sys.exit(1)
 	return(custom_annotations)
 
+def runPyhmmer(inputs):
+	name, db_file, z, protein_faa, annotation_result_file, cpus = inputs
+	try:
+		alphabet = pyhmmer.easel.Alphabet.amino()
+		sequences = []
+		with pyhmmer.easel.SequenceFile(protein_faa, digital=True, alphabet=alphabet) as seq_file:
+			sequences = list(seq_file)
+
+		outf = open(annotation_result_file, 'w')
+		if name == 'pfam':
+			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=cpus):
+					for hit in hits:
+						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
+											  str(hit.score)]) + '\n')
+
+		else:
+			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=cpus):
+					for hit in hits:
+						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
+											  str(hit.score)]) + '\n')
+		outf.close()
+	except:
+		raise RuntimeError('Problem running pyhmmer!')
+
 def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
 	"""
 	Description:
@@ -934,32 +961,43 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 		return (default_to_regular(annotations))
 
 	try:
-		individual_cpus = 1
-		pool_size = cpus
-		if cpus > 9:
-			individual_cpus = math.floor(cpus/9)
-			pool_size = 9
+		dmnd_individual_cpus = 1
+		dmnd_pool_size = cpus
+		if cpus > 5:
+			dmnd_individual_cpus = math.floor(cpus/5)
+			dmnd_pool_size = 5
+
+		hmm_individual_cpus = 1
+		hmm_pool_size = cpus
+		if cpus > 4:
+			hmm_individual_cpus = math.floor(cpus/4)
+			hmm_pool_size = 4
+
 		assert(os.path.isfile(db_locations))
-		search_cmds = []
+		dmnd_search_cmds = []
+		hmm_search_cmds = []
 		name_to_info_file = {}
 		hmm_based_annotations = set([])
 		with open(db_locations) as odls:
 			for line in odls:
 				line = line.strip()
-				name, annot_info_file, db_file = line.split('\t')
+				name, annot_info_file, db_file, z = line.split('\t')
 				name_to_info_file[name] = annot_info_file
 				annotation_result_file = annotation_dir + name + '.txt'
 				if db_file.endswith('.hmm'):
 					hmm_based_annotations.add(name)
-					search_cmd = ['hmmscan', '--cpu', str(individual_cpus), '--tblout', annotation_result_file,
-								  db_file, protein_faa, logObject]
+					hmm_search_cmds.append([name, db_file, z, protein_faa, annotation_result_file, hmm_individual_cpus])
 				elif db_file.endswith('.dmnd'):
-					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(individual_cpus), '-d', db_file,
+					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(dmnd_individual_cpus), '-d', db_file,
 								  '-q', protein_faa, '-o', annotation_result_file, logObject]
-				search_cmds.append(search_cmd)
+					dmnd_search_cmds.append(search_cmd)
 
-		p = multiprocessing.Pool(pool_size)
-		p.map(util.multiProcess, search_cmds)
+		p = multiprocessing.Pool(hmm_pool_size)
+		p.map(runPyhmmer, hmm_search_cmds)
+		p.close()
+
+		p = multiprocessing.Pool(dmnd_pool_size)
+		p.map(util.multiProcess, dmnd_search_cmds)
 		p.close()
 
 		annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA'])) # db -> query -> [hit descriptions, evalue]

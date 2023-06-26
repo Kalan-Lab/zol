@@ -25,13 +25,15 @@ Critically, ***with the development of some key options, together, fai and zol e
 
 Note, (for some setups at least) ***it is critical to specify the conda-forge channel before the bioconda channel to properly configure priority and lead to a successful installation.***
  
+**Recommended**: For a significantly faster installation process, use `mamba` in place of `conda` in the below commands, by installing `mamba` in your base conda environment.
+
 ```bash
 # 1. install and activate zol
 conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol
 
 # 2. depending on internet speed, this can take 20-30 minutes
-# end product will be 28 GB! You can also run in minimal mode
+# end product will be 14 GB! You can also run in minimal mode
 # (which will only download PGAP HMM models < 5 GB) using -m.
 setup_annotation_dbs.py
 ```
@@ -162,6 +164,20 @@ For details on the stats/annotations zol infers, please refer to the [zol](https
 
 ![image](https://user-images.githubusercontent.com/4260723/229951285-787042d3-d93b-43d8-b897-63c10d3d9a1a.png)
 
+#### Use for dereplication of gene cluster GenBanks to ease visualization with clinker or CORASON
+
+Another application of zol is to use it for preliminary dereplication for visualization with clinker, CORASON, etc.
+
+zol uses [skani](https://github.com/bluenote-1577/skani) to perform dereplication with adjustable options (see `zol --help`).
+
+```bash
+# Run zol with dereplication requested
+zol -i GenBanks_Directory/ -o zol_Results/ -d 
+
+# Reference dereplicated representative GenBanks/gene clusters as input for clinker analysis
+clinker zol_Results/Dereplicated_GenBanks/*.gbk -p clinker_visualization.html
+```
+
 ## Citations for dependencies, databases, and related software
 
 ***Please consider citing the following accordingly!***
@@ -200,7 +216,7 @@ For details on the stats/annotations zol infers, please refer to the [zol](https
   * [VFDB 2022: a general classification scheme for bacterial virulence factors](https://academic.oup.com/nar/article/50/D1/D912/6446532)
   * [CARD 2020: antibiotic resistome surveillance with the comprehensive antibiotic resistance database](https://academic.oup.com/nar/article/48/D1/D517/5608993)
   * [ISfinder: the reference centre for bacterial insertion sequences](https://academic.oup.com/nar/article/34/suppl_1/D32/1132247?login=true)
-* **lsaBGC, BiG-SCAPE/CORASON, cblaster/CAGECAT, BiG-SLICE, vConTACT v2.0**, or **** studies if you used them to identify homologous gene clusters.
+* **lsaBGC, BiG-SCAPE/CORASON, cblaster/CAGECAT, BiG-SLICE, vConTACT v2.0**, or **IslandCompare** studies if you used them to identify homologous gene clusters.
   * [Evolutionary investigations of the biosynthetic diversity in the skin microbiome using lsaBGC](https://www.microbiologyresearch.org/content/journal/mgen/10.1099/mgen.0.000988#tab2)
   * [A computational framework to explore large-scale biosynthetic diversity](https://www.nature.com/articles/s41589-019-0400-9)
   * [cblaster: a remote search tool for rapid identification and visualization of homologous gene clusters](https://academic.oup.com/bioinformaticsadvances/article/1/1/vbab016/6342405)
@@ -244,6 +260,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## Updates  
+
+### version 1.3.0
+
+- Add better support for query GenBanks without locus tags for CDS features in fai & clearer message to simply use the
+  `-r/--rename_lt` flag to automatically rename locus tags if this is the case for input GenBanks for zol. 
+- Switch to pyhmmer for faster annotation using pyhmmer databases and to save space in database files for annotation.
 
 ### version 1.2.10
 

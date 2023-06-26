@@ -416,6 +416,8 @@ def convertGenbankToCDSProtsFasta(gbk, protein, logObject, use_either_lt_or_pi=F
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type != 'CDS': continue
+					lt = None
+					pi = None
 					try:
 						lt = feature.qualifiers.get('locus_tag')[0]
 					except:
@@ -1123,7 +1125,7 @@ def renameCDSLocusTag(gbk, lt, rn_genbank_file, logObject, quality_assessment=Fa
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def parseGbk(gbk, prefix, logObject):
+def parseGbk(gbk, prefix, logObject, use_either_lt_or_pi=False):
 	"""
 	Description:
 	This function parses CDS coordinate information from a GenBank.
@@ -1132,6 +1134,7 @@ def parseGbk(gbk, prefix, logObject):
 	- gbk: The GenBank file.
 	- prefix: The prefix to append to locus tags (often gene cluster name) to make them use.
 	- logObject: A logging object.
+	- use_either_lt_or_pi: Use protein_id qualifier if locus_tag is unavailable for CDS feature.
 	********************************************************************************************************************
 	Returns:
 	- gc_gene_locations: A dictionary for CDS locations where keys correspond to "prefix|locus_tag" and the values are
@@ -1144,7 +1147,20 @@ def parseGbk(gbk, prefix, logObject):
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type != 'CDS': continue
-					lt = feature.qualifiers.get('locus_tag')[0]
+					lt = None
+					pi = None
+					try:
+						lt = feature.qualifiers.get('locus_tag')[0]
+					except:
+						pass
+					try:
+						pi = feature.qualifiers.get('protein_id')[0]
+					except:
+						pass
+					if use_either_lt_or_pi:
+						if lt == None and pi != None:
+							lt = pi
+
 					all_coords = []
 					if not 'join' in str(feature.location):
 						start = min([int(x.strip('>').strip('<')) for x in

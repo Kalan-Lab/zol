@@ -272,15 +272,15 @@ def zolMain():
 		sys.stderr.write('Ignoring %d files either because they did not meet requirements or filtering criteria.\n' % ignored_files)
 		logObject.warning('Ignoring %d files either because they did not meet requirements or filtering criteria.' % ignored_files)
 	except Exception as e:
-		sys.stderr.write('Issues with parsing input directory of GenBanks!\n')
-		logObject.error('Issues with parsing input directory of GenBanks!')
+		sys.stderr.write('Issues with parsing input directory of GenBanks!\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.\n')
+		logObject.error('Issues with parsing input directory of GenBanks!\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.')
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
 	num_gbk = len(genbanks)
 	if num_gbk == 0:
-		sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\n')
-		logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...')
+		sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.\n')
+		logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.')
 	else:
 		sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
 		logObject.info('Found %d GenBanks in the input directory.' % num_gbk)

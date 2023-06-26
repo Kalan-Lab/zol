@@ -183,7 +183,7 @@ def parseCoordsFromGenbank(genbanks, logObject):
 	try:
 		for gbk in genbanks:
 			prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-			gene_locations = util.parseGbk(gbk, prefix, logObject)
+			gene_locations = util.parseGbk(gbk, prefix, logObject, use_either_lt_or_pi=True)
 			for g in gene_locations:
 				comp_gene_info[prefix][g] = gene_locations[g]
 	except Exception as e:

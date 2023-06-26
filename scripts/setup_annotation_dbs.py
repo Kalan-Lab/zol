@@ -104,7 +104,12 @@ def setup_annot_dbs():
             pdf_handle.close()
             assert (os.path.isfile(pgap_phmm_file))
             os.system(' '.join(['hmmpress', pgap_phmm_file]))
-            listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\n')
+            z = 0
+            with open(pgap_phmm_file) as oppf:
+                for line in oppf:
+                    if line.startswith('NAME'): z += 1
+
+            listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
             os.system(' '.join(
                 ['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
         except Exception as e:
@@ -172,7 +177,11 @@ def setup_annot_dbs():
                         pdf_handle.write(name + '\t' + desc + '\n')
             pdf_handle.close()
             os.system(' '.join(['hmmpress', pfam_phmm_file]))
-            listing_handle.write('pfam\t' + pfam_descriptions_file + '\t' + pfam_phmm_file + '\n')
+            z = 0
+            with open(pfam_phmm_file) as oppf:
+                for line in oppf:
+                    if line.startswith('NAME'): z += 1
+            listing_handle.write('pfam\t' + pfam_descriptions_file + '\t' + pfam_phmm_file + '\t' + str(z) + '\n')
         except Exception as e:
             sys.stderr.write('Issues setting up Pfam database.\n')
             sys.stderr.write(str(e) + '\n')
@@ -206,7 +215,11 @@ def setup_annot_dbs():
                     description = ls[-1]
                     kdf_handle.write(ko + '\t' + description + '\n')
             kdf_handle.close()
-            listing_handle.write('ko\t' + ko_descriptions_file + '\t' + ko_phmm_file + '\n')
+            z = 0
+            with open(ko_phmm_file) as oppf:
+                for line in oppf:
+                    if line.startswith('NAME'): z += 1
+            listing_handle.write('ko\t' + ko_descriptions_file + '\t' + ko_phmm_file + '\t' + str(z) + '\n')
             os.system(' '.join(['rm', '-rf', download_path + 'profiles/', download_path + 'profiles.tar.gz', ko_annot_info_file]))
         except Exception as e:
             sys.stderr.write('Issues setting up KO database.\n')
@@ -233,7 +246,11 @@ def setup_annot_dbs():
             pdf_handle.close()
             assert(os.path.isfile(pgap_phmm_file))
             os.system(' '.join(['hmmpress', pgap_phmm_file]))
-            listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\n')
+            z = 0
+            with open(pgap_phmm_file) as oppf:
+                for line in oppf:
+                    if line.startswith('NAME'): z += 1
+            listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
             os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
         except Exception as e:
             sys.stderr.write('Issues setting up PGAP database.\n')
@@ -250,7 +267,7 @@ def setup_annot_dbs():
                 for rec in SeqIO.parse(omf, 'fasta'):
                     mdf_handle.write(rec.id + '\t' + rec.description + '\n')
             mdf_handle.close()
-            listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\n')
+            listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\tNA\n')
             os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_3.1.fasta']))
         except Exception as e:
             sys.stderr.write('Issues setting up MI-BiG database.\n')
@@ -268,7 +285,7 @@ def setup_annot_dbs():
                 for rec in SeqIO.parse(ovf, 'fasta'):
                     vdf_handle.write(rec.id + '\t' + rec.description + '\n')
             vdf_handle.close()
-            listing_handle.write('vfdb\t' + vfdb_descriptions_file + '\t' + vfdb_faa_file + '\n')
+            listing_handle.write('vfdb\t' + vfdb_descriptions_file + '\t' + vfdb_faa_file + '\tNA\n')
             os.system(' '.join(['rm', '-rf', download_path + 'VFDB_setB_pro.fas']))
         except Exception as e:
             sys.stderr.write('Issues setting up VFDB database.\n')
@@ -291,7 +308,7 @@ def setup_annot_dbs():
             cdf_handle.close()
             os.system(' '.join(['rm', '-rf', download_path + 'CARD_DB_Files/', download_path + 'protein_fasta_protein_homolog_model.fasta', download_path + 'card-data.tar.bz2']))
             assert(os.path.isfile(card_faa_file))
-            listing_handle.write('card\t' + card_descriptions_file + '\t' + card_faa_file + '\n')
+            listing_handle.write('card\t' + card_descriptions_file + '\t' + card_faa_file + '\tNA\n')
         except Exception as e:
             sys.stderr.write('Issues setting up CARD database.\n')
             sys.stderr.write(str(e) + '\n')
@@ -318,7 +335,11 @@ def setup_annot_dbs():
             assert(os.path.isfile(vog_phmm_file))
             assert(os.path.isfile(vog_descriptions_file))
             os.system(' '.join(['hmmpress', vog_phmm_file]))
-            listing_handle.write('vog\t' + vog_descriptions_file + '\t' + vog_phmm_file + '\n')
+            z = 0
+            with open(vog_phmm_file) as oppf:
+                for line in oppf:
+                    if line.startswith('NAME'): z += 1
+            listing_handle.write('vog\t' + vog_descriptions_file + '\t' + vog_phmm_file + '\t' + str(z) + '\n')
         except Exception as e:
             sys.stderr.write('Issues setting up VOG database.\n')
             sys.stderr.write(str(e) + '\n')
@@ -337,7 +358,7 @@ def setup_annot_dbs():
             os.system(' '.join(['rm', '-rf', pb_faa_path]))
             assert(os.path.isfile(paperblast_descriptions_file))
             assert(os.path.isfile(pb_faa_file))
-            listing_handle.write('paperblast\t' + paperblast_descriptions_file + '\t' + pb_faa_file + '\n')
+            listing_handle.write('paperblast\t' + paperblast_descriptions_file + '\t' + pb_faa_file + '\tNA\n')
 
         except Exception as e:
             sys.stderr.write('Issues setting up PaperBlast database.\n')
@@ -356,7 +377,7 @@ def setup_annot_dbs():
             idf_handle.close()
             assert(os.path.isfile(is_faa_path))
             assert(os.path.isfile(is_descriptions_file))
-            listing_handle.write('isfinder\t' + is_descriptions_file + '\t' + is_faa_file + '\n')
+            listing_handle.write('isfinder\t' + is_descriptions_file + '\t' + is_faa_file + '\tNA\n')
             os.system(' '.join(['rm', '-rf', is_faa_path]))
         except Exception as e:
             sys.stderr.write('Issues setting up ISFinder database.\n')

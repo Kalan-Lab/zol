@@ -124,7 +124,6 @@ def prepTG():
 
 	sys.stdout.write('Input command:\n%s\n' % ' '.join(sys.argv))
 
-
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
@@ -135,6 +134,9 @@ def prepTG():
 					   "Number of Cpus", "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
+
+	logObject.info('Running prepTG version %s' % version)
+	sys.stdout.write('Running prepTG version %s\n' % version)
 
 	# set max memory limit
 	if max_memory != None:

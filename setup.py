@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 
 setup(name='zol',
-      version='1.2.10',
+      version='1.3.0',
       description='',
       url='http://github.com/Kalan-Lab/zol/',
       author='Rauf Salamzade',

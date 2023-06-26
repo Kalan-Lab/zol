@@ -33,3 +33,4 @@ dependencies:
   - bioconda::skani
   - bioconda::slclust
   - bioconda::trimal
+  - bioconda::pyhmmer

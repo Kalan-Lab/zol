@@ -17,7 +17,7 @@ requirements:
   build:
      - {{ compiler('cxx') }}
   host:
-    - python
+    - python >=3
     - setuptools
     - pip
     - axel
@@ -32,7 +32,8 @@ requirements:
     - fasttree >=2.0.0
     - diamond =2.0.15
     - prodigal
-    - pyrodigal =2.1.0
+    - pyrodigal 
+    - pyhmmer
     - pandas >=2.0
     - xlsxwriter >=3.0.3
     - scikit-learn

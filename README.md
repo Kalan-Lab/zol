@@ -261,6 +261,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.2
+
+- Allow for failures of specific databases (i.e., if hosting server goes down) in `setup_annotation_dbs.py`.
+
 ### version 1.3.1
 
 - Update for release.

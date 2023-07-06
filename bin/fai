@@ -203,7 +203,7 @@ def faiMain():
 					   "General E-value cutoff for detection of protein homologs in genome",
 					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
 					   "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence",
-					   "Minimum proportion of key protein hits required for gene cluster presence in genome",
+					   "Minimum proportion of key protein hits to be considered as high-supporting evidence for gene cluster presence",
 					   "Syntenic correlation to known instance threshold required for gene cluster presence",
 					   "Maximum distance in between candidate gene-cluster segments to perform merging",
 					   "Base pair for flanking context to extract",

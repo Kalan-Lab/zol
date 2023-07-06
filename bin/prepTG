@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ### Program: prepTG
 ### Author: Rauf Salamzade
@@ -65,15 +65,16 @@ def create_parser():
 	assessment between orthologous genes.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-i', '--target_genomes_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=True)
-	parser.add_argument('-o', '--output_directory', help='Output directory to stored input for fai.', required=True)
+	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=True)
+	parser.add_argument('-o', '--output_dir', help='Output directory to stored input for fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
 	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Flag to use prodigal instead of pyrodigal.', required=False, default=False)
 	parser.add_argument('-m', '--meta_mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
-	parser.add_argument('-rf', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
+	parser.add_argument('-rp', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.\n[Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
+	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -83,13 +84,20 @@ def prepTG():
 	Void function which runs primary workflow for program.
 	"""
 
+	# get version
+	version = util.getVersion()
+
+	if len(sys.argv)>1 and ('-v' in set(sys.argv) or '--version' in set(sys.argv)):
+		sys.stdout.write(version + '\n')
+		sys.exit(0)
+
 	"""
 	PARSE ARGUMENTS
 	"""
 	myargs = create_parser()
 
-	outdir = os.path.abspath(myargs.output_directory) + '/'
-	target_genomes_dir = myargs.target_genomes_dir
+	outdir = os.path.abspath(myargs.output_dir) + '/'
+	target_genomes_dir = myargs.input_dir
 	locus_tag_length = myargs.locus_tag_length
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus
@@ -114,6 +122,8 @@ def prepTG():
 	START WORKFLOW
 	"""
 
+	sys.stdout.write('Input command:\n%s\n' % ' '.join(sys.argv))
+
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
@@ -125,6 +135,9 @@ def prepTG():
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
+	logObject.info('Running prepTG version %s' % version)
+	sys.stdout.write('Running prepTG version %s\n' % version)
+
 	# set max memory limit
 	if max_memory != None:
 		logObject.info("Setting maximum memory usage to: %dGB" % max_memory)
@@ -135,6 +148,7 @@ def prepTG():
 			sys.stdout.write("Error setting memory limit\n")
 
 	# Step 1: List genomes in directory
+	sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')
 	target_listing_file = outdir + 'Target_Genomes.txt'
 	uncompress_dir = outdir + 'Uncompressed_Genomes/'
 	list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
@@ -150,6 +164,7 @@ def prepTG():
 		sys.exit(1)
 
 	# Step 2: Setup files needed for fai
+	sys.stdout.write('--------------------\nStep 2\n--------------------\nRe-formatting genomes for usage in fai downstream.\n')
 	format_assess_dir = outdir + 'Format_Assessment/'
 	util.setupReadyDirectory([format_assess_dir])
 	format_predictions_file = outdir + 'All_Format_Inferences.txt'
@@ -205,6 +220,7 @@ def prepTG():
 	target_genomes_concat_db_handle.close()
 
 	# remove individual proteome files
+	sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
 	shutil.rmtree(additional_proteomes_directory)
 
 	target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'

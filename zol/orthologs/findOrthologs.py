@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ### Program: findOrthologs.py
 ### Author: Rauf Salamzade
@@ -46,16 +46,24 @@ from operator import attrgetter
 from zol import util
 import shutil
 
-split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResults'
-rbh_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/runRBH'
-
-if not os.path.isfile(rbh_prog) or not os.path.isfile(split_diamond_results_prog):
-	zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
-	rbh_prog = zol_exec_directory + 'runRBH'
-	split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
-	if not os.path.isfile(rbh_prog) or not os.path.isfile(split_diamond_results_prog):
-		sys.stderr.write('Issues in setup of the zol-suite - please describe your installation process and post an issue on GitHub!\n')
-		sys.exit(1)
+zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+conda_setup_success = None
+split_diamond_results_prog = None
+rbh_prog = None
+if zol_exec_directory != 'None':
+	try:
+		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
+		rbh_prog = zol_exec_directory + 'runRBH'
+		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResults'
+		conda_setup_success = True
+	except:
+		conda_setup_success = False
+if zol_exec_directory == 'None' or conda_setup_success == False:
+	split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResults'
+	rbh_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/runRBH'
+if rbh_prog == None or split_diamond_results_prog == None or not os.path.isfile(rbh_prog) or not os.path.isfile(split_diamond_results_prog):
+	sys.stderr.write('Issues in setup of the zol-suite (in findOrthologs.py) - please describe your installation process and post an issue on GitHub!\n')
+	sys.exit(1)
 
 def create_parser():
 	""" Parse arguments """
@@ -186,15 +194,15 @@ def findOrthologs():
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
 
-	version_string = util.parseVersionFromSetupPy()
-	sys.stdout.write('Running version: %s\n' % version_string)
-	logObject.info("Running version: %s" % version_string)
+	version = util.getVersion()
+	sys.stdout.write('Running version: %s\n' % version)
+	logObject.info("Running version: %s" % version)
 
 	parameters_file = outdir + 'Command_Issued.txt'
 	sys.stdout.write("Appending command issued for future records to: %s\n" % parameters_file)
 	sys.stdout.write("Logging more details at: %s\n" % log_file)
 	logObject.info("\nNEW RUN!!!\n**************************************")
-	logObject.info('Running version %s' % version_string)
+	logObject.info('Running version %s' % version)
 	logObject.info("Appending command issued for future records to: %s" % parameters_file)
 
 	parameters_handle = open(parameters_file, 'a+')
@@ -424,9 +432,9 @@ def findOrthologs():
 					subclust_id += 1
 		result_handle.close()
 
-		#os.system('rm %s %s' % (alignment_result_file, cluster_result_file))
-		#shutil.rmtree(forth_res_dir)
-		#shutil.rmtree(align_res_dir)
+		os.system('rm %s %s' % (alignment_result_file, cluster_result_file))
+		shutil.rmtree(forth_res_dir)
+		shutil.rmtree(align_res_dir)
 
 		os.system('touch %s' % step4_checkpoint_file)
 

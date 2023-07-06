@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO add exclude option to avoid finding gene-clusters with certain auxiliary genes that correspond to different BGCs
-# TODO - concatenate proteins prior to DIAMOND alignment and split results after to speed up search step similar to
-# cblaster.
 ### Program: fai
 ### Author: Rauf Salamzade
 ### Kalan Lab
@@ -47,6 +44,8 @@ import subprocess
 import pickle
 import shutil
 import multiprocessing
+import traceback
+
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""
@@ -68,7 +67,7 @@ def create_parser():
     Type 1: Directory of Homologous Gene-Cluster GenBanks 
     (GenBanks must have CDS features with locus_tag or protein_id names)
 	-----------------------------------------------------	    
-    $ fai -i Known_GeneCluster_Genbanks/ -tg prepTG_Database/ -o fai_Results/
+    $ fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
     
     Type 2: Reference Genome with Gene-Cluster/Locus Coordinates 
     (proteins are collapsed for high-similarity using cd-hit)
@@ -80,19 +79,9 @@ def create_parser():
     (proteins are collapsed for high-similarity using cd-hit)
     Similar to input for cblaster
     -----------------------------------------------------
-    $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
-	    	    
-    CONSIDERATIONS:
-    *********************************************************************************                                       
-	* fai is a generalizable and simplified (in terms of probability determination) 
-	  variant of lsaBGC-Expansion.py and features a very similar algorithm. It is 
-	  inspired by ClusterFinder, cblaster, and other similar tools. 
-	* FASTA sequences of genomes to search should be nucleotides and correspond
-	  to scaffolds/contigs/sub-regions, not ORFs.
-	* If FASTA provided for --input_dir argument, it must >20,000 to allow 
-	  prodigal based gene-calling.
+    $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/	    	    
 	""", formatter_class=argparse.RawTextHelpFormatter)
-	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nWill use to build a profile to search additional genomes\nwith. Directory can contain just a single reference GenBank\nfor the cluster. Files must end\nwith ".gbk", ".gbff", or ".genbank".', required=False, default=None)
+	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
 	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
 	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
@@ -103,22 +92,23 @@ def create_parser():
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
-	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/homolog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported.", required=False, default=0.5)
+	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported.", required=False, default=0.5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich, if present within a potential segment identified by the HMM,\nwill automatically report the segment without further consideration.\nCompatible with all three input modes.", required=False, default=None)
-	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene-cluster homolog segment to regard it as a smoking-gun. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
-	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct homolog groups matching\nkey proteins needed to report a homologous gene-cluster in\na genome. [Default is 0.0].', required=False, default=0.0)
+	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene-cluster homolog segment. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
+	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster in\na genome. [Default is 0.0].', required=False, default=0.0)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.6]", required=False, default=0.6)
 	parser.add_argument('-gdm', '--gc_delineation_mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
 	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
 	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to\nmerge segments together. Alternatively the number of genes separating\nhits if Gene-Clumper mode is used. Allows for more inclusivity of novel\nauxiliary genes. [Default is 5].", required=False, default=5)
 	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
 	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
-	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a homolog is\nfound at the e-value cutoff. [Default is 0.95].", required=False, default=0.95)
+	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a orthologis\nfound at the e-value cutoff. [Default is 0.95].", required=False, default=0.95)
 	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog is\nfound at the e-value cutoff. [Default is 0.2].", required=False, default=0.2)
 	parser.add_argument('-gp', '--generate_plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
 	parser.add_argument('-ds', '--diamond_sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use. [Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Generally memory shouldn\'t be a major concern unless\nworking with hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
+	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -128,12 +118,19 @@ def faiMain():
 	Void function which runs primary workflow for program.
 	"""
 
+	# get version
+	version = util.getVersion()
+
+	if len(sys.argv)>1 and ('-v' in set(sys.argv) or '--version' in set(sys.argv)):
+		sys.stdout.write(version + '\n')
+		sys.exit(0)
+
 	"""
 	PARSE INPUTS
 	"""
 	myargs = create_parser()
 
-	input_dir = myargs.input_dir
+	query_inputs = myargs.query_inputs
 	reference_genome = myargs.reference_genome
 	reference_contig = myargs.reference_contig
 	reference_start = myargs.reference_start
@@ -179,44 +176,43 @@ def faiMain():
 		util.setupReadyDirectory([check_dir])
 
 	try:
-		assert(diamond_sensitivity in set(['fast', 'very-sensitive', 'ultra-sensitive', 'mid-sensitive',
-										   'more-sensitive']))
+		assert(diamond_sensitivity in set(['fast', 'very-sensitive', 'ultra-sensitive', 'mid-sensitive', 'more-sensitive']))
 	except:
 		sys.stderr.write('Invalid value provided for --diamond_sensitivity option.\n')
 
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
-	version_string = util.parseVersionFromSetupPy()
+	version_string = util.getVersion()
 	logObject.info('Running fai version %s' % version_string)
 	sys.stdout.write('Running fai version %s\n' % version_string)
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, reference_genome, reference_contig, reference_start, reference_end,
+	parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end,
 						protein_queries_fasta, target_genomes, outdir, draft_mode, filter_paralogs, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,
 						delineation_mode, cpus, max_memory]
-	parameter_names = ["Input directory with Gene-Cluster GenBanks", "Reference Genome for Gene Cluster",
-					   "Reference Scaffold for Gene Cluster", "Reference Start Coordinate of Gene Cluster",
-					   "Reference End Coordinate of Gene Cluster", "Protein Queries",
-					   "Target Genomes Prepared Directory by prepTG", "Output Directory",
-					   "Run in Draft-Assembly Mode?", "Filter for Paralogous/Gene-Content Overlapping Segments",
-					   "E-value cutoff for Detection of general Protein Homologs in Genome",
-					   "Minimum Proportion of Hits for Gene Presence in Genome", "FASTA file with Key Proteins to Consider",
-					   "E-values for Key Proteins to be Considered as Smoking Gun for Gene Cluster Presence",
-					   "Minimum Proportion of Key Protein Hits Required for Gene Cluster Presence in Genome",
-					   "Syntenic Correlation to Known Instance Threshold Required For Gene Cluster Presence",
+	parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster",
+					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
+					   "Reference end coordinate of gene cluster", "protein queries",
+					   "Target genomes prepared directory by prepTG", "Output directory",
+					   "Run in draft-assembly mode?", "Filter for paralogous/gene-content overlapping segments",
+					   "General E-value cutoff for detection of protein homologs in genome",
+					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
+					   "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence",
+					   "Minimum proportion of key protein hits to be considered as high-supporting evidence for gene cluster presence",
+					   "Syntenic correlation to known instance threshold required for gene cluster presence",
 					   "Maximum distance in between candidate gene-cluster segments to perform merging",
 					   "Base pair for flanking context to extract",
 					   "Emission probability of gene being in gene-cluster state with homologous hit to gene-cluster",
 					   "Emission probability of gene being in background state with homologous hit to gene-cluster",
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
 					   "Probability for background to background transition in HMM",
-					   "Perform plotting?", "DIAMOND Sensitivity", "Delineation Mode",
-					   "Number of CPUs Requested", "Maximum Memory in GB"]
+					   "Perform plotting?", "DIAMOND sensitivity", "Delineation mode",
+					   "Number of CPUs requested", "Maximum memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -233,7 +229,7 @@ def faiMain():
 	input_type_1_observed = False
 	input_type_2_observed = False
 	input_type_3_observed = False
-	if input_dir != None and os.path.isdir(input_dir):
+	if query_inputs != None and [os.path.isfile(qif) for qif in query_inputs]:
 		input_type_1_observed = True
 	if reference_genome != None and os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None:
 		input_type_2_observed = True
@@ -241,8 +237,8 @@ def faiMain():
 		input_type_3_observed = True
 
 	if input_type_1_observed and not (input_type_2_observed or input_type_3_observed):
-		sys.stdout.write('Beginning fai searches using input directory of GenBanks at: %s\n' % input_dir)
-		logObject.info('Beginning fai searches using input directory of GenBanks at: %s' % input_dir)
+		sys.stdout.write('Beginning fai searches using the following GenBank(s) as queries: %s\n' % ' '.join(query_inputs))
+		logObject.info('Beginning fai searches using the following GenBank(s) as queries: %s' % ' '.join(query_inputs))
 	elif input_type_2_observed and not (input_type_1_observed or input_type_3_observed):
 		sys.stdout.write('Beginning fai searches using coordinates %s:%d-%d in reference genome %s\n' % (reference_contig,
 																									   reference_start,
@@ -276,34 +272,32 @@ def faiMain():
 		comp_gene_info = None
 		protein_to_hg = None
 		if input_type_1_observed:
-			# construct consensus sequences of homolog groups to use for downstream searching
-			input_dir = os.path.abspath(input_dir) + '/'
+			# construct consensus sequences of ortholog groups to use for downstream searching
 			# get paths	to individual genbank files
 			genbanks = set([])
 			try:
-				for dirpath, dirnames, files in os.walk(input_dir):
-					for filename in files:
-						if filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank"):
-							genbank_file = os.path.join(dirpath, filename)
-							if util.checkValidGenBank(genbank_file, use_either_lt_or_pi=True):
-								genbanks.add(genbank_file)
-							else:
-								sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
-								logObject.warning('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % genbank_file)
+				for filename in query_inputs:
+					filename = os.path.abspath(filename)
+					if os.path.isfile(filename) and (filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank")):
+						if util.checkValidGenBank(filename, use_either_lt_or_pi=True):
+							genbanks.add(filename)
+						else:
+							sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % filename)
+							logObject.warning('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % filename)
 			except Exception as e:
-				sys.stderr.write('Issues with parsing input directory of GenBanks!\n')
-				logObject.error('Issues with parsing input directory of GenBanks!')
-				sys.stderr.write(str(e) + '\n')
+				sys.stderr.write('Issues with parsing query GenBanks!\n')
+				logObject.error('Issues with parsing query GenBanks!')
+				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
 			num_gbk = len(genbanks)
 			if num_gbk == 0:
-				sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\n')
-				logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...')
+				sys.stderr.write('Issues with parsing query GenBanks! No query GenBanks found ...\n')
+				logObject.error('Issues with parsing query GenBanks! No query GenBanks found ...')
 				sys.exit(1)
 			else:
-				sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
-				logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
+				sys.stdout.write('Found %d GenBanks to use as a joint query.\n' % num_gbk)
+				logObject.info('Found %d GenBanks to use as a query.' % num_gbk)
 
 			if num_gbk == 1:
 				query_fasta = work_dir + 'NR_Reference_Query.faa'

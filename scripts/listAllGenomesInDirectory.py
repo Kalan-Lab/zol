@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ### Program: listAllGenomesInDirectory.py
 ### Author: Rauf Salamzade

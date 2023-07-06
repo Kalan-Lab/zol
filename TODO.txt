@@ -1,7 +1,0 @@
-# TODO
-
-1. Switch from pickle to SQLite for sample-by-sample loading of gene location data - to help limit peak memory usage in fai.
-
-2. Implement simple aggregate mode for defining homologous gene-cluster segments based on maximum number of genes between two genes.
-
-3. [after public release]: create docker image + installation guide and submit to bioconda.

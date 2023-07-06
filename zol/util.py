@@ -8,26 +8,40 @@ import subprocess
 from operator import itemgetter
 from collections import defaultdict
 import traceback
-from scipy import stats
 import numpy as np
 import gzip
-import pathlib
 import copy
 import itertools
 import multiprocessing
 import pickle
 import resource
+import pkg_resources  # part of setuptools
+version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
-curr_dir = os.path.abspath(pathlib.Path(__file__).parent.resolve()) + '/'
-main_dir = '/'.join(curr_dir.split('/')[:-2]) + '/'
 
 def memory_limit(mem):
+	"""
+	Description:
+	Experimental function to limit memory.
+	********************************************************************************************************************
+	Parameters:
+	- mem: The memory limit in GB.
+	********************************************************************************************************************
+	"""
 	max_virtual_memory = mem*1000000000
 	soft, hard = resource.getrlimit(resource.RLIMIT_AS)
 	resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
 	print(resource.getrlimit(resource.RLIMIT_AS))
 def cleanUpSampleName(original_name):
+	"""
+	Description:
+	Function to clean up sample names for troublesome characters that makes unix based file creation tricky.
+	********************************************************************************************************************
+	Parameters:
+	- original_name: The original name of the sample.
+	********************************************************************************************************************
+	"""
 	return original_name.replace('#', '').replace('*', '_').replace(':', '_').replace(';', '_').replace(' ',
 																										'_').replace(
 		':', '_').replace('|', '_').replace('"', '_').replace("'", '_').replace("=", "_").replace('-', '_').replace('(',
@@ -36,10 +50,20 @@ def cleanUpSampleName(original_name):
 
 def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, full_dir, logObject=None):
 	"""
-	Function to read in GenBank paths from expansion listing file and load into dictionary with keys corresponding to sample IDs.
-	:param expansion_listing_file: tab-delimited file with three columns: (1) sample ID (2) Genbank path (3) predicted proteome path.
-	:param logObject: python logging object handler.
-	:return sample_annotation_data: dictionary of dictionaries with primary keys as sample names and secondary keys as either "genbank" or "predicted_proteome", with final values being paths to corresponding files.
+	Description:
+	Function to read in GenBank paths from expansion listing file and load into dictionary with keys corresponding to
+	sample IDs.
+	********************************************************************************************************************
+	Parameters:
+	- expansion_listing_file: A tab-delimited file with two columns: (1) sample ID (2) GenBank file name.
+	- full_dir: The path to where target genome GenBanks are stored.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	Returns:
+	- sample_annotation_data: A dictionary of dictionaries with primary keys as sample names and the secondary key as
+	                          "genbank" with final values being paths to the corresponding GenBank file for a sample
+	                          target genome.
+	********************************************************************************************************************
 	"""
 	sample_annotation_data = defaultdict(dict)
 	try:
@@ -63,16 +87,21 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, full_dir, 
 		if logObject:
 			logObject.error("Input file listing the location of annotation files for samples leads to incorrect paths or something else went wrong with processing of it. Exiting now ...")
 			logObject.error(traceback.format_exc())
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 
 def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
 	"""
+	Description:
 	Function to prune full genome-sized GenBank for only features in BGC of interest.
-	:param full_genbank_file: Prokka generated GenBank file for full genome.
-	:param new_genbank_file: Path to BGC specific Genbank to be created
-	:param scaffold: Scaffold identifier.
-	:param start_coord: Start coordinate.
-	:param end_coord: End coordinate.
+	********************************************************************************************************************
+	Parameters:
+	- full_genbank_file: GenBank file for full genome.
+	- new_genbank_file: Path to gene cluster specific GenBank to be created.
+	- scaffold: Scaffold identifier.
+	- start_coord: Start coordinate.
+	- end_coord: End coordinate.
+	********************************************************************************************************************
 	"""
 	try:
 		ngf_handle = open(new_genbank_file, 'w')
@@ -183,13 +212,20 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				SeqIO.write(updated_rec, ngf_handle, 'genbank')
 		ngf_handle.close()
 	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 
 def multiProcess(input):
 	"""
-	Genralizable function to be used with multiprocessing to parallelize list of commands. Inputs should correspond
-	to space separated command (as list), with last item in list corresponding to a logging object handle for logging
-	progress.
+	Description:
+	This is a generalizable function to be used with multiprocessing to parallelize list of commands. Inputs should
+	correspond to space separated command (as list), with last item in list corresponding to a logging object handle for
+	logging progress.
+	********************************************************************************************************************
+	Parameters:
+	- input: A list corresponding to a command to run with the last item in the list corresponding to a logging object
+	         for the function.
+	********************************************************************************************************************
 	"""
 	input_cmd = input[:-1]
 	logObject = input[-1]
@@ -202,9 +238,18 @@ def multiProcess(input):
 		logObject.error('Had an issue running: %s' % ' '.join(input_cmd))
 		sys.stderr.write('Had an issue running: %s' % ' '.join(input_cmd))
 		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def setupReadyDirectory(directories):
+	"""
+	Description:
+	This is a generalizable function to create directories.
+	********************************************************************************************************************
+	Parameters:
+	- dictionaries: A list of paths to directories to create or recreate (after removing).
+	********************************************************************************************************************
+	"""
 	try:
 		assert (type(directories) is list)
 		for d in directories:
@@ -212,35 +257,20 @@ def setupReadyDirectory(directories):
 				os.system('rm -rf %s' % d)
 			os.system('mkdir %s' % d)
 	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
-
-
-def p_adjust_bh(p):
-	"""
-	Benjamini-Hochberg p-value correction for multiple hypothesis testing.
-	"""
-	p = np.asfarray(p)
-	by_descend = p.argsort()[::-1]
-	by_orig = by_descend.argsort()
-	steps = float(len(p)) / np.arange(len(p), 0, -1)
-	q = np.minimum(1, np.minimum.accumulate(steps * p[by_descend]))
-	return q[by_orig]
-
-def is_fastq(fastq):
-	"""
-	Function to validate if FASTA file is correctly formatted.
-	"""
-	try:
-		with open(fastq) as of:
-			SeqIO.parse(of, 'fastq')
-		return True
-	except:
-		return False
-
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 
 def is_fasta(fasta):
 	"""
-	Function to validate if FASTA file is correctly formatted.
+	Description:
+	Function to validate if a file is actually a FASTA file.
+	********************************************************************************************************************
+	Parameters:
+	- fasta: A file that should be in FASTA format.
+	********************************************************************************************************************
+	Returns:
+	- True or False statement depending on whether file is in FASTA format.
+	********************************************************************************************************************
 	"""
 	try:
 		recs = 0
@@ -261,16 +291,18 @@ def is_fasta(fasta):
 	except:
 		return False
 
-def is_integer(x):
-	try:
-		x = int(x)
-		return True
-	except:
-		return False
-
 def is_genbank(gbk, check_for_cds=False):
 	"""
-	Function to check in Genbank file is correctly formatted.
+	Description:
+	Function to validate if a file is actually a GenBank file.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: A file that should be in GenBank format.
+	- check_for_cds: Whether to also check that the GenBank contains CDS features.
+	********************************************************************************************************************
+	Returns:
+	- True or False statement depending on whether file is in GenBank format.
+	********************************************************************************************************************
 	"""
 	try:
 		recs = 0
@@ -303,7 +335,22 @@ def is_genbank(gbk, check_for_cds=False):
 	except:
 		return False
 
-def checkValidGenBank(genbank_file, quality_assessment=False, draft_assessment=False, use_either_lt_or_pi=False):
+def checkValidGenBank(gbk, quality_assessment=False, draft_assessment=False, use_either_lt_or_pi=False):
+	"""
+	Description:
+	Function to check whether gene cluster GenBanks provided to zol as input meets the criteria requested by the user.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: The path to the GenBank file.
+	- quality_assessment: Whether to check that most bases in the gene-cluster are non-ambiguous.
+	- draft_assessment: Whether to check that gene-cluster does not lie on edge of the scaffold.
+	- use_either_lt_or_pi: Whether protein_id is acceptable to use if locus_tag unavailable (currently for usage in fai,
+	                       not zol).
+	********************************************************************************************************************
+	Returns:
+	- True or False statement depending on whether file meets criteria for inclusion in zol analysis.
+	********************************************************************************************************************
+	"""
 	try:
 		number_of_cds = 0
 		lt_has_comma = False
@@ -311,7 +358,7 @@ def checkValidGenBank(genbank_file, quality_assessment=False, draft_assessment=F
 		seqs = ''
 		recs = 0
 		edgy_cds = False
-		with open(genbank_file) as ogbk:
+		with open(gbk) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type == 'CDS':
@@ -351,12 +398,67 @@ def checkValidGenBank(genbank_file, quality_assessment=False, draft_assessment=F
 	except:
 		return False
 
-def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
+def convertGenbankToCDSProtsFasta(gbk, protein, logObject, use_either_lt_or_pi=False):
+	"""
+	Description:
+	This function extracts protein sequences for CDS features from a GenBank.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: The path to the GenBank file.
+	- protein: The path to the file to which to write the protein sequences to in FASTA format.
+	- logObject: A logging object.
+	- use_either_lt_or_pi: Whether protein_id is acceptable to use if locus_tag unavailable.
+	********************************************************************************************************************
+	"""
+	try:
+		prot_handle = open(protein, 'w')
+		with open(gbk) as ogbk:
+			for rec in SeqIO.parse(ogbk, 'genbank'):
+				for feature in rec.features:
+					if feature.type != 'CDS': continue
+					lt = None
+					pi = None
+					try:
+						lt = feature.qualifiers.get('locus_tag')[0]
+					except:
+						pass
+					try:
+						pi = feature.qualifiers.get('protein_id')[0]
+					except:
+						pass
+					if use_either_lt_or_pi:
+						if lt == None and pi != None:
+							lt = pi
+					prot_seq = feature.qualifiers.get('translation')[0]
+					prot_handle.write('>' + lt + '\n' + str(prot_seq) + '\n')
+		prot_handle.close()
+	except:
+		sys.stderr.write('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!\n')
+		logObject.error('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+def parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=True):
+	"""
+	Description:
+	This function parses GenBank for CDS protein and nucleotide sequences.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: Path to the GenBank file.
+	- logObject: A logging object.
+	- allow_edge_cds: Whether to regard CDS features near scaffold edges.
+	********************************************************************************************************************
+	Returns:
+	- A list which can be expanded to the following dictionaries:
+		- proteins: A dictionary mapping locus tag identifiers to protein sequences.
+		- nucleotides: A dictionary mapping locus tag identifiers to nucleotide sequences.
+		- upstream_regions: A dictionary mapping locus tag identifiers to upstream region sequences.
+	********************************************************************************************************************
+	"""
 	try:
 		proteins = {}
 		nucleotides = {}
 		upstream_regions = {}
-		with open(gbk_path) as ogbk:
+		with open(gbk) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				full_sequence = str(rec.seq).upper()
 				for feature in rec.features:
@@ -415,10 +517,10 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 					final_upstream_region = None
 					edgy_cds = False
 
-					#try:
-					#	final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
-					#except:
-					final_upstream_region = upstream_region
+					try:
+						final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
+					except:
+						final_upstream_region = upstream_region
 
 					try:
 						final_nucl_seq = feature.qualifiers.get('open_reading_frame')[0]
@@ -440,29 +542,32 @@ def parseGenbankForCDSProteinsAndDNA(gbk_path, logObject, allow_edge_cds=True):
 
 		return([proteins, nucleotides, upstream_regions])
 	except Exception as e:
-		sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk_path)
-		logObject.error('Issues with parsing the GenBank %s' % gbk_path)
+		sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
+		logObject.error('Issues with parsing the GenBank %s' % gbk)
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-
-def parseVersionFromSetupPy():
+def getVersion():
 	"""
-	Parses version from setup.py program.
+	Description:
+	Parses the version of the zol suite from the setup.py program.
+	********************************************************************************************************************
 	"""
-	setup_py_prog = main_dir + 'setup.py'
-	version = 'NA'
-	with open(setup_py_prog) as osppf:
-		for line in osppf:
-			line = line.strip()
-			if line.startswith('version='):
-				version = line.split('version=')[1][:-1]
-	return version
+	return(str(version))
 
 def default_to_regular(d):
 	"""
+	Description:
 	Function to convert defaultdict of defaultdict to dict of dict
 	Taken from Martijn Pieters response in StackOverflow:
 	https://stackoverflow.com/questions/26496831/how-to-convert-defaultdict-of-defaultdicts-of-defaultdicts-to-dict-of-dicts-o
+	********************************************************************************************************************
+	Parameters:
+	- d: Defaultdict dictionary.
+	********************************************************************************************************************
+	Returns:
+	- A regular old dictionary.
+	******************************************************************************************************************
 	"""
 	if isinstance(d, defaultdict):
 		d = {k: default_to_regular(v) for k, v in d.items()}
@@ -470,10 +575,17 @@ def default_to_regular(d):
 
 def createLoggerObject(log_file):
 	"""
-	Function which creates logger object.
-	:param log_file: path to log file.
-	:return: logging logger object.
+	Description:
+	This function creates a logging object.
+	********************************************************************************************************************
+	Parameters:
+	- log_file: Path to file to which to write logging.
+	********************************************************************************************************************
+	Returns:
+	- logger: A logging object.
+	********************************************************************************************************************
 	"""
+
 	logger = logging.getLogger('task_logger')
 	logger.setLevel(logging.DEBUG)
 	# create file handler which logs even debug messages
@@ -487,52 +599,30 @@ def createLoggerObject(log_file):
 
 def closeLoggerObject(logObject):
 	"""
-	Function which closes/terminates loggerObject.
-	:param logObject: logging logger object to close
+	Description:
+	This function closes a logging object.
+	********************************************************************************************************************
+	Parameters:
+	- logObject: A logging object.
+	********************************************************************************************************************
 	"""
+
 	handlers = logObject.handlers[:]
 	for handler in handlers:
 		handler.close()
 		logObject.removeHandler(handler)
 
 
-def logParameters(parameter_names, parameter_values):
-	"""
-	Function to log parameters of executable program to std.stderr
-	"""
-	for i, pv in enumerate(parameter_values):
-		pn = parameter_names[i]
-		sys.stderr.write(pn + ': ' + str(pv) + '\n')
-
-def convertGenbankToCDSProtsFasta(genbank, protein, logObject, use_either_lt_or_pi=False):
-	try:
-		print(genbank)
-		prot_handle = open(protein, 'w')
-		with open(genbank) as ogbk:
-			for rec in SeqIO.parse(ogbk, 'genbank'):
-				for feature in rec.features:
-					if feature.type != 'CDS': continue
-					try:
-						lt = feature.qualifiers.get('locus_tag')[0]
-					except:
-						pass
-					try:
-						pi = feature.qualifiers.get('protein_id')[0]
-					except:
-						pass
-					if use_either_lt_or_pi:
-						if lt == None and pi != None:
-							lt = pi
-					prot_seq = feature.qualifiers.get('translation')[0]
-					prot_handle.write('>' + lt + '\n' + str(prot_seq) + '\n')
-		prot_handle.close()
-	except:
-		sys.stderr.write('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!\n')
-		logObject.error('Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!')
-		sys.exit(1)
 def logParametersToFile(parameter_file, parameter_names, parameter_values):
 	"""
-	Function to log parameters of executable program to text file.
+	Description:
+	This function serves to create a parameters input file for major programs, e.g. fai and zol.
+	********************************************************************************************************************
+	Parameters:
+	- parameter_file: The path to the file where to write parameter information to. Will overwrite each time.
+	- parameter_names: A list containing the parameter names.
+	- parameter_values: A list in the same order as parameter_names which contains the respective arguments provided.
+	********************************************************************************************************************
 	"""
 	parameter_handle = open(parameter_file, 'w')
 	for i, pv in enumerate(parameter_values):
@@ -540,24 +630,55 @@ def logParametersToFile(parameter_file, parameter_names, parameter_values):
 		parameter_handle.write(pn + ': ' + str(pv) + '\n')
 	parameter_handle.close()
 
-def logParametersToObject(logObject, parameter_names, parameter_values):
+def is_integer(x):
 	"""
-	Function to log parameters of executable program to text file.
+	Description:
+	This function checks whether the input variable corresponds to an integer.
+	********************************************************************************************************************
+	Parameters:
+	- x: Input variable.
+	********************************************************************************************************************
+	Returns:
+	- True or False statement depending on whether input variable is an integer.
+	********************************************************************************************************************
 	"""
-	for i, pv in enumerate(parameter_values):
-		pn = parameter_names[i]
-		logObject.info(pn + ': ' + str(pv))
-
+	try:
+		x = int(x)
+		return True
+	except:
+		return False
 
 def is_numeric(x):
+	"""
+	Description:
+	This function checks whether the input variable is numeric.
+	********************************************************************************************************************
+	Parameters:
+	- x: Input variable.
+	********************************************************************************************************************
+	Returns:
+	- True or False statement depending on whether input variable is numeric.
+	********************************************************************************************************************
+	"""
 	try:
 		x = float(x)
 		return True
 	except:
 		return False
 
-
 def castToNumeric(x):
+	"""
+	Description:
+	This function attempts to cast a variable into a float. A special exception is whether "< 3 segregating sites!" is
+	the value of the variable, which will simply be retained as a string.
+	********************************************************************************************************************
+	Parameters:
+	- x: Input variable.
+	********************************************************************************************************************
+	Returns:
+	- A float casting of the variable's value if numeric or "nan" if not.
+	********************************************************************************************************************
+	"""
 	try:
 		if x == '< 3 segregating sites!':
 			return(x)
@@ -567,51 +688,19 @@ def castToNumeric(x):
 	except:
 		return float('nan')
 
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-numeric_columns = set(['GCF Count', 'hg order index', 'hg consensus direction', 'median gene length',
-					   'proportion of samples with hg', 'proportion of total populations with hg',
-					   'hg median copy count', 'num of hg instances', 'samples with hg', 'ambiguous sites proporition',
-					   'Tajimas D', 'proportion variable sites', 'proportion nondominant major allele',
-					   'median beta rd',
-					   'median dn ds', 'mad dn ds', 'populations with hg', 'proportion of total populations with hg',
-					   'most significant Fisher exact pvalues presence absence', 'median Tajimas D per population',
-					   'mad Tajimas D per population'])
-
-
-def loadSampleToGCFIntoPandaDataFrame(gcf_listing_dir):
-	import pandas as pd
-	panda_df = None
-	try:
-		data = []
-		data.append(['GCF', 'Sample', 'BGC Instances'])
-		for f in os.listdir(gcf_listing_dir):
-			gcf = f.split('.txt')[0]
-			sample_counts = defaultdict(int)
-			with open(gcf_listing_dir + f) as ogldf:
-				for line in ogldf:
-					line = line.strip()
-					sample, bgc_path = line.split('\t')
-					sample_counts[sample] += 1
-			for s in sample_counts:
-				data.append([gcf, s, sample_counts[s]])
-
-		panda_dict = {}
-		for ls in zip(*data):
-			key = ' '.join(ls[0].split('_'))
-			vals = ls[1:]
-			panda_dict[key] = vals
-		panda_df = pd.DataFrame(panda_dict)
-
-	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
-	return panda_df
-
 def checkCoreHomologGroupsExist(ortho_matrix_file):
 	"""
-	Function to check that a core ortholog/homolog group exists across homologous gene-clusters.
+	Description:
+	This function checks whether at least one core ortholog group exists within an ortholog group by sample matrix.
+	********************************************************************************************************************
+	Parameters:
+	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+	********************************************************************************************************************
+	Returns:
+	- True or False depending on whether a core ortholog group is found.
+	********************************************************************************************************************
 	"""
+
 	try:
 		core_hgs = set([])
 		with open(ortho_matrix_file) as omf:
@@ -632,8 +721,25 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 		return False
 
 def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_miniprot_outdir,
-								additional_proteomes_directory, addtitional_genbanks_directory, logObject, cpus=1,
+								additional_proteomes_directory, additional_genbanks_directory, logObject, cpus=1,
 								locus_tag_length=3):
+	"""
+	Description:
+	This function oversees processing of input genomes to create proteome and GenBank files using miniprot.
+	********************************************************************************************************************
+	Parameters:
+	- reference_proteome: The reference proteome (in FASTA format) to use to map CDS features onto target sample
+	                      genomes.
+	- sample_genomes: A dictionary mapping sample identifiers to the path of their genomes in FASTA format.
+	- additional_miniprot_outdir: Workspace where miniprot (intermediate) results should be written to directly.
+	- additional_proteomes_directory: Directory where final proteome files (in FASTA format) for target genomes will be
+	                                  saved.
+	- additional_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- locus_tag_length: The length of the locus tags to generate.
+	********************************************************************************************************************
+	"""
 	try:
 		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 		possible_locustags = sorted(list([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]))
@@ -645,7 +751,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 
 			sample_mp_db = additional_miniprot_outdir + sample + '.mpi'
 			sample_mp_gff = additional_miniprot_outdir + sample + '.gff'
-			sample_mp_gbk = addtitional_genbanks_directory + sample + '.gbk'
+			sample_mp_gbk = additional_genbanks_directory + sample + '.gbk'
 			sample_mp_faa = additional_proteomes_directory + sample + '.faa'
 
 			miniprot_index_cmd = ['miniprot', '-t1', '-d', sample_mp_db, sample_assembly]
@@ -660,29 +766,37 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 
 		for sample in sample_genomes:
 			try:
-				sample_mp_gbk = addtitional_genbanks_directory + sample + '.gbk'
+				sample_mp_gbk = additional_genbanks_directory + sample + '.gbk'
 				sample_mp_faa = additional_proteomes_directory + sample + '.faa'
 				assert (os.path.isfile(sample_mp_gbk) and os.path.isfile(sample_mp_faa))
 			except:
-				raise RuntimeError("Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+				sys.stderr.write("Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+				sys.stderr.write(traceback.format_exc())
+				sys.exit(1)
 	except Exception as e:
 		logObject.error("Problem with creating commands for running miniprot or convertMiniprotGffToGbkAndProt.py. Exiting now ...")
 		logObject.error(traceback.format_exc())
-		raise RuntimeError(traceback.format_exc())
-
-def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject, cpus=1,
-				   locus_tag_length=3, use_prodigal=False, meta_mode=False, avoid_locus_tags=set([])):
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject,
+								cpus=1, locus_tag_length=3, use_prodigal=False, meta_mode=False,
+								avoid_locus_tags=set([])):
 	"""
-	Void function to run Prodigal based gene-calling and annotations.
-	:param sample_genomes: dictionary with keys as sample names and values as genomic assembly paths.
-	:param prodigal_outdir: full path to directory where Prokka results will be written.
-	:param prodigal_proteomes: full path to directory where Prokka generated predicted-proteome FASTA files will be moved after prodigal has run.
-	:param prodigal_genbanks: full path to directory where Prokka generated Genbank (featuring predicted CDS) files will be moved after prodigal has run.
-	:param taxa: name of the taxonomic clade of interest.
-	:param logObject: python logging object handler.
-	:param cpus: number of cpus to use in multiprocessing Prokka cmds.
-	:param locus_tag_length: length of locus tags to generate using unique character combinations.
-	Note length of locus tag must be 3 beause this is substituting for base lsaBGC analysis!!
+	Description:
+	This function oversees processing of input genomes to create proteome and GenBank files using p(y)rodigal.
+	********************************************************************************************************************
+	Parameters:
+	- sample_genomes: A dictionary mapping sample identifiers to the path of their genomes in FASTA format.
+	- prodigal_outdir: Workspace where prodigal (intermediate) results should be written to directly.
+	- prodigal_proteomes: Directory where final proteome files (in FASTA format) for target genomes will be saved.
+	- prodigal_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- locus_tag_length: The length of the locus tags to generate.
+	- use_prodigal: Whether to use prodigal instead of pyrodigal.
+	- meta_mode: Whether to run pyrodigal/prodigal in metagenomics mode.
+	- avoid_locus_tags: Whether to avoid using certain locus tags.
+	********************************************************************************************************************
 	"""
 	try:
 		alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -714,19 +828,37 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 				os.system('mv %s %s' % (prodigal_outdir + sample + '.gbk', prodigal_genbanks))
 				os.system('mv %s %s' % (prodigal_outdir + sample + '.faa', prodigal_proteomes))
 			except:
-				raise RuntimeError(
-					"Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+				sys.stderr.write("Unable to validate successful genbank/predicted-proteome creation for sample %s\n" % sample)
+				sys.stderr.write(traceback.format_exc())
+				sys.exit(1)
 	except Exception as e:
 		logObject.error(
 			"Problem with creating commands for running prodigal via script runProdigalAndMakeProperGenbank.py. Exiting now ...")
 		logObject.error(traceback.format_exc())
-		raise RuntimeError(traceback.format_exc())
-
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
 							 logObject, cpus=1, locus_tag_length=3, avoid_locus_tags=set([]),
 							 rename_locus_tags=False):
 	"""
-	Extracts CDS/proteins from existing Genbank files and recreates
+	Description:
+	This function oversees processing of input genomes as GenBanks with CDS features already available.
+	********************************************************************************************************************
+	Parameters:
+	- sample_genomes: A dictionary mapping sample identifiers to the path of their genomes in GenBank format with CDS
+	                  features available.
+	- proteomes_directory: Directory where final proteome files (in FASTA format) for target genomes will be saved.
+	- genbanks_directory: Directory where final GenBank files for target genomes will be saved.
+	- gene_name_mapping_outdir: Directory where mapping files for original locus tags to new locus tags will be saved.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	- locus_tag_length: The length of the locus tags to generate.
+	- avoid_locus_tags: Whether to avoid using certain locus tags.
+	- rename_locus_tags: Whether to rename locus tags.
+	********************************************************************************************************************
+	Returns:
+	- sample_genomes_updated: Dictionary mapping sample names to paths of final/processed sample GenBanks.
+	********************************************************************************************************************
 	"""
 
 	sample_genomes_updated = {}
@@ -760,15 +892,30 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 						os.path.isfile(gene_name_mapping_outdir + sample + '.txt'))
 				sample_genomes_updated[sample] = genbanks_directory + sample + '.gbk'
 			except:
-				raise RuntimeError(
-					"Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+				sys.stderr.write("Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
+				sys.stderr.write(traceback.format_exc())
+				sys.exit(1)
 	except Exception as e:
 		logObject.error("Problem with processing existing Genbanks to (re)create genbanks/proteomes. Exiting now ...")
 		logObject.error(traceback.format_exc())
-		raise RuntimeError(traceback.format_exc())
-	return sample_genomes
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+	return sample_genomes_updated
 
 def determineGenomeFormat(inputs):
+	"""
+	Description:
+	This function determines whether a target sample genome is provided in GenBank or FASTA format.
+	********************************************************************************************************************
+	Parameters:
+	- input a list which can be expanded to the following:
+		- sample: The sample identifier / name.
+		- genome_File: The path to the genome file.
+		- format_assess_dir: The directory where the genome type information for the sample will be written.
+		- logObject: A logging object.
+	********************************************************************************************************************
+	"""
+
 	sample, genome_file, format_assess_dir, logObject = inputs
 	try:
 		gtype = 'unknown'
@@ -783,9 +930,27 @@ def determineGenomeFormat(inputs):
 		sample_res_handle.write(sample + '\t' + str(gtype) + '\n')
 		sample_res_handle.close()
 	except:
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-
 def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=1):
+	"""
+	Description:
+	This function parses the input sample target genomes and determines whether they are all provided in the same format
+	and whether everything aligns with expectations.
+	********************************************************************************************************************
+	Parameters:
+	- genome_listing_file: A tab separated file with two columns: (1) sample name, (2) path to genome file.
+	- format_assess_dir: The directory/workspace where genome format information will be saved.
+	- format_predictions_file: The file where to concatenate genome format information.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	Returns:
+	- sample_genomes: A dictionary which maps sample names to genome file paths (note, unknown format files will be
+	                  dropped).
+	- format_prediction: The format prediction for genome files.
+	********************************************************************************************************************
+	"""
 	try:
 		sample_genomes = {}
 		assess_inputs = []
@@ -833,15 +998,27 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 	except Exception as e:
 		logObject.error("Problem with creating commands for running Prodigal. Exiting now ...")
 		logObject.error(traceback.format_exc())
-		raise RuntimeError(traceback.format_exc())
-
-def filterRecordsNearScaffoldEdge(genbank_file, filt_genbank_file, logObject, quality_assessment=False):
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+def filterRecordsNearScaffoldEdge(gbk, filt_genbank_file, logObject, quality_assessment=False):
+	"""
+	Description:
+	This function filters specific records in a GenBank if they are near a scaffold edge.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: The GenBank file.
+	- filt_genbank_file: The filtered GenBank file.
+	- logObject: A logging object.
+	- quality_assessment: Whether to perform quality assessment and drop the GenBank if >10% of nucleotides are
+	                      ambiguous.
+	********************************************************************************************************************
+	"""
 	try:
 		number_of_cds = 0
 		seqs = ""
 		recs = 0
 		recs_with_edgy_cds = set([])
-		with open(genbank_file) as ogbk:
+		with open(gbk) as ogbk:
 			for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
 				edgy_cds = False
 				for feature in rec.features:
@@ -863,26 +1040,41 @@ def filterRecordsNearScaffoldEdge(genbank_file, filt_genbank_file, logObject, qu
 		recs_without_edgy_cds = recs-len(recs_with_edgy_cds)
 		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and recs_without_edgy_cds > 0:
 			out_handle = open(filt_genbank_file, 'w')
-			with open(genbank_file) as ogbk:
+			with open(gbk) as ogbk:
 				for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
 					if rec_it in recs_with_edgy_cds: continue
 					SeqIO.write(rec, out_handle, 'genbank')
 			out_handle.close()
 
 	except Exception as e:
-		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % genbank_file)
-		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % genbank_file)
+		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % gbk)
+		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % gbk)
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_assessment=False, draft_assessment=False):
+def renameCDSLocusTag(gbk, lt, rn_genbank_file, logObject, quality_assessment=False, draft_assessment=False):
+	"""
+	Description:
+	This function renames or creates locus tags in a GenBank.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: The GenBank file.
+	- lt: The new locus tag prefix.
+	- rn_genbank_file: The path to the GenBank file to be created with the new locus tag names.
+	- logObject: A logging object.
+	- quality_assessment: Whether to perform quality assessment and drop the GenBank if >10% of nucleotides are
+	                      ambiguous.
+	- draft_assessment: Whether to perform draft quality assessment and drop the GenBank if there are no records not
+	                    nearby scaffold edges.
+	********************************************************************************************************************
+	"""
 	try:
 		number_of_cds = 0
 		seqs = ""
 		recs = 0
 		recs_with_edgy_cds = set([])
-		with open(genbank_file) as ogbk:
+		with open(gbk) as ogbk:
 			for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
 				edgy_cds = False
 				for feature in rec.features:
@@ -904,7 +1096,7 @@ def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_asse
 		if number_of_cds > 0 and (prop_missing <= 0.1 or not quality_assessment) and (recs_without_edgy_cds > 0 or not draft_assessment):
 			out_handle = open(rn_genbank_file, 'w')
 			locus_tag_iterator = 1
-			with open(genbank_file) as ogbk:
+			with open(gbk) as ogbk:
 				for rec_it, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
 					if rec_it in recs_with_edgy_cds and draft_assessment: continue
 					for feature in rec.features:
@@ -927,21 +1119,48 @@ def renameCDSLocusTag(genbank_file, lt, rn_genbank_file, logObject, quality_asse
 					SeqIO.write(rec, out_handle, 'genbank')
 			out_handle.close()
 	except Exception as e:
-		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % genbank_file)
-		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % genbank_file)
+		sys.stderr.write('Issue parsing GenBank %s and CDS locus tag renaming.\n' % gbk)
+		logObject.error('Issue parsing GenBank %s and CDS locus tag renaming.' % gbk)
 		sys.stderr.write(str(e) + '\n')
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-
-def parseGbk(gbk_path, prefix, logObject):
+def parseGbk(gbk, prefix, logObject, use_either_lt_or_pi=False):
+	"""
+	Description:
+	This function parses CDS coordinate information from a GenBank.
+	********************************************************************************************************************
+	Parameters:
+	- gbk: The GenBank file.
+	- prefix: The prefix to append to locus tags (often gene cluster name) to make them use.
+	- logObject: A logging object.
+	- use_either_lt_or_pi: Use protein_id qualifier if locus_tag is unavailable for CDS feature.
+	********************************************************************************************************************
+	Returns:
+	- gc_gene_locations: A dictionary for CDS locations where keys correspond to "prefix|locus_tag" and the values are
+	                     another dictionary with the keys scaffold, start position, end position.
+	********************************************************************************************************************
+	"""
 	try:
 		gc_gene_locations = {}
-		with open(gbk_path) as ogbk:
+		with open(gbk) as ogbk:
 			for rec in SeqIO.parse(ogbk, 'genbank'):
 				for feature in rec.features:
 					if feature.type != 'CDS': continue
-					lt = feature.qualifiers.get('locus_tag')[0]
+					lt = None
+					pi = None
+					try:
+						lt = feature.qualifiers.get('locus_tag')[0]
+					except:
+						pass
+					try:
+						pi = feature.qualifiers.get('protein_id')[0]
+					except:
+						pass
+					if use_either_lt_or_pi:
+						if lt == None and pi != None:
+							lt = pi
+
 					all_coords = []
 					if not 'join' in str(feature.location):
 						start = min([int(x.strip('>').strip('<')) for x in
@@ -950,6 +1169,14 @@ def parseGbk(gbk_path, prefix, logObject):
 								   str(feature.location)[1:].split(']')[0].split(':')])
 						direction = str(feature.location).split('(')[1].split(')')[0]
 						all_coords.append([start, end, direction])
+					elif 'order' in str(feature.location):
+						for exon_coord in str(feature.location)[6:-1].split(', '):
+							start = min(
+								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+							end = max(
+								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+							direction = exon_coord.split('(')[1].split(')')[0]
+							all_coords.append([start, end, direction])
 					else:
 						for exon_coord in str(feature.location)[5:-1].split(', '):
 							start = min([int(x.strip('>').strip('<')) for x in
@@ -970,33 +1197,79 @@ def parseGbk(gbk_path, prefix, logObject):
 					gc_gene_locations[prefix + '|' + lt] = location
 		return gc_gene_locations
 	except Exception as e:
-		sys.stderr.write('Issue parsing GenBank %s\n' % gbk_path)
-		logObject.error('Issue parsing GenBank %s' % gbk_path)
+		sys.stderr.write('Issue parsing GenBank %s\n' % gbk)
+		logObject.error('Issue parsing GenBank %s' % gbk)
 		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
 def determinePossibleLTs():
+	"""
+	Description:
+	This function creates a sorted list of possible locus tag prefices of length 4 each.
+	********************************************************************************************************************
+	Returns:
+	- possible_locustags: A sorted list of possible locus tag prefices of length 4 each.
+	********************************************************************************************************************
+	"""
 	alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 	possible_locustags = sorted(list([''.join(list(lt)) for lt in itertools.product(alphabet, repeat=4)]))
 	return possible_locustags
 
-def gatherAnnotationFromDictForHomoloGroup(hg, db, dict):
+def gatherAnnotationFromDictForHomoloGroup(hg, db, annot_dict):
+	"""
+	Description:
+	This function formats the annotation information for the final zol TSV and XLSX for an ortholog group for a
+	particular database.
+	********************************************************************************************************************
+	Parameters:
+	- hg: The ortholog group identifier.
+	- db: The database identifier.
+	- annot_dict: The dictionary with annotation information.
+	********************************************************************************************************************
+	Returns:
+	- A string with the annotation and the E-value in parentheses or "NA" if an annotation is not available.
+	********************************************************************************************************************
+	"""
 	try:
-		assert(db in dict)
-		annot_set_filt = set([x for x in dict[db][hg][0] if x.strip() != ''])
+		assert(db in annot_dict)
+		annot_set_filt = set([x for x in annot_dict[db][hg][0] if x.strip() != ''])
 		assert(len(annot_set_filt) > 0)
-		return('; '.join(annot_set_filt) + ' (' + str(max(dict[db][hg][1])) + ')')
+		return('; '.join(annot_set_filt) + ' (' + str(max(annot_dict[db][hg][1])) + ')')
 	except:
 		return('NA')
 
-def gatherValueFromDictForHomologGroup(hg, dict):
+def gatherValueFromDictForHomologGroup(hg, info_dict):
+	"""
+	Description:
+	This function formats/gathers information for an ortholog group from a dictionary.
+	********************************************************************************************************************
+	Parameters:
+	- hg: The ortholog group identifier.
+	- info_dict: The dictionary with information to be extracted for the ortholog group.
+	********************************************************************************************************************
+	Returns:
+	- A string with the information for the ortholog group or "NA" if information is not available.
+	********************************************************************************************************************
+	"""
 	try:
-		return (dict[hg])
+		return (info_dict[hg])
 	except:
 		return ("NA")
 
-
 def loadTableInPandaDataFrame(input_file, numeric_columns):
+	"""
+	Description:
+	This function formats reads a TSV file and stores it as a pandas dataframe.
+	********************************************************************************************************************
+	Parameters:
+	- input_file: The input TSV file, with first row corresponding to the header.
+	- numeric_columns: Set of column names which should have numeric data.
+	********************************************************************************************************************
+	Returns:
+	- panda_df: A pandas DataFrame object reprsentation of the input TSV file.
+	********************************************************************************************************************
+	"""
 	import pandas as pd
 	panda_df = None
 	try:
@@ -1019,26 +1292,40 @@ def loadTableInPandaDataFrame(input_file, numeric_columns):
 		panda_df = pd.DataFrame(panda_dict)
 
 	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
 	return panda_df
 
 def chunks(lst, n):
 	"""
-    Yield successive n-sized chunks from lst.
+	Description:
+	Function to yield successive n-sized chunks from lst.
     Solution taken from: https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
+	********************************************************************************************************************
+	Parameters:
+	- lst: A list.
+	- n: The chunk size.
+	********************************************************************************************************************
+	Yields:
+	- chunks of size n.
+	********************************************************************************************************************
     """
 	for i in range(0, len(lst), n):
 		yield lst[i:i + n]
 
 def parseGenbankAndFindBoundaryGenes(inputs):
 	"""
-	Function to parse Genbanks from Prokka and return a dictionary of genes per scaffold, gene to scaffold, and a
-	set of genes which lie on the boundary of scaffolds.
-	:param sample_genbank: Prokka generated Genbank file.
-	:param distance_to_scaffold_boundary: Distance to scaffold edge considered as boundary.
-	:return gene_to_scaffold: Dictionary mapping each gene's locus tag to the scaffold it is found on.
-	:return scaffold_genes: Dictionary with keys as scaffolds and values as a set of genes found on that scaffold.
-	:return boundary_genes: Set of gene locus tag ids which are found within proximity to scaffold edges.
+	Description:
+	Function to parse a full genome GenBank and writes a dictionary of genes per scaffold, gene to scaffold, and a
+	set of CDS features which lie on the boundary of scaffolds (within 2000 bp).
+	********************************************************************************************************************
+	Parameters:
+	- input: A list which can be expanded to the following:
+		- sample: The sample / target genome identifier.
+		- sample_genbank: The sample / target genome GenBank file.
+		- pkl_result_file: The path to the pickle file to write with the sample / target genome information mentioned
+		                   in the description.
+	********************************************************************************************************************
 	"""
 
 	distance_to_scaffold_boundary = 2000
@@ -1072,6 +1359,23 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 					[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
 				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
 				direction = str(feature.location).split('(')[1].split(')')[0]
+			elif 'order' in str(feature.location):
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[6:-1].split(', '):
+					ec_start = min(
+						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					ec_end = max(
+						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					ec_direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(ec_start)
+					all_ends.append(ec_end)
+					all_directions.append(ec_direction)
+				assert (len(set(all_directions)) == 1)
+				start = min(all_starts)
+				end = max(all_ends)
+				direction = all_directions[0]
 			else:
 				all_starts = []
 				all_ends = []
@@ -1083,6 +1387,7 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 					all_starts.append(start)
 					all_ends.append(end)
 					all_directions.append(direction)
+				assert (len(set(all_directions)) == 1)
 				start = min(all_starts)
 				end = max(all_ends)
 				direction = all_directions[0]

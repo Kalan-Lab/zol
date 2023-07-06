@@ -2,6 +2,7 @@ import os
 import sys
 import pandas
 import argparse
+import subprocess
 from time import sleep
 
 zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
@@ -48,14 +49,14 @@ def genSynVis():
 
 	df = pandas.read_csv(input_zol_report, sep='\t', header=0)
 	"""
-	0	Homolog Group (HG) ID
-	1	HG is Single Copy?
-	2	Proportion of Total Gene Clusters with HG
-	3	HG Median Length (bp)
-	4	HG Consensus Order
-	5	HG Consensus Direction
-	6	Proportion of Focal Gene Clusters with HG
-	7	Proportion of Comparator Gene Clusters with HG
+	0	ortholog group (OG) ID
+	1	OG is Single Copy?
+	2	Proportion of Total Gene Clusters with OG
+	3	OG Median Length (bp)
+	4	OG Consensus Order
+	5	OG Consensus Direction
+	6	Proportion of Focal Gene Clusters with OG
+	7	Proportion of Comparator Gene Clusters with OG
 	8	Fixation Index
 	9	Upstream Region Fixation Index
 	10	Tajima's D
@@ -81,33 +82,33 @@ def genSynVis():
 	30	VFDB Annotation (E-value)
 	31	Pfam Domains
 	32	CDS Locus Tags
-	33	HG Consensus Sequence
+	33	OG Consensus Sequence
 	"""
 
-	df.sort_values(by="HG Consensus Order", ascending=True, inplace=True)
+	df.sort_values(by="OG Consensus Order", ascending=True, inplace=True)
 
 	prev_end = 1
 	plot_input_file = outdir + 'Track.txt'
 	pif_handle = open(plot_input_file, 'w')
-	pif_handle.write('\t'.join(['HG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
+	pif_handle.write('\t'.join(['OG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
 	for index, row in df.iterrows():
-		hg = row['Homolog Group (HG) ID']
-		hg_cons = row['Proportion of Total Gene Clusters with HG']
-		if float(hg_cons) < 0.25: continue
-		hg_mlen = float(row['HG Median Length (bp)'])
-		hg_dir = row['HG Consensus Direction']
-		sc_flag = row['HG is Single Copy?']
+		og = row['ortholog group (OG) ID']
+		og_cons = row['Proportion of Total Gene Clusters with OG']
+		if float(og_cons) < 0.25: continue
+		og_mlen = float(row['OG Median Length (bp)'])
+		og_dir = row['OG Consensus Direction']
+		sc_flag = row['OG is Single Copy?']
 		sc_mark = ''
 		if sc_flag == False:
 			sc_mark = '//'
 
 		start = prev_end
-		end = prev_end + hg_mlen
+		end = prev_end + og_mlen
 		dir = 1
-		if hg_dir == '-':
+		if og_dir == '-':
 			dir = 0
 		metric_val = row[metric_name]
-		print_row = [hg, start, end, dir, sc_mark, metric_val]
+		print_row = [og, start, end, dir, sc_mark, metric_val]
 		pif_handle.write('\t'.join([str(x) for x in print_row]) + '\n')
 		prev_end = end + 200
 	pif_handle.close()

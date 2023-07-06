@@ -2,14 +2,14 @@ from setuptools import setup
 import os
 
 setup(name='zol',
-      version='1.2.2',
+      version='1.3.2',
       description='',
       url='http://github.com/Kalan-Lab/zol/',
       author='Rauf Salamzade',
       author_email='salamzader@gmail.com',
       license='BSD-3',
       packages=['zol'],
-      scripts=['bin/ZOL',
+      scripts=['docker/ZOL',
                'bin/zol',
                'bin/fai',
                'bin/prepTG',

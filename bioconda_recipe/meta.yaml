@@ -34,6 +34,7 @@ requirements:
     - prodigal
     - pyrodigal 
     - pyhmmer
+    - miniprot
     - pandas >=2.0
     - xlsxwriter >=3.0.3
     - scikit-learn

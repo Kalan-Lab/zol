@@ -741,7 +741,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 			hgs_ordered_dict = defaultdict(dict)
 			lts_ordered_dict = defaultdict(dict)
 			for sample in sample_hgs:
-				if len(sample_hgs[sample]) < 3: continue
+				#if len(sample_hgs[sample]) < 3: continue
 				for scaffold in scaffold_genes[sample]:
 					lts_with_start = []
 					for lt in scaffold_genes[sample][scaffold]:

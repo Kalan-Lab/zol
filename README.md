@@ -267,6 +267,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.3
+
+- Correct and clairfy usage of "key protein" filters in fai.
+- Introduce single query mode in fai, whereby users can use a single gene as a query to look at differences in surrounding context CORASON style.
+- Add miniprot (v0.7) dependency to conda yaml file (and planning to bioconda).
+
 ### version 1.3.2
 
 - Allow for failures of specific databases (i.e., if hosting server goes down) in `setup_annotation_dbs.py`.

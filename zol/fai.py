@@ -879,9 +879,9 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set()
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
-								hg = gc_state_hgs[j]
-								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
-									key_hgs_detected.add(hg)
+								curr_hg = gc_state_hgs[j]
+								if curr_hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+									key_hgs_detected.add(curr_hg)
 									features_key_hg = True
 						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 							boundary_lt_featured = True
@@ -909,10 +909,10 @@ def identify_gc_instances(input_args):
 				key_hgs_detected = set([])
 				if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 					for j, lt in enumerate(gc_state_lts):
-						hg = gc_state_hgs[j]
-						if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+						curr_hg = gc_state_hgs[j]
+						if curr_hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 							features_key_hg = True
-							key_hgs_detected.add(hg)
+							key_hgs_detected.add(curr_hg)
 				if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 					boundary_lt_featured = True
 				sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
@@ -954,10 +954,10 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
-								hg = gc_state_hgs[j]
-								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+								curr_hg = gc_state_hgs[j]
+								if curr_hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
-									key_hgs_detected.add(hg)
+									key_hgs_detected.add(curr_hg)
 						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 							boundary_lt_featured = True
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
@@ -990,10 +990,10 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
-								hg = gc_state_hgs[j]
-								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+								curr_hg = gc_state_hgs[j]
+								if curr_hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
-									key_hgs_detected.add(hg)
+									key_hgs_detected.add(curr_hg)
 						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 							boundary_lt_featured = True
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
@@ -1016,10 +1016,10 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
-								hg = gc_state_hgs[j]
-								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
+								curr_hg = gc_state_hgs[j]
+								if curr_hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
-									key_hgs_detected.add(hg)
+									key_hgs_detected.add(curr_hg)
 						if len(boundary_genes[sample].intersection(set(gc_state_lts).difference('background'))) > 0:
 							boundary_lt_featured = True
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),

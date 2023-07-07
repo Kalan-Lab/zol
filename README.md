@@ -129,7 +129,7 @@ For additoinal details on prepTG (e.g. how to download genomes from NCBI), pleas
 
 ### fai (finding homologous instances)
 
-fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" approach to identify homologous instances of a gene-cluster or known set of homologous gene-clusters:
+fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" approach to identify homologous instances of a gene cluster or known set of homologous gene-clusters:
 
 1. Provide GenBank(s) of known instance(s) of gene cluster
 
@@ -137,18 +137,24 @@ fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" appr
 fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
 ```
 
-2. Provide gene-cluster coordinates along a FASTA reference genome 
+2. Provide gene cluster coordinates along a FASTA reference genome 
 
 ```bash
 fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -o fai_Results/
 ```
 
-3. Provide proteins gene-cluster using set of proteins that should be co-clustered (similar to cblaster!)
+3. Provide proteins gene cluster using set of proteins that should be co-clustered (similar to cblaster)
 
 ```bash
 fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
 For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai](https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai) wiki page.
+
+4. Provide a single query protein (similar to CORASON)
+
+```bash
+fai -sq Single_Query_Protein.faa -tg prepTG_Database/ -o fai_Results/
+```
 
 ### zol (generating table reports)
 

@@ -366,7 +366,8 @@ def faiMain():
 				for rec in SeqIO.parse(osqf, 'fasta'):
 					protein_to_hg[rec.id] = rec.id
 					rec_count += 1
-			shutil.copy(single_query_fasta, work_dir + 'NR_Reference_Query.faa')
+			query_fasta = work_dir + 'NR_Reference_Query.faa'
+			shutil.copy(single_query_fasta, query_fasta)
 			if rec_count > 1:
 				logObject.error('Multi-record FASTA not allowed as input for -sq/--single_query.')
 				sys.stderr.write('Multi-record FASTA not allowed as input for -sq/--single_query.\n')

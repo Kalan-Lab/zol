@@ -887,7 +887,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detected])
 						gcs_id += 1
 					tmp = []
 					hg_counter = 0
@@ -916,7 +916,7 @@ def identify_gc_instances(input_args):
 				sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 											  len(set(gc_state_hgs).difference("background")),
 											  len(key_hgs_detected),
-											  scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
+											  scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detected])
 				gcs_id += 1
 	else:
 		gcs_id = 1
@@ -960,7 +960,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detected])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []
@@ -995,7 +995,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detected])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []
@@ -1020,7 +1020,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detected])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []

@@ -480,6 +480,8 @@ def faiMain():
 						target_annotation_information[sample]['genbank'] = gbk
 						valid_tg_samples.add(sample)
 
+			min_genes_per_scaffold = 3
+			if query_information['single_query_mode']: min_genes_per_scaffold = 1
 			target_genome_gene_info = fai.loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_results, valid_tg_samples, logObject)
 			target_information = {'target_annotation_information': target_annotation_information,
 								  'target_genome_gene_info': target_genome_gene_info,

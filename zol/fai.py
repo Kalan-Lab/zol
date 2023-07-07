@@ -879,6 +879,7 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set()
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
+								hg = gc_state_hgs[j]
 								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									key_hgs_detected.add(hg)
 									features_key_hg = True
@@ -908,6 +909,7 @@ def identify_gc_instances(input_args):
 				key_hgs_detected = set([])
 				if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 					for j, lt in enumerate(gc_state_lts):
+						hg = gc_state_hgs[j]
 						if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 							features_key_hg = True
 							key_hgs_detected.add(hg)
@@ -952,6 +954,7 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
+								hg = gc_state_hgs[j]
 								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
 									key_hgs_detected.add(hg)
@@ -987,6 +990,7 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
+								hg = gc_state_hgs[j]
 								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
 									key_hgs_detected.add(hg)
@@ -1012,6 +1016,7 @@ def identify_gc_instances(input_args):
 						key_hgs_detected = set([])
 						if len(key_hgs.intersection(set(gc_state_hgs).difference('background'))) > 0:
 							for j, lt in enumerate(gc_state_lts):
+								hg = gc_state_hgs[j]
 								if hg in key_hgs and lt in sample_lt_to_evalue[sample] and sample_lt_to_evalue[sample][lt] <= kq_evalue_threshold:
 									features_key_hg = True
 									key_hgs_detected.add(hg)

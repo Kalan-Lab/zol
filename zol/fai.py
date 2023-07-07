@@ -276,7 +276,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 	return([ortho_matrix_file, consensus_prot_seqs_faa])
 
 def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_reuslts, valid_tg_samples,
-						 logObject, lowmem_mode=True,  min_genes_per_scaffold=2):
+						 logObject, lowmem_mode=True,  min_genes_per_scaffold=1):
 	"""
 	Description:
 	Load information pertaining to CDS locations from target genomes from sample pickle files created during prepTG.

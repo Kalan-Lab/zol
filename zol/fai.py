@@ -887,7 +887,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
 						gcs_id += 1
 					tmp = []
 					hg_counter = 0
@@ -916,7 +916,7 @@ def identify_gc_instances(input_args):
 				sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 											  len(set(gc_state_hgs).difference("background")),
 											  len(key_hgs_detected),
-											  scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+											  scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
 				gcs_id += 1
 	else:
 		gcs_id = 1
@@ -960,7 +960,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []
@@ -995,7 +995,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []
@@ -1020,7 +1020,7 @@ def identify_gc_instances(input_args):
 						sample_gc_predictions.append([gc_state_lts, gc_state_hgs, len(gc_state_lts),
 													   len(set(gc_state_hgs).difference("background")),
 													   len(key_hgs_detected),
-													   scaffold, boundary_lt_featured, features_key_hg, gcs_id])
+													   scaffold, boundary_lt_featured, features_key_hg, gcs_id, key_hgs_detectd])
 						gcs_id += 1
 					gc_state_lts = []
 					gc_state_hgs = []
@@ -1031,6 +1031,7 @@ def identify_gc_instances(input_args):
 	sorted_sample_gc_predictions = [x for x in sorted(sample_gc_predictions, key=itemgetter(3), reverse=True)]
 
 	cumulative_edge_hgs = set([])
+	cumulative_edge_key_hgs = set([])
 	visited_scaffolds_with_edge_gc_segment = set([])
 	sample_gc_predictions_filtered = []
 	sample_edge_gc_predictions_filtered = []
@@ -1116,14 +1117,16 @@ def identify_gc_instances(input_args):
 				sample_gc_predictions_filtered.append(gc_segment)
 				if gc_segment[6]:
 					cumulative_edge_hgs = cumulative_edge_hgs.union(set(gc_segment[1]))
+					cumulative_edge_key_hgs = cumulative_edge_key_hgs.union(set(gc_segment[9]))
 					visited_scaffolds_with_edge_gc_segment.add(gc_segment[5])
 			elif gc_segment[3] >= 3 and gc_segment[6] and not gc_segment[5] in visited_scaffolds_with_edge_gc_segment:
 				sample_edge_gc_predictions_filtered.append(gc_segment)
 				visited_scaffolds_with_edge_gc_segment.add(gc_segment[5])
 				cumulative_edge_hgs = cumulative_edge_hgs.union(set(gc_segment[1]))
-
+				cumulative_edge_key_hgs = cumulative_edge_key_hgs.union(set(gc_segment[9]))
+					
 	if len(sample_edge_gc_predictions_filtered) >= 1 and draft_mode:
-		if len(cumulative_edge_hgs) >= min_hits and len(cumulative_edge_hgs.intersection(key_hgs)) >= min_key_hits:
+		if len(cumulative_edge_hgs) >= min_hits and len(cumulative_edge_key_hgs) >= min_key_hits:
 			sample_gc_predictions_filtered += sample_edge_gc_predictions_filtered
 
 	# dereplicate nested segments!

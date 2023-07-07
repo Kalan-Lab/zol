@@ -1042,11 +1042,6 @@ def identify_gc_instances(input_args):
 	sample_edge_gc_predictions_filtered = []
 
 	for gc_segment in sorted_sample_gc_predictions:
-		print(min_key_hits)
-		print(min_hits)
-		print(gc_segment[3])
-		print(gc_segment[4])
-		print('---------------')
 		if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits) or (gc_segment[3] >= 3 and gc_segment[6] and not gc_segment[5] in visited_scaffolds_with_edge_gc_segment):
 			# code to determine whether syntenically, the considered segment aligns with what is expected.
 			# (skipped if input mode was 3)

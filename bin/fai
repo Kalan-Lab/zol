@@ -45,6 +45,7 @@ import pickle
 import shutil
 import multiprocessing
 import traceback
+from Bio import SeqIO
 
 def create_parser():
 	""" Parse arguments """
@@ -80,22 +81,29 @@ def create_parser():
     Similar to input for cblaster
     -----------------------------------------------------
     $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/	    	    
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	
+    Type 4: Single Query (provide the amino acid sequence directly)
+    Similar to CORASON
+	----------------------------------------------------
+	$ fai -sq Single_Query_Protein.fa -tg prepTG_Database/ -o fai_Results/
+	
+    """, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
 	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
 	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
 	parser.add_argument('-re', '--reference_end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
 	parser.add_argument('-pq', '--protein_queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
+	parser.add_argument('-sq', '--single_query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
 	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
 	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported.", required=False, default=0.5)
-	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich, if present within a potential segment identified by the HMM,\nwill automatically report the segment without further consideration.\nCompatible with all three input modes.", required=False, default=None)
-	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene-cluster homolog segment. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
-	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster in\na genome. [Default is 0.0].', required=False, default=0.0)
+	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
+	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
+	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster. [Default is 0.0].', required=False, default=0.0)
 	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.6]", required=False, default=0.6)
 	parser.add_argument('-gdm', '--gc_delineation_mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
 	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
@@ -136,6 +144,7 @@ def faiMain():
 	reference_start = myargs.reference_start
 	reference_end = myargs.reference_end
 	protein_queries_fasta = myargs.protein_queries
+	single_query_fasta = myargs.single_query
 	target_genomes = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	evalue_cutoff = myargs.evalue_cutoff
@@ -197,9 +206,10 @@ def faiMain():
 						delineation_mode, cpus, max_memory]
 	parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster",
 					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
-					   "Reference end coordinate of gene cluster", "protein queries",
-					   "Target genomes prepared directory by prepTG", "Output directory",
-					   "Run in draft-assembly mode?", "Filter for paralogous/gene-content overlapping segments",
+					   "Reference end coordinate of gene cluster", "Protein queries multi-FASTA file",
+					   "Single protein query FASTA file", "Target genomes prepared directory by prepTG",
+					   "Output directory", "Run in draft-assembly mode?",
+					   "Filter for paralogous/gene-content overlapping segments",
 					   "General E-value cutoff for detection of protein homologs in genome",
 					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
 					   "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence",
@@ -229,17 +239,20 @@ def faiMain():
 	input_type_1_observed = False
 	input_type_2_observed = False
 	input_type_3_observed = False
+	input_type_4_observed = False
 	if query_inputs != None and [os.path.isfile(qif) for qif in query_inputs]:
 		input_type_1_observed = True
 	if reference_genome != None and os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None:
 		input_type_2_observed = True
 	if protein_queries_fasta != None and os.path.isfile(protein_queries_fasta):
 		input_type_3_observed = True
+	if single_query_fasta != None and os.path.isfile(single_query_fasta):
+		input_type_4_observed = True
 
-	if input_type_1_observed and not (input_type_2_observed or input_type_3_observed):
+	if input_type_1_observed and not (input_type_2_observed or input_type_3_observed or input_type_4_observed):
 		sys.stdout.write('Beginning fai searches using the following GenBank(s) as queries: %s\n' % ' '.join(query_inputs))
 		logObject.info('Beginning fai searches using the following GenBank(s) as queries: %s' % ' '.join(query_inputs))
-	elif input_type_2_observed and not (input_type_1_observed or input_type_3_observed):
+	elif input_type_2_observed and not (input_type_1_observed or input_type_3_observed or input_type_4_observed):
 		sys.stdout.write('Beginning fai searches using coordinates %s:%d-%d in reference genome %s\n' % (reference_contig,
 																									   reference_start,
 																									   reference_end,
@@ -248,16 +261,18 @@ def faiMain():
 																							reference_start,
 																							reference_end,
 																							reference_genome))
-
-	elif input_type_3_observed and not (input_type_1_observed or input_type_2_observed):
+	elif input_type_3_observed and not (input_type_1_observed or input_type_2_observed or input_type_4_observed):
 		sys.stdout.write('Beginning fai searches using protein queries FASTA file at: %s\n' % protein_queries_fasta)
 		logObject.info('Beginning fai searches using protein queries FASTA file at: %s' % protein_queries_fasta)
+	elif input_type_4_observed and not (input_type_1_observed or input_type_2_observed or input_type_3_observed):
+		sys.stdout.write('Beginning fai searches using single protein query FASTA file at: %s\n' % single_query_fasta)
+		logObject.info('Beginning fai searches using single protein query FASTA file at: %s' % single_query_fasta)
 	elif input_type_1_observed or input_type_2_observed or input_type_3_observed:
-		sys.stderr.write('Only one type of input mode can currently be accepted!\n')
-		logObject.error('Only one type of input mode can currently be accepted!')
-	elif not (input_type_1_observed or input_type_2_observed or input_type_3_observed):
-		sys.stderr.write('Required input(s) not provided!\n')
-		logObject.error('Required input(s) not provided!')
+		sys.stderr.write('Only one type of query gene cluster input mode can currently be accepted!\n')
+		logObject.error('Only one type of query gene cluster input mode can currently be accepted!')
+	elif not (input_type_1_observed or input_type_2_observed or input_type_3_observed or input_type_4_observed):
+		sys.stderr.write('Required query gene cluster input(s) not provided!\n')
+		logObject.error('Required query gene cluster input(s) not provided!')
 
 	logObject.info('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).')
 	sys.stdout.write('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).\n')
@@ -271,6 +286,7 @@ def faiMain():
 		query_fasta = None
 		comp_gene_info = None
 		protein_to_hg = None
+		single_query_mode = False
 		if input_type_1_observed:
 			# construct consensus sequences of ortholog groups to use for downstream searching
 			# get paths	to individual genbank files
@@ -336,17 +352,33 @@ def faiMain():
 			query_fasta = work_dir + 'NR_Reference_Query.faa'
 			protein_to_hg = fai.collapseProteinsUsingCDHit(locus_proteome, query_fasta, logObject)
 		elif input_type_3_observed:
-			# simplest case - just take the protein queries provided by the user. Unfortunately, syntenic information is
+			# simple case - just take the protein queries provided by the user. Unfortunately, syntenic information is
 			# not present for such inputs.
 			protein_queries_fasta = os.path.abspath(protein_queries_fasta)
 			query_fasta = work_dir + 'NR_Reference_Query.faa'
 			protein_to_hg = fai.collapseProteinsUsingCDHit(protein_queries_fasta, query_fasta, logObject)
+		elif input_type_4_observed:
+			# simplest case - just take the single query protein.
+			single_query_mode = True
+			protein_to_hg = {}
+			rec_count = 0
+			with open(single_query_fasta) as osqf:
+				for rec in SeqIO.parse(osqf, 'fasta'):
+					protein_to_hg[rec.id] = rec.id
+					rec_count += 1
+			query_fasta = work_dir + 'NR_Reference_Query.faa'
+			shutil.copy(single_query_fasta, query_fasta)
+			if rec_count > 1:
+				logObject.error('Multi-record FASTA not allowed as input for -sq/--single_query.')
+				sys.stderr.write('Multi-record FASTA not allowed as input for -sq/--single_query.\n')
+				sys.exit(1)
 
 		key_hgs = set([])
 		if key_protein_queries_fasta != None:
 			key_hgs = fai.mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, cpus=cpus)
 		query_information = {'protein_to_hg': protein_to_hg, 'query_fasta': query_fasta,
-							 'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs}
+							 'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs,
+							 'single_query_mode': single_query_mode}
 		with open(query_info_pickle_file, 'wb') as pickle_file:
 			pickle.dump(query_information, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 		os.system('touch %s' % step1_check_file)
@@ -448,8 +480,9 @@ def faiMain():
 						target_annotation_information[sample]['genbank'] = gbk
 						valid_tg_samples.add(sample)
 
-			target_genome_gene_info = fai.loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_results, valid_tg_samples, logObject)
-
+			min_genes_per_scaffold = 3
+			if query_information['single_query_mode']: min_genes_per_scaffold = 1
+			target_genome_gene_info = fai.loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, diamond_results, valid_tg_samples, logObject, min_genes_per_scaffold=min_genes_per_scaffold)
 			target_information = {'target_annotation_information': target_annotation_information,
 								  'target_genome_gene_info': target_genome_gene_info,
 								  'target_concat_genome_db': target_genome_dmnd_db}
@@ -477,10 +510,7 @@ def faiMain():
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
 		min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
-		#print(min_hits)
 		key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
-		#print(key_protein_min_hits)
-
 		fai.identifyGCInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
 								 min_hits=min_hits, min_key_hits=key_protein_min_hits, draft_mode=draft_mode,
 								 gc_to_gc_transition_prob=gc_transition, bg_to_bg_transition_prob=bg_transition,
@@ -490,11 +520,12 @@ def faiMain():
 								 max_int_genes_for_merge=max_genes_disconnect, flanking_context=flanking_context,
 								 cpus=cpus, block_size=1000, gc_delineation_mode=delineation_mode)
 		if draft_mode or filter_paralogs:
-			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, logObject)
+			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir,
+																			  query_information["single_query_mode"],
+																			  logObject)
 		else:
 			for f in os.listdir(hmm_work_dir + 'GeneCluster_Genbanks/'):
 				shutil.move(hmm_work_dir + 'GeneCluster_Genbanks/' + f, homologous_gbk_dir)
-
 		os.system('touch %s' % step4_check_file)
 
 	step5_check_file = check_dir + 'step5.txt'

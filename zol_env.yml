@@ -34,3 +34,4 @@ dependencies:
   - bioconda::slclust
   - bioconda::trimal
   - bioconda::pyhmmer
+  - bioconda::miniprot=0.7

@@ -80,6 +80,9 @@ def create_parser():
 	  recommend using the term ortholog group which is more commonly used in literature for 
 	  the type of protein clustering we perform in zol. Since v1.28 - result files and logging
 	  messages should largely use "ortholog group" or "OG".
+	* Dereplication uses ANI & AF estimates by skani, which the author recommends should be 
+          used on contigs (or gene-clusters in this case) greater than 10 kb for accurate 
+          calculations.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)

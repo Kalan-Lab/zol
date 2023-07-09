@@ -175,7 +175,9 @@ For details on the stats/annotations zol infers, please refer to the [zol](https
 
 Another application of zol is to use it for preliminary dereplication for visualization with clinker, CORASON, etc.
 
-zol uses [skani](https://github.com/bluenote-1577/skani) to perform dereplication with adjustable options (see `zol --help`).
+zol uses [skani](https://github.com/bluenote-1577/skani) to perform dereplication with adjustable options (see `zol --help`). 
+
+*Note, skani estimates for ANI and AF become less reliable when working with contigs <10kb, so zol-based dereplication should only be used for gene clusters 10 kb or larger.*
 
 ```bash
 # Run zol with dereplication requested
@@ -268,6 +270,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.4
+
+- Fix mismapping of parameter names and arguments in file for provenane for fai (introduced in 1.3.3 after incorporation of single query mode).
+- Add consideration point for dereplication in zol help and README to only be used when working with gene-clusters >10kb.
+  
 ### version 1.3.3
 
 - Correct and clairfy usage of "key protein" filters in fai.

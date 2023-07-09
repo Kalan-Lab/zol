@@ -199,7 +199,8 @@ def faiMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end,
-						protein_queries_fasta, target_genomes, outdir, draft_mode, filter_paralogs, evalue_cutoff,
+						protein_queries_fasta, single_query_fasta, target_genomes, outdir, 
+						draft_mode, filter_paralogs, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,

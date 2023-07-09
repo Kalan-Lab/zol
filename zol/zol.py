@@ -2236,7 +2236,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 	try:
 		# Note to self, eventually quit being lazy and conditionally display all columns (e.g. FUBAR columns) when requested by user
 		# to avoid having columns with NA values.
-		header = ['Oomolog Group (OG) ID', 'OG is Single Copy?', 'Proportion of Total Gene Clusters with OG',
+		header = ['Ortholog Group (OG) ID', 'OG is Single Copy?', 'Proportion of Total Gene Clusters with OG',
 				  'OG Median Length (bp)', 'OG Consensus Order', 'OG Consensus Direction']
 		if comp_stats != None:
 			header += ['Proportion of Focal Gene Clusters with OG', 'Proportion of Comparator Gene Clusters with OG',

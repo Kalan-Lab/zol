@@ -270,6 +270,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.5
+
+- Fix mis-spelling of "Oomolog Group" to "Ortholog Group".
+
 ### version 1.3.4
 
 - Fix mismapping of parameter names and arguments in file for provenane for fai (introduced in 1.3.3 after incorporation of single query mode).

@@ -1317,8 +1317,8 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 		i = 1
 		for hg in ordered_hgs_list:
 			if not hg in set(['start', 'end']):
-				consensus_direction = '+'
-				if direction_forward_support[hg] >= direction_reverse_support[hg]: consensus_direction = '-'
+				consensus_direction = '-'
+				if direction_forward_support[hg] >= direction_reverse_support[hg]: consensus_direction = '+'
 				hg_order_scores[hg] = [i, consensus_direction]
 				i += 1
 		return hg_order_scores

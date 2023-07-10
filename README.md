@@ -273,9 +273,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Updates  
 
+### version 1.3.6
+
+- Fix conditional statement in determination of 'consensus directionality' in zol - should be flipped. 
+
 ### version 1.3.5
 
-- Fix mis-spelling of "Oomolog Group" to "Ortholog Group".
+- Fix mis-spelling of "Oomolog Group" to "Ortholog Group" in consolidated zol report.
 
 ### version 1.3.4
 

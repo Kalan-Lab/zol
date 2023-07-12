@@ -166,7 +166,7 @@ For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expans
 zol -i Genbanks_Directory/ -o zol_Results/
 ```
 
-zol produces an xlsx spreadsheet report where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
+zol produces an XLSX spreadsheet report (within the sub-directory `Final_Results/`) where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends. ***I strongly recommend providing a custom-annotation database as a FASTA file of protein sequences with headers corresponding to unique identifiers via the `-cd` argument because this will allow you to more easily link the ortholog groups to known genes from a well studied instance of the gene cluster if that exists!*** 
 
 Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MIBiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 

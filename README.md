@@ -152,9 +152,17 @@ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -
 fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
 
-4. Provide a single query protein and use to extract surrounding +/-20kb of homologs in target genomes (similar to CORASON)
+4. Provide a single query protein and use to extract surrounding +/-20kb of homologs in target genomes (inspired by CORASON; implementation still experimental)
 
 ```bash
+# note, this option is still experimental. The concept of looking at variability
+# in the context of a focal gene stems from CORASON but we don't use RBH and
+# only an adjustable E-value threshold to identify homologs in target genomes.
+# Unlike, the other 3 ways to run fai to identify gene clusters - where syntenic support
+# can be used to better infer orthology - here we are more limited and can only infer
+# homology. We might pair the -sq argument with another to provide a reference genome for
+# the single query protein eventually.
+
 fai -sq Single_Query_Protein.faa -tg prepTG_Database/ -o fai_Results/ -f 20000
 ```
 

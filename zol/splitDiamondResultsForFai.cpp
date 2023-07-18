@@ -45,7 +45,7 @@ vector<string> split (string s, string delimiter) {
 int main (int argc, char* argv[]) {
     if ( argv[1]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {
 	    cout << "Usage:" << endl;
-	    cout << "./splitDiamondResults <BLAST/DIAMOND output> <Sample Listing>" << endl;
+	    cout << "./splitDiamondResultsForFai <BLAST/DIAMOND output> <Sample Listing>" << endl;
 	    return 0;
     }
     else {

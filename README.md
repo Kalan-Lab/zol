@@ -1,6 +1,6 @@
 # *zol (& fai)*
 
-[![Preprint](https://img.shields.io/badge/Preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v1)
+[![Preprint](https://img.shields.io/badge/Preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v2)
 [![Documentation](https://img.shields.io/badge/Documentation-Wiki-darkgreen?style=flat-square&maxAge=2678400)](https://github.com/Kalan-Lab/zol/wiki)
 [![Docker](https://img.shields.io/badge/Docker-DockerHub-darkred?style=flat-square&maxAge=2678400)](https://hub.docker.com/r/raufs/zol)
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/zol/README.html) [![Conda](https://img.shields.io/conda/dn/bioconda/zol.svg)](https://anaconda.org/bioconda/zol/files)
@@ -33,7 +33,7 @@ Note, (for some setups at least) ***it is critical to specify the conda-forge ch
 ```bash
 # 1. install and activate zol
 conda create -n zol_env -c conda-forge -c bioconda zol
-conda activate zol
+conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be ~29 GB! You can also run in minimal mode
@@ -152,9 +152,17 @@ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -
 fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
 ```
 
-4. Provide a single query protein and use to extract surrounding +/-20kb of homologs in target genomes (similar to CORASON)
+4. Provide a single query protein and use to extract surrounding +/-20kb of homologs in target genomes (inspired by CORASON; implementation still experimental)
 
 ```bash
+# note, this option is still experimental. The concept of looking at variability
+# in the context of a focal gene stems from CORASON but we don't use RBH and
+# only an adjustable E-value threshold to identify homologs in target genomes.
+# Unlike, the other 3 ways to run fai to identify gene clusters - where syntenic support
+# can be used to better infer orthology - here we are more limited and can only infer
+# homology. We might pair the -sq argument with another to provide a reference genome for
+# the single query protein eventually.
+
 fai -sq Single_Query_Protein.faa -tg prepTG_Database/ -o fai_Results/ -f 20000
 ```
 
@@ -166,7 +174,7 @@ For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expans
 zol -i Genbanks_Directory/ -o zol_Results/
 ```
 
-zol produces an xlsx spreadsheet report where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends.
+zol produces an XLSX spreadsheet report (within the sub-directory `Final_Results/`) where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends. ***I strongly recommend providing a custom-annotation database as a FASTA file of protein sequences with headers corresponding to unique identifiers via the `-cd` argument because this will allow you to more easily link the ortholog groups to known genes from a well studied instance of the gene cluster if that exists!*** 
 
 Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MIBiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
 

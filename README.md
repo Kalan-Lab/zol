@@ -8,17 +8,30 @@
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/platforms.svg)](https://anaconda.org/bioconda/zol)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/license.svg)](https://anaconda.org/bioconda/zol)
 
-Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). The main result from zol is a tabular report showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.
+Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). **The main result from zol is a tabular report showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.**
 
-zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely.
+1. [Program Descriptions]()
+2. [Installation]()
+3. [Test Cases]()
+4. [Example Usages]()
+5. [Tutorial & Notes]()
 
 ![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 
-### Zoom on Locus (zol) and Find Additional Instances (fai)
+## Program Description 
 
-**`zol`** is a program to create table reports showing ortholog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports.
+### Prepate Target Genomes (prepTG)
+
+**prepTG** processes and performs gene-calling or gene-mapping on an input set of genomes to ease and optimize downstream searches using fai.
+
+### Find Additional Instances (fai)
 
 **`fai`** is a program to search for additional instances of a gene-cluster or genome locus in some set of genomes. Inspired by cblaster, CORASON, ClusterFinder, MultiGeneBlast, etc. It leverages DIAMOND alignment similar to [cblaster](https://github.com/gamcil/cblaster) and runs fairly rapidly (allowing it to scale to thousands of genomes and even work on metagenomic assemblies). fai features some key differentiating options relative to other software: (i) can assess syntenic similarity of candidate homologous gene clusters to the query gene cluster, (ii) can allow for looser criteria thresholds for gene cluster detection in target genomes if multiple neighborhoods are identified as homologous and on scaffold edges (thus improving fragmented gene cluster identification due to assembly issues) - similar to lsaBGC-Expansion, (iii) filter secondary neighborhoods - e.g. homologous gene neighborhoods to the query which meet the criteria but are not the best match.
+
+### Zoom on Locus (zol)
+
+**`zol`** is a program to create table reports showing ortholog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports. zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely. We also provide examples of how zol and skani can be used to select representative gene clusters for such visual investigations. 
+
 
 Critically, ***with the development of some key options, together, fai and zol enable high-throughput detection of orthologs across multi-species datasets comprising of thousands of genomes.***
 
@@ -116,86 +129,6 @@ Within the zol GitHub repo, run the following:
 
 ```bash
 bash run_tests.sh
-```
-
-### Usage:
-
-### prepTG (preparing to run fai)
-
-prepTG formats and parses information in provided GenBank files or can run prodigal (for bacteria only!) for gene-calling if provided FASTA files and subsequently create GenBank files.
-
-```bash
-prepTG -i Folder_with_Target_Genomes/ -o prepTG_DB/
-```
-
-For additoinal details on prepTG (e.g. how to download genomes from NCBI), please check out the [1. more info on prepTG](https://github.com/Kalan-Lab/zol/wiki/1.-more-info-on-prepTG) wiki page.
-
-### fai (finding homologous instances)
-
-fai uses either (or combination) of a simple "gene-clumping" or "HMM-based" approach to identify homologous instances of a gene cluster or known set of homologous gene-clusters:
-
-1. Provide GenBank(s) of known instance(s) of gene cluster
-
-```bash
-fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
-```
-
-2. Provide gene cluster coordinates along a FASTA reference genome 
-
-```bash
-fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 -tg prepTG_Database/ -o fai_Results/
-```
-
-3. Provide proteins gene cluster using set of proteins that should be co-clustered (similar to cblaster)
-
-```bash
-fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
-```
-
-4. Provide a single query protein and use to extract surrounding +/-20kb of homologs in target genomes (inspired by CORASON; implementation still experimental)
-
-```bash
-# note, this option is still experimental. The concept of looking at variability
-# in the context of a focal gene stems from CORASON but we don't use RBH and
-# only an adjustable E-value threshold to identify homologs in target genomes.
-# Unlike, the other 3 ways to run fai to identify gene clusters - where syntenic support
-# can be used to better infer orthology - here we are more limited and can only infer
-# homology. We might pair the -sq argument with another to provide a reference genome for
-# the single query protein eventually.
-
-fai -sq Single_Query_Protein.faa -tg prepTG_Database/ -o fai_Results/ -f 20000
-```
-
-For additional details on fai (e.g. how it relates to cblaster and lsaBGC-Expansion, plots it can create to assess homologous gene-clusters detected), please check out the [2. more info on fai](https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai) wiki page.
-
-### zol (generating table reports)
-
-```bash
-zol -i Genbanks_Directory/ -o zol_Results/
-```
-
-zol produces an XLSX spreadsheet report (within the sub-directory `Final_Results/`) where rows correspond to each individual ortholog group/homolog-group and columns provide basic stats, consensus order, annotation information using multiple databases, and evolutionary/selection-inference statistics. Coloring is automatically applied on select quantitative field for users to more easily assess trends. ***I strongly recommend providing a custom-annotation database as a FASTA file of protein sequences with headers corresponding to unique identifiers via the `-cd` argument because this will allow you to more easily link the ortholog groups to known genes from a well studied instance of the gene cluster if that exists!*** 
-
-Annotation databases include: KEGG, NCBI's PGAP, PaperBLAST, VOGs (phage related genes), MIBiG (genes from characterized BGCs), VFDB (virulence factors), CARD (antibiotic resistance), ISfinder (transposons/insertion-sequences).
-
-For details on the stats/annotations zol infers, please refer to the [zol](https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol/) wiki page.
-
-![image](https://user-images.githubusercontent.com/4260723/229951285-787042d3-d93b-43d8-b897-63c10d3d9a1a.png)
-
-#### Use for dereplication of gene cluster GenBanks to ease visualization with clinker or CORASON
-
-Another application of zol is to use it for preliminary dereplication for visualization with clinker, CORASON, etc.
-
-zol uses [skani](https://github.com/bluenote-1577/skani) to perform dereplication with adjustable options (see `zol --help`). 
-
-*Note, skani estimates for ANI and AF become less reliable when working with contigs <10kb, so zol-based dereplication should only be used for gene clusters 10 kb or larger.*
-
-```bash
-# Run zol with dereplication requested
-zol -i GenBanks_Directory/ -o zol_Results/ -d 
-
-# Reference dereplicated representative GenBanks/gene clusters as input for clinker analysis
-clinker zol_Results/Dereplicated_GenBanks/*.gbk -p clinker_visualization.html
 ```
 
 ## Citations for dependencies, databases, and related software

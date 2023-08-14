@@ -13,6 +13,8 @@ ${CXX} -std=c++11 -o zol/splitDiamondResultsForFai zol/splitDiamondResultsForFai
 cp zol/orthologs/runRBH ${PREFIX}/bin/
 cp zol/orthologs/splitDiamondResults ${PREFIX}/bin/
 cp zol/splitDiamondResultsForFai ${PREFIX}/bin/
+cp zol/faiPhyloHeamtmap.R ${PREFIX}/bin/
+cp zol/njTree.R ${PREFIX}/bin/
 cp zol/clusterHeatmap.R ${PREFIX}/bin/
 cp zol/plotSegments.R ${PREFIX}/bin/
 

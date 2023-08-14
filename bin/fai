@@ -97,6 +97,7 @@ def create_parser():
 	parser.add_argument('-sq', '--single_query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
 	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-st', '--species_tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
@@ -147,6 +148,7 @@ def faiMain():
 	single_query_fasta = myargs.single_query
 	target_genomes = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.output_dir) + '/'
+	species_tree = os.path.abspath(myargs.species_tree)
 	evalue_cutoff = myargs.evalue_cutoff
 	min_prop = myargs.min_prop
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
@@ -199,7 +201,7 @@ def faiMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end,
-						protein_queries_fasta, single_query_fasta, target_genomes, outdir, 
+						protein_queries_fasta, single_query_fasta, target_genomes, outdir, species_tree,
 						draft_mode, filter_paralogs, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
@@ -209,7 +211,7 @@ def faiMain():
 					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
 					   "Reference end coordinate of gene cluster", "Protein queries multi-FASTA file",
 					   "Single protein query FASTA file", "Target genomes prepared directory by prepTG",
-					   "Output directory", "Run in draft-assembly mode?",
+					   "Output directory", "Species Tree", "Run in draft-assembly mode?",
 					   "Filter for paralogous/gene-content overlapping segments",
 					   "General E-value cutoff for detection of protein homologs in genome",
 					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
@@ -540,6 +542,18 @@ def faiMain():
 		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
 						  query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, logObject, height=5, width=15)
 		os.system('touch %s' % step5_check_file)
+
+	step6_check_file = check_dir + 'step6.txt'
+	plot_phylo_dir = outdir + 'Phylogeny_Plotting_Files/'
+	if not os.path.isfile(step6_check_file) and species_tree != None:
+		logObject.info('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
+		sys.stdout.write('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.\n')
+		fai.plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, logObject, height=10, width=10)
+		util.setupReadyDirectory([plot_dir])
+		os.system('touch %s' % step6_check_file)
+
+	sys.stdout.write('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
+	logObject.info('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

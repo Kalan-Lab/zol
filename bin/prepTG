@@ -43,6 +43,25 @@ from Bio import SeqIO
 from zol import util
 import subprocess
 import multiprocessing
+
+premade_db_set = set(['Acinetobacter', 'Bacillus', 'Corynebacterium', 'Enterobacter',
+		              'Enterococcus', 'Escherichia', 'Klebsiella', 'Listeria', 
+					  'Mycobacterium', 'Pseudomonas', 'Salmonella', 'Staphylococcus',
+					  'Streptomyces'])
+premade_download_links = {'Acinetobacter': '',
+			              'Bacillus': '',
+						  'Corynebacterium': '',
+						  'Enterobacter': '',
+						  'Enterococcus': '',
+						  'Escherichia': '', 
+						  'Klebsiella': '',
+						  'Listeria': '',
+						  'Mycobacterium': '',
+						  'Pseudomonas': '',
+						  'Salmonella': '',
+						  'Staphylococcus': '',
+						  'Streptomyces': ''}
+
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""
@@ -52,10 +71,13 @@ def create_parser():
 
 	Prepares target genomes for being searched for query gene clusters using fai.
 	
-	
-	
-	Target genomes can either be in GenBank (if so with CDS features!) or FASTA format.
-	
+	Premade databases of representative genomes are available for the following genera:
+
+	Acinetobacter (n=1489), Bacillus (n=350), Corynebacterium (n=666), Enterobacter (n=628), 
+	Enterococcus (n=493), Escherichia (n=546), Klebsiella (n=309), Listeria (n=251), 
+	Mycobacterium (n=), Pseudomonas (n=2372), Salmonella (n=146), Staphylococus (n=278), 
+	Streptomyces (n=1510).
+
 	Considerations
 	--------------------------------------------------------------------------------------
 	If FASTA format is provided, assumption is that genomes are prokaryotic and 
@@ -65,9 +87,10 @@ def create_parser():
 	on to the target genomes. This will prevent detection of new genes in gene-clusters 
 	detected by fai but synchronize gene-calling and allow for better similarity 
 	assessment between orthologous genes.
+	
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-d', '--download_premade', help='Download pre-made databases of representative genomes for specific genera.\nProvide name of file, e.g. "Escherichia_skDER-n546.tar.gz" from the Zenodo datasets:XXXXXX', required=False, default=False)
+	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific genera.\nProvide name of file, e.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Output directory to stored input for fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
@@ -75,6 +98,7 @@ def create_parser():
 	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Flag to use prodigal instead of pyrodigal.', required=False, default=False)
 	parser.add_argument('-m', '--meta_mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
 	parser.add_argument('-rp', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
+	parser.add_argument('-cst', '--create_species_tree', action='store_true', help='Use skani to infer a neighbor-joing based species tree for the genomes.', required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.\n[Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
@@ -99,14 +123,16 @@ def prepTG():
 	"""
 	myargs = create_parser()
 
-	outdir = os.path.abspath(myargs.output_dir) + '/'
 	target_genomes_dir = myargs.input_dir
+	download_premade = myargs.download_premade
+	outdir = os.path.abspath(myargs.output_dir) + '/'
 	locus_tag_length = myargs.locus_tag_length
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus
 	max_memory = myargs.max_memory
 	use_prodigal = myargs.use_prodigal
 	meta_mode = myargs.meta_mode
+	create_species_tree = myargs.create_species_tree
 	reference_proteome = myargs.reference_proteome
 
 	if os.path.isdir(outdir):
@@ -115,11 +141,20 @@ def prepTG():
 	else:
 		os.system('mkdir %s' % outdir)
 
-	try:
-		assert(os.path.isdir(target_genomes_dir))
-		target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
-	except:
-		raise RuntimeError('Issue with reading genome listing file for samples with additional genomic assemblies.')
+	if target_genomes_dir != None and download_premade == None: 
+		try:
+			assert(os.path.isdir(target_genomes_dir))
+			target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
+		except:
+			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+			sys.exit(1)
+	elif target_genomes_dir == None and download_premade != None:
+		try:
+			assert(download_premade in premade_db_set)
+		except:
+			sys.stderr.write('Non-valid genus specified for downloading a premade database.\n')
+			sys.stderr.write('Valid options include:\n' + ', '.join(sorted(premade_db_set)) + '\n')
+			sys.exit(1)
 
 	"""
 	START WORKFLOW
@@ -132,9 +167,11 @@ def prepTG():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [target_genomes_dir, outdir, use_prodigal, meta_mode, cpus, max_memory]
-	parameter_names = ["Target Genomes Directory", "Output Directory", "Use Prodigal?", "Use Meta Mode?",
-					   "Number of Cpus", "Maximum Memory in GB"]
+	parameter_values = [download_premade, target_genomes_dir, outdir, use_prodigal, meta_mode, 
+		                create_species_tree, cpus, max_memory]
+	parameter_names = ["Download Premade Database", "Target Genomes Directory", "Output Directory", 
+		    		   "Use Prodigal?", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", 
+					   "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -150,116 +187,144 @@ def prepTG():
 			logObject.info("Error setting memory limit")
 			sys.stdout.write("Error setting memory limit\n")
 
-	# Step 1: List genomes in directory
-	sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')
-	target_listing_file = outdir + 'Target_Genomes.txt'
-	uncompress_dir = outdir + 'Uncompressed_Genomes/'
-	list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
-				target_listing_file]
-	try:
-		subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-						executable='/bin/bash')
-		logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
-	except Exception as e:
-		logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
-		sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
-		logObject.error(e)
-		sys.exit(1)
-
-	# Step 2: Setup files needed for fai
-	sys.stdout.write('--------------------\nStep 2\n--------------------\nRe-formatting genomes for usage in fai downstream.\n')
-	format_assess_dir = outdir + 'Format_Assessment/'
-	util.setupReadyDirectory([format_assess_dir])
-	format_predictions_file = outdir + 'All_Format_Inferences.txt'
-	target_genome_annotation_listing_file = outdir + 'Target_Genome_Annotation_Files.txt'
-	additional_sample_genomes, additional_format_prediction = util.parseSampleGenomes(target_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=cpus)
-	if additional_format_prediction == 'mixed':
-		logObject.error(
-			'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
-		raise RuntimeError(
-			'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
-
-	additional_proteomes_directory = outdir + 'Predicted_Proteomes_Additional/'
-	additional_genbanks_directory = outdir + 'Genomic_Genbanks_Additional/'
-	additional_genbanks_directory_local = 'Genomic_Genbanks_Additional/'
-	util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory])
-	if additional_format_prediction == 'fasta':
-		if reference_proteome == None:
-			additional_prodigal_outdir = outdir + 'Prodigal_Gene_Calling_Additional/'
-			util.setupReadyDirectory([additional_prodigal_outdir])
-			util.processGenomesUsingProdigal(additional_sample_genomes, additional_prodigal_outdir,
-											 additional_proteomes_directory, additional_genbanks_directory, logObject,
-											 cpus=cpus, locus_tag_length=locus_tag_length, use_prodigal=use_prodigal,
-											 meta_mode=meta_mode)
-			shutil.rmtree(additional_prodigal_outdir)
-		else:
-			additional_miniprot_outdir = outdir + 'Miniprot_Gene_Calling_Additional/'
-			util.setupReadyDirectory([additional_miniprot_outdir])
-			util.processGenomesUsingMiniprot(reference_proteome, additional_sample_genomes, additional_miniprot_outdir,
-											 additional_proteomes_directory, additional_genbanks_directory, logObject,
-											 cpus=cpus, locus_tag_length=locus_tag_length)
-			shutil.rmtree(additional_miniprot_outdir)
-	else:
-		# genomes are provided as Genbanks with CDS features
-		gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
-		util.setupReadyDirectory([gene_name_mapping_outdir])
-		util.processGenomesAsGenbanks(additional_sample_genomes, additional_proteomes_directory,
-									  additional_genbanks_directory, gene_name_mapping_outdir, logObject,
-									  cpus=cpus, locus_tag_length=locus_tag_length, rename_locus_tags=rename_locus_tags)
-
-	target_genome_annotation_listing_handle = open(target_genome_annotation_listing_file, 'w')
-	target_genomes_concat_db_faa = outdir + 'Target_Genomes_DB.faa'
-	target_genomes_concat_db_handle = open(target_genomes_concat_db_faa, 'w')
-	for f in os.listdir(additional_proteomes_directory):
-		sample = f.split('.faa')[0]
-		target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory_local + sample + '.gbk\n')
+	if download_premade != None:
+		# Step 1: Download and setup premade prepTG database for genus
+		dl = premade_download_links[download_premade]
+		dl_base = dl.split('/')[-1].split('?')[0]
+		axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+		extract_cmd = ['tar', '-zxvf', dl_base, '-C', outdir]
+		rm_cmd = ['rm', '-f', dl_base]
 		try:
-			with open(additional_proteomes_directory + sample + '.faa') as ospf:
-				for rec in SeqIO.parse(ospf, 'fasta'):
-					target_genomes_concat_db_handle.write('>' + sample + '|' + rec.id + '\n' + str(rec.seq) + '\n')
-		except:
-			pass
-	target_genome_annotation_listing_handle.close()
-	target_genomes_concat_db_handle.close()
+			os.system(' '.join(axel_download_dbs_cmd))
+			os.system(' '.join(dl_base))
+			os.system(' '.join(extract_cmd))
+			os.system(' '.join(rm_cmd))
+			assert(os.path.isdir(outdir) and os.path.isfile(outdir + 'Target_Genomes_DB.dmnd'))
+		except Exception as e:
+			logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
+			sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+			logObject.error(e)
+			sys.exit(1)
+		
+	else:
+		# Step 1: List genomes in directory
+		sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')
+		target_listing_file = outdir + 'Target_Genomes.txt'
+		uncompress_dir = outdir + 'Uncompressed_Genomes/'
+		list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
+					target_listing_file]
+		try:
+			subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
+			sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+			logObject.error(e)
+			sys.exit(1)
 
-	# remove individual proteome files
-	sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
-	shutil.rmtree(additional_proteomes_directory)
+		# Step 2: Setup files needed for fai
+		sys.stdout.write('--------------------\nStep 2\n--------------------\nRe-formatting genomes for usage in fai downstream.\n')
+		format_assess_dir = outdir + 'Format_Assessment/'
+		util.setupReadyDirectory([format_assess_dir])
+		format_predictions_file = outdir + 'All_Format_Inferences.txt'
+		target_genome_annotation_listing_file = outdir + 'Target_Genome_Annotation_Files.txt'
+		additional_sample_genomes, additional_format_prediction = util.parseSampleGenomes(target_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=cpus)
+		if additional_format_prediction == 'mixed':
+			logObject.error(
+				'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
+			raise RuntimeError(
+				'Format of additional genomes provided is not consistently FASTA or Genbank, please check input.')
 
-	target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'
-	diamond_makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', target_genomes_concat_db_faa, '-d',
-						  target_genomes_concat_db_dmnd]
-	try:
-		subprocess.call(' '.join(diamond_makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-						executable='/bin/bash')
-		logObject.info('Successfully ran: %s' % ' '.join(diamond_makedb_cmd))
-	except Exception as e:
-		logObject.error('Had an issue running: %s' % ' '.join(diamond_makedb_cmd))
-		sys.stderr.write('Had an issue running: %s\n' % ' '.join(diamond_makedb_cmd))
-		logObject.error(e)
-		sys.exit(1)
+		additional_proteomes_directory = outdir + 'Predicted_Proteomes_Additional/'
+		additional_genbanks_directory = outdir + 'Genomic_Genbanks_Additional/'
+		additional_genbanks_directory_local = 'Genomic_Genbanks_Additional/'
+		util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory])
+		if additional_format_prediction == 'fasta':
+			if reference_proteome == None:
+				additional_prodigal_outdir = outdir + 'Prodigal_Gene_Calling_Additional/'
+				util.setupReadyDirectory([additional_prodigal_outdir])
+				util.processGenomesUsingProdigal(additional_sample_genomes, additional_prodigal_outdir,
+												additional_proteomes_directory, additional_genbanks_directory, logObject,
+												cpus=cpus, locus_tag_length=locus_tag_length, use_prodigal=use_prodigal,
+												meta_mode=meta_mode)
+				shutil.rmtree(additional_prodigal_outdir)
+			else:
+				additional_miniprot_outdir = outdir + 'Miniprot_Gene_Calling_Additional/'
+				util.setupReadyDirectory([additional_miniprot_outdir])
+				util.processGenomesUsingMiniprot(reference_proteome, additional_sample_genomes, additional_miniprot_outdir,
+												additional_proteomes_directory, additional_genbanks_directory, logObject,
+												cpus=cpus, locus_tag_length=locus_tag_length)
+				shutil.rmtree(additional_miniprot_outdir)
+		else:
+			# genomes are provided as Genbanks with CDS features
+			gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
+			util.setupReadyDirectory([gene_name_mapping_outdir])
+			util.processGenomesAsGenbanks(additional_sample_genomes, additional_proteomes_directory,
+										additional_genbanks_directory, gene_name_mapping_outdir, logObject,
+										cpus=cpus, locus_tag_length=locus_tag_length, rename_locus_tags=rename_locus_tags)
 
-	target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file, additional_genbanks_directory)
+		target_genome_annotation_listing_handle = open(target_genome_annotation_listing_file, 'w')
+		target_genomes_concat_db_faa = outdir + 'Target_Genomes_DB.faa'
+		target_genomes_concat_db_handle = open(target_genomes_concat_db_faa, 'w')
+		for f in os.listdir(additional_proteomes_directory):
+			sample = f.split('.faa')[0]
+			target_genome_annotation_listing_handle.write(sample + '\t' + additional_genbanks_directory_local + sample + '.gbk\n')
+			try:
+				with open(additional_proteomes_directory + sample + '.faa') as ospf:
+					for rec in SeqIO.parse(ospf, 'fasta'):
+						target_genomes_concat_db_handle.write('>' + sample + '|' + rec.id + '\n' + str(rec.seq) + '\n')
+			except:
+				pass
+		target_genome_annotation_listing_handle.close()
+		target_genomes_concat_db_handle.close()
 
-	# TODO: switch to sqllite inplace of pickle for dynamic loading of each samples data to avoid memory spikes
+		# remove individual proteome files
+		sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
+		shutil.rmtree(additional_proteomes_directory)
 
-	pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
-	util.setupReadyDirectory([pickle_output_dir])
-	try:
-		sample_genbank_info = []
-		for sample in target_genome_annotation_data:
-			sample_genbank = target_genome_annotation_data[sample]['genbank']
-			result_pkl_file = pickle_output_dir + sample + '.pkl'
-			sample_genbank_info.append([sample, sample_genbank, result_pkl_file])
+		target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'
+		diamond_makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', target_genomes_concat_db_faa, '-d',
+							target_genomes_concat_db_dmnd]
+		try:
+			subprocess.call(' '.join(diamond_makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			logObject.info('Successfully ran: %s' % ' '.join(diamond_makedb_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running: %s' % ' '.join(diamond_makedb_cmd))
+			sys.stderr.write('Had an issue running: %s\n' % ' '.join(diamond_makedb_cmd))
+			logObject.error(e)
+			sys.exit(1)
 
-		p = multiprocessing.Pool(cpus)
-		p.map(util.parseGenbankAndFindBoundaryGenes, sample_genbank_info)
-		p.close()
-	except Exception as e:
-		sys.stderr.write('Issues creating pickle file needed for fai.')
-		sys.stderr.write(e + '\n')
-		logObject.error(e)
-		sys.exit(1)
+		target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file, additional_genbanks_directory)
+
+		# TODO: switch to sqllite inplace of pickle for dynamic loading of each samples data to avoid memory spikes
+
+		pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
+		util.setupReadyDirectory([pickle_output_dir])
+		try:
+			sample_genbank_info = []
+			for sample in target_genome_annotation_data:
+				sample_genbank = target_genome_annotation_data[sample]['genbank']
+				result_pkl_file = pickle_output_dir + sample + '.pkl'
+				sample_genbank_info.append([sample, sample_genbank, result_pkl_file])
+
+			p = multiprocessing.Pool(cpus)
+			p.map(util.parseGenbankAndFindBoundaryGenes, sample_genbank_info)
+			p.close()
+		except Exception as e:
+			sys.stderr.write('Issues creating pickle file needed for fai.')
+			sys.stderr.write(e + '\n')
+			logObject.error(e)
+			sys.exit(1)
+		
+		# If requested - create a species tree based on skani ANI estimates and neighbor-joining (using the ape library in R)		
+		species_tree_dir = outdir + 'Species_Tree_Workspace/'
+		species_tree = outdir + 'Species_Tree.nwk'
+		if create_species_tree:
+				util.setupReadyDirectory([species_tree_dir])
+				sys.stdout.write('--------------------\nStep 5\n--------------------\nInferring speices tree based on skani ANI estimates + neighbor-joining.\n')
+				util.createNJTree(additional_genbanks_directory, species_tree, species_tree_dir, logObject, cpus=cpus)
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

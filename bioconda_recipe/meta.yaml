@@ -39,6 +39,7 @@ requirements:
     - xlsxwriter >=3.0.3
     - scikit-learn
     - axel
+    - ete3
     - hyphy =2.5.14
     - pomegranate >0.13,<=0.14.8
     - cd-hit
@@ -48,6 +49,10 @@ requirements:
     - r-cowplot
     - r-gggenes
     - r-gridextra
+    - r-aplot
+    - r-ggtree
+    - r-dplyr
+    - r-ape
     - skani
     - slclust
     - trimal

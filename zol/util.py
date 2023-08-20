@@ -3,7 +3,6 @@ import sys
 from Bio import SeqIO
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.Seq import Seq
-from ete3 import Tree
 import logging
 import subprocess
 from operator import itemgetter
@@ -17,6 +16,8 @@ import multiprocessing
 import pickle
 import resource
 import pkg_resources  # part of setuptools
+import shutil
+from ete3 import Tree
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
@@ -1467,7 +1468,7 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 			output_fasta = tmp_genome_fasta_dir + sample + '.fasta'
 			all_samples.add(sample)
 			conversion_inputs.append([input_gbk, output_fasta])
-			all_genomes_listing_handle.write(fasta_output + '\n')
+			all_genomes_listing_handle.write(output_fasta + '\n')
 		all_genomes_listing_handle.close()
 
 		# parallelize conversion
@@ -1477,16 +1478,17 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 
 		# run skani triangle
 		skani_result_file = workspace_dir + 'Skani_Triangle_Edge_Output.txt'
-		skani_triangle_cmd = ['skani', 'triangle', '-l', all_genomes_listing_file,'-t', str(cpus), '-o', skani_result_file]
-		runCmd(skani_triangle_cmd, logObject, check_files=[skani_result_file])
-
-		skder_result_file = outdir + 'skDER_Results.txt'
-		
-		skder_core_prog = SKDER_DIR + 'skDERcore'
-		if not os.path.isfile(skder_core_prog):
-			skder_core_prog = 'skDERcore'
-		skder_core_cmd = [skder_core_prog, skani_result_file, concat_n50_result_file, str(max_af_distance_cutoff), '>', skder_result_file]
-		runCmd(skder_core_cmd, logObject, check_files=[skder_result_file])
+		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(cpus), '-o', skani_result_file]
+		try:
+			subprocess.call(' '.join(skani_triangle_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(skani_result_file))
+			logObject.info('Successfully ran: %s' % ' '.join(skani_triangle_cmd))
+		except Exception as e:
+			logObject.error('Had an issue with running skani: %s' % ' '.join(skani_triangle_cmd))
+			sys.stderr.write('Had an issue with running skani: %s\n' % ' '.join(skani_triangle_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
 
 		shutil.rmtree(tmp_genome_fasta_dir)
 
@@ -1500,9 +1502,13 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 				ls = line.split('\t')
 				s1 = '.fasta'.join(ls[0].split('/')[-1].split('.fasta')[:-1])
 				s2 = '.fasta'.join(ls[1].split('/')[-1].split('.fasta')[:-1])
-				ani = float(ls[2])/100.0
-				dist_ani = 1.0 - ani
-				stos_dists[s1][s2] = dist_ani
+				if s1 != s2:
+					ani = float(ls[2])/100.0
+					dist_ani = 1.0 - ani
+					stos_dists[s1][s2] = dist_ani
+					stos_dists[s2][s1] = dist_ani
+				else:
+					stos_dists[s1][s2] = 0.0
 
 		dist_matrix_handle.write('sample\t' + '\t'.join(sorted(all_samples)) + '\n')
 		for s1 in sorted(all_samples):
@@ -1513,7 +1519,7 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		dist_matrix_handle.close()
 
 		unrooted_tree_file = workspace_dir + 'Unrooted_Species_Tree.nwk'
-		nj_tree_cmd = ['Rscript', nj_tree_prog, unrooted_tree_file]
+		nj_tree_cmd = ['Rscript', nj_tree_prog, dist_matrix_file, unrooted_tree_file]
 		try:
 			subprocess.call(' '.join(nj_tree_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
@@ -1531,6 +1537,7 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		R = t.get_midpoint_outgroup()
 		t.set_outgroup(R)
 		t.write(outfile=species_tree,format=1)
+
 	except Exception as e:
 		sys.stderr.write('Issues with creating species tree.\n')
 		sys.stderr.write(traceback.format_exc())

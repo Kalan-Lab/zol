@@ -13,6 +13,7 @@ import numpy
 import traceback
 from scipy.stats import pearsonr
 import shutil
+from ete3 import Tree
 import pickle
 
 # code for setup and finding location of programs based on conda vs. bioconda installation
@@ -1474,11 +1475,23 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 							sys.exit(1)
 						sample_final_lts[sample].add(lt)
 
+		t = Tree(species_tree)
+		all_samples_in_tree = set([])	
+		samples_accounted = set([])
+		for node in t.traverse('postorder'):
+			all_samples_in_tree.add(node.name)
+			
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
+		example_og = None
 		if os.path.isdir(gbk_info_dir):
 			for gcs_info in os.listdir(gbk_info_dir):
 				if not gcs_info.endswith('.hg_evalues.txt') or os.path.getsize(gbk_info_dir + gcs_info) == 0: continue
 				sample = gcs_info.split('.hg_evalues.txt')[0]
+				if not sample in all_samples_in_tree:
+					sys.stderr.write('Warning: sample %s not in phylogeny or has an unexpected name alteration.' % sample)
+					logObject.warning('Sample %s not in phylogeny or has an unexpected name alteration.' % sample)
+					continue
+				samples_accounted.add(sample)
 				with open(gbk_info_dir + gcs_info) as ogif:
 					for line in ogif:
 						line = line.strip()
@@ -1486,8 +1499,13 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 						lt = ls[2]
 						if not lt in sample_final_lts[sample]: continue
 						og = ls[3]
+						if og == 'background': continue
+						example_og = og
 						bitscore = float(ls[4])
 						heatmap_info_file_handle.write(sample + '\t' + og + '\t' + str(bitscore) + '\n')
+		for sample in all_samples_in_tree:
+			if not sample in samples_accounted:
+				heatmap_info_file_handle.write(sample + '\t' + og + '\tNA\n')
 		heatmap_info_file_handle.close()
 
 		plot_cmd = ['Rscript', phylo_plot_prog, species_tree, heatmap_info_file, plot_result_pdf, str(height), str(width)]

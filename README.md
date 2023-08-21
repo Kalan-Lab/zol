@@ -10,11 +10,11 @@
 
 Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). **The main result from zol is a tabular report showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.**
 
-1. [Program Descriptions]()
-2. [Installation]()
-3. [Test Cases]()
-4. [Example Usages]()
-5. [Tutorial & Notes]()
+1. [Program Descriptions](#program-description)
+2. [Installation](#installation)
+3. [Test Cases](#test-cases)
+4. [Example Usages](#)
+5. [Tutorial](#)
 
 ![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 
@@ -35,7 +35,7 @@ Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative 
 
 Critically, ***with the development of some key options, together, fai and zol enable high-throughput detection of orthologs across multi-species datasets comprising of thousands of genomes.***
 
-### Installation:
+## Installation:
 
 #### Bioconda (Recommended):
 
@@ -93,7 +93,7 @@ pip install -e .
 setup_annotation_dbs.py
 ```
 
-### Test case:
+## Test case:
 
 Following installation, you can run a provided test case focused on a subset of Enterococcal polysaccharide antigen instances in *E. faecalis* and *E. faecium* as such:
 

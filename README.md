@@ -12,9 +12,9 @@ Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative 
 
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)
-3. [Test Cases](#test-cases)
-4. [Example Usages](#)
-5. [Tutorial](#)
+3. [Test Cases](#test-case)
+4. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
+5. [Tutorial]([#](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-typical-analysis)
 
 ![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 

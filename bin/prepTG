@@ -44,23 +44,24 @@ from zol import util
 import subprocess
 import multiprocessing
 
-premade_db_set = set(['Acinetobacter', 'Bacillus', 'Corynebacterium', 'Enterobacter',
-		              'Enterococcus', 'Escherichia', 'Klebsiella', 'Listeria', 
-					  'Mycobacterium', 'Pseudomonas', 'Salmonella', 'Staphylococcus',
-					  'Streptomyces'])
-premade_download_links = {'Acinetobacter': '',
-			              'Bacillus': '',
-						  'Corynebacterium': '',
-						  'Enterobacter': '',
-						  'Enterococcus': '',
-						  'Escherichia': '', 
-						  'Klebsiella': '',
-						  'Listeria': '',
-						  'Mycobacterium': '',
-						  'Pseudomonas': '',
-						  'Salmonella': '',
-						  'Staphylococcus': '',
-						  'Streptomyces': ''}
+premade_db_set = set(['Acinetobacter', 'Bacillus', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
+                      'Klebsiella', 'Listeria', 'Mycobacterium', 'Pseudomonas', 'Salmonella', 'Staphylococcus', 
+                      'Streptococcus', 'Neisseria', 'Streptomyces'])
+premade_download_links = {'Acinetobacter': 'https://zenodo.org/record/8270367/files/Acinetobacter.tar.gz?download=1',
+			  'Bacillus': '',
+			  'Corynebacterium': '',
+			  'Enterobacter': 'https://zenodo.org/record/8270367/files/Enterobacter.tar.gz?download=1',
+			  'Enterococcus': 'https://zenodo.org/record/8270367/files/Enterococcus.tar.gz?download=1',
+			  'Escherichia': 'https://zenodo.org/record/8270367/files/Escherichia.tar.gz?download=1', 
+			  'Klebsiella': 'https://zenodo.org/record/8270367/files/Klebsiella.tar.gz?download=1',
+			  'Listeria': '',
+			  'Mycobacterium': '',
+			  'Pseudomonas': 'https://zenodo.org/record/8270367/files/Pseudomonas.tar.gz?download=1',
+			  'Salmonella': '',
+			  'Staphylococcus': 'https://zenodo.org/record/8270367/files/Staphylococcus.tar.gz?download=1',
+			  'Streptomyces': '',
+                          'Neisseria': '',
+                          'Streptococcus': ''}
 
 def create_parser():
 	""" Parse arguments """
@@ -76,7 +77,7 @@ def create_parser():
 	Acinetobacter (n=1489), Bacillus (n=350), Corynebacterium (n=666), Enterobacter (n=628), 
 	Enterococcus (n=493), Escherichia (n=546), Klebsiella (n=309), Listeria (n=251), 
 	Mycobacterium (n=), Pseudomonas (n=2372), Salmonella (n=146), Staphylococus (n=278), 
-	Streptomyces (n=1510).
+	Streptomyces (n=1510), Streptococcus (n=2224), and Neisseria (n=348).
 
 	Considerations
 	--------------------------------------------------------------------------------------

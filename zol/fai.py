@@ -1474,7 +1474,7 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 							sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without a locus_tag feature.\n' % target_annotation_info[sample]['genbank'])
 							sys.exit(1)
 						sample_final_lts[sample].add(lt)
-		if len(sample_final_lts):
+		if len(sample_final_lts) == 0:
 			logObject.warning('Unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.')
 			sys.stderr.write('Warning: unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.\n')
 			return
@@ -1486,6 +1486,11 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 			if node.is_leaf and node.name != "":
 				all_samples_in_tree.add(node.name)
 			
+		if len(all_samples_in_tree.intersection(set(sample_final_lts.keys()))) == 0:
+			logObject.warning('Unable to generate phylogenetic-heatmap because species tree provided doesn't match target genomes searched against.')
+			sys.stderr.write('Warning: Unable to generate phylogenetic-heatmap because species tree provided doesn't match target genomes searched against.\n')
+			return
+		
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
 		example_og = None
 		if os.path.isdir(gbk_info_dir):
@@ -1508,6 +1513,12 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 						example_og = og
 						bitscore = float(ls[4])
 						heatmap_info_file_handle.write(sample + '\t' + og + '\t' + str(bitscore) + '\n')
+
+		if example_og == None:
+			logObject.warning('Unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.')
+			sys.stderr.write('Warning: unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.\n')
+			return
+			
 		for sample in all_samples_in_tree:
 			if not sample in samples_accounted:
 				heatmap_info_file_handle.write(sample + '\t' + example_og + '\tNA\n')

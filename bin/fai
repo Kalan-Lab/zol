@@ -87,6 +87,10 @@ def create_parser():
 	----------------------------------------------------
 	$ fai -sq Single_Query_Protein.fa -tg prepTG_Database/ -o fai_Results/
 	
+				  
+	The final set of homologous gene cluster instances within target genomes which meet
+	the specified criteria can be found in the subdirectory named: 
+	Homologous_GenBanks_Directory/			  
     """, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
@@ -97,6 +101,7 @@ def create_parser():
 	parser.add_argument('-sq', '--single_query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
 	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-st', '--species_tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
@@ -114,6 +119,8 @@ def create_parser():
 	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog is\nfound at the e-value cutoff. [Default is 0.2].", required=False, default=0.2)
 	parser.add_argument('-gp', '--generate_plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
 	parser.add_argument('-ds', '--diamond_sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
+	parser.add_argument('-phl', '--phyloheatmap_length', type=int, help='Specify the height/length of the phylo-heatmap plot. Default is 7.', required=False, default=7)
+	parser.add_argument('-phw', '--phyloheatmap_width', type=int, help='Specify the width of the phylo-heatmap plot. Default is 10.', required=False, default=14)
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use. [Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Generally memory shouldn\'t be a major concern unless\nworking with hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
@@ -147,6 +154,7 @@ def faiMain():
 	single_query_fasta = myargs.single_query
 	target_genomes = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.output_dir) + '/'
+	species_tree = myargs.species_tree
 	evalue_cutoff = myargs.evalue_cutoff
 	min_prop = myargs.min_prop
 	syntenic_correlation_threshold = myargs.syntenic_correlation_threshold
@@ -163,6 +171,8 @@ def faiMain():
 	filter_paralogs = myargs.filter_paralogs
 	plotting_flag = myargs.generate_plots
 	diamond_sensitivity = myargs.diamond_sensitivity.lower()
+	phyloheatmap_length = myargs.phyloheatmap_length
+	phyloheatmap_width = myargs.phyloheatmap_width
 	delineation_mode = myargs.gc_delineation_mode.upper()
 	cpus = myargs.cpus
 	max_memory = myargs.max_memory
@@ -199,17 +209,17 @@ def faiMain():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end,
-						protein_queries_fasta, single_query_fasta, target_genomes, outdir, 
+						protein_queries_fasta, single_query_fasta, target_genomes, outdir, species_tree,
 						draft_mode, filter_paralogs, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,
-						delineation_mode, cpus, max_memory]
+						delineation_mode, phyloheatmap_length, phyloheatmap_width, cpus, max_memory]
 	parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster",
 					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
 					   "Reference end coordinate of gene cluster", "Protein queries multi-FASTA file",
 					   "Single protein query FASTA file", "Target genomes prepared directory by prepTG",
-					   "Output directory", "Run in draft-assembly mode?",
+					   "Output directory", "Species Tree", "Run in draft-assembly mode?",
 					   "Filter for paralogous/gene-content overlapping segments",
 					   "General E-value cutoff for detection of protein homologs in genome",
 					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
@@ -223,6 +233,7 @@ def faiMain():
 					   "Probability for gene-cluster to gene-cluster transition in HMM",
 					   "Probability for background to background transition in HMM",
 					   "Perform plotting?", "DIAMOND sensitivity", "Delineation mode",
+					   "Phylo-heatmap PDF length", "Phylo-heatmap PDF width", 
 					   "Number of CPUs requested", "Maximum memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
@@ -540,6 +551,19 @@ def faiMain():
 		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
 						  query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, logObject, height=5, width=15)
 		os.system('touch %s' % step5_check_file)
+
+	step6_check_file = check_dir + 'step6.txt'
+	plot_phylo_dir = outdir + 'Phylogeny_Plotting_Files/'
+	plot_result_pdf = outdir + 'Phylogenetic_Perspective.pdf'
+	if not os.path.isfile(step6_check_file) and species_tree != None:
+		logObject.info('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
+		sys.stdout.write('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.\n')
+		util.setupReadyDirectory([plot_phylo_dir])
+		fai.plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, plot_result_pdf, logObject, height=phyloheatmap_length, width=phyloheatmap_width)
+		os.system('touch %s' % step6_check_file)
+
+	sys.stdout.write('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
+	logObject.info('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

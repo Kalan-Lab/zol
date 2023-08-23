@@ -13,17 +13,20 @@ import numpy
 import traceback
 from scipy.stats import pearsonr
 import shutil
+from ete3 import Tree
 import pickle
 
 # code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 plot_prog = None
+phylo_plot_prog = None
 split_diamond_results_prog = None
 if zol_exec_directory != 'None':
 	try:
 		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
 		plot_prog = zol_exec_directory + 'plotSegments.R'
+		phylo_plot_prog = zol_exec_directory + 'phyloHeatmap.R'
 		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
 		conda_setup_success = True
 	except:
@@ -31,8 +34,9 @@ if zol_exec_directory != 'None':
 if zol_exec_directory == 'None' or conda_setup_success == False:
 	zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 	plot_prog = zol_main_directory + 'zol/plotSegments.R'
+	phylo_plot_prog = zol_main_directory + 'zol/phyloHeatmap.R'
 	split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
-if plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(split_diamond_results_prog):
+if plot_prog == None or phylo_plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(phylo_plot_prog) or not os.path.isfile(split_diamond_results_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in fai.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 
@@ -1429,6 +1433,98 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 	except Exception as e:
 		logObject.error('Issues with plotting overviews of homologous gene-cluster segments identified.')
 		sys.stderr.write('Issues with plotting overviews of homologous gene-cluster segments identified.\n')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, plot_result_pdf, logObject, height=10, width=10):
+	"""
+	Description:
+	This function serves to create a phylo-heatmap plot when/if a species tree is provided to fai. Takes 
+	the best bitscore available for a query protein/ortholog-group per sample in a locus deemed homologous.
+	********************************************************************************************************************
+	Parameters:
+	- homologous_gbk_dir: Results directory with homologous gene cluster GenBank files.
+	- hmm_work_dir: Directory with itermediate files and information from HMM search for homologous gene cluster 
+	                instances.
+	- species_tree: Species tree in Newick format.
+	- plot_phylo_dir: Directory with intermediate files for plotting phylo-heatmap.
+	- plot_pdf: The final PDF result of the phylo-heatmap.
+	- logObject: A logging object.
+	- height: The height of the plot in inches.
+	- width: The width of the plot in inches.
+	********************************************************************************************************************
+	"""
+	try:
+		heatmap_info_file = plot_phylo_dir + 'Heatmap_Track.txt'
+		heatmap_info_file_handle = open(heatmap_info_file, 'w')
+		heatmap_info_file_handle.write('label\tquery_prot_id\tbitscore\n')
+
+		sample_final_lts = defaultdict(set) 
+		for gbk in os.listdir(homologous_gbk_dir):
+			sample = '.gbk'.join(gbk.split('.gbk')[:-1]).split('_fai-gene-cluster-')[0]
+			with open(homologous_gbk_dir + gbk) as ogf:
+				for rec in SeqIO.parse(ogf, 'genbank'):
+					for feature in rec.features:
+						if feature.type != 'CDS': continue
+						lt = None
+						try:
+							lt = feature.qualifiers.get('locus_tag')[0]
+						except:
+							sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without a locus_tag feature.\n' % target_annotation_info[sample]['genbank'])
+							sys.exit(1)
+						sample_final_lts[sample].add(lt)
+
+		t = Tree(species_tree)
+		all_samples_in_tree = set([])	
+		samples_accounted = set([])
+		for node in t.traverse('postorder'):
+			if node.is_leaf and node.name != "":
+				all_samples_in_tree.add(node.name)
+			
+		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
+		example_og = None
+		if os.path.isdir(gbk_info_dir):
+			for gcs_info in os.listdir(gbk_info_dir):
+				if not gcs_info.endswith('.hg_evalues.txt') or os.path.getsize(gbk_info_dir + gcs_info) == 0: continue
+				sample = gcs_info.split('.hg_evalues.txt')[0]
+				if not sample in all_samples_in_tree:
+					sys.stderr.write('Warning: sample %s not in phylogeny or has an unexpected name alteration.' % sample)
+					logObject.warning('Sample %s not in phylogeny or has an unexpected name alteration.' % sample)
+					continue
+				samples_accounted.add(sample)
+				with open(gbk_info_dir + gcs_info) as ogif:
+					for line in ogif:
+						line = line.strip()
+						ls = line.split('\t')
+						lt = ls[2]
+						if not lt in sample_final_lts[sample]: continue
+						og = ls[3]
+						if og == 'background': continue
+						example_og = og
+						bitscore = float(ls[4])
+						heatmap_info_file_handle.write(sample + '\t' + og + '\t' + str(bitscore) + '\n')
+		for sample in all_samples_in_tree:
+			if not sample in samples_accounted:
+				heatmap_info_file_handle.write(sample + '\t' + example_og + '\tNA\n')
+		heatmap_info_file_handle.close()
+
+		plot_cmd = ['Rscript', phylo_plot_prog, species_tree, heatmap_info_file, plot_result_pdf, str(height), str(width)]
+		try:
+			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(plot_result_pdf))
+			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running R based phylo-heatmap plotting: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based phylo-heatmap plotting: %s\n' % ' '.join(plot_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+				
+	except Exception as e:
+		logObject.error('Issues with creating phylo-heatmap.')
+		sys.stderr.write('Issues with creating phylo-heatmap.\n')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

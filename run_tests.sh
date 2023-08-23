@@ -6,7 +6,7 @@ tar -zxvf test_case.tar.gz
 cd test_case/
 
 # Step 1: run prepTG on target genomes directory to prepare for fai
-prepTG -i Target_Genomes/ -o prepTG_Database/ -c 4 
+prepTG -i Target_Genomes/ -o prepTG_Database/ -c 4 -cst
 
 # Step 2a: run fai (input type 1) to identify orthologous instances of epa from E. faecalis
 fai -i Epa_MIBiG_GBK/Epa_MIBiG_GenBank.gbk -tg prepTG_Database/ -o fai_Results_1/ -c 4 --generate_plots

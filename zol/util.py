@@ -16,9 +16,29 @@ import multiprocessing
 import pickle
 import resource
 import pkg_resources  # part of setuptools
+import shutil
+from ete3 import Tree
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
+
+# code for setup and finding location of programs based on conda vs. bioconda installation
+zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
+conda_setup_success = None
+nj_tree_prog = None
+if zol_exec_directory != 'None':
+	try:
+		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
+		nj_tree_prog = zol_exec_directory + 'njTree.R'
+		conda_setup_success = True
+	except:
+		conda_setup_success = False
+if zol_exec_directory == 'None' or conda_setup_success == False:
+	nj_tree_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/njTree.R'
+
+if nj_tree_prog == None or not os.path.isfile(nj_tree_prog):
+	sys.stderr.write('Issues in setup of the zol-suite (in util.py) - please describe your installation process and post an issue on GitHub!\n')
+	sys.exit(1)
 
 def memory_limit(mem):
 	"""
@@ -1411,3 +1431,116 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 
 	with open(pkl_result_file, 'wb') as pickle_file:
 		pickle.dump(sample_data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+
+def convertGenomeGenBankToFasta(inputs):
+	input_gbk, output_fasta = inputs
+	output_fasta_handle = open(output_fasta, 'w')
+	with open(input_gbk) as oig:
+		for rec in SeqIO.parse(oig, 'genbank'):
+			output_fasta_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
+	output_fasta_handle.close()
+
+def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, logObject, cpus=1):
+	"""
+	Description:
+	Function to create a species tree using ANI estimates + a neighbor joining approach.
+	********************************************************************************************************************
+	Parameters:
+	- additional_genbanks_directory: Directory with full genomes in GenBank format.
+	- workspace_dir: Workspace directory.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	"""
+
+	try:
+		tmp_genome_fasta_dir = workspace_dir + 'Genome_FASTAs/'
+		setupReadyDirectory([tmp_genome_fasta_dir])
+
+		all_genomes_listing_file = workspace_dir + 'Genome_FASTAs_Listing.txt'
+		all_genomes_listing_handle = open(all_genomes_listing_file, 'w')
+		conversion_inputs = []
+		all_samples = set([])
+		for f in os.listdir(additional_genbanks_directory):
+			if not f.endswith('.gbk'): continue
+			input_gbk = additional_genbanks_directory + f
+			sample = '.gbk'.join(f.split('.gbk')[:-1])
+			output_fasta = tmp_genome_fasta_dir + sample + '.fasta'
+			all_samples.add(sample)
+			conversion_inputs.append([input_gbk, output_fasta])
+			all_genomes_listing_handle.write(output_fasta + '\n')
+		all_genomes_listing_handle.close()
+
+		# parallelize conversion
+		p = multiprocessing.Pool(cpus)
+		p.map(convertGenomeGenBankToFasta, conversion_inputs)
+		p.close()
+
+		# run skani triangle
+		skani_result_file = workspace_dir + 'Skani_Triangle_Edge_Output.txt'
+		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(cpus), '-o', skani_result_file]
+		try:
+			subprocess.call(' '.join(skani_triangle_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(skani_result_file))
+			logObject.info('Successfully ran: %s' % ' '.join(skani_triangle_cmd))
+		except Exception as e:
+			logObject.error('Had an issue with running skani: %s' % ' '.join(skani_triangle_cmd))
+			sys.stderr.write('Had an issue with running skani: %s\n' % ' '.join(skani_triangle_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+
+		shutil.rmtree(tmp_genome_fasta_dir)
+
+		dist_matrix_file = workspace_dir + 'Skani_Based_Distance_Matrix.txt'
+		dist_matrix_handle = open(dist_matrix_file, 'w')
+		stos_dists = defaultdict(lambda: defaultdict(lambda: 1.0))
+		with open(skani_result_file) as osrf:
+			for i, line in enumerate(osrf):
+				if i == 0: continue
+				line = line.strip()
+				ls = line.split('\t')
+				s1 = '.fasta'.join(ls[0].split('/')[-1].split('.fasta')[:-1])
+				s2 = '.fasta'.join(ls[1].split('/')[-1].split('.fasta')[:-1])
+				if s1 != s2:
+					ani = float(ls[2])/100.0
+					dist_ani = 1.0 - ani
+					stos_dists[s1][s2] = dist_ani
+					stos_dists[s2][s1] = dist_ani
+				else:
+					stos_dists[s1][s2] = 0.0
+
+		dist_matrix_handle.write('sample\t' + '\t'.join(sorted(all_samples)) + '\n')
+		for s1 in sorted(all_samples):
+			printlist = [s1]
+			for s2 in sorted(all_samples):
+				printlist.append(str(stos_dists[s1][s2]))
+			dist_matrix_handle.write('\t'.join(printlist) + '\n')
+		dist_matrix_handle.close()
+
+		unrooted_tree_file = workspace_dir + 'Unrooted_Species_Tree.nwk'
+		nj_tree_cmd = ['Rscript', nj_tree_prog, dist_matrix_file, unrooted_tree_file]
+		try:
+			subprocess.call(' '.join(nj_tree_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(unrooted_tree_file))
+			logObject.info('Successfully ran: %s' % ' '.join(nj_tree_cmd))
+		except Exception as e:
+			logObject.error('Had an issue with generating neigbhor-joining tree: %s' % ' '.join(nj_tree_cmd))
+			sys.stderr.write('Had an issue with generating neighbor-joining tree: %s\n' % ' '.join(nj_tree_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+
+		# Midpoint the tree using ete3
+		t = Tree(unrooted_tree_file)
+		R = t.get_midpoint_outgroup()
+		t.set_outgroup(R)
+		t.write(outfile=species_tree,format=1)
+
+	except Exception as e:
+		sys.stderr.write('Issues with creating species tree.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issues with creating species tree.')
+		logObject.error(traceback.format_exc())		
+		sys.exit(1)

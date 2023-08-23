@@ -372,7 +372,7 @@ def zolMain():
 				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
 				assert (os.path.isfile(ortho_matrix_file))
-				assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
+				#assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
 			except Exception as e:
 				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
 				logObject.error(e)

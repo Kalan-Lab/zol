@@ -43,25 +43,27 @@ from Bio import SeqIO
 from zol import util
 import subprocess
 import multiprocessing
+import shutil
 
-premade_db_set = set(['Acinetobacter', 'Bacillus', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
+premade_db_set = set(['Acinetobacter', 'Bacillales', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
                       'Klebsiella', 'Listeria', 'Mycobacterium', 'Pseudomonas', 'Salmonella', 'Staphylococcus', 
-                      'Streptococcus', 'Neisseria', 'Streptomyces'])
+                      'Streptococcus', 'Neisseria', 'Streptomyces', 'Cutibacterium'])
 premade_download_links = {'Acinetobacter': 'https://zenodo.org/record/8270367/files/Acinetobacter.tar.gz?download=1',
-			  'Bacillus': '',
-			  'Corynebacterium': '',
+			  'Bacillales': 'https://zenodo.org/record/8273156/files/Bacillales.tar.gz?download=1',
+			  'Corynebacterium': 'https://zenodo.org/record/8273156/files/Corynebacterium.tar.gz?download=1',
 			  'Enterobacter': 'https://zenodo.org/record/8270367/files/Enterobacter.tar.gz?download=1',
 			  'Enterococcus': 'https://zenodo.org/record/8270367/files/Enterococcus.tar.gz?download=1',
 			  'Escherichia': 'https://zenodo.org/record/8270367/files/Escherichia.tar.gz?download=1', 
 			  'Klebsiella': 'https://zenodo.org/record/8270367/files/Klebsiella.tar.gz?download=1',
-			  'Listeria': '',
-			  'Mycobacterium': '',
+			  'Cutibacterium': 'https://zenodo.org/record/8273156/files/Cutibacterium.tar.gz?download=1',
+			  'Listeria': 'https://zenodo.org/record/8273156/files/Listeria.tar.gz?download=1',
+			  'Mycobacterium': 'https://zenodo.org/record/8273156/files/Mycobacterium.tar.gz?download=1',
 			  'Pseudomonas': 'https://zenodo.org/record/8270367/files/Pseudomonas.tar.gz?download=1',
-			  'Salmonella': '',
+			  'Salmonella': 'https://zenodo.org/record/8273156/files/Salmonella.tar.gz?download=1',
 			  'Staphylococcus': 'https://zenodo.org/record/8270367/files/Staphylococcus.tar.gz?download=1',
-			  'Streptomyces': '',
-                          'Neisseria': '',
-                          'Streptococcus': ''}
+			  'Streptomyces': 'https://zenodo.org/record/8273156/files/Streptomyces.tar.gz?download=1',
+              'Neisseria': 'https://zenodo.org/record/8273156/files/Neisseria.tar.gz?download=1',
+              'Streptococcus': 'https://zenodo.org/record/8273156/files/Streptococcus.tar.gz?download=1'}
 
 def create_parser():
 	""" Parse arguments """
@@ -74,10 +76,10 @@ def create_parser():
 	
 	Premade databases of representative genomes are available for the following genera:
 
-	Acinetobacter (n=1489), Bacillus (n=350), Corynebacterium (n=666), Enterobacter (n=628), 
-	Enterococcus (n=493), Escherichia (n=546), Klebsiella (n=309), Listeria (n=251), 
-	Mycobacterium (n=), Pseudomonas (n=2372), Salmonella (n=146), Staphylococus (n=278), 
-	Streptomyces (n=1510), Streptococcus (n=2224), and Neisseria (n=348).
+	Acinetobacter (n=1,609), Bacillales (n=2,958), Corynebacterium (n=678), Enterobacter (n=852), 
+	Enterococcus (n=923), Escherichia (n=2,367), Klebsiella (n=1,001), Listeria (n=270), 
+	Mycobacterium (n=723), Pseudomonas (n=2,604), Salmonella (n=292), Staphylococus (n=417), 
+	Streptomyces (n=1,539), Streptococcus (n=2,224), Cutibacterium (n=24), and Neisseria (n=348).
 
 	Considerations
 	--------------------------------------------------------------------------------------
@@ -91,7 +93,7 @@ def create_parser():
 	
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific genera.\nProvide name of file, e.g. "Escherichia"', required=False, default=None)
+	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific taxon/genus.\nProvide name of the taxon, e.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Output directory to stored input for fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
@@ -190,23 +192,28 @@ def prepTG():
 
 	if download_premade != None:
 		# Step 1: Download and setup premade prepTG database for genus
+		curr_workspace_dir =  os.getcwd()
 		dl = premade_download_links[download_premade]
 		dl_base = dl.split('/')[-1].split('?')[0]
 		axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
-		extract_cmd = ['tar', '-zxvf', dl_base, '-C', outdir]
+		extract_cmd = ['tar', '-zxvf', dl_base]
+		reorganize_cmd = ['mv', download_premade + '/*', '.']
 		rm_cmd = ['rm', '-f', dl_base]
 		try:
+			os.chdir(outdir)
 			os.system(' '.join(axel_download_dbs_cmd))
-			os.system(' '.join(dl_base))
 			os.system(' '.join(extract_cmd))
-			os.system(' '.join(rm_cmd))
+			assert(os.path.isdir(download_premade))
+			os.system(' '.join(reorganize_cmd))
+			shutil.rmtree(download_premade)
 			assert(os.path.isdir(outdir) and os.path.isfile(outdir + 'Target_Genomes_DB.dmnd'))
+			os.system(' '.join(rm_cmd))
+			os.chdir(curr_workspace_dir)
 		except Exception as e:
-			logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
-			sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+			logObject.error('Had an issue downloading/setting-up the premade database requested.')
+			sys.stderr.write('Had an issue downloading/setting-up the premade database requested.')
 			logObject.error(e)
 			sys.exit(1)
-		
 	else:
 		# Step 1: List genomes in directory
 		sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')

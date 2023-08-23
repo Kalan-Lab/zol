@@ -1092,11 +1092,15 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 	- logObject: A logging object.
 	*******************************************************************************************************************
 	Results:
-	- hg_order_scores:
+	- hg_order_scores: A dictionary where keys are ortholog group identifiers and the values are a list of two items:
+	                   (1) consensus order and (2) consensus direction.
 	*******************************************************************************************************************
 	"""
 	try:
 		gc_gene_to_hg = {}
+		most_conserved_hgs = set([])
+		hg_conservation_values = []
+		max_hg_conservation = 0.0
 		core_hgs = set([])
 		single_copy_core_hgs = set([])
 		with open(ortho_matrix_file) as omf:
@@ -1114,10 +1118,18 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 						sample_count += 1
 					if lts.strip() != '' and not ', ' in lts:
 						sc_sample_count += 1
-				if sample_count/float(len(ls[1:])) == 1.0:
+				hg_conservation = sample_count/float(len(ls[1:])) 
+				hg_conservation_values.append([hg, hg_conservation])
+				if hg_conservation >= max_hg_conservation:
+					max_hg_conservation = hg_conservation
+				if hg_conservation == 1.0:
 					core_hgs.add(hg)
 					if sc_sample_count/float(len(ls[1:])) == 1.0:
 						single_copy_core_hgs.add(hg)
+
+		for hgv in hg_conservation_values:
+			if hgv[1] == max_hg_conservation:
+				most_conserved_hgs.add(hgv[0])
 
 		gc_gene_counts = defaultdict(int)
 		gc_genes = defaultdict(set)
@@ -1216,23 +1228,49 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 					hg_pair_scpus[tuple([hg, hg_after])] += 1
 
 		anchor_edge = None
-		for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
-			if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
-				anchor_edge = hps[0]
-				break
-		try:
-			assert (anchor_edge != None)
-		except:
+		if len(single_copy_core_hgs) > 0:
+			# first attempt to find anchor edge using a single copy core ortholog groups if any exist
 			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
-				if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
+				if hps[0][0] in single_copy_core_hgs and hps[0][1] in single_copy_core_hgs:
+					anchor_edge = hps[0]
+					break
+		elif len(core_hgs) > 0 and anchor_edge == None:
+			# looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist 
+			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+				if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
 					anchor_edge = hps[0]
 					break
 			try:
 				assert (anchor_edge != None)
 			except:
+				for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+					if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
+						anchor_edge = hps[0]
+						break
+
+		elif anchor_edge == None:
+			# ahh, that also failed welp - lets use the most conserved gene available and write a warning to the log file and console
+			stars = '*'*34 + '\n'
+			sys.stderr.write(stars + 'WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.\n' + stars)
+			logObject.warning('No core ortholog groups were detected across homologous gene cluster\ninstances - the quality of the consensus order and direction\npredictions will be lower.\n')
+			try:
+				for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+					if hps[0][0] in most_conserved_hgs and hps[0][1] in most_conserved_hgs:
+						anchor_edge = hps[0]
+						break
+				try:
+					assert (anchor_edge != None)
+				except:
+					for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+						if hps[0][0] in most_conserved_hgs or hps[0][1] in most_conserved_hgs:
+							anchor_edge = hps[0]
+							break
+				assert(anchor_edge != None)
+			except:
 				sys.stderr.write(traceback.format_exc())
 				sys.stderr.write("\nUnexpected error, no anchor edge found, could be because no protocore ortholog group exists, which shouldn't be the case!\n")
 				sys.exit(1)
+
 
 		# use to keep track of which HGs have been accounted for already at different steps of assigning order
 		accounted_hgs = set([anchor_edge[0], anchor_edge[1]])

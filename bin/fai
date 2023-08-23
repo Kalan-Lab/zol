@@ -87,6 +87,10 @@ def create_parser():
 	----------------------------------------------------
 	$ fai -sq Single_Query_Protein.fa -tg prepTG_Database/ -o fai_Results/
 	
+				  
+	The final set of homologous gene cluster instances within target genomes which meet
+	the specified criteria can be found in the subdirectory named: 
+	Homologous_GenBanks_Directory/			  
     """, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)

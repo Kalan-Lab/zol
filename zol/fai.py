@@ -1479,7 +1479,8 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 		all_samples_in_tree = set([])	
 		samples_accounted = set([])
 		for node in t.traverse('postorder'):
-			all_samples_in_tree.add(node.name)
+			if node.is_leaf and node.name != "":
+				all_samples_in_tree.add(node.name)
 			
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
 		example_og = None
@@ -1505,7 +1506,7 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 						heatmap_info_file_handle.write(sample + '\t' + og + '\t' + str(bitscore) + '\n')
 		for sample in all_samples_in_tree:
 			if not sample in samples_accounted:
-				heatmap_info_file_handle.write(sample + '\t' + og + '\tNA\n')
+				heatmap_info_file_handle.write(sample + '\t' + example_og + '\tNA\n')
 		heatmap_info_file_handle.close()
 
 		plot_cmd = ['Rscript', phylo_plot_prog, species_tree, heatmap_info_file, plot_result_pdf, str(height), str(width)]

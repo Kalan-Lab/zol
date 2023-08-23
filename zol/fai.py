@@ -1487,8 +1487,8 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 				all_samples_in_tree.add(node.name)
 			
 		if len(all_samples_in_tree.intersection(set(sample_final_lts.keys()))) == 0:
-			logObject.warning('Unable to generate phylogenetic-heatmap because species tree provided doesn't match target genomes searched against.')
-			sys.stderr.write('Warning: Unable to generate phylogenetic-heatmap because species tree provided doesn't match target genomes searched against.\n')
+			logObject.warning('Unable to generate phylogenetic-heatmap because species tree provided doesn\'t match target genomes searched against.')
+			sys.stderr.write('Warning: Unable to generate phylogenetic-heatmap because species tree provided doesn\'t match target genomes searched against.\n')
 			return
 		
 		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'

@@ -1474,7 +1474,11 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 							sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without a locus_tag feature.\n' % target_annotation_info[sample]['genbank'])
 							sys.exit(1)
 						sample_final_lts[sample].add(lt)
-
+		if len(sample_final_lts):
+			logObject.warning('Unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.')
+			sys.stderr.write('Warning: unable to generate phylogenetic-heatmap because no gene cluster instances were detected in target genomes.\n')
+			return
+		
 		t = Tree(species_tree)
 		all_samples_in_tree = set([])	
 		samples_accounted = set([])

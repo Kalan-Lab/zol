@@ -17,6 +17,7 @@ Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative 
 5. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
 6. [Tutorial](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-typical-analysis)
 7. [Premade Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
+     - (***New***) Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
  
 ![image](https://user-images.githubusercontent.com/4260723/235325678-8af9e7c4-d2f8-4603-9a09-57094b4465c1.png)
 

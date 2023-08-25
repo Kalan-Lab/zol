@@ -53,9 +53,11 @@ conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be ~29 GB! You can also run in minimal mode
-# (which will only download PGAP HMM models < 5 GB) using -m.
+# (which will only download PGAP HMM models < 5 GB) using -m. 
 setup_annotation_dbs.py
 ```
+
+>Note, when you create a conda environment using `-n`, the environment will typically be stored in your home directory. However, because the databases can be large, you might prefer to instead setup the conda environment somewhere else with more space on your system using `-p`. For instance, `conda create -p /path/to/drive_with_more_space/zol_conda_env/ -c conda-forge -c bioconda zol`. Then, next time around you would simply activate this environment by providing the path to it: `conda activate /path/to/drive_with_more_space/zol_conda_env/`
 
 #### Docker:
 

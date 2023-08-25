@@ -88,11 +88,16 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up PGAP database!')
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
 			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
 			assert (os.path.isfile(pgap_info_file))
 			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
-			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
-				os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
 			with open(pgap_info_file) as opil:
@@ -193,16 +198,17 @@ def setup_annot_dbs():
 		try:
 			print('Setting up KO database!')
 			os.system(' '.join(['gunzip', 'ko_list.gz']))
-			os.system(' '.join(['tar', '-zxf', download_path + 'profiles.tar.gz', '-C', 'profiles/']))
-
+			extract_hmm_dir = 'profiles/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'profiles.tar.gz', '-C', extract_hmm_dir]))
 			assert(os.path.isfile(ko_annot_info_file))
 			assert(os.path.isdir(download_path + 'profiles/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', ko_phmm_file]))
 
-			if os.path.isfile(ko_phmm_file):
-				os.system(' '.join(['rm', '-f', ko_phmm_file]))
-			for f in os.listdir(download_path + 'profiles/'):
-				if not f.endswith('.hmm'): continue
-				os.system(' '.join(['cat', download_path + 'profiles/' + f, '>>', ko_phmm_file]))
 			assert(os.path.isfile(ko_phmm_file))
 			os.system(' '.join(['hmmpress', ko_phmm_file]))
 
@@ -231,11 +237,16 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up PGAP database!')
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
 			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
-			assert(os.path.isfile(pgap_info_file))
-			assert(os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
-			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
-				os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
+			assert (os.path.isfile(pgap_info_file))
+			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
 			with open(pgap_info_file) as opil:
@@ -323,8 +334,11 @@ def setup_annot_dbs():
 			os.system(' '.join(['tar', '-xzf', 'vog.hmm.tar.gz', '-C', download_path + 'VOG_HMM_Files/']))
 			os.system(' '.join(['gunzip', download_path + 'vog.annotations.tsv.gz']))
 			vog_db_dir = download_path + 'VOG_HMM_Files/'
-			for f in os.listdir(vog_db_dir):
-				os.system('cat %s >> %s' % (vog_db_dir + f, vog_phmm_file))
+			for folder, subs, files in os.walk(vog_db_dir):
+				for filename in files:
+        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', vog_phmm_file]))
 			vog_descriptions_file = download_path + 'vog_descriptions.txt'
 			vdf_handle = open(vog_descriptions_file, 'w')
 			with open(download_path + 'vog.annotations.tsv') as ovf:

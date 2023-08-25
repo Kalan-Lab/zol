@@ -95,7 +95,7 @@ def setup_annot_dbs():
 			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
-        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
 						hmm_file_path = os.path.abspath(folder + '/' + filename)
 						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
@@ -205,7 +205,7 @@ def setup_annot_dbs():
 			assert(os.path.isdir(download_path + 'profiles/'))
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
-        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
 						hmm_file_path = os.path.abspath(folder + '/' + filename)
 						os.system(' '.join(['cat', hmm_file_path, '>>', ko_phmm_file]))
 
@@ -244,7 +244,7 @@ def setup_annot_dbs():
 			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
-        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
 						hmm_file_path = os.path.abspath(folder + '/' + filename)
 						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
@@ -336,7 +336,7 @@ def setup_annot_dbs():
 			vog_db_dir = download_path + 'VOG_HMM_Files/'
 			for folder, subs, files in os.walk(vog_db_dir):
 				for filename in files:
-        				if filename.endswith('.HMM') or filename.endswith('.hmm'):
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
 						hmm_file_path = os.path.abspath(folder + '/' + filename)
 						os.system(' '.join(['cat', hmm_file_path, '>>', vog_phmm_file]))
 			vog_descriptions_file = download_path + 'vog_descriptions.txt'

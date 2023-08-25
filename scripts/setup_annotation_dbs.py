@@ -88,7 +88,7 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up PGAP database!')
-			os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
 			assert (os.path.isfile(pgap_info_file))
 			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
 			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
@@ -193,7 +193,7 @@ def setup_annot_dbs():
 		try:
 			print('Setting up KO database!')
 			os.system(' '.join(['gunzip', 'ko_list.gz']))
-			os.system(' '.join(['tar', '-zxvf', download_path + 'profiles.tar.gz']))
+			os.system(' '.join(['tar', '-zxf', download_path + 'profiles.tar.gz', '-C', 'profiles/']))
 
 			assert(os.path.isfile(ko_annot_info_file))
 			assert(os.path.isdir(download_path + 'profiles/'))
@@ -231,7 +231,7 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up PGAP database!')
-			os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
 			assert(os.path.isfile(pgap_info_file))
 			assert(os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
 			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
@@ -320,7 +320,7 @@ def setup_annot_dbs():
 		try:
 			print('Setting up VOG database!')
 			os.mkdir(download_path + 'VOG_HMM_Files/')
-			os.system(' '.join(['tar', '-xzvf', 'vog.hmm.tar.gz', '-C', download_path + 'VOG_HMM_Files/']))
+			os.system(' '.join(['tar', '-xzf', 'vog.hmm.tar.gz', '-C', download_path + 'VOG_HMM_Files/']))
 			os.system(' '.join(['gunzip', download_path + 'vog.annotations.tsv.gz']))
 			vog_db_dir = download_path + 'VOG_HMM_Files/'
 			for f in os.listdir(vog_db_dir):

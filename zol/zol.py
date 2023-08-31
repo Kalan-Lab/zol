@@ -1234,7 +1234,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 				if hps[0][0] in single_copy_core_hgs and hps[0][1] in single_copy_core_hgs:
 					anchor_edge = hps[0]
 					break
-		elif len(core_hgs) > 0 and anchor_edge == None:
+		if len(core_hgs) > 0 and anchor_edge == None:
 			# looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist 
 			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
@@ -1248,7 +1248,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 						anchor_edge = hps[0]
 						break
 
-		elif anchor_edge == None:
+		if anchor_edge == None:
 			# ahh, that also failed welp - lets use the most conserved gene available and write a warning to the log file and console
 			stars = '*'*34 + '\n'
 			sys.stderr.write(stars + 'WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.\n' + stars)

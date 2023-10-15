@@ -41,7 +41,7 @@ if zol_exec_directory == 'None' or conda_setup_success == False:
 	tinyaai_prog = zol_main_directory + 'zol/plotTinyAAI.R'
 	phylo_plot_prog = zol_main_directory + 'zol/phyloHeatmap.R'
 	split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
-if plot_prog == None or phylo_plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(phylo_plot_prog) or not os.path.isfile(split_diamond_results_prog):
+if plot_prog == None or phylo_plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(phylo_plot_prog) or not os.path.isfile(split_diamond_results_prog) or not os.path.isfile(phylo_plot_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in fai.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 

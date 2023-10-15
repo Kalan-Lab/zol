@@ -18,4 +18,4 @@ fai -r Efaecalis_V583_Genome.fasta -rc NC_004668.1 -rs 2083902 -re 2115174 -tg p
 fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_3/ -c 4 --generate_plots
 
 # Step 3: run zol to perform comparative investigations of gene-clusters
-zol -i fai_Results_2/Homologous_GenBanks_Directory/ -o zol_Results/ -c 4 --full_genbank_labels
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 4 --full_genbank_labels

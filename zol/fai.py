@@ -15,11 +15,14 @@ from scipy.stats import pearsonr
 import shutil
 from ete3 import Tree
 import pickle
+import statistics
+import pandas as pd
 
 # code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 plot_prog = None
+tinyaai_prog = None
 phylo_plot_prog = None
 split_diamond_results_prog = None
 if zol_exec_directory != 'None':
@@ -27,6 +30,7 @@ if zol_exec_directory != 'None':
 		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
 		plot_prog = zol_exec_directory + 'plotSegments.R'
 		phylo_plot_prog = zol_exec_directory + 'phyloHeatmap.R'
+		tinyaai_prog = zol_exec_directory + 'plotTinyAAI.R'
 		split_diamond_results_prog = zol_exec_directory + 'splitDiamondResultsForFai'
 		conda_setup_success = True
 	except:
@@ -34,6 +38,7 @@ if zol_exec_directory != 'None':
 if zol_exec_directory == 'None' or conda_setup_success == False:
 	zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
 	plot_prog = zol_main_directory + 'zol/plotSegments.R'
+	tinyaai_prog = zol_main_directory + 'zol/plotTinyAAI.R'
 	phylo_plot_prog = zol_main_directory + 'zol/phyloHeatmap.R'
 	split_diamond_results_prog = os.path.abspath(os.path.dirname(__file__) + '/') + '/splitDiamondResultsForFai'
 if plot_prog == None or phylo_plot_prog == None or split_diamond_results_prog == None or not os.path.isfile(plot_prog) or not os.path.isfile(phylo_plot_prog) or not os.path.isfile(split_diamond_results_prog):
@@ -1123,13 +1128,13 @@ def identify_gc_instances(input_args):
 						#pass
 			if best_corr != 'irrelevant' and (best_corr == None or best_corr < syntenic_correlation_threshold): continue
 			if (gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits):
-				sample_gc_predictions_filtered.append(gc_segment)
+				sample_gc_predictions_filtered.append(gc_segment + [best_corr])
 				if gc_segment[6]:
 					cumulative_edge_hgs = cumulative_edge_hgs.union(set(gc_segment[1]))
 					cumulative_edge_key_hgs = cumulative_edge_key_hgs.union(set(gc_segment[9]))
 					visited_scaffolds_with_edge_gc_segment.add(gc_segment[5])
 			elif gc_segment[3] >= 3 and gc_segment[6] and not gc_segment[5] in visited_scaffolds_with_edge_gc_segment:
-				sample_edge_gc_predictions_filtered.append(gc_segment)
+				sample_edge_gc_predictions_filtered.append(gc_segment + [best_corr])
 				visited_scaffolds_with_edge_gc_segment.add(gc_segment[5])
 				cumulative_edge_hgs = cumulative_edge_hgs.union(set(gc_segment[1]))
 				cumulative_edge_key_hgs = cumulative_edge_key_hgs.union(set(gc_segment[9]))
@@ -1143,7 +1148,7 @@ def identify_gc_instances(input_args):
 	for i, gcs1 in enumerate(sorted(sample_gc_predictions_filtered, key=itemgetter(2), reverse=True)):
 		for j, gcs2 in enumerate(sorted(sample_gc_predictions_filtered, key=itemgetter(2), reverse=True)):
 			if i < j and len(set(gcs1[0]).intersection(set(gcs2[0]))) > 0:
-					redundant_gcs.add(gcs2[8])
+				redundant_gcs.add(gcs2[8])
 
 	dereplicated_sample_gc_predictions_filtered = []
 	for gcs in sample_gc_predictions_filtered:
@@ -1152,6 +1157,7 @@ def identify_gc_instances(input_args):
 
 	gc_sample_listing_handle = open(gc_info_dir + sample + '.bgcs.txt', 'w')
 	gc_hg_evalue_handle = open(gc_info_dir + sample + '.hg_evalues.txt', 'w')
+	gc_corr_info_handle = open(gc_info_dir + sample + '.corr_info.txt', 'w')
 
 	sample_gc_id = 1
 	for gc_segment in dereplicated_sample_gc_predictions_filtered:
@@ -1165,6 +1171,7 @@ def identify_gc_instances(input_args):
 		util.createGenbank(target_annotation_info[sample]['genbank'], gc_genbank_file, gc_segment_scaff,
 							  min_gc_pos, max_gc_pos)
 		gc_sample_listing_handle.write('\t'.join([sample, gc_genbank_file]) + '\n')
+		gc_corr_info_handle.write('\t'.join([sample, gc_genbank_file, str(gc_segment[10])]) + '\n')
 
 		for i, lt in enumerate(gc_segment[0]):
 			hg = gc_segment[1][i]
@@ -1178,6 +1185,7 @@ def identify_gc_instances(input_args):
 
 	gc_hg_evalue_handle.close()
 	gc_sample_listing_handle.close()
+	gc_corr_info_handle.close()
 
 def filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir, single_query_mode, logObject):
 	"""
@@ -1540,6 +1548,283 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 	except Exception as e:
 		logObject.error('Issues with creating phylo-heatmap.')
 		sys.stderr.write('Issues with creating phylo-heatmap.\n')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs, spreadsheet_result_file, spreadsheet_result_tsv_dir, plot_work_dir, tiny_aai_plot_file, logObject):
+	"""
+	Description:
+	This function serves to create an overview spreadsheet detailing the candidate homologous gene cluster segments 
+	identified. It will also generate a tiny AAI vs. genes-shared plot.
+	********************************************************************************************************************
+	Parameters:
+	- hmm_work_dir: The workspace where identifyGCInstances() saved extracted GenBanks for gene cluster instances from
+	     			target genomes along with homology information to the query gene cluster.
+	- protein_to_hg: A dictionary linking query proteins to non-redundant clusters / ortholog groups.
+	- key_hgs: Key homolog groups as defined by user.
+	- spreadsheet_result_file: The path to the spreadsheet XLSX file with the overview info. 
+	- spreadsheet_result_tsv_dir: Directory where to write the TSV files that ultimately go into the final spreadsheet.
+	- plot_work_dir: The workspace where to write intermediate files used for creating plots.
+	- tiny_aai_plot_file: A final plot (PDF) showcasing average amino-acid identity of homologous gene clusters identified
+	                      to proportion of gene clusters represented.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		gbk_info_dir = hmm_work_dir + 'GeneCluster_Info/'
+
+		hg_prots = defaultdict(set)	
+		hg_list = []
+		hg_headers = []
+		for p in protein_to_hg:
+			hg_prots[protein_to_hg[p]].add(p)
+			hg_list.append(protein_to_hg[p])
+			hg = protein_to_hg[p]
+			hg_name = hg
+			if hg in key_hgs:
+				hg_name = 'KEY-PROTEIN_' + protein_to_hg[p]
+			hg_headers.append(hg_name + ' - PID')
+			hg_headers.append(hg_name + ' - SQR')
+
+		gcgbk_to_corr = {}
+		for f in os.listdir(gbk_info_dir):
+			info_file = gbk_info_dir + f
+			if f.endswith('.corr_info.txt') and os.path.getsize(info_file) > 0:
+				with open(info_file) as oif:
+					for line in oif:
+						line = line.strip()
+						sample, gc_genbank_file, corr_value = line.split('\t')
+						if corr_value == 'irrelevant':
+							gcgbk_to_corr[gc_genbank_file] = float('nan') 
+						else:
+							gcgbk_to_corr[gc_genbank_file] = float(corr_value)
+
+		tiny_aai_plot_input = plot_work_dir + 'Tiny_AAI_Plot_Data.txt'
+		tiny_aai_plot_handle = open(tiny_aai_plot_input, 'w')
+		tiny_aai_plot_handle.write('Sample\tAAI\tProp_Genes_Found\tMean_Syntenic_Correlation\n')
+
+		tot_tsv_file = spreadsheet_result_tsv_dir + 'total_gcs.tsv'
+		igc_tsv_file = spreadsheet_result_tsv_dir + 'individual_gcs.tsv'
+
+		tot_tsv_handle = open(tot_tsv_file, 'w')
+		igc_tsv_handle = open(igc_tsv_file, 'w')
+
+		data_tot_header = ['sample', 'aggregate-bitscore', 'aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
+					 	   'avg-syntenic-correlation', 'number-background-genes', 'number-gene-clusters', 'copy-counts'] + hg_headers
+		data_igc_header = ['sample', 'gene-cluster-id', 'aggregate-bitscore', 'aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
+					 	   'syntenic-correlation', 'number-background-genes', 'copy-counts'] + hg_headers
+
+		tot_tsv_handle.write('\t'.join(data_tot_header) + '\n')
+		igc_tsv_handle.write('\t'.join(data_igc_header) + '\n')
+
+		tot_row_count = 0
+		igc_row_count = 0
+
+		igc_aggregate_bitscores = []
+		aggregate_bitscores = []
+		for f in os.listdir(gbk_info_dir):
+			info_file = gbk_info_dir + f
+			if f.endswith('.hg_evalues.txt') and os.path.getsize(info_file) > 0:
+				tot_hg_best_hits = defaultdict(lambda: [0.0, [], []])
+				tot_hg_hits_copy_counts = defaultdict(int)
+				tot_bg_genes = 0
+				igc_hg_best_hits = defaultdict(lambda: defaultdict(lambda: [0.0, [], []]))
+				igc_hg_hits_copy_counts = defaultdict(lambda: defaultdict(int))
+				igc_bg_genes = defaultdict(int)
+				tot_corr_values = []
+				sample = None
+				igcs = set([])
+				with open(info_file) as oif:
+					for line in oif:
+						line = line.strip('\n')
+						igc, sample, lt, hg, bitscore, identity, sqlratio, is_key_hg = line.split('\t')
+						bitscore = float(bitscore)
+						igcs.add(igc)
+						tot_corr_values.append(gcgbk_to_corr[igc])
+						if hg == 'background':
+							tot_bg_genes += 1
+							igc_bg_genes[igc] += 1
+						else:
+							tot_hg_hits_copy_counts[hg] += 1
+							igc_hg_hits_copy_counts[igc][hg] += 1
+
+							if tot_hg_best_hits[hg][0] < bitscore:
+								identity = float(identity)
+								sqlratio = float(sqlratio)
+								tot_hg_best_hits[hg] = [bitscore, [identity], [sqlratio]]
+							elif tot_hg_best_hits[hg][0] == bitscore:
+								identity = float(identity)
+								sqlratio = float(sqlratio)
+								tot_hg_best_hits[hg][1].append(identity)
+								tot_hg_best_hits[hg][2].append(sqlratio)
+
+							if igc_hg_best_hits[igc][hg][0] < bitscore:
+								identity = float(identity)
+								sqlratio = float(sqlratio)
+								igc_hg_best_hits[igc][hg] = [bitscore, [identity], [sqlratio]]
+							elif igc_hg_best_hits[igc][hg][0] == bitscore:
+								identity = float(identity)
+								sqlratio = float(sqlratio)
+								igc_hg_best_hits[igc][hg][1].append(identity)
+								igc_hg_best_hits[igc][hg][2].append(sqlratio)
+
+				copy_counts = []
+				hg_pid_info = []
+				hg_sql_info = []
+				hg_pid_sql_pair = []
+				aggregate_bitscore = 0.0
+				for hg in hg_list:
+					max_pid = 0.0
+					max_sql = 0.0
+					aggregate_bitscore += tot_hg_best_hits[hg][0]
+					for i, pid in enumerate(tot_hg_best_hits[hg][1]):
+						if pid >= max_pid:
+							max_pid = pid
+							max_sql = tot_hg_best_hits[hg][2][i]
+					hg_pid_info.append(max_pid)
+					hg_sql_info.append(max_sql)
+					hg_pid_sql_pair.append(str(max_pid) + '\t' + str(max_sql))
+					copy_counts.append(str(tot_hg_hits_copy_counts[hg]))
+			
+				mean_aai = statistics.mean([x for x in hg_pid_info if x > 0.0])
+				mean_sql = statistics.mean([x for x in hg_sql_info if x > 0.0])
+				prop_hg_found = len([x for x in hg_pid_info if x > 0.0])/float(len(hg_list))
+				copy_count_string = ','.join(copy_counts)
+				avg_corr_value = statistics.mean(tot_corr_values)
+				number_gcs = len(igcs)
+				
+				tot_row = [str(x) for x in [sample, aggregate_bitscore, mean_aai, mean_sql, prop_hg_found, avg_corr_value, tot_bg_genes, number_gcs, copy_count_string]] + hg_pid_sql_pair
+				aggregate_bitscores.append(aggregate_bitscore)
+				tot_tsv_handle.write('\t'.join(tot_row) + '\n')
+				tiny_aai_plot_handle.write('\t'.join([str(x) for x in [sample, mean_aai, prop_hg_found, avg_corr_value]]) + '\n')
+				tot_row_count += 1
+
+				for igc in igcs:
+					igc_copy_counts = []
+					igc_hg_pid_info = []
+					igc_hg_sql_info = []
+					igc_hg_pid_sql_pair = []
+					igc_aggregate_bitscore = 0.0
+					for hg in hg_list:
+						max_pid = 0.0
+						max_sql = 0.0
+						igc_aggregate_bitscore += igc_hg_best_hits[igc][hg][0]
+						for i, pid in enumerate(igc_hg_best_hits[igc][hg][1]):
+							if pid >= max_pid:
+								max_pid = pid
+								max_sql = igc_hg_best_hits[igc][hg][2][i]
+						igc_hg_pid_info.append(max_pid)
+						igc_hg_sql_info.append(max_sql)
+						igc_hg_pid_sql_pair.append(str(max_pid) + '\t' + str(max_sql))
+						igc_copy_counts.append(str(igc_hg_hits_copy_counts[igc][hg]))
+			
+					igc_mean_aai = statistics.mean([x for x in igc_hg_pid_info if x > 0.0])
+					igc_mean_sql = statistics.mean([x for x in igc_hg_sql_info if x > 0.0])
+					igc_prop_hg_found = len([x for x in igc_hg_pid_info if x > 0.0])/float(len(hg_list))
+					copy_count_string = ','.join(igc_copy_counts)
+
+					igc_row = [str(x) for x in [sample, igc, igc_aggregate_bitscore, igc_mean_aai, igc_mean_sql, 
+								igc_prop_hg_found, gcgbk_to_corr[igc], igc_bg_genes[igc], copy_count_string]] + igc_hg_pid_sql_pair
+					igc_aggregate_bitscores.append(igc_aggregate_bitscore)
+					igc_tsv_handle.write('\t'.join(igc_row) + '\n')		
+					igc_row_count += 1
+
+		tot_tsv_handle.close()
+		igc_tsv_handle.close()
+
+		# Generate Excel spreadsheet
+		writer = pd.ExcelWriter(spreadsheet_result_file, engine='xlsxwriter')
+		workbook = writer.book
+		dd_sheet = workbook.add_worksheet('Data Dictionary')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on fai\'s Wiki page at:')
+		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-fai#explanation-of-report')
+
+		numeric_columns = set(['aggregate-bitscore', 'aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
+					 	   		'syntenic-correlation', 'avg-syntenic-correlation', 'number-background-genes', 'number-gene-clusters'] + hg_headers)
+
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+
+		tot_results_df = util.loadTableInPandaDataFrame(tot_tsv_file, numeric_columns)
+		tot_results_df.to_excel(writer, sheet_name='Genome Wide - Report', index=False, na_rep="NA")
+
+		igc_results_df = util.loadTableInPandaDataFrame(igc_tsv_file, numeric_columns)
+		igc_results_df.to_excel(writer, sheet_name='Gene Cluster Instance - Report', index=False, na_rep="NA")
+
+		tot_worksheet = writer.sheets['Genome Wide - Report']
+		igc_worksheet = writer.sheets['Gene Cluster Instance - Report']
+
+		tot_worksheet.conditional_format('A1:HA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+		igc_worksheet.conditional_format('A1:HA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+
+		#data_tot_header = ['sample', 'aggregate-bitscore', 'mean-aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
+		#    			 	'avg-syntenic-correlation', 'number-background-genes', 'number-gene-clusters', 'copy-counts'] + hg_headers
+
+		#data_igc_header = ['sample', 'gene-cluster-id', 'aggregate-bitscore', 'mean-aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
+		#			 	    'syntenic-correlation', 'number-background-genes', 'copy-counts'] + hg_headers
+
+		tot_row_count += 1
+		igc_row_count += 1
+
+		# aggregate bitscore coloring
+		tot_worksheet.conditional_format('B2:B' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(aggregate_bitscores), "max_value": max(aggregate_bitscores)})
+		igc_worksheet.conditional_format('C2:C' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(igc_aggregate_bitscores), "max_value": max(igc_aggregate_bitscores)})
+
+		# mean aai 
+		tot_worksheet.conditional_format('C2:C' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+		igc_worksheet.conditional_format('D2:D' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# mean sequence-to-query ratio 
+		tot_worksheet.conditional_format('D2:D' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		igc_worksheet.conditional_format('E2:E' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# proportion query genes found
+		tot_worksheet.conditional_format('E2:E' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		igc_worksheet.conditional_format('F2:F' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# syntenic-correlation
+		tot_worksheet.conditional_format('F2:F' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		igc_worksheet.conditional_format('G2:G' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		hg_index = 9
+		for hg in hg_list:
+			columnid_pid = util.determineColumnNameBasedOnIndex(hg_index)
+			columnid_sql = util.determineColumnNameBasedOnIndex(hg_index+1)
+			hg_index += 2
+
+			# percent identity
+			tot_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+
+			# sequence-to-query ratio
+			tot_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# Freeze the first row of both sheets
+		tot_worksheet.freeze_panes(1, 0)
+		igc_worksheet.freeze_panes(1, 0)
+
+		# close workbook
+		workbook.close()
+		
+		tiny_aai_plot_handle.close()
+
+		# plot tiny AAI figure
+		plot_cmd = ['Rscript', tinyaai_prog, tiny_aai_plot_input, tiny_aai_plot_file]
+		try:
+			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(tiny_aai_plot_file))
+			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running R based plotting: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based plotting: %s\n' % ' '.join(plot_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+
+	except Exception as e:
+		logObject.error('Issues with producing spreadsheet/AAI plot overviews for homologous gene-cluster segments identified.')
+		sys.stderr.write('Issues with producing spreadsheet/AAI plot overviews of homologous gene-cluster segments identified.\n')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

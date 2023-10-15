@@ -170,7 +170,7 @@ def zolMain():
 		sys.exit(1)
 
 	if os.path.isdir(outdir):
-		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
+		sys.stderr.write("Output directory exists. Overwriting in 5 seconds, but only where needed - will use checkpoints to avoid redoing successfully completed steps ...\n ")
 		sleep(5)
 	else:
 		os.mkdir(outdir)

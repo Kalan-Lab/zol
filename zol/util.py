@@ -18,6 +18,7 @@ import resource
 import pkg_resources  # part of setuptools
 import shutil
 from ete3 import Tree
+import math
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
@@ -1543,4 +1544,41 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		sys.stderr.write(traceback.format_exc())
 		logObject.error('Issues with creating species tree.')
 		logObject.error(traceback.format_exc())		
+		sys.exit(1)
+
+def determineColumnNameBasedOnIndex(index):
+	"""
+	Function to determine spreadsheet column name for a given index
+	"""
+	# offset at 0 
+	num_to_char = {}
+	alphabet = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+	alphabet_first_spot = [''] + alphabet
+	for i, c in enumerate(alphabet):
+		num_to_char[i] = c
+	level = math.floor(index / 26)
+	remainder = index % 26
+	columname = alphabet_first_spot[level]
+	columname += alphabet[remainder]
+	return columname
+
+def cleanUp(clean_up_dirs_and_files, logObject):
+	"""
+	Basic function to clean-up disk heavy files/directories that are intermediate.
+	"""
+	try:
+		for df in clean_up_dirs_and_files:
+			if os.path.isfile(df):
+				logObject.warning('Deleting the file %s' % df)
+				os.system('rm -f %s' % df)
+			elif os.path.isdir(df):
+				logObject.warning('Deleting the file %s' % df)
+				shutil.rmtree(df)
+			else:
+				logObject.error('Couldn\'t find %s to delete!' % df)
+	except:
+		sys.stderr.write('Issues with cleaning up files/directories.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issues with cleaning up files/directories.\n')
+		logObject.error(traceback.format_exc())
 		sys.exit(1)

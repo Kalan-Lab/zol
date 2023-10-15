@@ -84,13 +84,13 @@ def create_parser():
 	
     Type 4: Single Query (provide the amino acid sequence directly)
     Similar to CORASON
-	----------------------------------------------------
-	$ fai -sq Single_Query_Protein.fa -tg prepTG_Database/ -o fai_Results/
+    ----------------------------------------------------
+    $ fai -sq Single_Query_Protein.fa -tg prepTG_Database/ -o fai_Results/
 	
 				  
-	The final set of homologous gene cluster instances within target genomes which meet
-	the specified criteria can be found in the subdirectory named: 
-	Homologous_GenBanks_Directory/			  
+    The final set of homologous gene cluster instances within target genomes which meet
+    the specified criteria can be found in the subdirectory named: 
+	Final_Results/Homologous_Gene_Cluster_GenBanks/			  
     """, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
@@ -122,6 +122,7 @@ def create_parser():
 	parser.add_argument('-phl', '--phyloheatmap_length', type=int, help='Specify the height/length of the phylo-heatmap plot. Default is 7.', required=False, default=7)
 	parser.add_argument('-phw', '--phyloheatmap_width', type=int, help='Specify the width of the phylo-heatmap plot. Default is 10.', required=False, default=14)
 	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use. [Default is 1].", required=False, default=1)
+	parser.add_argument('-cl', '--clean_up', action='store_true', help="Clean up disk-heavy files/folders.", default=False, required=False)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Generally memory shouldn\'t be a major concern unless\nworking with hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
@@ -176,6 +177,7 @@ def faiMain():
 	delineation_mode = myargs.gc_delineation_mode.upper()
 	cpus = myargs.cpus
 	max_memory = myargs.max_memory
+	clean_up = myargs.clean_up
 
 	try:
 		assert(delineation_mode in set(['GENE-CLUMPER', 'HMM']))
@@ -183,14 +185,23 @@ def faiMain():
 		sys.stderr.write("Delineation mode is not valid. Must be either 'Gene-Clumper' or 'HMM'.\n")
 		sys.exit(1)
 
+	check_dir = outdir + 'Checkpoint_Files/'
+	clean_up_checkpoint_file = check_dir + 'cleaned_up.txt'
 	# create output directory if needed, or warn of over-writing
 	if os.path.isdir(outdir):
-		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
-		sleep(5)
+		if not os.path.isfile(clean_up_checkpoint_file):
+			sys.stderr.write("Output directory exists. Overwriting in 5 seconds, but only where needed - will use checkpoints to avoid redoing successfully completed steps ...\n ")
+			sleep(5)
+		else:
+			sys.stderr.write("Output directory exists and has already been cleaned-up, meaning checkpoints can't be used properly to rerun certain steps. Please just write to a new directory.\n")
+			exit(1)
 	else:
 		os.mkdir(outdir)
 
-	check_dir = outdir + 'Checkpoint_Files/'
+	final_results_dir = outdir + 'Final_Results/'
+	if not os.path.isdir(final_results_dir):
+		util.setupReadyDirectory([final_results_dir])
+
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])
 
@@ -214,7 +225,7 @@ def faiMain():
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,
-						delineation_mode, phyloheatmap_length, phyloheatmap_width, cpus, max_memory]
+						delineation_mode, phyloheatmap_length, phyloheatmap_width, cpus, max_memory, clean_up]
 	parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster",
 					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
 					   "Reference end coordinate of gene cluster", "Protein queries multi-FASTA file",
@@ -234,7 +245,7 @@ def faiMain():
 					   "Probability for background to background transition in HMM",
 					   "Perform plotting?", "DIAMOND sensitivity", "Delineation mode",
 					   "Phylo-heatmap PDF length", "Phylo-heatmap PDF width", 
-					   "Number of CPUs requested", "Maximum memory in GB"]
+					   "Number of CPUs requested", "Maximum memory in GB", "Clean Up Heavy Files?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -518,7 +529,7 @@ def faiMain():
 
 	step4_check_file = check_dir + 'step4.txt'
 	hmm_work_dir = outdir + 'GC_Segment_Processing/'
-	homologous_gbk_dir = outdir + 'Homologous_GenBanks_Directory/'
+	homologous_gbk_dir = final_results_dir + 'Homologous_Gene_Cluster_GenBanks/'
 	if not os.path.isfile(step4_check_file):
 		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
 		min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
@@ -540,30 +551,49 @@ def faiMain():
 				shutil.move(hmm_work_dir + 'GeneCluster_Genbanks/' + f, homologous_gbk_dir)
 		os.system('touch %s' % step4_check_file)
 
+	logObject.info('--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.')
+	sys.stdout.write('--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.\n')
 	step5_check_file = check_dir + 'step5.txt'
 	plot_dir = outdir + 'Plotting_Files/'
-	plot_result_pdf = outdir + 'Homologous_Gene-Cluster_Segments.pdf'
-	plot_naming_pdf = outdir + 'Name_Mapping_of_Queries_to_Original_LocusTags.pdf'
-	if not os.path.isfile(step5_check_file) and plotting_flag:
-		logObject.info('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.')
-		sys.stdout.write('--------------------\nStep 5\n--------------------\nPlotting overview of gene-cluster segments identified.\n')
-		util.setupReadyDirectory([plot_dir])
-		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
-						  query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, logObject, height=5, width=15)
+	spreadsheet_result_tsv_dir = outdir + 'Spreadsheet_TSVs/'
+	spreadsheet_result_file = final_results_dir + 'Candidate_Homologous_Gene_Clusters.xlsx'
+	tiny_aai_plot_file = final_results_dir + 'Candidate_Homologous_Gene_Clusters.Tiny_AAI_Plot.pdf'	
+	if not os.path.isfile(step5_check_file):
+		util.setupReadyDirectory([plot_dir, spreadsheet_result_tsv_dir])
+		fai.createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, query_information['protein_to_hg'],  query_information['key_hgs'], spreadsheet_result_file, spreadsheet_result_tsv_dir, plot_dir, tiny_aai_plot_file, logObject)
 		os.system('touch %s' % step5_check_file)
 
 	step6_check_file = check_dir + 'step6.txt'
-	plot_phylo_dir = outdir + 'Phylogeny_Plotting_Files/'
-	plot_result_pdf = outdir + 'Phylogenetic_Perspective.pdf'
-	if not os.path.isfile(step6_check_file) and species_tree != None:
-		logObject.info('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
-		sys.stdout.write('--------------------\nStep 6\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.\n')
-		util.setupReadyDirectory([plot_phylo_dir])
-		fai.plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, plot_result_pdf, logObject, height=phyloheatmap_length, width=phyloheatmap_width)
+	plot_dir = outdir + 'Plotting_Files/'
+	plot_result_pdf = final_results_dir + 'Homologous_Gene_Cluster_Segments.pdf'
+	plot_naming_pdf = final_results_dir + 'Name_Mapping_of_Queries_to_Original_LocusTags.pdf'
+	if not os.path.isfile(step6_check_file) and plotting_flag:
+		logObject.info('--------------------\nStep 6\n--------------------\nPlotting overview of gene-cluster segments identified.')
+		sys.stdout.write('--------------------\nStep 6\n--------------------\nPlotting overview of gene-cluster segments identified.\n')
+		util.setupReadyDirectory([plot_dir])
+		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
+						  query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, logObject, height=5, width=15)
 		os.system('touch %s' % step6_check_file)
 
-	sys.stdout.write('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
-	logObject.info('Done running fai!\nFinal results can be found at:\n%s\n' % (homologous_gbk_dir))
+	step7_check_file = check_dir + 'step7.txt'
+	plot_phylo_dir = final_results_dir + 'Phylogeny_Plotting_Files/'
+	plot_result_pdf = final_results_dir + 'Phylogenetic_Perspective.pdf'
+	if not os.path.isfile(step7_check_file) and species_tree != None:
+		logObject.info('--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
+		sys.stdout.write('--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.\n')
+		util.setupReadyDirectory([plot_phylo_dir])
+		fai.plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, plot_result_pdf, logObject, height=phyloheatmap_length, width=phyloheatmap_width)
+		os.system('touch %s' % step7_check_file)
+
+	# Perform clean-up of disk-heavy intermediate files if requested.
+	# TODO: Add at least some files here.
+	if clean_up:
+		clean_up_dirs_and_files = [outdir + 'DIAMOND_Analysis/']
+		util.cleanUp(clean_up_dirs_and_files, logObject)
+		os.system('touch %s' % clean_up_checkpoint_file)
+
+	sys.stdout.write('Done running fai!\nFinal results can be found at:\n%s\n' % (final_results_dir))
+	logObject.info('Done running fai!\nFinal results can be found at:\n%s\n' % (final_results_dir))
 
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)

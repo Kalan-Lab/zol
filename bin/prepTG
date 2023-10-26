@@ -46,24 +46,26 @@ import multiprocessing
 import shutil
 
 premade_db_set = set(['Acinetobacter', 'Bacillales', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
-                      'Klebsiella', 'Listeria', 'Mycobacterium', 'Pseudomonas', 'Salmonella', 'Staphylococcus', 
-                      'Streptococcus', 'Neisseria', 'Streptomyces', 'Cutibacterium'])
-premade_download_links = {'Acinetobacter': 'https://zenodo.org/record/8270367/files/Acinetobacter.tar.gz?download=1',
-			  'Bacillales': 'https://zenodo.org/record/8273156/files/Bacillales.tar.gz?download=1',
-			  'Corynebacterium': 'https://zenodo.org/record/8273156/files/Corynebacterium.tar.gz?download=1',
-			  'Enterobacter': 'https://zenodo.org/record/8270367/files/Enterobacter.tar.gz?download=1',
-			  'Enterococcus': 'https://zenodo.org/record/8270367/files/Enterococcus.tar.gz?download=1',
-			  'Escherichia': 'https://zenodo.org/record/8270367/files/Escherichia.tar.gz?download=1', 
-			  'Klebsiella': 'https://zenodo.org/record/8270367/files/Klebsiella.tar.gz?download=1',
-			  'Cutibacterium': 'https://zenodo.org/record/8273156/files/Cutibacterium.tar.gz?download=1',
-			  'Listeria': 'https://zenodo.org/record/8273156/files/Listeria.tar.gz?download=1',
-			  'Mycobacterium': 'https://zenodo.org/record/8273156/files/Mycobacterium.tar.gz?download=1',
-			  'Pseudomonas': 'https://zenodo.org/record/8270367/files/Pseudomonas.tar.gz?download=1',
-			  'Salmonella': 'https://zenodo.org/record/8273156/files/Salmonella.tar.gz?download=1',
-			  'Staphylococcus': 'https://zenodo.org/record/8270367/files/Staphylococcus.tar.gz?download=1',
-			  'Streptomyces': 'https://zenodo.org/record/8273156/files/Streptomyces.tar.gz?download=1',
-              'Neisseria': 'https://zenodo.org/record/8273156/files/Neisseria.tar.gz?download=1',
-              'Streptococcus': 'https://zenodo.org/record/8273156/files/Streptococcus.tar.gz?download=1'}
+                      'Klebsiella', 'Lactobacillus', 'Listeria', 'Micromonospora', 'Mycobacterium', 'Pseudomonas', 
+					  'Salmonella', 'Staphylococcus', 'Streptococcus', 'Neisseria', 'Streptomyces', 'Cutibacterium'])
+premade_download_links = {'Acinetobacter': 'https://zenodo.org/record/10042148/files/Acinetobacter.tar.gz?download=1',
+			  'Bacillales': 'https://zenodo.org/record/10044725/files/Bacillales.tar.gz?download=1',
+			  'Corynebacterium': 'https://zenodo.org/record/10032209/files/Corynebacterium.tar.gz?download=1',
+			  'Enterobacter': 'https://zenodo.org/record/10042148/files/Enterobacter.tar.gz?download=1',
+			  'Enterococcus': 'https://zenodo.org/record/10042148/files/Enterococcus.tar.gz?download=1',
+			  'Escherichia': 'https://zenodo.org/record/10032209/files/Escherichia.tar.gz?download=1', 
+			  'Klebsiella': 'https://zenodo.org/record/10042148/files/Klebsiella.tar.gz?download=1',
+			  'Cutibacterium': 'https://zenodo.org/record/10032209/files/Cutibacterium.tar.gz?download=1',
+			  'Listeria': 'https://zenodo.org/record/10032209/files/Listeria.tar.gz?download=1',
+			  'Lactobacillus': 'https://zenodo.org/record/10032209/files/Lactobacillus.tar.gz?download=1',
+			  'Micromonospora': 'https://zenodo.org/record/10044725/files/Micromonospora.tar.gz?download=1',
+			  'Mycobacterium': 'https://zenodo.org/record/10032209/files/Mycobacterium.tar.gz?download=1',
+			  'Pseudomonas': 'https://zenodo.org/record/10042148/files/Pseudomonas.tar.gz?download=1',
+			  'Salmonella': 'https://zenodo.org/record/10032209/files/Salmonella.tar.gz?download=1',
+			  'Staphylococcus': 'https://zenodo.org/record/10042148/files/Staphylococcus.tar.gz?download=1',
+			  'Streptomyces': 'https://zenodo.org/record/10044725/files/Streptomyces.tar.gz?download=1',
+              'Neisseria': 'https://zenodo.org/record/10032209/files/Neisseria.tar.gz?download=1',
+              'Streptococcus': 'https://zenodo.org/record/10032209/files/Streptococcus.tar.gz?download=1'}
 
 def create_parser():
 	""" Parse arguments """
@@ -76,10 +78,11 @@ def create_parser():
 	
 	Premade databases of representative genomes are available for the following genera:
 
-	Acinetobacter (n=1,609), Bacillales (n=2,958), Corynebacterium (n=678), Enterobacter (n=852), 
-	Enterococcus (n=923), Escherichia (n=2,367), Klebsiella (n=1,001), Listeria (n=270), 
-	Mycobacterium (n=723), Pseudomonas (n=2,604), Salmonella (n=292), Staphylococus (n=417), 
-	Streptomyces (n=1,539), Streptococcus (n=2,224), Cutibacterium (n=24), and Neisseria (n=348).
+	Acinetobacter (n=1,643), Bacillales (n=3,150), Corynebacterium (n=726), Enterobacter (n=878), 
+	Enterococcus (n=937), Escherichia (n=2,436), Klebsiella (n=1,022), Listeria (n=353), 
+	Mycobacterium (n=744), Pseudomonas (n=2,666), Salmonella (n=308), Staphylococus (n=496), 
+	Streptomyces (n=1,555), Streptococcus (n=2,452), Cutibacterium (n=27), Neisseria (n=414),
+	Lactobacillus (n=541), and Micromonospora (n=211).
 
 	Considerations
 	--------------------------------------------------------------------------------------

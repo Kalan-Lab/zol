@@ -109,12 +109,14 @@ def abon():
 	logObject.info('Parsing BGC prediction results')
 	bgc_genbank_paths = []
 	if antismash_results_dir != None and os.path.isdir(antismash_results_dir):
+		antismash_results_dir = os.path.abspath(antismash_results_dir) + '/'
 		for f in os.listdir(antismash_results_dir):
 			if f.endswith('.gbk') and '.region' in f:
 				bgc_genbank_paths.append([os.path.abspath(antismash_results_dir) + '/' + f, 'antismash'])
 
 	bgc_coords = {}
 	if gecco_results_dir != None and os.path.isdir(gecco_results_dir):
+		gecco_results_dir = os.path.abspath(gecco_results_dir) + '/'
 		for f in os.listdir(gecco_results_dir):
 			if f.endswith('.gbk') and '_cluster_' in f:
 				bgc_genbank_paths.append([os.path.abspath(gecco_results_dir) + '/' + f, 'gecco'])

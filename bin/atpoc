@@ -224,6 +224,8 @@ def atpoc():
 			# run fai 
 			fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
 			           '-tg', preptg_db_dir, fai_options, '-o', phage_fai_res_dir, '-c', str(cpus)]
+			if not use_pyrodigal_flag:
+				fai_cmd += ['-rgv']
 			genome_wide_tsv_result_file = phage_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
 			runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	phage_info_handle.close()

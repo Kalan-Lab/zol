@@ -19,6 +19,9 @@ import pkg_resources  # part of setuptools
 import shutil
 from ete3 import Tree
 import math
+from zol import fai
+import statistics
+
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
@@ -328,7 +331,7 @@ def is_genbank(gbk, check_for_cds=False):
 	try:
 		recs = 0
 		cds_flag = False
-		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz'))
+		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz') or gbk.endswith('.gb') or gbk.endswith('.gb.gz') or gbk.endswith('genbank') or gbk.endswith('.genbank.gz'))
 		if gbk.endswith('.gz'):
 			with gzip.open(gbk, 'rt') as ogf:
 				for rec in SeqIO.parse(ogf, 'genbank'):
@@ -799,8 +802,9 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 		logObject.error(traceback.format_exc())
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
+
 def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject,
-								cpus=1, locus_tag_length=3, use_prodigal=False, meta_mode=False,
+								cpus=1, locus_tag_length=3, gene_calling_method="pyrodigal", meta_mode=False,
 								avoid_locus_tags=set([])):
 	"""
 	Description:
@@ -814,7 +818,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 	- logObject: A logging object.
 	- cpus: The number of CPUs to use.
 	- locus_tag_length: The length of the locus tags to generate.
-	- use_prodigal: Whether to use prodigal instead of pyrodigal.
+	- gene_calling_method: Whether to use pyrodigal (default), prodigal, or prodigal-gv.
 	- meta_mode: Whether to run pyrodigal/prodigal in metagenomics mode.
 	- avoid_locus_tags: Whether to avoid using certain locus tags.
 	********************************************************************************************************************
@@ -830,10 +834,8 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 			sample_assembly = sample_genomes[sample]
 			sample_locus_tag = ''.join(list(possible_locustags[i]))
 
-			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample,
+			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample, '-gcm', gene_calling_method,
 							'-l', sample_locus_tag, '-o', prodigal_outdir]
-			if use_prodigal:
-				prodigal_cmd += ['-p']
 			if meta_mode:
 				prodigal_cmd += ['-m']
 			prodigal_cmds.append(prodigal_cmd + [logObject])
@@ -894,7 +896,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 		for i, sample in enumerate(sample_genomes):
 			sample_locus_tag = possible_locustags[i]
 			sample_genbank = sample_genomes[sample]
-			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample,
+			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample, 
 						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]
 			if rename_locus_tags:
 				process_cmd += ['-l', sample_locus_tag]
@@ -1580,5 +1582,112 @@ def cleanUp(clean_up_dirs_and_files, logObject):
 		sys.stderr.write('Issues with cleaning up files/directories.\n')
 		sys.stderr.write(traceback.format_exc())
 		logObject.error('Issues with cleaning up files/directories.\n')
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+		
+def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fasta, target_genomes_db, workspace_dir, logObject,
+							   identity_cutoff=40.0, coverage_cutoff=70.0, evalue_cutoff=1e-3, blastp_mode="very-sensitive", 
+							   prop_key_prots_needed=0.0, cpus=1):
+	"""
+	Description:
+
+	********************************************************************************************************************
+	Parameters:
+	- cluster_id: Identifier of the query gene cluster (e.g. single BGC or phage) in consideration.
+	- query_protein_fasta: FASTA file with all protein sequences for the query gene cluster.
+	- key_protein_fasta: FASTA file with all the key (subset) protein sequences for the query gene cluster.
+	- target_genomes_db: prepTG results directory of target genomes.
+	- workspace_dir: Workspace directory.
+	- logObject: A logging object.
+	- identity_cutoff: Minimum percent identity for homologs to query gene cluster proteins.
+	- coverage_cutoff: Minimum query coverage for homologs to query gene cluster proteins.
+	- evalue_cutoff: Maximum E-value for homologs to query gene cluster proteins.
+	- blastp_mode: Sensitivity mode for DIAMOND blastp.
+	- prop_key_prots_needed: The proportion of key proteins needed for the query gene cluster to be deemed present in a 
+	                         target genome.
+	- cpus: The number of CPUs to use.
+	********************************************************************************************************************
+	"""
+	try:
+		genome_wide_tsv_result_file = workspace_dir + 'total_gcs.tsv'
+		target_genome_dmnd_db = target_genomes_db + 'Target_Genomes_DB.dmnd'
+
+		# run diamond (use's fai function: runDiamondBlastp)
+		diamond_results_file = workspace_dir + 'DIAMOND_Results.txt'
+		fai.runDiamondBlastp(target_genome_dmnd_db, query_protein_fasta, workspace_dir, logObject,
+					 diamond_sensitivity=blastp_mode, evalue_cutoff=evalue_cutoff, compute_query_coverage=True, 
+					 cpus=cpus)
+
+		all_hgs = set([])
+		key_hgs = set([])
+
+		with open(query_protein_fasta) as oqpf:
+			for rec in SeqIO.parse(oqpf, 'fasta'):
+				all_hgs.add(rec.id)
+		
+		with open(key_protein_fasta) as okpf:
+			for rec in SeqIO.parse(okpf, 'fasta'):
+				key_hgs.add(rec.id)
+
+		# parse results (based closely on fai function: processDiamondBlastp)
+		best_hit_per_lt = defaultdict(lambda: defaultdict(lambda: [0.0, [], [], []]))
+		with open(diamond_results_file) as orf:
+			for line in orf:
+				line = line.strip()
+				ls = line.split()
+				hg = ls[0]
+				sample = ls[1].split('|')[0]
+				lt = ls[1].split('|')[1]
+				identity = float(ls[2])
+				qcovhsp = float(ls[7])
+				if qcovhsp < coverage_cutoff or identity < identity_cutoff: continue
+				bitscore = float(ls[4])
+				qlen = float(ls[5])
+				slen = float(ls[6])
+				sql_ratio = float(slen)/float(qlen)
+				if bitscore > best_hit_per_lt[sample][lt][0]:
+					best_hit_per_lt[sample][lt][0] = bitscore
+					best_hit_per_lt[sample][lt][1] = [hg]
+					best_hit_per_lt[sample][lt][2] = [identity]
+					best_hit_per_lt[sample][lt][3] = [sql_ratio]
+				elif bitscore == best_hit_per_lt[sample][lt][0]:
+					best_hit_per_lt[sample][lt][1].append(hg)
+					best_hit_per_lt[sample][lt][2].append(identity)
+					best_hit_per_lt[sample][lt][3].append(sql_ratio)
+
+		sample_best_hit_per_hg = defaultdict(lambda: defaultdict(list))
+		for sample in best_hit_per_lt:
+			for lt in best_hit_per_lt[sample]:
+				for hgi, hg in enumerate(best_hit_per_lt[sample][lt][1]):
+					sample_best_hit_per_hg[sample][hg].append([best_hit_per_lt[sample][lt][0],
+												               best_hit_per_lt[sample][lt][2][hgi], 
+															   best_hit_per_lt[sample][lt][3][hgi], lt])
+
+		outf_handle = open(genome_wide_tsv_result_file, 'w')
+		outf_handle.write('genome\tblank1\taai\tblank2\tshared_gene_prop\n')
+		for sample in sample_best_hit_per_hg:
+			top_identities = []
+			hgs_found = set([])
+			key_hgs_found = set([])
+			for hg in sample_best_hit_per_hg[sample]:
+				for i, hginfo in enumerate(sorted(sample_best_hit_per_hg[sample][hg], key=itemgetter(0,1,2), reverse=False)):
+					if i == 0:
+						top_identities.append(hginfo[1])
+						hgs_found.add(hginfo[3])
+						if hg in key_hgs:
+							key_hgs_found.add(hg)
+
+			key_hgs_found_prop = float(len(key_hgs_found))/len(key_hgs)
+			if key_hgs_found_prop < prop_key_prots_needed: continue
+			aai = statistics.mean(top_identities)
+			sgp = float(len(hgs_found))/len(all_hgs)
+			printrow = [sample, 'NA', str(aai), 'NA', str(sgp)]
+			outf_handle.write('\t'.join(printrow) + '\n')
+		outf_handle.close()
+		
+	except:
+		sys.stderr.write('Issues with running simple BLASTp for abon, atpoc, or apos.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issues with running simple BLASTp for abon, atpoc, or apos.\n')
 		logObject.error(traceback.format_exc())
 		sys.exit(1)

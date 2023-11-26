@@ -104,6 +104,7 @@ def create_parser():
 	parser.add_argument('-st', '--species_tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
 	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
 	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
+	parser.add_argument('-rgv', '--use_prodigal_gv_for_reference', action='store_true', help="If the --reference_genome option is used to define some coordinate\nalong a reference genome as the query, use prodigal-gv\ninstead of pyrodigal to call genes in the region.", required=False, default=False)
 	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
 	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported.", required=False, default=0.5)
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
@@ -170,6 +171,7 @@ def faiMain():
 	key_protein_min_prop = myargs.key_protein_min_prop
 	draft_mode = myargs.draft_mode
 	filter_paralogs = myargs.filter_paralogs
+	use_prodigal_gv_for_reference_flag = myargs.use_prodigal_gv_for_reference
 	plotting_flag = myargs.generate_plots
 	diamond_sensitivity = myargs.diamond_sensitivity.lower()
 	phyloheatmap_length = myargs.phyloheatmap_length
@@ -221,7 +223,7 @@ def faiMain():
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end,
 						protein_queries_fasta, single_query_fasta, target_genomes, outdir, species_tree,
-						draft_mode, filter_paralogs, evalue_cutoff,
+						draft_mode, filter_paralogs, use_prodigal_gv_for_reference_flag, evalue_cutoff,
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,
@@ -232,6 +234,7 @@ def faiMain():
 					   "Single protein query FASTA file", "Target genomes prepared directory by prepTG",
 					   "Output directory", "Species Tree", "Run in draft-assembly mode?",
 					   "Filter for paralogous/gene-content overlapping segments",
+					   "Use prodigal-gv instead of pyrodigal to perform gene calling for query region in reference genome",
 					   "General E-value cutoff for detection of protein homologs in genome",
 					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
 					   "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence",
@@ -355,7 +358,9 @@ def faiMain():
 			if not util.is_genbank(reference_genome) and util.is_fasta(reference_genome):
 				reference_genome_gbk = work_dir + 'reference.gbk'
 				gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', reference_genome, '-s', 'reference', '-l',
- 								 'OG', '-o', work_dir]
+	 							 'OG', '-o', work_dir]
+				if use_prodigal_gv_for_reference_flag:
+					gene_call_cmd += ['-gcm', 'prodigal-gv']
 				try:
 					subprocess.call(' '.join(gene_call_cmd), shell=True, stdout=subprocess.DEVNULL,
 									stderr=subprocess.DEVNULL,

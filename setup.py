@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 
 setup(name='zol',
-      version='1.3.11',
+      version='1.3.12',
       description='',
       url='http://github.com/Kalan-Lab/zol/',
       author='Rauf Salamzade',
@@ -14,6 +14,9 @@ setup(name='zol',
                'bin/fai',
                'bin/prepTG',
                'bin/abon',
+               'bin/apos',
+               'bin/atpoc',
+               'scripts/genbankToFasta.py',
                'scripts/selectSpecificGeneClusters.py',
                'scripts/runProdigalAndMakeProperGenbank.py',
                'scripts/listAllGenomesInDirectory.py',

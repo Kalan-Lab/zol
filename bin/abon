@@ -47,7 +47,7 @@ from operator import itemgetter
 from collections import defaultdict
 import traceback
 import pandas as pd
-import math 
+import math
 
 def create_parser():
 	""" Parse arguments """
@@ -59,12 +59,20 @@ def create_parser():
 	abon - Assess Bgc-Ome Novelty 
 	
 	abon wraps fai to assess the novelty of a sample's BGC-ome relative to a set of target genomes.
+	Alternatively, it can run a simple DIAMOND BLASTp analysis to just assess the presence of BGC genes
+	individually - without the requirement they are co-located like in the focal sample's BGCs.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-a', '--antismash_results', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=False, default=None)
 	parser.add_argument('-g', '--gecco_results', help='Path to GECCO BGC prediction results directory for a single sample/genome.', required=False, default=None)
 	parser.add_argument('-tg', '--target_genomes_db', help='prepTG database directory for target genomes of interest.', required=True)
 	parser.add_argument('-fo', '--fai_options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6"]', required=False, default="-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6")
+	parser.add_argument('-s', '--use_simple_blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
+	parser.add_argument('-si', '--simple_blastp_identity_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
+	parser.add_argument('-sc', '--simple_blastp_coverage_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
+	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-10].', required=False, default=1e-5)
+	parser.add_argument('-sk', '--simple_blastp_key_proteins_proportion_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
+	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
 	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use.', required=False, default=1)
 
@@ -79,6 +87,12 @@ def abon():
 	preptg_db_dir = myargs.target_genomes_db
 	outdir = os.path.abspath(myargs.outdir) + '/'
 	fai_options = myargs.fai_options
+	use_simple_blastp_flag = myargs.use_simple_blastp
+	simple_blastp_identity_cutoff = myargs.simple_blastp_identity_cutoff
+	simple_blastp_coverage_cutoff = myargs.simple_blastp_coverage_cutoff
+	simple_blastp_evalue_cutoff = myargs.simple_blastp_evalue_cutoff
+	simple_blastp_key_proteins_proportion_cutoff = myargs.simple_blastp_key_proteins_proportion_cutoff
+	simple_blastp_sensitivity_mode = myargs.simple_blastp_sensitivity_mode
 	cpus = myargs.cpus
 
 	# create output directory if needed, or warn of over-writing
@@ -96,8 +110,14 @@ def abon():
 	logObject = util.createLoggerObject(log_file)
 	version_string = util.getVersion()
 
-	sys.stdout.write('Running assessBiosyntheticNovelty.py version %s\n' % version_string)
-	logObject.info('Running assessBiosyntheticNovelty.py version %s' % version_string)
+	sys.stdout.write('Running abon version %s\n' % version_string)
+	logObject.info('Running abon version %s' % version_string)
+
+	# log command used
+	parameters_file = outdir + 'Command_Issued.txt'
+	parameters_handle = open(parameters_file, 'a+')
+	parameters_handle.write(' '.join(sys.argv) + '\n')
+	parameters_handle.close()
 
 	# Download GECCO weights pickle file from lsaBGC:
 	gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
@@ -128,12 +148,16 @@ def abon():
 						ls = line.split('\t')
 						bgc_coords[ls[1]] = [ls[0], ls[2], ls[3]]
 
-	sys.stdout.write('Found %d BGCs!\n' % len(bgc_genbank_paths))
-	logObject.info('Found %d BGCs!' % len(bgc_genbank_paths))
+	sys.stdout.write('Found %d BGC predictions!\n' % len(bgc_genbank_paths))
+	logObject.info('Found %d BGC predictions!' % len(bgc_genbank_paths))
 
-	fai_results_dir = outdir + 'fai_Results/'
+	fai_results_dir = outdir + 'fai_or_blast_Results/'
+	proteins_dir = outdir + 'Protein_FASTAs/'
 	key_proteins_dir = outdir + 'Key_Proteins_FASTAs/'
-	util.setupReadyDirectory([fai_results_dir, key_proteins_dir])
+	if use_simple_blastp_flag:
+		util.setupReadyDirectory([fai_results_dir, proteins_dir, key_proteins_dir])
+	else:
+		util.setupReadyDirectory([fai_results_dir, key_proteins_dir])
 
 	bgc_info_file = outdir + 'BGCome_Info.tsv'
 	bgc_info_handle = open(bgc_info_file, 'w')
@@ -145,13 +169,14 @@ def abon():
 	for bgc_path, bgc_program in bgc_genbank_paths:
 		bgc_id = '.gbk'.join(bgc_path.split('/')[-1].split('.gbk')[:-1])
 		key_prot_file = key_proteins_dir + bgc_id + '.faa'
+		gen_prot_file = proteins_dir + bgc_id + '.faa'
 		bgc_fai_res_dir = fai_results_dir + bgc_id + '/'
 
 		bgc_type, cds_count, key_cds_count, bp_length, scaffold, start_coord, end_coord = ['NA']*7
 		if bgc_program == 'antismash':
-			bgc_type, cds_count, key_cds_count, bp_length, scaffold, start_coord, end_coord = identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_prot_file, logObject=logObject)
+			bgc_type, cds_count, key_cds_count, bp_length, scaffold, start_coord, end_coord = identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_prot_file, gen_prot_file, logObject, use_simple_blastp=use_simple_blastp_flag)
 		elif bgc_program == 'gecco':
-			bgc_type, cds_count, key_cds_count, bp_length = identifyKeyProteinsInGECCOBGC(gecco_weights_pkl_file, bgc_path, key_prot_file, logObject=logObject)
+			bgc_type, cds_count, key_cds_count, bp_length = identifyKeyProteinsInGECCOBGC(gecco_weights_pkl_file, bgc_path, key_prot_file, gen_prot_file, logObject, use_simple_blastp=use_simple_blastp_flag)
 			try:
 				scaffold, start_coord, end_coord = bgc_coords[bgc_id]
 			except:
@@ -162,10 +187,18 @@ def abon():
 
 		bgc_info_handle.write('\t'.join([str(x) for x in [bgc_id, bgc_program, scaffold, start_coord, end_coord, bgc_type, bp_length, cds_count, key_cds_count]]) + '\n')	
 
-		# run fai 
-		fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(cpus)]
-		genome_wide_tsv_result_file = fai_results_dir + bgc_id + '/Spreadsheet_TSVs/total_gcs.tsv'
-		runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
+		if use_simple_blastp_flag:
+			# run simple blastp
+			util.setupReadyDirectory([bgc_fai_res_dir])
+			util.diamondBlastAndGetBestHits(bgc_id, gen_prot_file, key_prot_file, preptg_db_dir, bgc_fai_res_dir, logObject,
+								   			identity_cutoff=simple_blastp_identity_cutoff, coverage_cutoff=simple_blastp_coverage_cutoff, 
+											blastp_mode=simple_blastp_sensitivity_mode, prop_key_prots_needed=simple_blastp_key_proteins_proportion_cutoff,
+											evalue_cutoff=simple_blastp_evalue_cutoff, cpus=cpus)
+		else:
+			# run fai 
+			fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(cpus)]
+			genome_wide_tsv_result_file = bgc_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
+			runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	bgc_info_handle.close()
 
 	tg_bgc_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))
@@ -176,6 +209,9 @@ def abon():
 		bgc_id = bgc_path.split('/')[-1].split('.gbk')[0]
 		bgcs.add(bgc_id)
 		genome_wide_tsv_result_file = fai_results_dir + bgc_id + '/Spreadsheet_TSVs/total_gcs.tsv'
+		if use_simple_blastp_flag:
+			genome_wide_tsv_result_file = fai_results_dir + bgc_id + '/total_gcs.tsv'
+
 		with open(genome_wide_tsv_result_file) as ogwtrf:
 			for i, line in enumerate(ogwtrf):
 				line = line.strip()
@@ -192,9 +228,10 @@ def abon():
 	target_genome_listing_file = preptg_db_dir + 'Target_Genome_Annotation_Files.txt'
 	result_file = outdir + 'BGCome_to_Target_Genomes_Similarity.tsv'
 	result_handle = open(result_file, 'w')
-	result_handle.write('\t'.join(['target_genome', 'shared_bgcs'] + [x + ' - AAI' + '\t' + x + ' - Proportion Shared Genes' for x in sorted(bgcs)]) + '\n')
-	numeric_columns_t2 = ['shared_bgcs'] + [x + ' - AAI' for x in sorted(bgcs)] + [x + ' - Proportion Shared Genes' for x in sorted(bgcs)]
+	result_handle.write('\t'.join(['target_genome', 'shared_bgcs', 'aggregate_score'] + [x + ' - AAI' + '\t' + x + ' - Proportion Shared Genes' for x in sorted(bgcs)]) + '\n')
+	numeric_columns_t2 = ['shared_bgcs', 'aggregate_score'] + [x + ' - AAI' for x in sorted(bgcs)] + [x + ' - Proportion Shared Genes' for x in sorted(bgcs)]
 	tgs = set([])
+	all_scores = []
 	with open(target_genome_listing_file) as otglf:
 		for line in otglf:
 			line = line.strip()
@@ -202,7 +239,12 @@ def abon():
 			tg = ls[0]
 			tgs.add(tg)
 			shared_bgcs = tg_total_bgcs_found[tg]
-			printlist = [tg, str(shared_bgcs)]
+			total_score = 0.0
+			for bgc in sorted(bgcs):
+				if tg_bgc_aai[tg][bgc] != "NA":
+					total_score += float(tg_bgc_aai[tg][bgc])*float(tg_bgc_sgp[tg][bgc])
+			printlist = [tg, str(shared_bgcs), str(total_score)]
+			all_scores.append(total_score)
 			for bgc in sorted(bgcs):
 				printlist.append(tg_bgc_aai[tg][bgc])
 				printlist.append(tg_bgc_sgp[tg][bgc])
@@ -240,7 +282,10 @@ def abon():
 	# total bgcs shared (t2)
 	t2_worksheet.conditional_format('B2:B' + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": len(bgcs)})
 
-	bgc_index = 2
+	# aggregate score (t2)
+	t2_worksheet.conditional_format('C2:C' + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#f7db94", 'max_color': "#ad8f40", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": max(all_scores)})
+
+	bgc_index = 3
 	for bgc in bgcs:
 		columnid_pid = util.determineColumnNameBasedOnIndex(bgc_index)
 		columnid_sgp = util.determineColumnNameBasedOnIndex(bgc_index+1)
@@ -258,7 +303,6 @@ def abon():
 
 	# close workbook
 	workbook.close()
-
 
 	sys.stdout.write('Done running abon!\nFinal results can be found at:\n%s\n' % (abon_spreadsheet_file))
 	logObject.info('Done running abon!\nFinal results can be found at:\n%s\n' % (abon_spreadsheet_file))
@@ -300,9 +344,13 @@ def runCmdViaSubprocess(cmd, logObject, check_files=[], check_directories=[], st
 		raise RuntimeError('Had an issue running: %s' % ' '.join(cmd))
 
 
-def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, logObject):
+def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, general_proteins_fasta, logObject, use_simple_blastp=False):
 	try:
 		kpf_handle = open(key_proteins_fasta, 'w')
+		gpf_handle = None
+		if use_simple_blastp: 
+			gpf_handle = open(general_proteins_fasta, 'w')
+
 		bgc_type, cds_count, key_cds_count, bp_length = ['NA']*4
 		bgc_types = []
 		cds_count = 0 
@@ -329,8 +377,15 @@ def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, logObject):
 							key_cds_count += 1
 							lt = feature.qualifiers.get('locus_tag')[0]
 							prot_seq = feature.qualifiers.get('translation')[0]
-							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')				
+							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')			
+						if use_simple_blastp:
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							gpf_handle.write('>' + lt + '\n' + prot_seq + '\n')				
 		kpf_handle.close()
+
+		if gpf_handle != None:
+			gpf_handle.close()
 
 		bgc_scaffold, bgc_start, bgc_end = ['NA']*3
 		bgc_starts = []
@@ -367,9 +422,12 @@ def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, logObject):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def identifyKeyProteinsInGECCOBGC(dom_weights_file, bgc_path, key_proteins_fasta, logObject):
+def identifyKeyProteinsInGECCOBGC(dom_weights_file, bgc_path, key_proteins_fasta, general_proteins_fasta, logObject, use_simple_blastp=False):
 	try:
 		kpf_handle = open(key_proteins_fasta, 'w')
+		gpf_handle = None
+		if use_simple_blastp: 
+			gpf_handle = open(general_proteins_fasta, 'w')
 
 		domains = []
 		domain_weights = {}
@@ -432,12 +490,20 @@ def identifyKeyProteinsInGECCOBGC(dom_weights_file, bgc_path, key_proteins_fasta
 							key_cds_count += 1
 							lt = feature.qualifiers.get('locus_tag')[0]
 							prot_seq = feature.qualifiers.get('translation')[0]
-							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')				
+							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')		
+						if use_simple_blastp:
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							gpf_handle.write('>' + lt + '\n' + prot_seq + '\n')					
 		kpf_handle.close()
+
+		if gpf_handle != None:
+			gpf_handle.close()
+
 		return([bgc_type, cds_count, key_cds_count, bp_length])
 	except Exception as e:
-		logObject.error('Had an issue parsing antiSMASH BGC: %s' % bgc_path)
-		sys.stderr.write('Had an issue parsing antiSMASH BGC: %s' % bgc_path)
+		logObject.error('Had an issue parsing GECCO BGC: %s' % bgc_path)
+		sys.stderr.write('Had an issue parsing GECCO BGC: %s' % bgc_path)
 		logObject.error(e)
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

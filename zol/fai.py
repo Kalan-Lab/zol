@@ -381,7 +381,7 @@ def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, 
 	return(target_genome_gene_info)
 
 def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, logObject,
-					 diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1):
+					 diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1, compute_query_coverage=False):
 	"""
 	Description:
 	This functions runs DIAMOND blastp analysis in fai for assessing homology of target genome proteins to query
@@ -396,6 +396,8 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 	- evalue_cutoff: The maximum E-value cutoff to regard an alignment to a target genome protein as homologous to a
 	                 query protein.
 	- cpus: The number of CPUs to use.
+	- compute_query_coverage: Whether to compute the query coverage - used for the simple BLASTp approach of abon,
+	                          atpoc, and apos.
 	********************************************************************************************************************
 	Return:
 	- diamond_results_file: Path to the DIAMOND blastp resulting alignment file.
@@ -408,6 +410,11 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 					   '--query', query_fasta, '--db', target_concat_genome_db, '--outfmt', '6', 'qseqid', 'sseqid',
 					   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
 					   'bitscore', 'qlen', 'slen', '-k0', '--out', diamond_results_file, '--evalue', str(evalue_cutoff)]
+		if compute_query_coverage:
+			diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--' + diamond_sensitivity,
+				'--query', query_fasta, '--db', target_concat_genome_db, '--outfmt', '6', 'qseqid', 'sseqid',
+				'pident', 'evalue', 'bitscore', 'qlen', 'slen', 'qcovhsp', '-k0', '--out', diamond_results_file, 
+				'--evalue', str(evalue_cutoff)]
 		try:
 			subprocess.call(' '.join(diamond_blastp_cmd), shell=True, stdout=subprocess.DEVNULL,
 							stderr=subprocess.DEVNULL,

@@ -101,7 +101,7 @@ def create_parser():
 	parser.add_argument('-o', '--output_dir', help='Output directory to stored input for fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
-	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Flag to use prodigal instead of pyrodigal.', required=False, default=False)
+	parser.add_argument('-gcm', '--gene_calling_method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')
 	parser.add_argument('-m', '--meta_mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
 	parser.add_argument('-rp', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
 	parser.add_argument('-cst', '--create_species_tree', action='store_true', help='Use skani to infer a neighbor-joing based species tree for the genomes.', required=False, default=False)
@@ -136,7 +136,7 @@ def prepTG():
 	rename_locus_tags = myargs.rename_locus_tags
 	cpus = myargs.cpus
 	max_memory = myargs.max_memory
-	use_prodigal = myargs.use_prodigal
+	gene_calling_method = myargs.gene_calling_method
 	meta_mode = myargs.meta_mode
 	create_species_tree = myargs.create_species_tree
 	reference_proteome = myargs.reference_proteome
@@ -173,10 +173,10 @@ def prepTG():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [download_premade, target_genomes_dir, outdir, use_prodigal, meta_mode, 
+	parameter_values = [download_premade, target_genomes_dir, outdir, gene_calling_method, meta_mode, 
 		                create_species_tree, cpus, max_memory]
 	parameter_names = ["Download Premade Database", "Target Genomes Directory", "Output Directory", 
-		    		   "Use Prodigal?", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", 
+		    		   "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", 
 					   "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
@@ -257,7 +257,7 @@ def prepTG():
 				util.setupReadyDirectory([additional_prodigal_outdir])
 				util.processGenomesUsingProdigal(additional_sample_genomes, additional_prodigal_outdir,
 												additional_proteomes_directory, additional_genbanks_directory, logObject,
-												cpus=cpus, locus_tag_length=locus_tag_length, use_prodigal=use_prodigal,
+												cpus=cpus, locus_tag_length=locus_tag_length, gene_calling_method=gene_calling_method,
 												meta_mode=meta_mode)
 				shutil.rmtree(additional_prodigal_outdir)
 			else:

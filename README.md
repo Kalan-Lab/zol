@@ -11,16 +11,29 @@
 Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). **The main result from zol is a detailed XLSX spreadsheet report with automated color formatting showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.**
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)
-3. [Test Case](#test-case)
-4. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
-5. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
-6. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
-7. [Premade Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
-     - (***New***) Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
-8. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
+3. [Overview of Major Results](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files)
+4. [Test Case](#test-case)
+5. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
+6. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
+7. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
+8. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
+     - Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
+9. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
+10. [Assessing a focal genome's BGC-ome, phage-ome, and plasmid-ome conservation](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
+     - (***New***) Wrapper programs of fai for easy assessment of a focal sample's BGC-ome, phage-ome, and plasmid-ome across a set of target/datbase genomes.
 
 ![image](https://github.com/Kalan-Lab/zol/assets/4260723/23c8eae2-ed2f-4c58-bf69-89506c258d9a)
-   
+
+
+**Citation:**
+```
+zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
+
+Rauf Salamzade, Patricia Tran, Cody Martin, Abigail L. Manson, Michael S. Gilmore,
+Ashlee M. Earl, Karthik Anantharaman, Lindsay R. Kalan
+bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
+```
+
 ## Program Description 
 
 ### Prepate Target Genomes (prepTG)

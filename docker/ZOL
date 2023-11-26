@@ -61,8 +61,10 @@ if __name__ == '__main__':
 		  across homologous/orthologous gene-cluster instance.
 		
 		- abon: assess the novelty/conservation of the BGC-ome of a sample against some database of alternate/target genomes.
-		- atpoc: assess the similarity/conservation of the temperate phage-ome of a sample against some database of alternate/target genomes.
-		- apos: assess the similarity/conservation of the plasmid-ome of a sample against some database of alternate/target genomes.
+		- atpoc: assess the similarity/conservation of the temperate phage-ome of a sample against some database of 
+			 alternate/target genomes.
+		- apos: assess the similarity/conservation of the plasmid-ome of a sample against some database of 
+			alternate/target genomes.
 		
 		Usage examples:
 		
@@ -74,8 +76,8 @@ if __name__ == '__main__':
 		      with a backslash. E.g.:
 			
 		./run_ZOL.sh abon -tg Bacillales_Reps_prepTG_Database/ -a Bsubtilis_st168_antiSMASH_Results/ \
-			               -g Bsubtilis_st168_GECCO_Results/ -o abon_Results/ -c 20 \
-						   -fo \\"-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6\\"
+				-g Bsubtilis_st168_GECCO_Results/ -o abon_Results/ -c 20 \
+				-fo \\"-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6\\"
 
 
 		""")

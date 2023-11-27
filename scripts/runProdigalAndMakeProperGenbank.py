@@ -64,7 +64,7 @@ def create_parser():
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default='AAA', required=False)
 	parser.add_argument('-gcm', '--gene_calling_method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')
-	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
+	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal. Automatically turned on if prodigal-gv is requested.', default=False, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -122,12 +122,12 @@ def prodigalAndReformat():
 	elif gene_calling_method == 'prodigal':
 		prodigal_cmd = ['prodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
 	elif gene_calling_method == 'prodigal-gv':
-		prodigal_cmd = ['prodigal-gv', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
+		prodigal_cmd = ['prodigal-gv', '-p', 'meta', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
 	else:
 		sys.stderr.write('The gene-calling method selected is not a valid option. Has to be either: prodigal, pyrodigal, or prodigal-gv.\n')
 		sys.exit(1)
 
-	if meta_mode:
+	if meta_mode and not gene_calling_method == 'prodigal-gv':
 		prodigal_cmd += ['-p', 'meta']
 
 	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')

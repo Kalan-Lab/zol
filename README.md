@@ -34,6 +34,8 @@ Ashlee M. Earl, Karthik Anantharaman, Lindsay R. Kalan
 bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
 ```
 
+In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.
+
 ## Program Description 
 
 ### Prepate Target Genomes (prepTG)

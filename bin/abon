@@ -70,7 +70,7 @@ def create_parser():
 	parser.add_argument('-s', '--use_simple_blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
 	parser.add_argument('-si', '--simple_blastp_identity_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
 	parser.add_argument('-sc', '--simple_blastp_coverage_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
-	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-10].', required=False, default=1e-5)
+	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
 	parser.add_argument('-sk', '--simple_blastp_key_proteins_proportion_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
 	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)

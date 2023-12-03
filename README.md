@@ -40,7 +40,7 @@ In addition, please cite important [dependency software or databases](https://gi
 
 ### Prepate Target Genomes (prepTG)
 
-**prepTG** processes and performs gene-calling or gene-mapping on an input set of genomes to ease and optimize downstream searches using fai.
+**`prepTG`** processes and performs gene-calling or gene-mapping on an input set of genomes to ease and optimize downstream searches using fai.
 
 ### Find Additional Instances (fai)
 

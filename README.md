@@ -19,7 +19,7 @@ Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative 
 8. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
      - Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
 9. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
-10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome conservation](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
+10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
      - (***New***) Tools [abon](https://github.com/Kalan-Lab/zol/wiki/9.-more-info-on-abon), [atpoc](https://github.com/Kalan-Lab/zol/wiki/9.2-more-info-on-atpoc), and [apos](https://github.com/Kalan-Lab/zol/wiki/9.3-more-info-on-apos) wrap fai and allow for easy assessment of the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome across a set of target/datbase genomes (e.g. other genomes in the same species as the focal sample).
 
 ![image](https://github.com/Kalan-Lab/zol/assets/4260723/23c8eae2-ed2f-4c58-bf69-89506c258d9a)

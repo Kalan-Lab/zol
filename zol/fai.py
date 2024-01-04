@@ -1603,9 +1603,9 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 						line = line.strip()
 						sample, gc_genbank_file, corr_value = line.split('\t')
 						if corr_value == 'irrelevant':
-							gcgbk_to_corr[gc_genbank_file] = float('nan') 
+							gcgbk_to_corr[gc_genbank_file] = float('nan')
 						else:
-							gcgbk_to_corr[gc_genbank_file] = float(corr_value)
+							gcgbk_to_corr[gc_genbank_file] = round(float(corr_value), 3)
 
 		tiny_aai_plot_input = plot_work_dir + 'Tiny_AAI_Plot_Data.txt'
 		tiny_aai_plot_handle = open(tiny_aai_plot_input, 'w')
@@ -1691,7 +1691,7 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 							max_sql = tot_hg_best_hits[hg][2][i]
 					hg_pid_info.append(max_pid)
 					hg_sql_info.append(max_sql)
-					hg_pid_sql_pair.append(str(max_pid) + '\t' + str(max_sql))
+					hg_pid_sql_pair.append(str(round(max_pid,3)) + '\t' + str(round(max_sql,3)))
 					copy_counts.append(str(tot_hg_hits_copy_counts[hg]))
 			
 				mean_aai = statistics.mean([x for x in hg_pid_info if x > 0.0])
@@ -1701,7 +1701,7 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 				avg_corr_value = statistics.mean(tot_corr_values)
 				number_gcs = len(igcs)
 				
-				tot_row = [str(x) for x in [sample, aggregate_bitscore, mean_aai, mean_sql, prop_hg_found, avg_corr_value, tot_bg_genes, number_gcs, copy_count_string]] + hg_pid_sql_pair
+				tot_row = [str(x) for x in [sample, round(aggregate_bitscore, 3), round(mean_aai, 3), round(mean_sql, 3), round(prop_hg_found, 3), round(avg_corr_value, 3), tot_bg_genes, number_gcs, copy_count_string]] + hg_pid_sql_pair
 				aggregate_bitscores.append(aggregate_bitscore)
 				tot_tsv_handle.write('\t'.join(tot_row) + '\n')
 				tiny_aai_plot_handle.write('\t'.join([str(x) for x in [sample, mean_aai, prop_hg_found, avg_corr_value]]) + '\n')
@@ -1723,7 +1723,7 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 								max_sql = igc_hg_best_hits[igc][hg][2][i]
 						igc_hg_pid_info.append(max_pid)
 						igc_hg_sql_info.append(max_sql)
-						igc_hg_pid_sql_pair.append(str(max_pid) + '\t' + str(max_sql))
+						igc_hg_pid_sql_pair.append(str(round(max_pid, 3)) + '\t' + str(round(max_sql, 3)))
 						igc_copy_counts.append(str(igc_hg_hits_copy_counts[igc][hg]))
 			
 					igc_mean_aai = statistics.mean([x for x in igc_hg_pid_info if x > 0.0])
@@ -1731,7 +1731,7 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 					igc_prop_hg_found = len([x for x in igc_hg_pid_info if x > 0.0])/float(len(hg_list))
 					copy_count_string = ','.join(igc_copy_counts)
 
-					igc_row = [str(x) for x in [sample, igc, igc_aggregate_bitscore, igc_mean_aai, igc_mean_sql, 
+					igc_row = [str(x) for x in [sample, igc, round(igc_aggregate_bitscore, 3), round(igc_mean_aai, 3), round(igc_mean_sql, 3), 
 								igc_prop_hg_found, gcgbk_to_corr[igc], igc_bg_genes[igc], copy_count_string]] + igc_hg_pid_sql_pair
 					igc_aggregate_bitscores.append(igc_aggregate_bitscore)
 					igc_tsv_handle.write('\t'.join(igc_row) + '\n')		
@@ -1773,39 +1773,44 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 		tot_row_count += 1
 		igc_row_count += 1
 
-		# aggregate bitscore coloring
-		tot_worksheet.conditional_format('B2:B' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(aggregate_bitscores), "max_value": max(aggregate_bitscores)})
-		igc_worksheet.conditional_format('C2:C' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(igc_aggregate_bitscores), "max_value": max(igc_aggregate_bitscores)})
+		if len(aggregate_bitscores) > 0:
+			# aggregate bitscore coloring
+			tot_worksheet.conditional_format('B2:B' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(aggregate_bitscores), "max_value": max(aggregate_bitscores)})
+			igc_worksheet.conditional_format('C2:C' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": min(igc_aggregate_bitscores), "max_value": max(igc_aggregate_bitscores)})
 
-		# mean aai 
-		tot_worksheet.conditional_format('C2:C' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
-		igc_worksheet.conditional_format('D2:D' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+			# mean aai 
+			tot_worksheet.conditional_format('C2:C' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format('D2:D' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
 
-		# mean sequence-to-query ratio 
-		tot_worksheet.conditional_format('D2:D' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
-		igc_worksheet.conditional_format('E2:E' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			# mean sequence-to-query ratio 
+			tot_worksheet.conditional_format('D2:D' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format('E2:E' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
 
-		# proportion query genes found
-		tot_worksheet.conditional_format('E2:E' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
-		igc_worksheet.conditional_format('F2:F' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			# proportion query genes found
+			tot_worksheet.conditional_format('E2:E' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format('F2:F' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fce8ee", 'max_color': "#eb8da9", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
 
-		# syntenic-correlation
-		tot_worksheet.conditional_format('F2:F' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
-		igc_worksheet.conditional_format('G2:G' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			# syntenic-correlation
+			tot_worksheet.conditional_format('F2:F' + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+			igc_worksheet.conditional_format('G2:G' + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#fcf6eb", 'max_color': "#d1c0a1", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
 
-		hg_index = 9
-		for hg in hg_list:
-			columnid_pid = util.determineColumnNameBasedOnIndex(hg_index)
-			columnid_sql = util.determineColumnNameBasedOnIndex(hg_index+1)
-			hg_index += 2
+			hg_index = 9
+			for hg in hg_list:
+				columnid_pid = util.determineColumnNameBasedOnIndex(hg_index)
+				columnid_sql = util.determineColumnNameBasedOnIndex(hg_index+1)
+				hg_index += 2
 
-			# percent identity
-			tot_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
-			igc_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+				# percent identity
+				tot_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+				igc_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
 
-			# sequence-to-query ratio
-			tot_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
-			igc_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+				# sequence-to-query ratio
+				tot_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+				igc_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		else:
+			tot_worksheet.write(1, 0, 'No hits to query gene cluster in target genomes found at requested thresholds! Try loosening parameters perhaps.')
+			igc_worksheet.write(1, 0, 'No hits to query gene cluster in target genomes found at requested thresholds! Try loosening parameters perhaps.')
 
 		# Freeze the first row of both sheets
 		tot_worksheet.freeze_panes(1, 0)

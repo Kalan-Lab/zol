@@ -98,7 +98,7 @@ def create_parser():
 
 	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific taxon/genus.\nProvide name of the taxon, e.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
-	parser.add_argument('-o', '--output_dir', help='Output directory to stored input for fai.', required=True)
+	parser.add_argument('-o', '--output_dir', help='Output directory, which can then be provided\nas input for the "-tg" argument in fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
 	parser.add_argument('-gcm', '--gene_calling_method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')

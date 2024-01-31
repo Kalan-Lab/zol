@@ -44,6 +44,7 @@ from zol import util
 import subprocess
 import multiprocessing
 import shutil
+import gzip
 
 premade_db_set = set(['Acinetobacter', 'Bacillales', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
                       'Klebsiella', 'Lactobacillus', 'Listeria', 'Micromonospora', 'Mycobacterium', 'Pseudomonas', 
@@ -74,7 +75,7 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 
-	Prepares target genomes for being searched for query gene clusters using fai.
+	Prepares a directory of target genomes for being searched for query gene clusters using fai.
 	
 	Premade databases of representative genomes are available for the following genera:
 
@@ -84,8 +85,24 @@ def create_parser():
 	Streptomyces (n=1,555), Streptococcus (n=2,452), Cutibacterium (n=27), Neisseria (n=414),
 	Lactobacillus (n=541), and Micromonospora (n=211).
 
-	Considerations
-	--------------------------------------------------------------------------------------
+	In addition, users can simply request all genomes belonging to a specific species/genus 
+	in GTDB R214 to be downloaded.
+	
+        ----------------------------------------------------------------------------------------
+	> Example commands:
+
+	1. Setup a prepTG database which includes some local genomes and all Cutibacterium acnes
+	   genomes: 
+	
+	    prepTG -i User_Genomes_Directory/ -g "Cutibacterium glutamicum" -o prepTG_Database/
+	
+	2. Setup local prepTG database by downloading a premade one of representative 
+	   Corynebacterium genomes:
+
+	    prepTG -d Cutibacterium -o prepTG_Database/
+
+	----------------------------------------------------------------------------------------
+	> Considerations
 	If FASTA format is provided, assumption is that genomes are prokaryotic and 
 	pyrodigal/prodigal will be used to perform gene-calling. Eukaryotic genomes can 
 	be provided as FASTA format but the --reference_proteome file should be used in 
@@ -98,7 +115,8 @@ def create_parser():
 
 	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific taxon/genus.\nProvide name of the taxon, e.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
-	parser.add_argument('-o', '--output_dir', help='Output directory, which can then be provided\nas input for the "-tg" argument in fai.', required=True)
+	parser.add_argument('-g', '--gtdb_taxon', help='Name of a GTDB-R214 valid genus or species, should be surrounded by\nquotes (e.g. "Escherichia coli").', required=False, default=None)
+	parser.add_argument('-o', '--output_dir', help='Output directory, which can then be provided as input for the\n"-tg" argument in fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
 	parser.add_argument('-gcm', '--gene_calling_method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')
@@ -130,6 +148,7 @@ def prepTG():
 	myargs = create_parser()
 
 	target_genomes_dir = myargs.input_dir
+	gtdb_taxon = myargs.gtdb_taxon
 	download_premade = myargs.download_premade
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	locus_tag_length = myargs.locus_tag_length
@@ -147,14 +166,11 @@ def prepTG():
 	else:
 		os.system('mkdir %s' % outdir)
 
-	if target_genomes_dir != None and download_premade == None: 
-		try:
-			assert(os.path.isdir(target_genomes_dir))
-			target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
-		except:
-			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
-			sys.exit(1)
-	elif target_genomes_dir == None and download_premade != None:
+	if target_genomes_dir == None and download_premade == None and gtdb_taxon == None:
+		sys.stderr.write('No input genomes provided or requested!\n')
+		sys.exit(1)
+
+	if download_premade != None:
 		try:
 			assert(download_premade in premade_db_set)
 		except:
@@ -162,27 +178,149 @@ def prepTG():
 			sys.stderr.write('Valid options include:\n' + ', '.join(sorted(premade_db_set)) + '\n')
 			sys.exit(1)
 
-	"""
+	if gtdb_taxon != None and download_premade != None:
+		sys.stderr.write('Currently requesting genomes for a specific GTDB genus/species and also requesting using a premade database is not supported.\n')
+		sys.exit(1)
+
+	if target_genomes_dir != None and download_premade != None:
+		sys.stderr.write('Currently providing genomes in a directory and also requesting a premade database is not supported.\n')
+		sys.exit(1)
+
+	if target_genomes_dir != None:
+		try:
+			assert(os.path.isdir(target_genomes_dir))
+			target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
+		except:
+			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+			sys.exit(1)
+
+	"""	
 	START WORKFLOW
 	"""
-
+	
 	sys.stdout.write('Input command:\n%s\n' % ' '.join(sys.argv))
 
-	# create logging object
+        # create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [download_premade, target_genomes_dir, outdir, gene_calling_method, meta_mode, 
-		                create_species_tree, cpus, max_memory]
-	parameter_names = ["Download Premade Database", "Target Genomes Directory", "Output Directory", 
-		    		   "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", 
-					   "Maximum Memory in GB"]
+	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, outdir, gene_calling_method, meta_mode, create_species_tree, cpus, max_memory]
+	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "Output Directory", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
 	logObject.info('Running prepTG version %s' % version)
 	sys.stdout.write('Running prepTG version %s\n' % version)
+
+
+	gtdb_genomes_dir = outdir + 'GTDB_Genomes/'
+	gtdb_genomes_listing_file = outdir + 'GTDB_Genomes_Listing.txt'
+	if gtdb_taxon != None:
+		# Step 0: Download GTDB listing file from lsaBGC git repo, parse GTDB information 
+		# file, get list of Genbank accessions, and perform dry-run with ncbi-genome-download 
+		# if requested.
+		sys.stdout.write("Using axel to download the GTDB R214 listing file from the lsaBGC git repo.\n")
+		gtdb_listing_file = outdir + "GTDB_R214_Information.txt.gz"	
+		wget_cmd = ['axel', 'https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GTDB_R214_Information.txt.gz', '-o', gtdb_listing_file]
+		try:
+			subprocess.call(' '.join(wget_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+			assert (os.path.isfile(gtdb_listing_file))
+		except:
+			sys.stderr.write('Had an issue running: %s\n' % ' '.join(cmd))
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+	
+		genbank_accession_listing_file = outdir + 'NCBI_Genbank_Accession_Listing.txt'
+		sys.stdout.write("--------------------\nStep 0\n--------------------\nBeginning by assessing which genomic assemblies are available for the taxa %s in GTDB and NCBI's Genbank db\n" % gtdb_taxon)
+
+		if not os.path.isfile(genbank_accession_listing_file):
+			genbank_accession_listing_handle = open(genbank_accession_listing_file, 'w')
+			with gzip.open(gtdb_listing_file, 'rt') as ogtdb:
+				for line in ogtdb:
+					line = line.strip('\n')
+					ls = line.split('\t')
+					if ls[0] == 'none': continue
+					if len(gtdb_taxon.split()) == 1:
+						if ls[1] == gtdb_taxon:
+							genbank_accession_listing_handle.write(ls[0] + '\n')
+					elif len(gtdb_taxon.split()) == 2:
+						if ls[2] == gtdb_taxon:
+							genbank_accession_listing_handle.write(ls[0] + '\n')
+			genbank_accession_listing_handle.close()
+
+		ogalf = open(genbank_accession_listing_file)
+		accession_count = len(ogalf.readlines())
+		ogalf.close()
+
+		if accession_count == 0:
+			sys.stderr.write('Warning: no genomes found to belong the genus or species specified in GTDB.\n')
+		else:
+			genome_listing_file = outdir + 'GTDB_Genomes_from_NCBIGenbank_for_Taxa.txt'
+			if not os.path.isfile(genome_listing_file):
+				if accession_count != 0:
+					ngd_dry_cmd = ['ncbi-genome-download', '--dry-run', '--section', 'genbank', '-A', genbank_accession_listing_file, 'bacteria', '>', genome_listing_file]
+					try:
+						subprocess.call(' '.join(ngd_dry_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+						assert (os.path.isfile(genome_listing_file))
+					except:
+						sys.stderr.write('Had an issue running: %s\n' % ' '.join(cmd))
+						sys.stderr.write(traceback.format_exc())
+				else:
+					of = open(genome_listing_file, 'w')
+					of.close()
+
+			oglf = open(genome_listing_file)
+			genome_count = len(oglf.readlines())
+			oglf.close()
+			if genome_count == 0:
+				sys.stderr.write('Warning: no genomes could be downloaded with ncbi-genome-download.\n')
+			else:
+				if genome_count != 0:
+					ngd_real_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section',
+							'genbank', '-A', genbank_accession_listing_file, '-o', gtdb_genomes_dir,
+							'--flat-output',  'bacteria']
+					try:
+						subprocess.call(' '.join(ngd_real_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+						assert (os.path.isdir(gtdb_genomes_dir))
+					except:
+						sys.stderr.write('Had an issue running: %s\n' % ' '.join(cmd))
+						sys.stderr.write(traceback.format_exc())
+
+					uncompress_cmds = []
+					for f in os.listdir(gtdb_genomes_dir):
+						uncompress_cmds.append(['gunzip', gtdb_genomes_dir + f, logObject])
+					p = multiprocessing.Pool(cpus)
+					p.map(util.multiProcess, uncompress_cmds)
+					p.close()
+
+					gca_to_species_name = {}
+					with gzip.open(gtdb_listing_file, 'rt') as ogtdb:
+						for line in ogtdb:
+							line = line.strip('\n')
+							ls = line.split('\t')
+							if ls[0] == 'none': continue
+							gca = ls[0]
+							sp_name = '_'.join(ls[2].split())
+							gca_to_species_name[gca] = sp_name
+									
+					for gf in os.listdir(gtdb_genomes_dir):
+						gfile = gtdb_genomes_dir + gf  
+						if not gfile.endswith('.fasta') and not gfile.endswith('.fa') and not gfile.endswith('.fna'): continue
+						assert (util.is_fasta(gfile))
+						gca = '_'.join(gf.split('_')[:2])
+						species_name = gca_to_species_name[gca]
+						renamed_gfile = gtdb_genomes_dir + species_name + '_' + gca + '.fasta'
+						os.rename(gfile, renamed_gfile)
+
+	if target_genomes_dir != None:
+		try:
+			assert(os.path.isdir(target_genomes_dir))
+			target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
+		except:
+ 			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+ 			sys.exit(1)
+
 
 	# set max memory limit
 	if max_memory != None:
@@ -219,19 +357,39 @@ def prepTG():
 			sys.exit(1)
 	else:
 		# Step 1: List genomes in directory
-		sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input directory.\n')
+		sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input or requested for download from GTDB/NCBI.\n')
 		target_listing_file = outdir + 'Target_Genomes.txt'
 		uncompress_dir = outdir + 'Uncompressed_Genomes/'
-		list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
-					target_listing_file]
-		try:
-			subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-							executable='/bin/bash')
-			logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
-		except Exception as e:
-			logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
-			sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
-			logObject.error(e)
+
+		if target_genomes_dir != None:
+			list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
+						target_listing_file]
+			try:
+				subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+				logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
+			except Exception as e:
+				logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
+				sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+				logObject.error(e)
+				sys.exit(1)
+		if gtdb_taxon != None:
+			list_cmd = ['listAllGenomesInDirectory.py', '-i', gtdb_genomes_dir, '--uncompress_dir', uncompress_dir, '>>', target_listing_file]
+			try:
+				subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+				logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
+			except Exception as e:
+				logObject.error('Had an issue running: %s' % ' '.join(list_cmd))
+				sys.stderr.write('Had an issue running: %s' % ' '.join(list_cmd))
+				logObject.error(e)
+				sys.exit(1)
+
+		genome_count = 0
+		with open(target_listing_file) as otlf:
+			for line in otlf:
+				genome_count += 1
+		if genome_count == 0:
+			logObject.error('No genomes found and/or could be downloaded!!! Exiting!')
+			sys.stderr.write('No genomes found and/or could be downloaded!!! Exiting!\n')
 			sys.exit(1)
 
 		# Step 2: Setup files needed for fai

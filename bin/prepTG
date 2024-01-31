@@ -95,10 +95,10 @@ def create_parser():
 
 	    prepTG -i User_Genomes_Directory/ 
 
-	2. Setup a prepTG database which includes some local genomes and all Cutibacterium acnes
+	2. Setup a prepTG database which includes some local genomes and all Cutibacterium granulosum
 	   genomes in GTDB R214: 
 	
-	    prepTG -i User_Genomes_Directory/ -g "Cutibacterium glutamicum" -o prepTG_Database/
+	    prepTG -i User_Genomes_Directory/ -g "Cutibacterium granulosum" -o prepTG_Database/
 	
 	3. Setup local prepTG database by downloading a premade one of representative 
 	   Cutibacterium genomes:

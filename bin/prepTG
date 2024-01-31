@@ -91,13 +91,17 @@ def create_parser():
         ----------------------------------------------------------------------------------------
 	> Example commands:
 
-	1. Setup a prepTG database which includes some local genomes and all Cutibacterium acnes
-	   genomes: 
+	1. Setup a prepTG database which includes some local genomes in FASTA format
+
+	    prepTG -i User_Genomes_Directory/ 
+
+	2. Setup a prepTG database which includes some local genomes and all Cutibacterium acnes
+	   genomes in GTDB R214: 
 	
 	    prepTG -i User_Genomes_Directory/ -g "Cutibacterium glutamicum" -o prepTG_Database/
 	
-	2. Setup local prepTG database by downloading a premade one of representative 
-	   Corynebacterium genomes:
+	3. Setup local prepTG database by downloading a premade one of representative 
+	   Cutibacterium genomes:
 
 	    prepTG -d Cutibacterium -o prepTG_Database/
 
@@ -110,12 +114,11 @@ def create_parser():
 	on to the target genomes. This will prevent detection of new genes in gene-clusters 
 	detected by fai but synchronize gene-calling and allow for better similarity 
 	assessment between orthologous genes.
-	
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific taxon/genus.\nProvide name of the taxon, e.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input_dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
-	parser.add_argument('-g', '--gtdb_taxon', help='Name of a GTDB-R214 valid genus or species, should be surrounded by\nquotes (e.g. "Escherichia coli").', required=False, default=None)
+	parser.add_argument('-g', '--gtdb_taxon', help='Name of a GTDB-R214 valid genus or species to incorporate genomes from.\nShould be surrounded by\nquotes (e.g. "Escherichia coli").', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Output directory, which can then be provided as input for the\n"-tg" argument in fai.', required=True)
 	parser.add_argument('-l', '--locus_tag_length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
 	parser.add_argument('-r', '--rename_locus_tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)

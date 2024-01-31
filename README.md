@@ -8,7 +8,8 @@
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/platforms.svg)](https://anaconda.org/bioconda/zol)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/license.svg)](https://anaconda.org/bioconda/zol)
 
-Simply put, zol (& fai) are tools to zoom in on a locus and perform comparative genomics (uh genetics) between homologous instances of gene clusters (not just BGCs, but phages and ICEs too!). **The main result from zol is a detailed XLSX spreadsheet report with automated color formatting showcasing annotation info, conservation, and evolutionary stats for inferred ortholog groups amongst an input set of gene clusters.**
+*zol (& fai)* are tools to search for gene clusters (sets of co-located genes - e.g. viruses/phages or biosynthetic gene clusters) in a target set of genomes and to subsequently simplifies the identification of interesting functional, evolutionary, and conservation patterns through table based reports that can summarize information across 1000s of instances of a focal gene cluster where visualization-based approaches might be overwhelming or computationally intensive to render.
+
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)
 3. [Overview of Major Results](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files)

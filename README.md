@@ -8,7 +8,7 @@
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/platforms.svg)](https://anaconda.org/bioconda/zol)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/license.svg)](https://anaconda.org/bioconda/zol)
 
-*zol (& fai)* are tools to search for gene clusters (sets of co-located genes - e.g. viruses/phages or biosynthetic gene clusters) in a target set of genomes and to subsequently simplify the identification of interesting functional, evolutionary, and conservation patterns through creating detailed and color-formatted XLSX spreadsheets that can summarize information across 1000s of homologous gene cluster instances where visualization-based approaches might be overwhelming or computationally intensive to render.
+*zol (& fai)* are tools to search for gene clusters (sets of co-located genes - e.g. viruses/phages or biosynthetic gene clusters) in a target set of genomes and to subsequently simplify the identification of interesting functional, evolutionary, and conservation patterns through creating detailed and color-formatted XLSX spreadsheets that can summarize information across 100s to 1000s of homologous gene cluster instances where visualization-based approaches might be overwhelming or computationally intensive to render.
 
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)

@@ -162,6 +162,9 @@ def prepTG():
 	meta_mode = myargs.meta_mode
 	create_species_tree = myargs.create_species_tree
 	reference_proteome = myargs.reference_proteome
+	if reference_proteome != None:
+		reference_proteome = os.path.abspath(myargs.reference_proteome)
+
 
 	if os.path.isdir(outdir):
 		sys.stderr.write("Output directory exists! Exiting\n ")
@@ -321,8 +324,8 @@ def prepTG():
 			assert(os.path.isdir(target_genomes_dir))
 			target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
 		except:
- 			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
- 			sys.exit(1)
+			sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+			sys.exit(1)
 
 
 	# set max memory limit

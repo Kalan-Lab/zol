@@ -87,6 +87,7 @@ def create_parser():
 
 	parser.add_argument('-i', '--input_dir', help='Directory with orthologous/homologous locus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-sfp', '--select_fai_params_mode', action='store_true', help='Determine statistics informative for selecting parameters for running\nfai to find more instances of the gene cluster.', required=False, default=False)
 	parser.add_argument('-it', '--identity_threshold', type=float, help='Minimum identity coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 30].', required=False, default=30.0)
 	parser.add_argument('-ct', '--coverage_threshold', type=float, help='Minimum query coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 50].', required=False, default=50.0)
 	parser.add_argument('-et', '--evalue_threshold', type=float, help='Maximum E-value for an alignment between protein pairs from\ntwo gene-clusters to consider in search for orthologs.\n[Default is 0.001].', required=False, default=0.001)
@@ -111,6 +112,7 @@ def create_parser():
 	parser.add_argument('-fgl', '--full_genbank_labels', action='store_true', help='Use full GenBank labels instead of just the first 20 characters.', required=False, default=False)
 	parser.add_argument('-f', '--focal_genbanks', help='File with focal genbank(s) listed (one per line).', required=False, default=None)
 	parser.add_argument('-fc', '--comparator_genbanks', help='Optional file with comparator genbank(s) listed.\nDefault is to use remaining GenBanks as comparators to focal listing.', required=False, default=None)
+	parser.add_argument('-oo', '--only_orthogroups', action='store_true', help="Only compute ortholog groups and stop (runs up to step 2).", required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
@@ -136,6 +138,7 @@ def zolMain():
 
 	input_dir = os.path.abspath(myargs.input_dir) + '/'
 	outdir = os.path.abspath(myargs.output_dir) + '/'
+	select_fai_params_mode = myargs.select_fai_params_mode
 	cpus = myargs.cpus
 	use_super5 = myargs.use_super5
 	fubar_selection = myargs.selection_analysis
@@ -161,6 +164,7 @@ def zolMain():
 	custom_database = myargs.custom_database
 	allow_edge_cds_flag = myargs.allow_edge_cds
 	refine_gene_calling_flag = myargs.refine_gene_calling
+	only_orthogroups_flag = myargs.only_orthogroups
 	max_memory = myargs.max_memory
 
 	try:
@@ -182,6 +186,9 @@ def zolMain():
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])
 
+	if select_fai_params_mode:
+		allow_edge_cds_flag = True
+
 	"""
 	START WORKFLOW
 	"""
@@ -199,16 +206,17 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir,  use_super5, fubar_selection, skip_gard,
-					    focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag,
-						ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, reinflate_flag, derep_identity,
-						derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, length, width,
-						full_genbank_labels, cpus, max_memory]
-	parameter_names = ["Input directory with loci GenBanks", "Output directory",
-					   "Use super5 mode in MUSCLE alignments?", "Run FUBAR selection analyses?",
-					   "Skip GARD partitioning by recombination breakpoints?", "Focal GenBanks listing",
-					   "Comparator GenBanks listing", "Filter low quality gene clusters?",
-					   "Filter draft/incomplete gene clusters?",
+	parameter_values = [input_dir, outdir, select_fai_params_mode, identity_threshold, coverage_threshold, evalue_threshold, use_super5, 
+					 	fubar_selection, skip_gard, focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, 
+						filter_dq_flag, only_orthogroups_flag, ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, 
+						reinflate_flag, derep_identity, derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, 
+						length, width,full_genbank_labels, cpus, max_memory]
+	parameter_names = ["Input directory with loci GenBanks", "Output directory", "Select fai parameters mode?", 
+					   "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
+					   "Ortholog group finding E-value threshold", "Use super5 mode in MUSCLE alignments?", 
+					   "Run FUBAR selection analyses?", "Skip GARD partitioning by recombination breakpoints?", 
+					   "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?",
+					   "Filter draft/incomplete gene clusters?", "Only compute orthologs and stop?",
 					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
 					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
 					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
@@ -396,7 +404,24 @@ def zolMain():
 		genbanks = drep_genbanks
 		assert(os.path.isfile(ortho_matrix_file))
 
-	# Step 3: Create Alignments, Phylogenies and Consensus Sequences
+	# If fai param selection mode, do that and exit:
+	if select_fai_params_mode:
+		logObject.info('--------------------\nAssessing parameters to recommend for running fai to detect additional instances.')
+		sys.stdout.write('--------------------\nAssessing parameters to recommend for running fai to detect additional instances.\n')
+		proc_dir = outdir + 'Ortholog_Group_Processing/'
+		hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
+		hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
+		util.setupReadyDirectory([proc_dir, hg_prot_dir, hg_nucl_dir])
+		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
+		util.determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, cpus=cpus)
+		sys.exit(0)
+
+	if only_orthogroups_flag:
+		logObject.info('--------------------\nRequested mode was to only compute ortholog groups across gene clusters\n.The ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
+		sys.stdout.write('--------------------\nRequested mode was to only compute ortholog groups across gene clusters.\nThe ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
+		sys.exit(0)
+		
+	# Step 3 (normal): Create Alignments, Phylogenies and Consensus Sequences
 	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups')
 	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups\n')
 	step3_check_file = check_dir + 'step3.txt'

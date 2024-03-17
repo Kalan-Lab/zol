@@ -90,8 +90,8 @@ int main (int argc, char* argv[]) {
         double coverage_cutoff, identity_cutoff;
         sscanf(argv[2],"%lf",&identity_cutoff);
         sscanf(argv[3],"%lf",&coverage_cutoff);
-        //string focal_sample = argv[4];
-
+        string focal_sample = argv[4];
+      
         /*
         Parse out all hits to perform gene length normalization.
         */
@@ -216,35 +216,37 @@ int main (int argc, char* argv[]) {
         for (qid_itr = all_queries.begin(); qid_itr != all_queries.end(); qid_itr++) {
             qid = (*qid_itr).first;
             qs = (*qid_itr).second;
-            for (hs_itr = all_samples.begin(); hs_itr != all_samples.end(); hs_itr++) {
-                hs = *hs_itr;
-                rbh_found = false;
-                if (qs.compare(hs) != 0) {
-                    pair_qhs = make_pair(qid, hs);
-                    pair_qshs = make_pair(qs, hs);
-                    qh_max_bitscore = query_max_bitscore[pair_qhs];
-                    best_hits_for_qhs = query_max_hits[pair_qhs];
-                    for (auto hid : best_hits_for_qhs) {
-                        qh_pair = make_pair(qid, hid);
-                        hq_pair = make_pair(hid, qid);
-                        pair_hqs = make_pair(hid, qs);
-                        best_hits_for_hqs = query_max_hits[pair_hqs];
-                        if (best_hits_for_hqs.find(qid) != best_hits_for_hqs.end()) {
-                            if (accounted.find(qh_pair) == accounted.end() && accounted.find(hq_pair) == accounted.end()) {
-                                bidir_bs = 50.0*(paired_normalized_bitscores[qh_pair] + paired_normalized_bitscores[hq_pair]);
-                                cout <<  qid + '\t' + qs + '\t' + hid + '\t' + hs + '\t' + doubleToString(bidir_bs) << endl;
-                                if (bidir_bs >= 0.0) {
-                                    rbh_found = true;
-                                    accounted.insert(qh_pair);
+            if (qs.compare(focal_sample) == 0) {
+                for (hs_itr = all_samples.begin(); hs_itr != all_samples.end(); hs_itr++) {
+                    hs = *hs_itr;
+                    rbh_found = false;
+                    if (qs.compare(hs) != 0) {
+                        pair_qhs = make_pair(qid, hs);
+                        pair_qshs = make_pair(qs, hs);
+                        qh_max_bitscore = query_max_bitscore[pair_qhs];
+                        best_hits_for_qhs = query_max_hits[pair_qhs];
+                        for (auto hid : best_hits_for_qhs) {
+                            qh_pair = make_pair(qid, hid);
+                            hq_pair = make_pair(hid, qid);
+                            pair_hqs = make_pair(hid, qs);
+                            best_hits_for_hqs = query_max_hits[pair_hqs];
+                            if (best_hits_for_hqs.find(qid) != best_hits_for_hqs.end()) {
+                                if (accounted.find(qh_pair) == accounted.end() && accounted.find(hq_pair) == accounted.end()) {
+                                    bidir_bs = 50.0*(paired_normalized_bitscores[qh_pair] + paired_normalized_bitscores[hq_pair]);
+                                    cout <<  qid + '\t' + qs + '\t' + hid + '\t' + hs + '\t' + doubleToString(bidir_bs) << endl;
+                                    if (bidir_bs >= 0.0) {
+                                        rbh_found = true;
+                                        accounted.insert(qh_pair);
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (rbh_found) {
-                        if (minimum_query_rbh_bitscores.find(qid) == minimum_query_rbh_bitscores.end()) {
-                            minimum_query_rbh_bitscores[qid] = qh_max_bitscore;
-                        } else if (minimum_query_rbh_bitscores.at(qid) > qh_max_bitscore) {
-                            minimum_query_rbh_bitscores[qid] = qh_max_bitscore;
+                        if (rbh_found) {
+                            if (minimum_query_rbh_bitscores.find(qid) == minimum_query_rbh_bitscores.end()) {
+                                minimum_query_rbh_bitscores[qid] = qh_max_bitscore;
+                            } else if (minimum_query_rbh_bitscores.at(qid) > qh_max_bitscore) {
+                                minimum_query_rbh_bitscores[qid] = qh_max_bitscore;
+                            }
                         }
                     }
                 }
@@ -255,26 +257,28 @@ int main (int argc, char* argv[]) {
         for (qid_itr = all_queries.begin(); qid_itr != all_queries.end(); qid_itr++) {
             qid = (*qid_itr).first;
             qs = (*qid_itr).second;
-            if (minimum_query_rbh_bitscores.find(qid) != minimum_query_rbh_bitscores.end()) {
-                threshold = minimum_query_rbh_bitscores[qid];
-            } else {
-                threshold = 10000.0;
-            }
-            //cout << "-------------------" << endl;
-            //cout << qid << endl;
-            //cout << threshold << endl;
-            for (hid_itr = all_queries.begin(); hid_itr != all_queries.end(); hid_itr++) {
-                hid = (*hid_itr).first;
-                hs = (*hid_itr).second;
-                if (hs.compare(qs) == 0) {
-                    qh_pair = make_pair(qid, hid);
-                    hq_pair = make_pair(hid, qid);
-                    pair_qshs = make_pair(qs, hs);
-                    if (accounted.find(qh_pair) == accounted.end() && accounted.find(hq_pair) == accounted.end() && paired_normalized_bitscores.find(qh_pair) != paired_normalized_bitscores.end()) {
-                        if (paired_normalized_bitscores.at(qh_pair) >= threshold && paired_normalized_bitscores.find(hq_pair) != paired_normalized_bitscores.end()) {
-                            bidir_bs = 50.0*(paired_normalized_bitscores.at(qh_pair) + paired_normalized_bitscores.at(hq_pair));
-                            cout << qid + '\t' + qs + '\t' + hid + '\t' + hs + '\t' + doubleToString(bidir_bs) << endl;
-                            accounted.insert(qh_pair);
+            if (qs.compare(focal_sample) == 0) {
+                if (minimum_query_rbh_bitscores.find(qid) != minimum_query_rbh_bitscores.end()) {
+                    threshold = minimum_query_rbh_bitscores[qid];
+                } else {
+                    threshold = 10000.0;
+                }
+                //cout << "-------------------" << endl;
+                //cout << qid << endl;
+                //cout << threshold << endl;
+                for (hid_itr = all_queries.begin(); hid_itr != all_queries.end(); hid_itr++) {
+                    hid = (*hid_itr).first;
+                    hs = (*hid_itr).second;
+                    if (hs.compare(qs) == 0) {
+                        qh_pair = make_pair(qid, hid);
+                        hq_pair = make_pair(hid, qid);
+                        pair_qshs = make_pair(qs, hs);
+                        if (accounted.find(qh_pair) == accounted.end() && accounted.find(hq_pair) == accounted.end() && paired_normalized_bitscores.find(qh_pair) != paired_normalized_bitscores.end()) {
+                            if (paired_normalized_bitscores.at(qh_pair) >= threshold && paired_normalized_bitscores.find(hq_pair) != paired_normalized_bitscores.end()) {
+                                bidir_bs = 50.0*(paired_normalized_bitscores.at(qh_pair) + paired_normalized_bitscores.at(hq_pair));
+                                cout << qid + '\t' + qs + '\t' + hid + '\t' + hs + '\t' + doubleToString(bidir_bs) << endl;
+                                accounted.insert(qh_pair);
+                            }
                         }
                     }
                 }

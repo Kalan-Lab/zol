@@ -109,7 +109,7 @@ def refactorProteomes(inputs):
 def oneVsAllParse(inputs):
 	sample, samp_algn_res, samp_forth_res, identity_cutoff, coverage_cutoff, logObject = inputs
 
-	rbh_cmd = [rbh_prog, samp_algn_res, str(identity_cutoff), str(coverage_cutoff), '>', samp_forth_res]
+	rbh_cmd = [rbh_prog, samp_algn_res, str(identity_cutoff), str(coverage_cutoff), sample, '>', samp_forth_res]
 	try:
 		subprocess.call(' '.join(rbh_cmd), shell=True, stdout=subprocess.DEVNULL,
 						stderr=subprocess.DEVNULL, executable='/bin/bash')

@@ -1691,3 +1691,305 @@ def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fast
 		logObject.error('Issues with running simple BLASTp for abon, atpoc, or apos.\n')
 		logObject.error(traceback.format_exc())
 		sys.exit(1)
+
+def diamondBlast(inputs):
+	og_prot_file, og_prot_dmnd_db, og_blast_file, logObject = inputs
+
+	makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', og_prot_file, '-d', og_prot_dmnd_db]
+	search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', '1', '-d', og_prot_dmnd_db, '-q', og_prot_file, '-o', og_blast_file]
+	try:
+		subprocess.call(' '.join(makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		assert (os.path.isfile(og_prot_dmnd_db))
+		logObject.info('Successfully ran: %s' % ' '.join(makedb_cmd))
+	except Exception as e:
+		logObject.error('Had an issue running DIAMOND makedb: %s' % ' '.join(makedb_cmd))
+		sys.stderr.write('Had an issue running DIAMOND makedb: %s\n' % ' '.join(makedb_cmd))
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+	try:
+		subprocess.call(' '.join(search_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		assert (os.path.isfile(og_blast_file))
+		logObject.info('Successfully ran: %s' % ' '.join(search_cmd))	
+	except Exception as e:
+		logObject.error('Had an issue running DIAMOND blastp: %s' % ' '.join(search_cmd))
+		sys.stderr.write('Had an issue running DIAMOND blastp: %s\n' % ' '.join(search_cmd))
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, cpus=1):
+	"""
+	Description:
+	Function to determine parameter recommendations for running fai from known instances based on zol orthology 
+	inference.
+	********************************************************************************************************************
+	Parameters:
+	- genbanks: list of gene cluster GenBank files.
+	- ortho_matrix_file: zol orthology inference.
+	- hg_prot_dir: directory of ortholog group protein sequences, each ortholog group is its own FASTA file. 
+	- outdir: workspace directory
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		lt_to_og = {}
+		og_gbks = defaultdict(set)
+		og_gbk_lts = defaultdict(lambda: defaultdict(set))
+		og_lts = defaultdict(set)
+		gbks = []
+		with open(ortho_matrix_file) as oomf:
+			for i, line in enumerate(oomf):
+				line = line.strip('\n')
+				ls = line.split('\t')
+				if i == 0:
+					gbks = ls[1:]
+				else:
+					og = ls[0]
+					for j, lts in enumerate(ls[1:]):
+						gbk = gbks[j]
+						for lt in lts.split(', '):
+							if lt.strip() != '':
+								lt = '|'.join(lt.split('|')[1:])
+								lt_to_og[lt] = og
+								og_lts[og].add(lt)
+								og_gbk_lts[og][gbk].add(lt)
+								og_gbks[og].add(gbk)
+		
+		self_blast_dir = outdir + 'Self_Blast_OG_Proteins/' 
+		setupReadyDirectory([self_blast_dir])
+		diamond_self_blasting_inputs = []
+		for f in os.listdir(hg_prot_dir):
+			og = f.split('.faa')[0]
+			og_prot_file = hg_prot_dir + f 
+			og_blast_file = self_blast_dir + og + '.txt'
+			og_prot_dmnd_db = hg_prot_dir + f
+			diamond_self_blasting_inputs.append([og_prot_file, og_prot_dmnd_db, og_blast_file, logObject])
+		
+		p = multiprocessing.Pool(cpus)
+		p.map(diamondBlast, diamond_self_blasting_inputs)
+		p.close()
+
+		og_min_eval_params = outdir + 'OG_Information.txt'
+		omep_handle = open(og_min_eval_params, 'w')
+		maximum_evalues = []
+		near_core_ogs_maximum_evalues = []
+		omep_handle.write('\t'.join(['og', 'maximum_evalue', 'conservation', 'is_near_core', 'is_single_copy']) + '\n')
+		near_core_ogs = set([])
+		for f in os.listdir(self_blast_dir):
+			self_blast_file = self_blast_dir + f 
+			og = f.split('.txt')[0]
+			maximum_evalue = -1.0
+			with open(self_blast_file) as osbf:
+				for line in osbf:
+					line = line.strip()
+					ls = line.split('\t')
+					evalue = float(ls[-2])
+					if evalue > maximum_evalue:
+						maximum_evalue = evalue
+			maximum_evalues.append(maximum_evalue)
+
+			og_gbk_count = 0			
+			singlecopy = True
+			for gbk in og_gbk_lts[og]:
+				og_gbk_count += 1
+				lt_count = 0
+				for lt in og_gbk_lts[og][gbk]:
+					lt_count += 1
+				if lt_count > 1:
+					singlecopy = False
+			
+			conservation = og_gbk_count/float(len(genbanks))
+			nearcore = False
+			if conservation >= 0.8:
+				nearcore = True
+				near_core_ogs.add(og)
+				near_core_ogs_maximum_evalues.append(maximum_evalue)
+
+			omep_handle.write(og + '\t' + str(maximum_evalue) + '\t' + str(conservation) + '\t' + str(nearcore) + '\t' + str(singlecopy) + '\n')
+		omep_handle.close()
+
+		og_list = defaultdict(list)
+		cds_counts = []
+		prop_genes_nc = []
+		gbk_og_counts = defaultdict(lambda: defaultdict(int))
+		for gbk in genbanks:
+			cds_count = 0
+			nc_cds_count = 0
+			with open(gbk) as ogbk:
+				for i, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+					for feature in rec.features:
+						if feature.type != 'CDS': continue
+						lt = feature.qualifiers.get('locus_tag')[0]
+						loc_str = feature.location
+						all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+						og = lt_to_og[lt]
+						gbk_og_counts[gbk][og] += 1
+						nc = False
+						if og in near_core_ogs:
+							nc = True
+							nc_cds_count += 1
+						og_list[gbk + '|' + str(i)].append([lt, og, start, nc])
+						cds_count += 1
+			prop_genes_nc.append(nc_cds_count/float(cds_count))
+			cds_counts.append(cds_count)
+
+		cds_between_ncs = []
+		for rec in og_list:
+			last_nc = None
+			for i, lt_info in enumerate(sorted(og_list[rec], key=itemgetter(2))):
+				is_nc = lt_info[3]
+				if is_nc:
+					if last_nc != None:
+						cbn = i - last_nc
+						cds_between_ncs.append(cbn)
+					last_nc = i
+
+		gbk_scores = {}
+		for i, gbk1 in enumerate(genbanks):
+			go1cs = gbk_og_counts[gbk1]
+			g1ogs = set(go1cs.keys())
+			sum_jaccard = 0.0
+			for j, gbk2 in enumerate(genbanks):
+				go2cs = gbk_og_counts[gbk2]
+				g2ogs = set(go2cs.keys())
+				ogs_intersect = g1ogs.intersection(g2ogs)
+				ogs_union = g1ogs.union(g2ogs)
+				ogs_jaccard = len(ogs_intersect)/float(len(ogs_union))
+				sum_jaccard += ogs_jaccard
+			gbk_scores[gbk1] = sum_jaccard
+	
+		ref_gbk = None
+		for i, gbk in enumerate(sorted(gbk_scores.items(), key=itemgetter(1), reverse=True)):
+			if i == 0:
+				ref_gbk = gbk[0]
+
+		# extract near-core OG sequences from ref GBK
+		near_core_prots_faa_file = outdir + 'NearCore_Proteins_from_Representative.faa'
+		ncpff_handle = open(near_core_prots_faa_file, 'w')
+		ref_cds_nc = 0
+		ref_cds = 0
+		with open(ref_gbk) as orgf:
+			for rec in SeqIO.parse(orgf, 'genbank'): 
+				for feature in rec.features:
+					if not feature.type == 'CDS': continue
+					lt = feature.qualifiers.get('locus_tag')[0]
+					seq = feature.qualifiers.get('translation')[0]
+					ref_cds += 1
+					og = lt_to_og[lt]
+					if lt in near_core_ogs:
+						ref_cds_nc += 1
+						ncpff_handle.write('>' + lt + '\n' + seq + '\n')
+		ncpff_handle.close()
+ 	
+		prop_ref_cds_nc = ref_cds_nc/float(ref_cds)
+		max_distance_between_ncs = max(cds_between_ncs)
+		median_cds_count = statistics.median(cds_counts)
+		maximum_of_maximum_evalues = max(maximum_evalues)
+		maximum_of_near_core_ogs_maximum_evalues = max(near_core_ogs_maximum_evalues)
+		median_prop_cds_nc = statistics.median(prop_genes_nc)
+
+		parameter_recommendations_file = outdir + 'Parameter_Recommendations_for_fai.txt'
+		prf_handle = open(parameter_recommendations_file, 'w')
+
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Recommendations for running fai to find additional instances of gene cluster:\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.write('Note, this functionality assumes that the known instances of the gene cluster\nare representative of the gene cluster/taxonomic diversity you will be searching.\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('General statistics:\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Maximum of maximum E-values observed for any OG\t%s\n' % str(maximum_of_maximum_evalues))
+		prf_handle.write('Maximum of near-core OG E-values observed:\t%s\n' % str(maximum_of_near_core_ogs_maximum_evalues))
+		prf_handle.write('Maximum distance between near-core OGs:\t%s\n' % str(max_distance_between_ncs))
+		prf_handle.write('Median CDS count:\t%s\n' % str(median_cds_count))
+		prf_handle.write('Median proportion of CDS which are near-core (conserved in 80 percent of gene-clusters):\t%s\n' % str(median_prop_cds_nc))
+		prf_handle.write('Best representative query gene-cluster instance to use:\t%s\n' % ref_gbk)
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Parameter recommendations - CPUs set to 4 by default\n')
+		prf_handle.write('please provide the path to the prepTG database yourself!\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Lenient / Sensitive Recommendations for Exploratory Analysis:\n')
+		fai_cmd = ['fai', '--cpus', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', 
+			       '--evalue_cutoff', str(max(maximum_of_maximum_evalues, 1e-10)), '--min_prop', str(max(prop_ref_cds_nc-0.25, 0.1)), 
+				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs+3)]
+		prf_handle.write(' '.join(fai_cmd) + '\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.write('Strict / Specific Recommendations:\n')
+		fai_cmd = ['fai', '--cpus', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', '--filter_paralogs',
+			       '--evalue_cutoff', str(maximum_of_maximum_evalues), '--min_prop', str(max(prop_ref_cds_nc, 0.25)), 
+				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs),
+				   'key_protein_queries', near_core_prots_faa_file, '--key_protein_min_prop', '0.5', 
+				   '--key_protein_evalue_cutoff', str(maximum_of_near_core_ogs_maximum_evalues)]
+		prf_handle.write(' '.join(fai_cmd) + '\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.close()
+
+		os.system('cat %s' % parameter_recommendations_file)
+
+	except Exception as e:
+		sys.stderr.write('Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n')
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+
+def parseFeatureCoord(str_gbk_loc):
+	try:
+		start = None
+		end = None
+		direction = None
+		all_coords = []
+		is_multi_part = False
+		if not 'join' in str(str_gbk_loc) and not 'order' in str(str_gbk_loc):
+			start = min([int(x.strip('>').strip('<')) for x in
+						 str(str_gbk_loc)[1:].split(']')[0].split(':')]) + 1
+			end = max([int(x.strip('>').strip('<')) for x in
+					   str(str_gbk_loc)[1:].split(']')[0].split(':')])
+			direction = str(str_gbk_loc).split('(')[1].split(')')[0]
+			all_coords.append([start, end, direction])
+		elif 'order' in str(str_gbk_loc):
+			is_multi_part = True
+			all_starts = []
+			all_ends = []
+			all_directions = []
+			for exon_coord in str(str_gbk_loc)[6:-1].split(', '):
+				ec_start = min(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				ec_end = max(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				ec_direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(ec_start)
+				all_ends.append(ec_end)
+				all_directions.append(ec_direction)
+				all_coords.append([ec_start, ec_end, ec_direction])
+			assert (len(set(all_directions)) == 1)
+			start = min(all_starts)
+			end = max(all_ends)
+			direction = all_directions[0]
+		else:
+			is_multi_part = True
+			all_starts = []
+			all_ends = []
+			all_directions = []
+			for exon_coord in str(str_gbk_loc)[5:-1].split(', '):
+				ec_start = min(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				ec_end = max(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				ec_direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(ec_start)
+				all_ends.append(ec_end)
+				all_directions.append(ec_direction)
+				all_coords.append([ec_start, ec_end, ec_direction])
+			assert (len(set(all_directions)) == 1)
+			start = min(all_starts)
+			end = max(all_ends)
+			direction = all_directions[0]
+		return(all_coords, start, end, direction, is_multi_part)
+	except Exception as e:
+		raise RuntimeError(traceback.format_exc())

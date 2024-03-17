@@ -2,12 +2,11 @@
 AUTHOR - Rauf Salamzade
 DATE - 09/14/22
 PROGRAM NAME - runRBH.cpp
-DESCRIPTION - Find orthologs using RBH after normalization with reflexive query bitscore and phylogenetic normalization
-              using expected differences based on universal single-copy genes from Hug et al. 2016. In-paralogs
-              identified if they are not part of an RBH pairing but exhibit a higher bitscore than what was observed for
-              the lowest RBH pairing (discounting for phylogenetic bitscore). Result is a pairing listing orthologs and
-              in-paralogs with weights assigned as normalized bitscores in the ABC format needed to run Markov Clustering.
-
+DESCRIPTION - Find orthologs using RBH after normalization with reflexive query bitscore. In-paralogs identified if they 
+              are not part of an RBH pairing but exhibit a higher bitscore than what was observed for
+              the lowest RBH pairing. Result is a pairing listing orthologs and in-paralogs with weights assigned as normalized 
+	      bitscores in the ABC format needed to run Markov Clustering.
+	      
 Usage:
 intraClusterRBH <BLAST/DIAMOND output format 6 Result file>
 ""
@@ -75,9 +74,9 @@ string doubleToString(double val) {
 
 
 int main (int argc, char* argv[]) {
-    if ( argv[1]==NULL || argv[2]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {
+    if ( argv[1]==NULL || argv[2]==NULL || argv[3]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {
 	    cout << "Usage:" << endl;
-	    cout << "runRBH <BLAST/DIAMOND Alignment Results - format 6 with query coverage as an additional final column.> <identity cutoff> <coverage cutoff>" << endl;
+	    cout << "runRBH <BLAST/DIAMOND Alignment Results - format 6 with query coverage as an additional final column.> <identity cutoff> <coverage cutoff> <focal sample>" << endl;
 	    return 0;
     }
     else {

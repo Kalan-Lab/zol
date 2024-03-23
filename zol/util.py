@@ -120,7 +120,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	Function to prune full genome-sized GenBank for only features in BGC of interest.
 	********************************************************************************************************************
 	Parameters:
-	- full_genbank_file: GenBank file for full genome.
+	- full_genbank_file: GenBank file for full genome as SeqIO index.
 	- new_genbank_file: Path to gene cluster specific GenBank to be created.
 	- scaffold: Scaffold identifier.
 	- start_coord: Start coordinate.
@@ -130,110 +130,105 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	try:
 		ngf_handle = open(new_genbank_file, 'w')
 		pruned_coords = set(range(start_coord, end_coord + 1))
-		with open(full_genbank_file) as ogbk:
-			for rec in SeqIO.parse(ogbk, 'genbank'):
-				if not rec.id == scaffold: continue
-				original_seq = str(rec.seq)
-				filtered_seq = ""
-				start_coord = max(start_coord, 1)
-				if end_coord >= len(original_seq):
-					filtered_seq = original_seq[start_coord - 1:]
-				else:
-					filtered_seq = original_seq[start_coord - 1:end_coord]
+		full_genbank_index = SeqIO.index(full_genbank_file, 'genbank')
+		rec = full_genbank_index[scaffold]
+		original_seq = str(rec.seq)
+		filtered_seq = ""
+		start_coord = max(start_coord, 1)
+		if end_coord >= len(original_seq):
+			filtered_seq = original_seq[start_coord - 1:]
+		else:
+			filtered_seq = original_seq[start_coord - 1:end_coord]
 
-				new_seq_object = Seq(filtered_seq)
+		new_seq_object = Seq(filtered_seq)
+		updated_rec = copy.deepcopy(rec)
+		updated_rec.seq = new_seq_object
 
-				updated_rec = copy.deepcopy(rec)
-				updated_rec.seq = new_seq_object
+		updated_features = []
+		#print(start_coord)
+		#print(end_coord)
+		#print('--------')
+		for feature in rec.features:
+			start = None
+			end = None
+			direction = None
+			all_coords = []
+			#print(str(feature.location))
 
-				updated_features = []
-				#print(start_coord)
-				#print(end_coord)
-				#print('--------')
-				for feature in rec.features:
-					start = None
-					end = None
-					direction = None
-					all_coords = []
-					#print(str(feature.location))
+			if not 'join' in str(feature.location) and not 'order' in str(feature.location):
+				start = min([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
+				direction = str(feature.location).split('(')[1].split(')')[0]
+				all_coords.append([start, end, direction])
+			elif 'order' in str(feature.location):
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[6:-1].split(', '):
+					start = min(
+						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(start)
+					all_ends.append(end)
+					all_directions.append(direction)
+					all_coords.append([start, end, direction])
+				start = min(all_starts)
+				end = max(all_ends)
+			else:
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[5:-1].split(', '):
+					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(start)
+					all_ends.append(end)
+					all_directions.append(direction)
+					all_coords.append([start, end, direction])
+				start = min(all_starts)
+				end = max(all_ends)
 
-					if not 'join' in str(feature.location) and not 'order' in str(feature.location):
-						start = min([int(x.strip('>').strip('<')) for x in
-									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-						end = max(
-							[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-						direction = str(feature.location).split('(')[1].split(')')[0]
-						all_coords.append([start, end, direction])
-					elif 'order' in str(feature.location):
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[6:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start)
-							all_ends.append(end)
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-						start = min(all_starts)
-						end = max(all_ends)
-					else:
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start)
-							all_ends.append(end)
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-						start = min(all_starts)
-						end = max(all_ends)
-
-					feature_coords = set(range(start, end + 1))
-					edgy_feat = 'False'
-					if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
-						edgy_feat = 'True'
-					part_of_cds_hanging = False
-					if len(feature_coords.intersection(pruned_coords)) > 0:
-						fls = []
-						for sc, ec, dc in all_coords:
-							exon_coord = set(range(sc, ec+1))
-							if len(exon_coord.intersection(pruned_coords)) == 0: continue
-							updated_start = sc - start_coord + 1
-							updated_end = ec - start_coord + 1
-							if ec > end_coord:
-								# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
-								# with boundary proteins found by the HMM.
-								if feature.type == 'CDS':
-									part_of_cds_hanging = True
-									continue
-								else:
-									updated_end = end_coord - start_coord + 1  # ; flag1 = True
-							if sc < start_coord:
-								if feature.type == 'CDS':
-									part_of_cds_hanging = True
-									continue
-								else:
-									updated_start = 1  # ; flag2 = True
-							strand = 1
-							if dc == '-':
-								strand = -1
-							fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
-						if len(fls) > 0 and not part_of_cds_hanging:
-							updated_location = fls[0]
-							if len(fls) > 1:
-								updated_location = sum(fls)
-							feature.location = updated_location
-							feature.qualifiers['near_scaffold_edge'] = edgy_feat
-							updated_features.append(feature)
-				updated_rec.features = updated_features
-				SeqIO.write(updated_rec, ngf_handle, 'genbank')
+			feature_coords = set(range(start, end + 1))
+			edgy_feat = 'False'
+			if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
+				edgy_feat = 'True'
+			part_of_cds_hanging = False
+			if len(feature_coords.intersection(pruned_coords)) > 0:
+				fls = []
+				for sc, ec, dc in all_coords:
+					exon_coord = set(range(sc, ec+1))
+					if len(exon_coord.intersection(pruned_coords)) == 0: continue
+					updated_start = sc - start_coord + 1
+					updated_end = ec - start_coord + 1
+					if ec > end_coord:
+						# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
+						# with boundary proteins found by the HMM.
+						if feature.type == 'CDS':
+							part_of_cds_hanging = True
+							continue
+						else:
+							updated_end = end_coord - start_coord + 1  # ; flag1 = True
+					if sc < start_coord:
+						if feature.type == 'CDS':
+							part_of_cds_hanging = True
+							continue
+						else:
+							updated_start = 1  # ; flag2 = True
+					strand = 1
+					if dc == '-':
+						strand = -1
+					fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
+				if len(fls) > 0 and not part_of_cds_hanging:
+					updated_location = fls[0]
+					if len(fls) > 1:
+						updated_location = sum(fls)
+					feature.location = updated_location
+					feature.qualifiers['near_scaffold_edge'] = edgy_feat
+					updated_features.append(feature)
+		updated_rec.features = updated_features
+		SeqIO.write(updated_rec, ngf_handle, 'genbank')
 		ngf_handle.close()
 	except Exception as e:
 		sys.stderr.write(traceback.format_exc())

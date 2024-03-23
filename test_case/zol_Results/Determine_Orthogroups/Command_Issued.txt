@@ -1,0 +1,1 @@
+/home/salamzade/zol_development/develop_v1.3.19/conda_env/bin/findOrthologs.py -p /home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Prots_for_de_novo_Orthology_Finding/ -o /home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/ -e 0.001 -i 30.0 -q 50.0 -c 4

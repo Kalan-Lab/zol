@@ -1,0 +1,6 @@
+Proteome_5	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_5.out
+Proteome_6	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_6.out
+Proteome_4	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_4.out
+Proteome_1	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_1.out
+Proteome_2	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_2.out
+Proteome_3	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/Determine_Orthogroups/Alignments/Proteome_3.out

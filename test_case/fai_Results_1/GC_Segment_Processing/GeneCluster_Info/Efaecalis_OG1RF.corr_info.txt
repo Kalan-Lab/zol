@@ -1,0 +1,1 @@
+Efaecalis_OG1RF	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/fai_Results_1/GC_Segment_Processing/GeneCluster_Genbanks/Efaecalis_OG1RF_fai-gene-cluster-1.gbk	0.9990739201355672

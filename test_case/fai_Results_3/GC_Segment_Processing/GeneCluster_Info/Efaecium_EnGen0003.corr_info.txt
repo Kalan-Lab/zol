@@ -1,0 +1,1 @@
+Efaecium_EnGen0003	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/fai_Results_3/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0003_fai-gene-cluster-1.gbk	irrelevant

@@ -1,0 +1,30 @@
+Input directory with loci GenBanks: /home/salamzade/zol_development/develop_v1.3.19/zol/test_case/fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/
+Output directory: /home/salamzade/zol_development/develop_v1.3.19/zol/test_case/zol_Results/
+Select fai parameters mode?: False
+Ortholog group finding identity threshold: 30.0
+Ortholog group finding coverage threshold: 50.0
+Ortholog group finding E-value threshold: 0.001
+Use super5 mode in MUSCLE alignments?: False
+Run FUBAR selection analyses?: False
+Skip GARD partitioning by recombination breakpoints?: False
+Focal GenBanks listing: None
+Comparator GenBanks listing: None
+Filter low quality gene clusters?: False
+Filter draft/incomplete gene clusters?: False
+Only compute orthologs and stop?: False
+Perform broad level estimation of ortholog group conservation if dereplication requested?: False
+Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups: False
+Rename locus tags?: False
+Use CDS features with attribute near_scaffold_edge=True.: False
+Perform Dereplication?: False
+Perform reinflation?: False
+Dereplication identity threshold: 99.0
+Dereplication coverage threshold: 95.0
+Dereplication clustering method / MCL inflation: None
+Custom annotation database: None
+Refine gene calling using the custom annotation database: False
+Plot height: 7
+Plot width: 14
+Use full GenBank labels?: True
+Number of CPUs requested: 4
+Maximum memory in GB: None

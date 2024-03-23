@@ -120,7 +120,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	Function to prune full genome-sized GenBank for only features in BGC of interest.
 	********************************************************************************************************************
 	Parameters:
-	- full_genbank_file: GenBank file for full genome as SeqIO index.
+	- full_genbank_file: GenBank file for full genome.
 	- new_genbank_file: Path to gene cluster specific GenBank to be created.
 	- scaffold: Scaffold identifier.
 	- start_coord: Start coordinate.

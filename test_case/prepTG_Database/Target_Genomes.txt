@@ -1,6 +1,0 @@
-Efaecium_EnGen0013	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecium_EnGen0013.fasta
-Efaecium_EnGen0003	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecium_EnGen0003.fasta
-Efaecalis_B594	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecalis_B594.fasta
-Efaecium_EnGen0018	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecium_EnGen0018.fasta
-Efaecalis_V583	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecalis_V583.fasta
-Efaecalis_OG1RF	/home/salamzade/zol_development/develop_v1.3.19/zol/test_case/Target_Genomes//Efaecalis_OG1RF.fasta

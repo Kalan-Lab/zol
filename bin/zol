@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import pickle
 from datetime import datetime
+import traceback
 
 def create_parser():
 	""" Parse arguments """
@@ -96,9 +97,12 @@ def create_parser():
 	parser.add_argument('-r', '--rename_lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
 	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani\nand single-linkage clustering or MCL.', required=False, default=False)
 	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform re-inflation with all gene-clusters of\northo-groups identified via dereplicated analysis.', required=False, default=False)
+	parser.add_argument('-cdo', '--cdhit_orthogroup', action='store_true', help='Cluster proteins using CD-HIT instead of using the\nstandard InParanoid-like ortholog group prediction approach.\nThis approach is faster and uses less memory, but is less accurate.', required=False, default=False)
+	parser.add_argument('-cdp', '--cdhit_params', help='Parameters for performing CD-HIT based ortholog group\nclustering if requested via --cdhit_orthogroup.\n[Default is "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000"]', required=False, default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
 	parser.add_argument('-dt', '--derep_identity', type=float, help='skani ANI threshold to use for dereplication. [Default is 99.0].', required=False, default=99.0)
 	parser.add_argument('-dc', '--derep_coverage', type=float, help='skani aligned fraction threshold to use for\ndereplication. [Default is 95.0].', required=False, default=95.0)
 	parser.add_argument('-di', '--derep_inflation', type=float, help='Inflation parameter for MCL to use for dereplication of\ngene-clusters. If not specified single-linkage clustering\nwill be used instead.', required=False, default=None)
+	parser.add_argument('-rp', '--reinflate_params', help='Parameters for running CD-HIT for re-inflation, please\nsurround argument input with double quotes.\n[Default is "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"].', required=False, default="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
 	parser.add_argument('-ibc', '--impute_broad_conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated\nwith dereplicated representatives.')
 	parser.add_argument('-ces', '--comprehensive_evo_stats', action='store_true', help='Allow computing of evolutionary statistics for non-single-copy genes.', required=False, default=False)
 	parser.add_argument('-aec', '--allow_edge_cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute\n"near_scaffold_edge=True", which is set by fai for features\nwithin 2kb of contig edges.', required=False, default=False)
@@ -156,6 +160,7 @@ def zolMain():
 	ces_flag = myargs.comprehensive_evo_stats
 	dereplicate_flag = myargs.dereplicate
 	reinflate_flag = myargs.reinflate
+	reinflate_params = myargs.reinflate_params
 	derep_identity = myargs.derep_identity
 	derep_coverage = myargs.derep_coverage
 	derep_inflation = myargs.derep_inflation
@@ -165,6 +170,8 @@ def zolMain():
 	allow_edge_cds_flag = myargs.allow_edge_cds
 	refine_gene_calling_flag = myargs.refine_gene_calling
 	only_orthogroups_flag = myargs.only_orthogroups
+	cdhit_orthogroup_flag = myargs.cdhit_orthogroup
+	cdhit_orthogroup_params = myargs.cdhit_params
 	max_memory = myargs.max_memory
 
 	try:
@@ -206,12 +213,15 @@ def zolMain():
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input_dir, outdir, select_fai_params_mode, identity_threshold, coverage_threshold, evalue_threshold, use_super5, 
-					 	fubar_selection, skip_gard, focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, 
-						filter_dq_flag, only_orthogroups_flag, ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, 
-						reinflate_flag, derep_identity, derep_coverage, derep_inflation, custom_database, refine_gene_calling_flag, 
-						length, width,full_genbank_labels, cpus, max_memory]
+	parameter_values = [input_dir, outdir, select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params,
+					    identity_threshold, coverage_threshold, evalue_threshold, use_super5, fubar_selection, skip_gard, 
+						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
+						only_orthogroups_flag, ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, 
+						reinflate_flag, reinflate_params, derep_identity, derep_coverage, derep_inflation, custom_database,
+						refine_gene_calling_flag, length, width,full_genbank_labels, cpus, max_memory]
 	parameter_names = ["Input directory with loci GenBanks", "Output directory", "Select fai parameters mode?", 
+					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
+					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
 					   "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
 					   "Ortholog group finding E-value threshold", "Use super5 mode in MUSCLE alignments?", 
 					   "Run FUBAR selection analyses?", "Skip GARD partitioning by recombination breakpoints?", 
@@ -220,11 +230,11 @@ def zolMain():
 					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
 					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
 					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
-					   "Perform Dereplication?", "Perform reinflation?", "Dereplication identity threshold",
-					   "Dereplication coverage threshold", "Dereplication clustering method / MCL inflation",
-					   "Custom annotation database", "Refine gene calling using the custom annotation database",
-					   "Plot height", "Plot width", "Use full GenBank labels?", "Number of CPUs requested",
-					   "Maximum memory in GB"]
+					   "Perform Dereplication?", "Perform reinflation?", "Reinflation CD-HIT parameters", 
+					   "Dereplication identity threshold", "Dereplication coverage threshold", 
+					   "Dereplication clustering method / MCL inflation", "Custom annotation database", 
+					   "Refine gene calling using the custom annotation database", "Plot height", "Plot width", 
+					   "Use full GenBank labels?", "Number of CPUs requested", "Maximum memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -376,6 +386,9 @@ def zolMain():
 					sys.exit(1)
 			fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
 					  str(identity_threshold), '-q', str(coverage_threshold), '-c', str(cpus)]
+			if cdhit_orthogroup_flag:
+				fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', 
+			  			  '-cdp="' + cdhit_orthogroup_params + '"', '-c', str(cpus)]
 			try:
 				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -392,6 +405,7 @@ def zolMain():
 		except Exception as e:
 			sys.stderr.write('Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
 			logObject.error('Issues with determining ortholog/ortholog groups!')
+			sys.stderr.write(traceback.format_exc() + '\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 		os.system('touch %s' % step2_check_file)

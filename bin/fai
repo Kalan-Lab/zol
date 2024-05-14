@@ -110,7 +110,7 @@ def create_parser():
 	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
 	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
 	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster. [Default is 0.0].', required=False, default=0.0)
-	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.6]", required=False, default=0.6)
+	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.0]", required=False, default=0.0)
 	parser.add_argument('-gdm', '--gc_delineation_mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
 	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
 	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to\nmerge segments together. Alternatively the number of genes separating\nhits if Gene-Clumper mode is used. Allows for more inclusivity of novel\nauxiliary genes. [Default is 5].", required=False, default=5)
@@ -236,10 +236,10 @@ def faiMain():
 					   "Filter for paralogous/gene-content overlapping segments",
 					   "Use prodigal-gv instead of pyrodigal to perform gene calling for query region in reference genome",
 					   "General E-value cutoff for detection of protein homologs in genome",
-					   "Minimum proportion of hits for gene presence in genome", "FASTA file with key proteins to consider",
+					   "Minimum proportion of distinct query proteins needed", "FASTA file with key proteins to consider",
 					   "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence",
-					   "Minimum proportion of key protein hits to be considered as high-supporting evidence for gene cluster presence",
-					   "Syntenic correlation to known instance threshold required for gene cluster presence",
+					   "Minimum proportion of distinct key protein queries needed",
+					   "Syntenic correlation to known instance threshold needed",
 					   "Maximum distance in between candidate gene-cluster segments to perform merging",
 					   "Base pair for flanking context to extract",
 					   "Emission probability of gene being in gene-cluster state with homologous hit to gene-cluster",

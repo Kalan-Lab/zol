@@ -38,7 +38,7 @@ if plot_prog == None or not os.path.isfile(plot_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in zol.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 
-def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1):
+def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_params="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000", cpus=1):
 	"""
 	Description:
 	This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
@@ -47,13 +47,13 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 	program to cluster all proteins in the prot_dir directory and reads the CD-HIT clustering output to create a
 	dictionary that maps non-representative protein IDs to ortholog groups.
 
-	IMPORTANT - CD-HIT PARAMETERS ARE: -c 0.98 -aL 0.95 -aS  0.95  (-n 5 implicit)
 	*******************************************************************************************************************
 	Parameters:
 	- orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
 	- prot_dir: A directory containing protein FASTA files.
 	- rog_dir: A directory to write temporary + result files pertaining to reinflation to.
 	- logObject: An object for logging messages.
+	- cdhit_params: CD-HIT parameters. Default is: "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"
 	- cpus: The number of CPUs to use for the CD-HIT clustering step.
 	*******************************************************************************************************************
 	"""
@@ -77,8 +77,8 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=1
 
 		cdhit_nr_prefix = rog_dir + 'CD-HIT_Results'
 		cdhit_cluster_file = cdhit_nr_prefix + '.clstr'
-		cdhit_cmd = ['cd-hit', '-i', comp_prot_file, '-o', cdhit_nr_prefix, '-c', '0.98', '-aL', '0.95', '-aS', '0.95',
-					 '-d', '0', '-T', str(cpus), '-M', '20000']
+		cdhit_cmd = ['cd-hit', '-i', comp_prot_file, '-o', cdhit_nr_prefix, cdhit_params,
+					 '-d', '0', '-T', str(cpus)]
 
 		try:
 			subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL,

@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 
 setup(name='zol',
-      version='1.3.20',
+      version='1.4.0',
       description='',
       url='http://github.com/Kalan-Lab/zol/',
       author='Rauf Salamzade',
@@ -24,7 +24,9 @@ setup(name='zol',
                'scripts/processNCBIGenBank.py',
                'scripts/extractBiG-SCAPEclusters.py',
                'zol/orthologs/findOrthologs.py',
-               'scripts/convertMiniprotGffToGbkAndProt.py'],
+               'scripts/convertMiniprotGffToGbkAndProt.py',
+               'scripts/cagecatProcess.py',
+               'scripts/fastgenomicsNeighborhoodToGenBanks.py'],
       zip_safe=False)
 
 # compile RBH/InParanoid-esque programs written in C++

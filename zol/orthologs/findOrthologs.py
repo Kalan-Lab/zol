@@ -396,24 +396,12 @@ def findOrthologs():
 				logObject.error(e)
 				raise RuntimeError(e)
 
-			split_diamond_cmds = []
-			with open(sample_listing_file) as oslf:
-				for line in oslf:
-					line = line.strip()
-					sample, sample_outfile = line.split('\t')
-					split_diamond_cmds.append([split_diamond_results_prog, alignment_result_file, sample, sample_outfile, logObject])
-
-			with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
-				executor.map(runCmd, split_diamond_cmds)
-
+			split_diamond_cmd = [split_diamond_results_prog, alignment_result_file, sample_listing_file]
 			try:
-				with open(sample_listing_file) as oslf:
-					for line in oslf:
-						line = line.strip()
-						sample, sample_outfile = line.split('\t')
-						assert(os.path.isfile(sample_outfile)) 
+				subprocess.call(' '.join(split_diamond_cmd), shell=True, stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL, executable='/bin/bash')
 			except Exception as e:
-				logObject.error("Issue with validating proper splitting of DIAMOND results.")
+				logObject.error("Issue with running: %s" % ' '.join(split_diamond_cmd))
 				logObject.error(e)
 				raise RuntimeError(e)
 			

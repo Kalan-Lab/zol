@@ -94,6 +94,8 @@ def salt():
 	else:
 		os.mkdir(outdir)
 
+	outdir = os.path.abspath(outdir) + '/'
+
 	check_dir = outdir + 'Checkpoint_Files/'
 	if not os.path.isdir(check_dir):
 		util.setupReadyDirectory([check_dir])

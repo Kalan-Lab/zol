@@ -410,7 +410,7 @@ def cgc():
 		sys.exit(1)
 
 	# Step 4: Write R script to generate the final figure
-	msg = '------------------Step 4------------------\nWriting R script for generating figure PDF.'
+	msg = '------------------Step 4------------------\nWriting R script for generating figure PDF/PNG.'
 	logObject.info(msg)
 	sys.stdout.write(msg + '\n')
 
@@ -498,7 +498,7 @@ def cgc():
 	rscript_handle.close()
 
 	# Step 5: Running R script to generate the final figure
-	msg = '------------------Step 5------------------\nRunning R script for generating figure PDF.'
+	msg = '------------------Step 5------------------\nRunning R script for generating figure PDF/PNG.'
 	logObject.info(msg)
 	sys.stdout.write(msg + '\n')
 

@@ -18,7 +18,6 @@
 6. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
 7. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
 8. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
-     - Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
 9. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
 10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome using abon, atpoc, and apos](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
 11. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)

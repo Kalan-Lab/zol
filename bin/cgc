@@ -134,7 +134,7 @@ track_full_label_to_name = dict((v,k) for k,v in track_name_to_full_label.items(
 def cgc():
 	myargs = create_parser()
 
-	zol_results_dir = myargs.zol_results_dir
+	zol_results_dir = os.path.abspath(myargs.zol_results_dir) + '/'
 	outdir = myargs.outdir
 	tracks = myargs.tracks
 	color_schemes = myargs.color_schemes

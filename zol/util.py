@@ -2041,32 +2041,32 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 	********************************************************************************************************************
 	"""
 	try:
-		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
-		db_locations = None
-		conda_setup_success = None
-		if zol_data_directory != 'None':
-			try:
-				zol_data_directory = os.path.abspath(zol_data_directory) + '/'
-				db_locations = zol_data_directory + 'database_location_paths.txt'
-				conda_setup_success = True
-			except:
-				conda_setup_success = False
-		if zol_data_directory == 'None' or conda_setup_success == False:
-			db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
-
-		if db_locations == None or not os.path.isfile(db_locations):
-			sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
-
-		rp_db_file = None
-		with open(db_locations) as odl:
-			for line in odl:
-				line = line.strip()
-				if len(line.split('\t')) != 4: continue
-				name, _, db_file, _ = line.split('\t')
-				if name == 'riboprots': 
-					rp_db_file = db_file
-
 		try:
+			zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+			db_locations = None
+			conda_setup_success = None
+			if zol_data_directory != 'None':
+				try:
+					zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+					db_locations = zol_data_directory + 'database_location_paths.txt'
+					conda_setup_success = True
+				except:
+					conda_setup_success = False
+			if zol_data_directory == 'None' or conda_setup_success == False:
+				db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+	
+			if db_locations == None or not os.path.isfile(db_locations):
+				sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
+	
+			rp_db_file = None
+			with open(db_locations) as odl:
+				for line in odl:
+					line = line.strip()
+					if len(line.split('\t')) != 4: continue
+					name, _, db_file, _ = line.split('\t')
+					if name == 'riboprots': 
+						rp_db_file = db_file
+	
 			assert(rp_db_file != None and os.path.isfile(rp_db_file))
 		except:
 			msg = 'Issues validating that the ribosomal proteins file is available. Downloading from Zenodo to output directory.'

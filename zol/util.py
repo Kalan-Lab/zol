@@ -2041,6 +2041,7 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 	********************************************************************************************************************
 	"""
 	try:
+		rp_db_file = None
 		try:
 			zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
 			db_locations = None
@@ -2058,7 +2059,6 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 			if db_locations == None or not os.path.isfile(db_locations):
 				sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
 	
-			rp_db_file = None
 			with open(db_locations) as odl:
 				for line in odl:
 					line = line.strip()

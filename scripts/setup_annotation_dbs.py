@@ -5,6 +5,7 @@ import sys
 import argparse
 from Bio import SeqIO
 import shutil
+import traceback
 
 def create_parser():
 	""" Parse arguments """
@@ -22,7 +23,6 @@ def create_parser():
 
 	args = parser.parse_args()
 	return args
-
 
 def setup_annot_dbs():
 	myargs = create_parser()
@@ -117,12 +117,13 @@ def setup_annot_dbs():
 					if line.startswith('NAME'): z += 1
 
 			listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
-			os.system(' '.join(
-				['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+			os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
 		except Exception as e:
 			sys.stderr.write('Issues setting up PGAP database.\n')
 			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
+
 	else:
 		# Final annotation files
 		pfam_phmm_file = download_path + 'Pfam-A.hmm'
@@ -138,6 +139,8 @@ def setup_annot_dbs():
 		mb_faa_file = download_path + 'mibig.dmnd'
 		card_faa_file = download_path + 'card.dmnd'
 		vfdb_faa_file = download_path + 'vfdb.dmnd'
+		mobs_faa_file = download_path + 'mobsuite_mpf_and_mob_proteins.dmnd'
+		unip_hmm_file = download_path + 'Universal_Hug_et_al.hmm'
 
 		download_links = ['https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
@@ -151,7 +154,9 @@ def setup_annot_dbs():
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
 						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
-						  'https://card.mcmaster.ca/download/0/broadstreet-v3.2.5.tar.bz2']
+						  'https://card.mcmaster.ca/download/0/broadstreet-v3.2.5.tar.bz2',
+						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
+						  'https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
 
 		# Download
 		print('Starting download of files!')
@@ -162,9 +167,9 @@ def setup_annot_dbs():
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
-			sys.stderr.write(str(e) + '\n')
 			issues_handle.write('Error occurred during downloading with axel.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up Pfam database!')
@@ -193,6 +198,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up Pfam database.\n')
 			issues_handle.write('Issues setting up Pfam database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -233,6 +239,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up KO database.\n')
 			issues_handle.write('Issues setting up KO database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -269,6 +276,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up PGAP database.\n')
 			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -286,6 +294,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up MI-BiG database.\n')
 			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -304,8 +313,9 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up VFDB database.\n')
 			issues_handle.write('Issues setting up VFDB database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
-
+		
 		# have note in program to recommend folks check out ARTS webserver for more detailed analysis
 		# in finding antibiotic BGCs
 		try:
@@ -326,6 +336,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up CARD database.\n')
 			issues_handle.write('Issues setting up CARD database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -360,6 +371,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up VOG database.\n')
 			issues_handle.write('Issues setting up VOG database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -376,11 +388,11 @@ def setup_annot_dbs():
 			assert(os.path.isfile(paperblast_descriptions_file))
 			assert(os.path.isfile(pb_faa_file))
 			listing_handle.write('paperblast\t' + paperblast_descriptions_file + '\t' + pb_faa_file + '\tNA\n')
-
 		except Exception as e:
 			sys.stderr.write('Issues setting up PaperBlast database.\n')
 			issues_handle.write('Issues setting up PaperBlast database.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up ISFinder database!')
@@ -399,7 +411,48 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up ISFinder database.\n')
 			issues_handle.write('Issues setting up ISFinder database.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up MOB-suite plasmid associated proteins database!')
+			ms_tar_path = download_path + 'data.tar.gz'
+			ms_faa_path = download_path + 'MOB-suite_proteins.faa'
+			ms_descriptions_file = download_path + 'MOB-suite_proteins.txt'
+			os.mkdir(download_path + 'MOB-suite_files/')
+			os.system(' '.join(['tar', '-xzf', ms_tar_path, '-C', download_path + 'MOB-suite_files/']))
+			os.system(' '.join(['cat', download_path + 'MOB-suite_files/data/*.faa', '>', ms_faa_path]))
+			os.system(' '.join(['diamond', 'makedb', '--in', ms_faa_path, '-d', mobs_faa_file]))
+			mdf_handle = open(ms_descriptions_file, 'w')
+			with open(ms_faa_path) as oif:
+				for rec in SeqIO.parse(oif, 'fasta'):
+					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
+			mdf_handle.close()
+			assert(os.path.isfile(mobs_faa_file))
+			assert(os.path.isfile(ms_descriptions_file))
+			listing_handle.write('mobsuite\t' + ms_descriptions_file + '\t' + mobs_faa_file + '\tNA\n')
+			os.system(' '.join(['rm', '-rf', ms_faa_path, ms_tar_path, download_path + 'MOB-suite_files/']))
+		except Exception as e:
+			sys.stderr.write('Issues setting up MOB-suite proteins database.\n')
+			issues_handle.write('Issues setting MOB-suite proteins database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up Hug et al. 2016 universal ribosomal proteins database!')
+			assert(os.path.isfile(unip_hmm_file))
+
+			os.system(' '.join(['hmmpress', unip_hmm_file]))
+			z = 0
+			with open(unip_hmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+			listing_handle.write('riboprots\tNA\t' + unip_hmm_file + '\t' + str(z) + '\n')
+		except Exception as e:
+			sys.stderr.write('Issues setting up Hug et al. 2016 database.\n')
+			issues_handle.write('Issues setting up Hug et al. 2016 database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 	listing_handle.close()
 	issues_handle.close()

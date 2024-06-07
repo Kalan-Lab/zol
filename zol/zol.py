@@ -908,8 +908,7 @@ def runPyhmmer(inputs):
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
 				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=cpus):
 					for hit in hits:
-						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
-											  str(hit.score)]) + '\n')
+						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score)]) + '\n')
 
 		else:
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
@@ -987,7 +986,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 				if db_file.endswith('.hmm'):
 					hmm_based_annotations.add(name)
 					hmm_search_cmds.append([name, db_file, z, protein_faa, annotation_result_file, hmm_individual_cpus])
-				elif db_file.endswith('.dmnd'):
+				elif db_file.endswith('.dmnd') and not name in set(['riboprots', 'mobsuite']):
 					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(dmnd_individual_cpus), '-d', db_file,
 								  '-q', protein_faa, '-o', annotation_result_file, logObject]
 					dmnd_search_cmds.append(search_cmd)
@@ -1004,6 +1003,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 		for rf in os.listdir(annotation_dir):
 			if not rf.endswith('.txt'): continue
 			db_name = rf.split('.txt')[0]
+			if db_name in set(['riboprots', 'mobsuite']): continue
 			annot_info_file = name_to_info_file[db_name]
 
 			id_to_description = defaultdict(lambda: 'NA')
@@ -1016,7 +1016,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 			# or by_score if HMMscan - lets avoid a second variable
 			best_hits_by_bitscore = defaultdict(lambda: [[], [], 0.0])
 			if db_name in hmm_based_annotations:
-				# parse HMM based results from HMMER3
+				# parse HMM based results from pyhmmer
 				with open(annotation_dir + rf) as oarf:
 					for line in oarf:
 						line = line.rstrip('\n')
@@ -2365,7 +2365,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		writer = pd.ExcelWriter(final_report_xlsx, engine='xlsxwriter')
 		workbook = writer.book
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
-		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on zol\'s Wiki page at:')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "ZoL Results" spreadsheet can be found on zol\'s Wiki page at:')
 		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
 
 		numeric_columns = {'Proportion of Total Gene Clusters with OG', 'Proportion of Focal Gene Clusters with OG',
@@ -2610,8 +2610,8 @@ def plotHeatmap(hg_stats, genbanks, plot_result_pdf, work_dir, logObject, height
 			sys.stderr.write(traceback.format_exc())
 			sys.exit(1)
 	except Exception as e:
-		sys.stderr.write('Issues creating visualizations.\n')
-		logObject.error('Issues creating visualizations.')
+		sys.stderr.write('Issues creating heatmap visualization in zol.\n')
+		logObject.error('Issues creating heatmap visualization in zol.')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)

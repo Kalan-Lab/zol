@@ -75,7 +75,7 @@ def create_parser():
 	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
 	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use.', required=False, default=1)
+	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
 
 	args = parser.parse_args()
 	return args
@@ -227,7 +227,7 @@ def apos():
 			reference_genome_gbk = plasmid_fai_res_dir + 'reference.gbk'
 			gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_genome, '-s', 'reference', '-l',
 								'OG', '-o', plasmid_fai_res_dir]
-			runCmdViaSubprocess(gene_call_cmd, logObject, check_files=[reference_genome_gbk])
+			util.runCmdViaSubprocess(gene_call_cmd, logObject, check_files=[reference_genome_gbk])
 			locus_genbank = plasmid_fai_res_dir + 'Reference_Query.gbk'
 			locus_proteome = plasmid_fai_res_dir + 'Reference_Query.faa'
 			fai.subsetGenBankForQueryLocus(reference_genome_gbk, locus_genbank, locus_proteome, scaff, int(start_coord), int(end_coord), logObject)
@@ -240,7 +240,7 @@ def apos():
 			fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
 			           '-tg', preptg_db_dir, fai_options, '-o', plasmid_fai_res_dir, '-c', str(cpus)]
 			genome_wide_tsv_result_file = plasmid_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
-			runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
+			util.runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	plasmid_info_handle.close()
 
 	tg_plasmid_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))
@@ -349,36 +349,7 @@ def apos():
 	util.closeLoggerObject(logObject)
 	sys.exit(0)
 
-def determineColumnNameBasedOnIndex(index):
-	"""
-	Function to determine spreadsheet column name for a given index
-	"""
-	# offset at 0 
-	num_to_char = {}
-	alphabet = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-	alphabet_first_spot = [''] + alphabet
-	for i, c in enumerate(alphabet):
-		num_to_char[i] = c
-	level = math.floor(index / 26)
-	remainder = index % 26
-	columname = alphabet_first_spot[level]
-	columname += alphabet[remainder]
-	return columname
 
-def runCmdViaSubprocess(cmd, logObject, check_files=[], check_directories=[], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
-	logObject.info('Running %s' % ' '.join(cmd))
-	try:
-		subprocess.call(' '.join(cmd), shell=True, stdout=stdout, stderr=stderr,
-						executable='/bin/bash')
-		for cf in check_files:
-			assert (os.path.isfile(cf))
-		for cd in check_directories:
-			assert (os.path.isdir(cd))
-		logObject.info('Successfully ran: %s' % ' '.join(cmd))
-	except:
-		logObject.error('Had an issue running: %s' % ' '.join(cmd))
-		logObject.error(traceback.format_exc())
-		raise RuntimeError('Had an issue running: %s' % ' '.join(cmd))
 
 if __name__ == '__main__':
 	apos()

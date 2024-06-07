@@ -1560,7 +1560,7 @@ def plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_d
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs, spreadsheet_result_file, spreadsheet_result_tsv_dir, plot_work_dir, tiny_aai_plot_file, logObject):
+def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs, spreadsheet_result_file, spreadsheet_result_tsv_dir, homologous_gbk_dir, plot_work_dir, tiny_aai_plot_file, logObject):
 	"""
 	Description:
 	This function serves to create an overview spreadsheet detailing the candidate homologous gene cluster segments 
@@ -1732,7 +1732,16 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 					igc_prop_hg_found = len([x for x in igc_hg_pid_info if x > 0.0])/float(len(hg_list))
 					copy_count_string = ','.join(igc_copy_counts)
 
-					igc_row = [str(x) for x in [sample, igc, round(igc_aggregate_bitscore, 3), round(igc_mean_aai, 3), round(igc_mean_sql, 3), 
+					igc_path = igc
+					if not os.path.isfile(igc):
+						igc_path = homologous_gbk_dir + igc.split('/')[-1]
+						try:
+							assert(os.path.isfile(igc_path))
+						except:
+							sys.stderr.write('Warning: Gene cluster GenBank file not found/confirmed for: %s\n' % igc)
+							logObject.warning('Gene cluster GenBank file not found/confirmed for: %s' % igc)
+
+					igc_row = [str(x) for x in [sample, igc_path, round(igc_aggregate_bitscore, 3), round(igc_mean_aai, 3), round(igc_mean_sql, 3), 
 								igc_prop_hg_found, gcgbk_to_corr[igc], igc_bg_genes[igc], copy_count_string]] + igc_hg_pid_sql_pair
 					igc_aggregate_bitscores.append(igc_aggregate_bitscore)
 					igc_tsv_handle.write('\t'.join(igc_row) + '\n')		

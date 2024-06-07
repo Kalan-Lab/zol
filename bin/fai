@@ -565,7 +565,7 @@ def faiMain():
 	tiny_aai_plot_file = final_results_dir + 'Candidate_Homologous_Gene_Clusters.Tiny_AAI_Plot.pdf'	
 	if not os.path.isfile(step5_check_file):
 		util.setupReadyDirectory([plot_dir, spreadsheet_result_tsv_dir])
-		fai.createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, query_information['protein_to_hg'],  query_information['key_hgs'], spreadsheet_result_file, spreadsheet_result_tsv_dir, plot_dir, tiny_aai_plot_file, logObject)
+		fai.createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, query_information['protein_to_hg'],  query_information['key_hgs'], spreadsheet_result_file, spreadsheet_result_tsv_dir, homologous_gbk_dir, plot_dir, tiny_aai_plot_file, logObject)
 		os.system('touch %s' % step5_check_file)
 
 	step6_check_file = check_dir + 'step6.txt'

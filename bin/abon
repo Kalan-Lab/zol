@@ -74,7 +74,7 @@ def create_parser():
 	parser.add_argument('-sk', '--simple_blastp_key_proteins_proportion_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
 	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use.', required=False, default=1)
+	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
 
 	args = parser.parse_args()
 	return args
@@ -123,7 +123,7 @@ def abon():
 	gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
 	gecco_weights_pkl_file = outdir + 'GECCO_PF_Weights.pkl'
 	axel_download_cmd = ['axel', '-a', '-n', str(cpus), gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
-	runCmdViaSubprocess(axel_download_cmd, logObject, check_files=[gecco_weights_pkl_file])
+	util.runCmdViaSubprocess(axel_download_cmd, logObject, check_files=[gecco_weights_pkl_file])
 
 	sys.stdout.write('Parsing BGC prediction results\n')
 	logObject.info('Parsing BGC prediction results')
@@ -198,7 +198,7 @@ def abon():
 			# run fai 
 			fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(cpus)]
 			genome_wide_tsv_result_file = bgc_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
-			runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
+			util.runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	bgc_info_handle.close()
 
 	tg_bgc_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))
@@ -310,39 +310,6 @@ def abon():
 	# Close logging object and exit
 	util.closeLoggerObject(logObject)
 	sys.exit(0)
-
-
-def determineColumnNameBasedOnIndex(index):
-	"""
-	Function to determine spreadsheet column name for a given index
-	"""
-	# offset at 0 
-	num_to_char = {}
-	alphabet = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-	alphabet_first_spot = [''] + alphabet
-	for i, c in enumerate(alphabet):
-		num_to_char[i] = c
-	level = math.floor(index / 26)
-	remainder = index % 26
-	columname = alphabet_first_spot[level]
-	columname += alphabet[remainder]
-	return columname
-
-def runCmdViaSubprocess(cmd, logObject, check_files=[], check_directories=[], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
-	logObject.info('Running %s' % ' '.join(cmd))
-	try:
-		subprocess.call(' '.join(cmd), shell=True, stdout=stdout, stderr=stderr,
-						executable='/bin/bash')
-		for cf in check_files:
-			assert (os.path.isfile(cf))
-		for cd in check_directories:
-			assert (os.path.isdir(cd))
-		logObject.info('Successfully ran: %s' % ' '.join(cmd))
-	except:
-		logObject.error('Had an issue running: %s' % ' '.join(cmd))
-		logObject.error(traceback.format_exc())
-		raise RuntimeError('Had an issue running: %s' % ' '.join(cmd))
-
 
 def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, general_proteins_fasta, logObject, use_simple_blastp=False):
 	try:

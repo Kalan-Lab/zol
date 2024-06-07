@@ -1,7 +1,8 @@
 import os
 import sys
 from Bio import SeqIO
-from Bio.SeqFeature import SeqFeature, FeatureLocation
+from Bio.SeqFeature import FeatureLocation
+import decimal
 from Bio.Seq import Seq
 import logging
 import subprocess
@@ -19,8 +20,11 @@ import pkg_resources  # part of setuptools
 import shutil
 from ete3 import Tree
 import math
-from zol import fai
+from zol import fai, zol
 import statistics
+import pyhmmer
+import pandas as pd
+from scipy import stats
 
 version = pkg_resources.require("zol")[0].version
 
@@ -30,17 +34,20 @@ valid_alleles = set(['A', 'C', 'G', 'T'])
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 nj_tree_prog = None
+salt_plot_prog = None
 if zol_exec_directory != 'None':
 	try:
 		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
 		nj_tree_prog = zol_exec_directory + 'njTree.R'
+		salt_plot_prog = zol_exec_directory + 'salt_gc_vs_ribo_aai.R'
 		conda_setup_success = True
 	except:
 		conda_setup_success = False
 if zol_exec_directory == 'None' or conda_setup_success == False:
 	nj_tree_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/njTree.R'
+	salt_plot_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/salt_gc_vs_ribo_aai.R'
 
-if nj_tree_prog == None or not os.path.isfile(nj_tree_prog):
+if nj_tree_prog == None or not os.path.isfile(nj_tree_prog) or salt_plot_prog == None or not os.path.isfile(salt_plot_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in util.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 
@@ -57,6 +64,37 @@ def memory_limit(mem):
 	soft, hard = resource.getrlimit(resource.RLIMIT_AS)
 	resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
 	print(resource.getrlimit(resource.RLIMIT_AS))
+
+
+def runCmdViaSubprocess(cmd, logObject, check_files=[], check_directories=[], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
+	"""
+	Description:
+	Function to run some command via subprocess.
+	********************************************************************************************************************
+	Parameters:
+	- cmd: The command as a list.
+	- logObject: A logging object.
+	- check_files: Files to check the existence of assuming successful run of the command.
+	- check_directories: Directories to check the existence of assuming successful run of the command.
+	- stdout: Where to have subprocess direct standard output.
+	- stderr: Where to have subprocess direct standard errorr.
+	********************************************************************************************************************
+	"""
+	logObject.info('Running %s' % ' '.join(cmd))
+	try:
+		subprocess.call(' '.join(cmd), shell=True, stdout=stdout, stderr=stderr,
+						executable='/bin/bash')
+		for cf in check_files:
+			assert (os.path.isfile(cf))
+		for cd in check_directories:
+			assert (os.path.isdir(cd))
+		logObject.info('Successfully ran: %s' % ' '.join(cmd))
+	except:
+		logObject.error('Had an issue running: %s' % ' '.join(cmd))
+		logObject.error(traceback.format_exc())
+		raise RuntimeError('Had an issue running: %s' % ' '.join(cmd))
+
+
 def cleanUpSampleName(original_name):
 	"""
 	Description:
@@ -1819,7 +1857,7 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 					for feature in rec.features:
 						if feature.type != 'CDS': continue
 						lt = feature.qualifiers.get('locus_tag')[0]
-						loc_str = feature.location
+						loc_str = str(feature.location)
 						all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
 						og = lt_to_og[lt]
 						gbk_og_counts[gbk][og] += 1
@@ -1988,3 +2026,653 @@ def parseFeatureCoord(str_gbk_loc):
 		return(all_coords, start, end, direction, is_multi_part)
 	except Exception as e:
 		raise RuntimeError(traceback.format_exc())
+
+def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, cpus=1):
+	"""
+	Description:
+	Annotate ribosomal proteins from Hug et al. 2016 (using HMMs as provided in GToTree by Lee 2019) in a reference genome.
+	********************************************************************************************************************
+	Parameters:
+	- best_tg_gbk_file: The full genome GenBank file for the reference/select genome.
+	- tg_query_prots_file: The FASTA file to write ribosomal proteins identified to (note will append to file).
+	- ribo_norm_dir: Output workspace to write intermediate files to.
+	- logObject: A logging object.
+	- cpus: The number of CPUs to use [Default is 1].
+	********************************************************************************************************************
+	"""
+	try:
+		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+		db_locations = None
+		conda_setup_success = None
+		if zol_data_directory != 'None':
+			try:
+				zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+				db_locations = zol_data_directory + 'database_location_paths.txt'
+				conda_setup_success = True
+			except:
+				conda_setup_success = False
+		if zol_data_directory == 'None' or conda_setup_success == False:
+			db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+
+		if db_locations == None or not os.path.isfile(db_locations):
+			sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
+
+		rp_db_file = None
+		with open(db_locations) as odl:
+			for line in odl:
+				line = line.strip()
+				if len(line.split('\t')) != 4: continue
+				name, _, db_file, _ = line.split('\t')
+				if name == 'riboprots': 
+					rp_db_file = db_file
+
+		try:
+			assert(rp_db_file != None and os.path.isfile(rp_db_file))
+		except:
+			msg = 'Issues validating that the ribosomal proteins file is available. Downloading from Zenodo to output directory.'
+			logObject.warning(msg)
+			sys.stderr.write(msg + '\n')
+			
+			curr_path = os.path.abspath(os.getcwd()) + '/'
+			download_path = '/'.join((db_locations.split('/')[:-1])) + '/'
+			download_links = ['https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
+
+			# Download
+			os.chdir(download_path)
+			rp_db_file = download_path + 'Universal_Hug_et_al.hmm'
+			try:
+				for dl in download_links:
+					axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+					os.system(' '.join(axel_download_dbs_cmd))
+					assert(os.path.isfile(rp_db_file))
+					os.system(' '.join(['hmmpress', rp_db_file]))
+			except Exception as e:
+				sys.stderr.write('Error occurred during downloading!\n')
+				logObject.error('Error occurred during downloading with axel.\n')
+				sys.exit(1)
+			os.chdir(curr_path)
+
+		hmm_lengths = {}
+		z = 0
+		try:
+			with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
+				for hmm in hmm_file:
+					hmm_lengths[hmm.name] = len(hmm.consensus)
+					z += 1
+		except:
+			raise RuntimeError("Problem getting HMM consensus lengths!")
+
+		best_tg_faa_file = ribo_norm_dir + 'Reference_Genome_All_Proteins.faa'
+		best_tg_faa_handle = open(best_tg_faa_file, 'w')
+		try:
+			with open(best_tg_gbk_file) as obtgf:
+				for rec in SeqIO.parse(obtgf, 'genbank'):
+					for feat in rec.features:
+						if feat.type == 'CDS':
+							lt = feat.qualifiers.get('locus_tag')[0]
+							prot_seq = feat.qualifiers.get('translation')[0]
+							best_tg_faa_handle.write('>' + lt + '\n' + prot_seq + '\n')
+		except:
+			raise RuntimeError("Problem processing full genome GenBank file.")
+		best_tg_faa_handle.close()
+		
+		alphabet = pyhmmer.easel.Alphabet.amino()
+		sequences = []
+		with pyhmmer.easel.SequenceFile(best_tg_faa_file, digital=True, alphabet=alphabet) as seq_file:
+			sequences = list(seq_file)
+
+		reference_ribo_prots = set([])
+		with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=cpus):
+				for hit in hits:
+					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
+					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
+					hmm_coverage = (n_aligned_positions / hmm_lengths[hit.best_domain.alignment.hmm_name])
+					if hmm_coverage >= 0.25:
+						reference_ribo_prots.add(hit.name.decode())
+			
+		tg_query_prots_handle = open(tg_query_prots_file, 'a+')
+		with open(best_tg_faa_file) as obtff:
+			for rec in SeqIO.parse(obtff, 'fasta'):
+				if rec.id in reference_ribo_prots:
+					tg_query_prots_handle.write('>Ribosomal_Protein|' + rec.id + '\n' + str(rec.seq) + '\n')
+		tg_query_prots_handle.close()
+
+	except:
+		raise RuntimeError('Problem with running pyhmmer for finding ribosomal proteins in reference genome!')
+
+def runPyHmmerForVOGforSalt(inputs):
+	"""
+	Description:
+	Annotate a single sample's predicted proteome file for VOG HMMs.
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 5:
+		- db_file: HMM database.
+		- z: Size of database, used for E-value computation.
+		- protein_faa: sample's proteome FASTA file.
+		- annotation_result_file: Path to output file where to write annotation information.
+		- cpus: number of CPUs to use for search.
+	********************************************************************************************************************
+	"""
+	db_file, z, protein_faa, annotation_result_file, cpus = inputs
+	try:
+		hmm_lengths = {}
+		try:
+			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+				for hmm in hmm_file:
+					hmm_lengths[hmm.name] = len(hmm.consensus)
+		except:
+			raise RuntimeError("Problem getting HMM consensus lengths!")
+
+		alphabet = pyhmmer.easel.Alphabet.amino()
+		sequences = []
+		with pyhmmer.easel.SequenceFile(protein_faa, digital=True, alphabet=alphabet) as seq_file:
+			sequences = list(seq_file)
+
+		outf = open(annotation_result_file, 'w')
+		with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=cpus):
+				for hit in hits:
+					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
+					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
+					hmm_coverage = (n_aligned_positions / hmm_lengths[hit.best_domain.alignment.hmm_name])
+					outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score), str(hmm_coverage)]) + '\n')
+		outf.close()
+	except:
+		raise RuntimeError('Problem running pyhmmer for annotating MGEs in target genomes!')
+
+			
+def annotateMGEs(inputs):
+	"""
+	Description:
+	Annotate MGEs for a single sample's predicted proteome file.
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 6:
+		- sample: sample/genome name.
+		- faa_file: path to proteome for sample/genome.
+		- vog_annot_file: path to the pyhmmer results for VOG annotations (will be written to - should not exist).
+		- mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (will be written to - should not exist).
+		- is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (will be written to - should not exist).
+		- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	sample = 'NA'
+	try:
+		sample, faa_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject = inputs
+
+		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+		db_locations = None
+		conda_setup_success = None
+		if zol_data_directory != 'None':
+			try:
+				zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+				db_locations = zol_data_directory + 'database_location_paths.txt'
+				conda_setup_success = True
+			except:
+				conda_setup_success = False
+		if zol_data_directory == 'None' or conda_setup_success == False:
+			db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+
+		if db_locations == None or not os.path.isfile(db_locations):
+			sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
+
+		with open(db_locations) as odl:
+			for line in odl:
+				line = line.strip()
+				if len(line.split('\t')) != 4: continue
+				name, _, db_file, z = line.split('\t')
+				if name == 'vog':
+					vog_pyhmmer_input = [db_file, z, faa_file, vog_annot_file, 1]
+					runPyHmmerForVOGforSalt(vog_pyhmmer_input)
+				elif name == 'mobsuite' or name == 'isfinder':
+					annot_result_file = is_annot_file
+					if name == 'mobsuite':
+						annot_result_file = mobsuite_annot_file
+					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-fast', '--outfmt', '6', 'qseqid', 'sseqid',
+					   'pident', 'evalue', 'qcovhsp', '-p', '1', '-d', db_file, '-q', faa_file, '-o', annot_result_file]
+					runCmdViaSubprocess(search_cmd, logObject, check_files=[annot_result_file])
+	except Exception as e:
+		sys.stderr.write('Issues with MGE annotation commands for sample %s.\n' % sample)
+		logObject.error('Issues with MGE annotation commands for sample %s.' % sample)
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def processMGEAnnotations(inputs):
+	"""
+	Description:
+	Function to process MGE annotation results from DIAMOND blastp and pyhmmer searching for a single sample as well as 
+	corresponding genomic GenBank file to determine summarized information for 
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 6:
+		- sample: sample/genome name.
+		- gbk_file: path to GenBank for sample/genome.
+		- summary_file: The output file for the sample with information on MGE locations.
+		- vog_annot_file: path to the pyhmmer results for VOG annotations (should already exist).
+		- mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (should already exist).
+		- is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (should already exist).
+		- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		# CURRENTLY HARDCODED! 
+		max_dmnd_annotation_evalue = 1e-5
+		max_hmm_annotation_evalue = 1e-5
+		min_percent_identity = 40.0 # only used for diamond
+		min_coverage = 70.0
+		sample, gbk_file, summary_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject = inputs
+
+		try:
+			assert(os.path.isfile(vog_annot_file) and os.path.isfile(mobsuite_annot_file) and os.path.isfile(is_annot_file))
+		except:
+			sys.stderr.write('Issue validating the existence of one or more of the annotation files for sample: %s\n' % sample)
+			logObject.error('Issue validating the existence of one or more of the annotation files for sample: %s' % sample)
+			# TODO: Consider making this an end-program error
+			return 
+		
+		vog_hits = set([])
+		with open(vog_annot_file) as ovaf:
+			for line in ovaf:
+				line = line.rstrip('\n')
+				if line.startswith('#'): continue
+				ls = line.split('\t')
+				_, _, query, _, evalue, score, coverage = ls
+				evalue = decimal.Decimal(evalue)
+				coverage = float(coverage)*100.0
+				if evalue <= max_hmm_annotation_evalue and coverage >= min_coverage: 
+					vog_hits.add(query)
+		
+		mobsuite_hits = set([])
+		with open(mobsuite_annot_file) as omaf:
+			for line in omaf:
+				line = line.strip()
+				query, _, pident, evalue, qcovhsp = line.split('\t')
+				pident = float(pident)
+				evalue = decimal.Decimal(evalue)
+				qcovhsp = float(pident)
+				if qcovhsp >= min_coverage and evalue <= max_dmnd_annotation_evalue and pident >= min_percent_identity:
+					mobsuite_hits.add(query) 
+
+		isfinder_hits = set([])
+		with open(is_annot_file) as oiaf:
+			for line in oiaf:
+				line = line.strip()
+				query, _, pident, evalue, qcovhsp = line.split('\t')
+				pident = float(pident)
+				evalue = decimal.Decimal(evalue)
+				qcovhsp = float(pident)
+				if qcovhsp >= min_coverage and evalue <= max_dmnd_annotation_evalue and pident >= min_percent_identity:
+					isfinder_hits.add(query) 
+
+		summary_handle = open(summary_file, 'w')
+		summary_handle.write('\t'.join(['sample', 'scaffold', 'total_cds', 'mobsuite_cds_hits', 'mobsuite_cds_prop', 'vog_cds_hits', 'vog_cds_prop', 'is_cds_hits', 'is_cds_prop', 'is_cds_boundaries']) + '\n')
+		with open(gbk_file) as ogbf:
+			for rec in SeqIO.parse(ogbf, 'genbank'):
+				scaffold_id = rec.id
+				scaffold_is_boundary_coords = set([])				
+				total_cds = 0
+				mhits = 0
+				vhits = 0
+				ihits = 0
+				for feat in rec.features:
+					if feat.type != 'CDS': continue
+					lt = feat.qualifiers.get('locus_tag')[0]
+					total_cds += 1
+					if lt in isfinder_hits:
+						ihits += 1
+						start = min([int(x.strip('>').strip('<')) for x in
+									 str(feat.location)[1:].split(']')[0].split(':')]) + 1
+						end = max([int(x.strip('>').strip('<')) for x in
+								   str(feat.location)[1:].split(']')[0].split(':')])
+						scaffold_is_boundary_coords.add(start)
+						scaffold_is_boundary_coords.add(end)
+					if lt in mobsuite_hits: mhits += 1
+					if lt in vog_hits: vhits += 1
+				if total_cds > 0:
+					summary_handle.write('\t'.join( [str(x) for x in [sample, scaffold_id, total_cds, mhits, round(mhits/total_cds, 3), vhits, round(vhits/total_cds, 3), ihits, round(ihits/total_cds, 3)]] + [', '.join([str(y) for y in scaffold_is_boundary_coords]) ]) + '\n')
+		summary_handle.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with MGE annotation processing for sample %s.\n' % sample)
+		logObject.error('Issues with MGE annotation processing for sample %s.' % sample)
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def processDiamondForGCtoRiboRatio(diamond_results_file, query_faa, fai_ind_gc_file, gc_to_ribo_aai_stat_file, logObject):
+	"""
+	Description:
+	Function to process results from DIAMOND blastping ribosomal + focal gene-cluster proteins from reference genome 
+	to the remainder of target genomes to determine the Beta-RD statistic.
+	********************************************************************************************************************
+	Parameters:
+	- diamond_results_file: DIAMOND blastp results searching for query gene cluster and ribosomal proteins from reference
+	                        genome against all target genomes.  
+	- query_faa: the query FASTA file containing all ribosomal + gene-cluster protein seqeunces.
+	- fai_ind_gc_file: fai individual gene cluster instances tsv.
+	- gc_to_ribo_aai_stat_file: Path to output file to write statistics per gene cluster instance.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		gc_prots = defaultdict(set)
+		genome_gcis = defaultdict(set)
+		lt_to_gci = {}
+		with open(fai_ind_gc_file) as ofigf:
+			for i, line in enumerate(ofigf):
+				if i == 0: continue			
+				line = line.strip()
+				ls = line.split('\t')
+				gc_gbk = ls[1]
+				gc_gbk_file = gc_gbk.split('/')[-1]
+				gci = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				genome = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				if '_fai-gene-cluster' in genome:
+					genome = genome.split('_fai-gene-cluster')[0]
+				genome_gcis[genome].add(gci)
+				with open(gc_gbk) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						for feat in rec.features:
+							if feat.type == 'CDS':
+								lt = feat.qualifiers.get('locus_tag')[0]
+								gc_prots[genome].add(lt)
+								lt_to_gci[genome + '|' + lt] = gci 
+
+		gci_query_top_hits = defaultdict(lambda: defaultdict(lambda: [[], 0.0, []]))
+		with open(diamond_results_file) as odrf:
+			for line in odrf:
+				line = line.strip()
+				ls = line.split('\t')
+				query = ls[0]
+				query_class = query.split('|')[0]
+				hit = ls[1]
+				genome, lt = hit.split('|')
+				if query_class == 'Gene_Cluster_Protein' and not lt in gc_prots[genome]: continue
+				identity = float(ls[2])
+				bitscore = float(ls[4])
+				qcovhsp = float(ls[7])
+				if qcovhsp <= 25.0: continue
+				if query_class == 'Ribosomal_Protein':
+					gcis = genome_gcis[genome]
+				else:
+					gcis = set([lt_to_gci[hit]])
+				for gci in gcis:
+					if bitscore > gci_query_top_hits[gci][query][1]:
+						gci_query_top_hits[gci][query][0] = [hit]
+						gci_query_top_hits[gci][query][1] = bitscore
+						gci_query_top_hits[gci][query][2] = [identity]
+					elif bitscore == gci_query_top_hits[gci][query][1]:
+						gci_query_top_hits[gci][query][0].append(hit)
+						gci_query_top_hits[gci][query][2].append(identity)
+
+		all_ribo_prots = set([])
+		all_gc_prots = set([])
+		with open(query_faa) as oqf:
+			for rec in SeqIO.parse(oqf, 'fasta'):
+				if rec.id.startswith('Gene_Cluster_Protein|'):
+					all_gc_prots.add(rec.id)
+				else:
+					all_ribo_prots.add(rec.id)
+
+		gci_top_hits = defaultdict(list)
+		for gci in gci_query_top_hits:
+			for query in gci_query_top_hits[gci]:
+				max_identity = 0.0
+				max_hit = None
+				for i, hit in enumerate(gci_query_top_hits[gci][query][0]):
+					if gci_query_top_hits[gci][query][2][i] >= max_identity:
+						max_identity = gci_query_top_hits[gci][query][2][i] 
+						max_hit = hit
+				gci_top_hits[gci].append([query, bitscore, max_hit, max_identity])
+
+		gc_aais = []
+		rp_aais = []
+		data = []
+		for gci in gci_top_hits:
+			ribo_identities = []
+			gc_identities = []
+			accounted_lts = set([])
+			hits = gci_top_hits[gci]
+			for query_hit_data in sorted(hits, key=itemgetter(1), reverse=True):
+				query = query_hit_data[0]
+				max_ident = query_hit_data[3]
+				if not query_hit_data[2] in accounted_lts:
+					if query.split('|')[0] == 'Ribosomal_Protein':
+						ribo_identities.append(max_ident)
+					else:
+						gc_identities.append(max_ident)
+				accounted_lts.add(query_hit_data[2])
+			if len(ribo_identities) > 0 and len(gc_identities) > 0:
+				ribo_aai = round(statistics.mean(ribo_identities),3)
+				gc_aai = round(statistics.mean(gc_identities),3)
+				ribo_prot_prop = round(len(ribo_identities)/len(all_ribo_prots),3)
+				gc_prot_prop = round(len(gc_identities)/len(all_gc_prots),3)
+				gc_aais.append(gc_aai)
+				rp_aais.append(ribo_aai)
+				data.append([gci, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop])
+		
+		slope, intercept, r, p, se = stats.linregress(rp_aais, gc_aais)
+
+		gc_to_ribo_aai_stat_handle = open(gc_to_ribo_aai_stat_file, 'w')
+		gc_to_ribo_aai_stat_handle.write('\t'.join(['gc_instance', 'distance_to_linear_regression', 'ribo_aai', 'gc_aai', 'prop_ribo_prots', 'prop_gc_prots']) + '\n')
+		for rd in data:
+			gci, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop = rd
+			expected_gc_aai = ribo_aai*slope + intercept
+			diff_obs_to_exp = gc_aai - expected_gc_aai
+			row_data = [gci, diff_obs_to_exp, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop]
+			gc_to_ribo_aai_stat_handle.write('\t'.join([str(x) for x in row_data]) + '\n')
+		gc_to_ribo_aai_stat_handle.close()
+	except Exception as e:
+		sys.stderr.write('Issues with processing DIAMOND results for aligning ribosomal and gene cluster proteins from the reference to the remainder of the target genomes.')
+		logObject.error('Issues with processing DIAMOND results for aligning ribosomal and gene cluster proteins from the reference to the remainder of the target genomes.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+
+def makeGCvsRiboProtAAIScatterplot(gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file, logObject):
+	"""
+	Description:
+	Function to plot the gene cluster to ribosomal protein AAI relationship as a scatterplot.
+	********************************************************************************************************************
+	Parameters:
+	- gc_to_ribo_aai_stat_file: The gene cluster and ribosomal proteins AAI relationship file.
+	- gc_ribo_aai_plot_pdf_file: The path to the resulting PDF with the scatterplot showing the GC to ribo proteins AAI
+								 relationship.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		plot_cmd = ['Rscript', salt_plot_prog, gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file]
+		try:
+			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(gc_ribo_aai_plot_pdf_file))
+			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running R based plotting - potentially because of R setup issues in conda: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+	except Exception as e:
+		sys.stderr.write('Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.\n')
+		logObject.error('Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def consolidateSaltySpreadsheet(fai_ind_gc_file, genome_gbks, codoff_result_dir, mge_annot_result_file, gc_to_ribo_aai_stat_file, result_tsv_file, result_xlsx_file, logObject):
+	"""
+	Description:
+	Consolidate results from all three analyses to inform on lateral transfer into a table and create an auto-colored
+	spreadsheet XLSX file.
+	********************************************************************************************************************
+	Parameters:
+	- fai_ind_gc_file: fai individual gene cluster instances tsv.
+	- genome_gbks: A dictionary mapping a genome id/name to a full-genome GenBank file.
+	- codoff_result_dir: results directory from running codoff for each gene cluster against their respective background 
+				         genomes.
+	- mge_annot_result_file: overview file with MGE annotations for scaffolds from target genomes.
+	- gc_to_ribo_aai_stat_file: Path to output file to write statistics per gene cluster instance.
+	- result_tsv_file: The path to the output file to write the consolidated table to in TSV format.
+	- result_xlsx_file: The path to the output file to write the consolidated table to in XLSX format.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+
+		header = ['gene cluster (GC) instance', 'GC gbk path', 'genome', 'scaffold', 'scaffold length (bp)', 'scaffold CDS count', 'GC CDS count', 
+			      'codoff empirical p-value', 'GC AAI observed - expectation',  'GC AAI between genome and reference genome', 
+				  'ribosomal protein AAI between genome and reference genome', 'distance to IS element', 'scaffold CDS proportion IS elements', 
+				  'scaffold CDS proportion VOGs', 'scaffold CDS proportion plasmid-associated']
+
+		gc_codoff_pvals = defaultdict(lambda: 'NA')
+		for f in os.listdir(codoff_result_dir):
+			gc = '.txt'.join(f.split('.txt')[:-1])
+			gc_codoff_file = codoff_result_dir + f
+			with open(gc_codoff_file) as ogcf:
+				for line in ogcf:
+					line = line.strip()
+					ls = line.split('\t')
+					if ls[0] == 'Empirical P-value': 
+						gc_codoff_pvals[gc] = ls[1]
+
+		genome_scaffold_annot_info = defaultdict(lambda: defaultdict(lambda: ['NA']*8))
+		if mge_annot_result_file != None and os.path.isfile(mge_annot_result_file):
+			with open(mge_annot_result_file) as omarf:
+				for i, line in enumerate(omarf):
+					if i == 0: continue 
+					line = line.strip('\n')
+					sample, scaffold, total_cds, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries = line.split('\t')
+					genome_scaffold_annot_info[sample][scaffold] = [total_cds, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries] 
+
+		gc_aai_stats = defaultdict(lambda: ['NA']*5)
+		with open(gc_to_ribo_aai_stat_file) as ogtrasf:
+			for i, line in enumerate(ogtrasf):
+				if i == 0: continue
+				line = line.strip('\n')
+				gc, ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots = line.split('\t')
+				gc_aai_stats[gc] = [ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots]
+
+		num_rows = 0
+		tsv_outf = open(result_tsv_file, 'w')
+		tsv_outf.write('\t'.join(header) + '\n')
+		with open(fai_ind_gc_file) as ofigf:
+			for i, line in enumerate(ofigf):
+				if i == 0: continue		
+				line = line.strip()
+				ls = line.split('\t')	
+				gc_gbk = ls[1]
+				gc_gbk_file = gc_gbk.split('/')[-1]
+				gc = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				genome = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				if '_fai-gene-cluster' in genome:
+					genome = genome.split('_fai-gene-cluster')[0]
+	
+				scaffold = 'NA'
+				gc_cds_count = 0
+
+				cds_coords = {}
+				scaffold_lens = {}
+				with open(genome_gbks[genome]) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						scaffold_lens[rec.id] = len(str(rec.seq))
+						for feat in rec.features:
+							if feat.type == 'CDS':
+								lt = feat.qualifiers.get('locus_tag')[0]
+								loc_str = str(feat.location)
+								all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+								cds_coords[lt] = [start, end]
+				
+				min_gc_coord = 1e100
+				max_gc_coord = 0
+				with open(gc_gbk) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						scaffold = rec.id
+						for feat in rec.features:
+							if feat.type == "CDS":
+								gc_cds_count += 1
+								lt = feat.qualifiers.get('locus_tag')[0]
+								cds_start = cds_coords[lt][0]
+								cds_end = cds_coords[lt][1]
+								if cds_start < min_gc_coord:
+									min_gc_coord = cds_start
+								if cds_end > max_gc_coord:
+									max_gc_coord = cds_end
+
+				scaffold_cds_count, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries = genome_scaffold_annot_info[genome][scaffold]
+				ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots = gc_aai_stats[gc]
+				gc_codoff_pval = gc_codoff_pvals[gc]
+			
+				min_is_distance = 1e100
+				for is_coord in is_cds_boundaries.split(', '):
+					if is_numeric(is_coord):
+						is_coord = int(is_coord)
+						dist = None 
+						if is_coord >= min_gc_coord and is_coord <= max_gc_coord:
+							dist = 0
+						else:
+							dist = min([abs(is_coord-min_gc_coord), abs(is_coord-max_gc_coord)])
+						if dist < min_is_distance:
+							min_is_distance = dist
+				if min_is_distance == 1e100:
+					min_is_distance = 'NA'
+
+				scaffold_length = scaffold_lens[scaffold]
+
+				row = [gc, gc_gbk, genome, scaffold, scaffold_length, scaffold_cds_count, gc_cds_count, gc_codoff_pval, ratio_statistic, gc_aai, ribo_aai, min_is_distance, 
+		               is_cds_prop, vog_cds_prop, mobsuite_cds_prop]
+				tsv_outf.write('\t'.join([str(x) for x in row]) + '\n')
+				num_rows += 1
+		tsv_outf.close()
+			
+		# Generate Excel spreadsheet
+		writer = pd.ExcelWriter(result_xlsx_file, engine='xlsxwriter')
+		workbook = writer.book
+		dd_sheet = workbook.add_worksheet('Data Dictionary')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "SALT Results" spreadsheet can be found on zol\'s Wiki page at:')
+		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt')
+
+		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+
+		numeric_columns = {'total scaffold CDS count', 'GC CDS count', 'codoff empirical p-value', 'GC AAI observed - expectation', 'distance to IS element', 
+         			       'scaffold CDS proportion IS elements', 'scaffold CDS proportion VOGs', 'scaffold CDS proportion plasmid-associated', 
+						   'GC AAI between genome and reference genome', 'ribosomal protein AAI between genome and reference genome'}
+
+		results_df = loadTableInPandaDataFrame(result_tsv_file, numeric_columns)
+		results_df.to_excel(writer, sheet_name='SALT Results', index=False, na_rep="NA")
+		worksheet =  writer.sheets['SALT Results']
+		worksheet.conditional_format('A2:BA' + str(num_rows+1), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})
+		worksheet.conditional_format('A1:BA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+
+		# codoff p-value
+		worksheet.conditional_format('H2:H' + str(num_rows+1), {'type': '3_color_scale', 'min_color': "#f07878", 'mid_color': '#f7ca81', 'max_color': "#f7de99", "min_value": 0.0, "mid_value": 0.05, "max_value": 1.0, 'min_type': 'num', 'mid_type': 'num', 'max_type': 'num'})
+
+		# diff
+		worksheet.conditional_format('I2:I' + str(num_rows+1), {'type': '3_color_scale', 'min_color': "#917967", 'mid_color': '#FFFFFF', 'max_color': "#ba8dc9", "min_value": -100.0, "mid_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'mid_type': 'num', 'max_type': 'num'})
+
+		# AAI columns 
+		worksheet.conditional_format('J2:J' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#dfedf5", 'max_color': "#8fa9b8", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('K2:K' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#dfedf5", 'max_color': "#8fa9b8", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# dist to IS/transposon
+		worksheet.conditional_format('L2:L' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#ed87ad", 'max_color': "#f5c6d8", "min_value": 0.0, "max_value": 10000.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# IS/VOG/plasmid
+		worksheet.conditional_format('M2:M' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('N2:N' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('O2:O' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		workbook.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with creating the final salt XLSX spreadsheet.\n')
+		logObject.error('Issues with creating the final salt XLSX spreadsheet.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)

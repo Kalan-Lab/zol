@@ -116,6 +116,10 @@ def create_parser():
 	on to the target genomes. This will prevent detection of new genes in gene-clusters 
 	detected by fai but synchronize gene-calling and allow for better similarity 
 	assessment between orthologous genes.
+								  
+	If you are interested in inferring horizontal gene transfer and working with bacterial
+	genomes - consider issuing the "--mge_annotation" flag to annotate phage, plasmid and 
+	IS element associated proteins. 
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-d', '--download_premade', help='Download and setup pre-made databases of representative genomes for specific taxon/genus.\nProvide name of the taxon, e.g. "Escherichia"', required=False, default=None)
@@ -129,6 +133,7 @@ def create_parser():
 	parser.add_argument('-m', '--meta_mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
 	parser.add_argument('-rp', '--reference_proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
 	parser.add_argument('-cst', '--create_species_tree', action='store_true', help='Use skani to infer a neighbor-joing based species tree for the genomes.', required=False, default=False)
+	parser.add_argument('-ma', '--mge_annotation', action='store_true', help="Perform MGE annotation of proteins - for bacterial genomes only.", required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Total number of cpus/threads to use for running OrthoFinder2/prodigal.\n[Default is 1].", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
@@ -163,10 +168,12 @@ def prepTG():
 	cpus = myargs.cpus
 	max_memory = myargs.max_memory
 	gene_calling_method = myargs.gene_calling_method
+	mge_annotation_flag = myargs.mge_annotation
 	meta_mode = myargs.meta_mode
 	create_species_tree = myargs.create_species_tree
 	reference_proteome = myargs.reference_proteome
 	if reference_proteome != None:
+		gene_calling_method = 'miniprot reference proteome mapping'
 		reference_proteome = os.path.abspath(myargs.reference_proteome)
 
 
@@ -215,8 +222,11 @@ def prepTG():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, outdir, gene_calling_method, meta_mode, create_species_tree, cpus, max_memory]
-	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "Output Directory", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", "Number of Cpus", "Maximum Memory in GB"]
+	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, outdir, reference_proteome, gene_calling_method, 
+					    meta_mode, create_species_tree, cpus, max_memory]
+	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "Output Directory", 
+					   "Reference Proteome Provided", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", 
+					   "Number of Cpus", "Maximum Memory in GB"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -464,6 +474,33 @@ def prepTG():
 		target_genome_annotation_listing_handle.close()
 		target_genomes_concat_db_handle.close()
 
+		# If requested, run MGE annotations
+		if mge_annotation_flag:
+			mge_annot_dir = outdir + 'MGE_Annotations/'
+			mge_annot_search_dir = mge_annot_dir + 'Search_Results/'
+			mge_annot_summary_dir = mge_annot_dir + 'Summary_Results/'
+			util.setupReadyDirectory([mge_annot_dir, mge_annot_search_dir, mge_annot_summary_dir])
+			search_mge_annot_inputs = []
+			process_mge_annot_inputs = []
+			for f in os.listdir(additional_proteomes_directory):
+				sample = f.split('.faa')[0]
+				faa_file = additional_proteomes_directory + f
+				gbk_file = additional_genbanks_directory + sample + '.gbk'
+				vog_annot_file = mge_annot_search_dir + sample + '.vog.txt'
+				mobsuite_annot_file = mge_annot_search_dir + sample + '.mobsuite.txt'
+				is_annot_file = mge_annot_search_dir + sample + '.isfinder.txt'
+				summary_file = mge_annot_summary_dir + sample + '.txt'
+				search_mge_annot_inputs.append([sample, faa_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject])
+				process_mge_annot_inputs.append([sample, gbk_file, summary_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject])
+	
+			p = multiprocessing.Pool(cpus)
+			p.map(util.annotateMGEs, search_mge_annot_inputs)
+			p.close()
+
+			p = multiprocessing.Pool(cpus)
+			p.map(util.processMGEAnnotations, process_mge_annot_inputs)
+			p.close()	
+
 		# remove individual proteome files
 		sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
 		shutil.rmtree(additional_proteomes_directory)
@@ -482,8 +519,6 @@ def prepTG():
 			sys.exit(1)
 
 		target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file, additional_genbanks_directory)
-
-		# TODO: switch to sqllite inplace of pickle for dynamic loading of each samples data to avoid memory spikes
 
 		pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
 		util.setupReadyDirectory([pickle_output_dir])

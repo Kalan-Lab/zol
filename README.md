@@ -20,8 +20,9 @@
 8. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
      - Genome selection for premade databases performed with [skDER](https://github.com/raufs/skDER) - a tool for high-resolution genome dereplication 
 9. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
-10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
-     - (***New***) Tools [abon](https://github.com/Kalan-Lab/zol/wiki/9.-more-info-on-abon), [atpoc](https://github.com/Kalan-Lab/zol/wiki/9.2-more-info-on-atpoc), and [apos](https://github.com/Kalan-Lab/zol/wiki/9.3-more-info-on-apos) wrap fai and allow for easy assessment of the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome across a set of target/datbase genomes (e.g. other genomes in the same species as the focal sample).
+10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome using abon, atpoc, and apos](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
+11. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
+12. [(***New***) Assessing support for lateral gene transfer using salt](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
 
 ![image](https://github.com/Kalan-Lab/zol/assets/4260723/23c8eae2-ed2f-4c58-bf69-89506c258d9a)
 
@@ -30,8 +31,8 @@
 ```
 zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
 
-Rauf Salamzade, Patricia Tran, Cody Martin, Abigail L. Manson, Michael S. Gilmore,
-Ashlee M. Earl, Karthik Anantharaman, Lindsay R. Kalan
+R Salamzade, PQ Tran, C Martin, AL Manson, 
+MS Gilmore, AM Earl, K Anantharaman, LR Kalan
 bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
 ```
 
@@ -67,7 +68,7 @@ conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
-# end product will be ~29 GB! You can also run in minimal mode
+# end product will be ~36 GB! You can also run in minimal mode
 # (which will only download PGAP HMM models < 5 GB) using -m. 
 setup_annotation_dbs.py
 ```

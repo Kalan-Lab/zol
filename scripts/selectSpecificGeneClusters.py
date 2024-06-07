@@ -80,6 +80,7 @@ def selectGbks():
 					os.symlink(homologous_gbk_dir + gbk, symlink_file)
 				else:
 					shutil.copy2(homologous_gbk_dir + gbk, outdir)
+					
 	elif type == 'instance':
 		selected = set([])
 		with open(selections_file) as osf:

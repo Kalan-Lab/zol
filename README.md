@@ -13,15 +13,16 @@
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)
 3. [Overview of Major Results](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files)
-4. [Test Case](#test-case)
-5. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
-6. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
-7. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
-8. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
-9. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
-10. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome using abon, atpoc, and apos](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
-11. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
-12. [(***New***) Assessing support for lateral gene transfer using salt](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
+4. [Short note on resource requirements](#short-note-on-resource-requirements)
+5. [Test Case](#test-case)
+6. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
+7. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
+8. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
+9. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
+10. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
+11. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome using abon, atpoc, and apos](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
+12. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
+13. [(***New***) Assessing support for lateral gene transfer using salt](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
 
 ![image](https://github.com/Kalan-Lab/zol/assets/4260723/23c8eae2-ed2f-4c58-bf69-89506c258d9a)
 
@@ -112,6 +113,12 @@ pip install -e .
 # within zol Git repo with conda environment activated, run:
 setup_annotation_dbs.py
 ```
+
+## Short Note on Resource Requirements:
+
+Different programs in the zol suite have different resource requirements. Moving forward, the default settings in the `zol` program itself should usually allow for low memory usage and faster runtime. For thousands of gene cluster instances, we recommend to either use the dereplication/reinflation approach (see manuscript for comparison on evolutionary statistics between this approach and a full processing) or using CD-HIT clustering (a greedy incremental clustering approach - which is nicely illustrated/explained on the [MMSeqs2 wiki](https://github.com/soedinglab/MMseqs2/wiki#clustering-modes)) to determine protein clusters/families (not true ortholog groups). Disk space is generally not a huge concern for zol analysis, but if working with thousands of gene clusters things can temporarily get large. 
+
+Available disk space is the primary concern however for `fai` and `prepTG`. This is mostly the case for users interested in the construction and searching of large databases (containing over a thousand genomes). Generally, `prepTG` and `fai` are designed to work on metagenomic as well as genomic datasets and do not have a high memory usage, but genomic files stack up in space and DIAMOND alignment files can quite get large as well.
 
 ## Test case:
 

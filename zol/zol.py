@@ -2283,7 +2283,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 			all_gcs.add(gc)
 			with open(prot_faa_file) as opff:
 				for rec in SeqIO.parse(opff, 'fasta'):
-					assert(rec.id.startswith(prefix + '|'))
+					assert(rec.id.startswith(gc + '|'))
 					lt = rec.id.split(gc + '|')[1]
 					og = None
 					try:

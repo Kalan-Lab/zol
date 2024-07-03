@@ -2279,12 +2279,12 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 		og_gc_lts = defaultdict(lambda: defaultdict(set))
 		for prot_faa in os.listdir(fo_prot_dir):
 			prot_faa_file = fo_prot_dir + prot_faa
-			prefix = '.faa'.join(prot_faa.split('.faa')[:-1])
-			all_gcs.add(prefix)
+			gc = '.faa'.join(prot_faa.split('.faa')[:-1])
+			all_gcs.add(gc)
 			with open(prot_faa_file) as opff:
 				for rec in SeqIO.parse(opff, 'fasta'):
 					assert(rec.id.startswith(prefix + '|'))
-					lt = rec.id.split(prefix + '|')[1]
+					lt = rec.id.split(gc + '|')[1]
 					og = None
 					try:
 						og = lt_to_og[lt]
@@ -2297,7 +2297,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 					og_gc_lts[og][gc].add(rec.id)
 
 		outf = open(ortho_matrix_file, 'w')
-		outf.write('\t'.join(['Sample'] + sorted(list(all_gcs))) + '\n')
+		outf.write('\t'.join(['Sample'] + sorted(all_gcs)) + '\n')
 		for og in sorted(all_ogs):
 			printlist = [og]
 			for gc in sorted(list(all_gcs)):

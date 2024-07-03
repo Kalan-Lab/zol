@@ -400,6 +400,7 @@ def zolMain():
 					sys.exit(1)
 			
 			if precomputed_orthogroups_file != None:
+				util.setupReadyDirectory([og_dir])
 				zol.createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_prot_dir, ortho_matrix_file, logObject)
 			else:
 				fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',

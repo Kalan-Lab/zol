@@ -2248,6 +2248,70 @@ def compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_
 		sys.exit(1)
 	return (comp_stats)
 
+def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_prot_dir, ortho_matrix_file, logObject):
+	"""
+	Description:
+	Create an orthogroup matrix from a file listing ortholog group designations for locus tags.
+	********************************************************************************************************************
+	Parameters:
+	- precomputed_orthogroups_file: The file listing the precomputed designations of orthogroups per locus tag.
+	- fo_prot_dir: The directory of proteins extracted from CDS features in gene cluster GenBank files.
+	- ortho_matrix_file: The output file to write the final orthogroup vs. sample matrix used by zol in subsequent steps.
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		lt_to_og = {}
+		try:
+			with open(precomputed_orthogroups_file) as opof:
+				for line in open(opof):
+					line = line.strip()
+					ls = line.split('\t')
+					lt_to_og[ls[0]] = ls[1]
+		except:
+			msg = 'Issues processing precomputed orthogroups designations in the file %s' % precomputed_orthogroups_file
+			sys.stderr.write(msg + '\n')
+			logObject.error(msg)
+			raise RuntimeError()
+
+		all_gcs = set([])
+		all_ogs = set([])
+		og_gc_lts = defaultdict(lambda: defaultdict(set))
+		for prot_faa in os.path.listdir(fo_prot_dir):
+			prot_faa_file = fo_prot_dir + prot_faa
+			prefix = '.faa'.join(prot_faa.split('.faa')[:-1])
+			all_gcs.add(prefix)
+			with open(prot_faa_file) as opff:
+				for rec in SeqIO.parse(opff, 'fasta'):
+					assert(rec.id.startswith(prefix + '|'))
+					lt = rec.id.split(prefix + '|')[1]
+					og = None
+					try:
+						og = lt_to_og[lt]
+					except:
+						msg = 'Issues finding corresponding orthogroup designation for the locus tag' % lt
+						sys.stderr.write(msg + '\n')
+						logObject.error(msg)
+						raise RuntimeError()
+					all_ogs.add(og)
+					og_gc_lts[og][gc].add(rec.id)
+
+		outf = open(ortho_matrix_file, 'w')
+		outf.write('\t'.join(['Sample'] + sorted(list(all_gcs))) + '\n')
+		for og in sorted(all_ogs):
+			printlist = [og]
+			for gc in sorted(list(all_gcs)):
+				printlist.append(', '.join(og_gc_lts[og][gc]))
+			outf.write('\t'.join(printlist) + '\n')
+		outf.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations.'\n')
+		logObject.error('Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations')
+		sys.stderr.write(str(e) + '\n')
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
 def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx,
 					  final_report_tsv, logObject, run_hyphy=False, ces=False):
 	"""

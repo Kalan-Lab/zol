@@ -118,6 +118,7 @@ def create_parser():
 	parser.add_argument('-f', '--focal_genbanks', help='File with focal genbank(s) listed (one per line).', required=False, default=None)
 	parser.add_argument('-fc', '--comparator_genbanks', help='Optional file with comparator genbank(s) listed.\nDefault is to use remaining GenBanks as comparators to focal listing.', required=False, default=None)
 	parser.add_argument('-oo', '--only_orthogroups', action='store_true', help="Only compute ortholog groups and stop (runs up to step 2).", required=False, default=False)
+	parser.add_argument('-po', '--precomputed_orthogroups', action='Path to two-column tab delimited file where the first column\ncorresponds to locus_tags and the second column to\ncorresponding orthogroup identifiers.', required=False, default=None)
 	parser.add_argument('-sc', '--skip_cleanup', action='store_true', help="Whether to skip cleanup of temporary files in the 'Determine_Orthogroups/' subdirectory.", required=False, default=False)
 	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=1)
 	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nGenerally memory shouldn\'t be a major concern unless working\nwith hundreds of large metagenomes. [currently\nexperimental; default is None].', required=False, default=None)
@@ -173,6 +174,7 @@ def zolMain():
 	allow_edge_cds_flag = myargs.allow_edge_cds
 	refine_gene_calling_flag = myargs.refine_gene_calling
 	only_orthogroups_flag = myargs.only_orthogroups
+	precomputed_orthogroups_file = myargs.precomputed_orthogroups
 	cdhit_orthogroup_flag = myargs.cdhit_orthogroup
 	cdhit_orthogroup_params = myargs.cdhit_params
 	max_memory = myargs.max_memory
@@ -228,9 +230,10 @@ def zolMain():
 	parameter_values = [input, outdir, select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params,
 					    identity_threshold, coverage_threshold, evalue_threshold, (not use_super5), fubar_selection, skip_gard, 
 						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
-						only_orthogroups_flag, ibc_flag, ces_flag, rename_lt_flag, allow_edge_cds_flag, dereplicate_flag, 
-						reinflate_flag, reinflate_params, derep_identity, derep_coverage, derep_inflation, custom_database,
-						refine_gene_calling_flag, length, width,full_genbank_labels, cpus, max_memory, skip_cleanup_flag]
+						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
+						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
+						derep_inflation, custom_database, refine_gene_calling_flag, length, width,full_genbank_labels, cpus, 
+						max_memory, skip_cleanup_flag]
 	parameter_names = ["Input directory / GenBank files", "Output directory", "Select fai parameters mode?", 
 					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
 					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
@@ -239,6 +242,7 @@ def zolMain():
 					   "Run FUBAR selection analyses?", "Skip GARD partitioning by recombination breakpoints?", 
 					   "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?",
 					   "Filter draft/incomplete gene clusters?", "Only compute orthologs and stop?",
+					   "Use pre-computed orthogroup designations defined in a provided file",
 					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
 					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
 					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
@@ -394,24 +398,28 @@ def zolMain():
 					logObject.error('Issues with parsing the GenBank %s' % gbk)
 					sys.stderr.write(str(e) + '\n')
 					sys.exit(1)
-			fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
-					  str(identity_threshold), '-q', str(coverage_threshold), '-c', str(cpus)]
-			if cdhit_orthogroup_flag:
-				fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', 
-			  			  '-cdp="' + cdhit_orthogroup_params + '"', '-c', str(cpus)]
-			try:
-				subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
-								stderr=subprocess.DEVNULL, executable='/bin/bash')
-				assert (os.path.isfile(ortho_matrix_file))
-				#assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
-			except Exception as e:
-				logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
-				logObject.error(e)
-				raise RuntimeError(e)
-			if reinflate_flag:
-				rog_dir = outdir + 'Reinflate_Orthogroups/'
-				util.setupReadyDirectory([rog_dir])
-				zol.reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=cpus)
+			
+			if precomputed_orthogroups_file != None:
+				zol.createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_prot_dir, ortho_matrix_file, logObject)
+			else:
+				fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
+						str(identity_threshold), '-q', str(coverage_threshold), '-c', str(cpus)]
+				if cdhit_orthogroup_flag:
+					fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', 
+							'-cdp="' + cdhit_orthogroup_params + '"', '-c', str(cpus)]
+				try:
+					subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
+									stderr=subprocess.DEVNULL, executable='/bin/bash')
+					assert (os.path.isfile(ortho_matrix_file))
+					#assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
+				except Exception as e:
+					logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
+					logObject.error(e)
+					raise RuntimeError(e)
+				if reinflate_flag:
+					rog_dir = outdir + 'Reinflate_Orthogroups/'
+					util.setupReadyDirectory([rog_dir])
+					zol.reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cpus=cpus)
 		except Exception as e:
 			sys.stderr.write('Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
 			logObject.error('Issues with determining ortholog/ortholog groups!')

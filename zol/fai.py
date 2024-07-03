@@ -8,7 +8,8 @@ import subprocess
 import decimal
 from operator import itemgetter
 import gzip
-from pomegranate import *
+from pomegranate.hmm import DenseHMM
+from pomegranate.distributions import Categorical
 import numpy
 import traceback
 from scipy.stats import pearsonr
@@ -17,6 +18,7 @@ from ete3 import Tree
 import pickle
 import statistics
 import pandas as pd
+import torch
 
 # code for setup and finding location of programs based on conda vs. bioconda installation
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
@@ -606,7 +608,7 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 	return key_hgs
 
 
-gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, target_annotation_info, boundary_genes = [None]*7
+gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info, boundary_genes = [None]*8
 sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore = [None]*4
 lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id = [None]*5
 
@@ -668,7 +670,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 	"""
 
 	try:
-		global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, target_annotation_info, boundary_genes
+		global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info, boundary_genes
 		global single_query_mode, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore
 		global lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id
 
@@ -692,7 +694,43 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		gene_id_to_order = target_genome_gene_info['gene_id_to_order']
 		gene_order_to_id = target_genome_gene_info['gene_order_to_id']
 
-		# Create HMM
+		# Create DenseHMM - using the pomegrenate library
+		gc_hg_probs = [gc_emission_prob_without_hit]
+		bg_hg_probs = [1.0-gc_emission_prob_without_hit]
+		model_labels = ['background']
+		for hg in all_hgs:
+			model_labels.append(hg)
+			gc_hg_probs.append(gc_emission_prob_with_hit)
+			bg_hg_probs.append(1.0-gc_emission_prob_with_hit)
+
+		gc_cat = Categorical([gc_hg_probs])
+		bg_cat = Categorical([bg_hg_probs])
+
+		model = DenseHMM()
+		model.add_distributions([gc_cat, bg_cat])
+
+		gc_to_gc = gc_to_gc_transition_prob
+		gc_to_bg = 1.0 - gc_to_gc_transition_prob
+		bg_to_bg = bg_to_bg_transition_prob
+		bg_to_gc = 1.0 - bg_to_bg_transition_prob
+
+		start_to_gc = 0.5
+		start_to_bg = 0.5
+		gc_to_end = 0.5
+		bg_to_end = 0.5
+
+		model.add_edge(model.start, gc_cat, start_to_gc)
+		model.add_edge(model.start, bg_cat, start_to_bg)
+		model.add_edge(gc_cat, model.end, gc_to_end)
+		model.add_edge(bg_cat, model.end, bg_to_end)
+		model.add_edge(gc_cat, gc_cat, gc_to_gc)
+		model.add_edge(gc_cat, bg_cat, gc_to_bg)
+		model.add_edge(bg_cat, gc_cat, bg_to_gc)
+		model.add_edge(bg_cat, bg_cat, bg_to_bg)
+
+		"""
+		# Previous code for older versions of pomegrenate
+
 		gc_hg_probabilities = {'background': gc_emission_prob_without_hit}
 		bg_hg_probabilities = {'background': 1.0-gc_emission_prob_without_hit}
 		for hg in all_hgs:
@@ -728,6 +766,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 		model.add_transition(bg_state, bg_state, bg_to_bg)
 
 		model.bake()
+		"""
 
 		gc_hmm_evalues_file = work_dir + 'GeneCluster_NewInstances_HMMEvalues.txt'
 		gc_list_file = work_dir + 'GeneCluster_Homolog_Listings.txt'
@@ -756,6 +795,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 			identify_gc_segments_input = []
 			hgs_ordered_dict = defaultdict(dict)
 			lts_ordered_dict = defaultdict(dict)
+
 			for sample in sample_hgs:
 				#if len(sample_hgs[sample]) < 3: continue
 				for scaffold in scaffold_genes[sample]:
@@ -942,8 +982,14 @@ def identify_gc_instances(input_args):
 		for scaffold in hgs_ordered_dict[sample]:
 			hgs_ordered = hgs_ordered_dict[sample][scaffold]
 			lts_ordered = lts_ordered_dict[sample][scaffold]
+
+			hg_seq = numpy.array([[[model_labels.index(hg)] for hg in list(hgs_ordered)]])
+			hmm_predictions = model.predict(hg_seq)[0]
+
+			"""
 			hg_seq = numpy.array(list(hgs_ordered))
 			hmm_predictions = model.predict(hg_seq)
+			"""
 
 			int_bg_coords = set([])
 			tmp = []

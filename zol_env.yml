@@ -7,7 +7,7 @@ dependencies:
   - "python=3.10"
   - pip
   - setuptools<=58.2.0
-  - biopython=1.79
+  - biopython
   - conda-forge::cxx-compiler
   - bioconda::muscle
   - bioconda::mcl
@@ -23,7 +23,7 @@ dependencies:
   - scikit-learn
   - axel
   - "hyphy>=2.5.14"
-  - conda-forge::pomegranate=0.13.3
+  - "pomegranate>=1.0.0"
   - bioconda::cd-hit
   - bioconda::ncbi-genome-download
   - conda-forge::r-base

@@ -605,5 +605,8 @@ def faiMain():
 	sys.exit(0)
 
 if __name__ == '__main__':
-	multiprocessing.set_start_method('fork')
+	try:
+		multiprocessing.set_start_method('fork')
+	except:
+		pass
 	faiMain()

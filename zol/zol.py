@@ -2264,7 +2264,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 		lt_to_og = {}
 		try:
 			with open(precomputed_orthogroups_file) as opof:
-				for line in open(opof):
+				for line in opof:
 					line = line.strip()
 					ls = line.split('\t')
 					lt_to_og[ls[0]] = ls[1]

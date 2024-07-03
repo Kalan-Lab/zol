@@ -2306,7 +2306,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 		outf.close()
 
 	except Exception as e:
-		sys.stderr.write('Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations.'\n')
+		sys.stderr.write('Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations.\n')
 		logObject.error('Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())

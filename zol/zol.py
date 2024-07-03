@@ -2277,7 +2277,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 		all_gcs = set([])
 		all_ogs = set([])
 		og_gc_lts = defaultdict(lambda: defaultdict(set))
-		for prot_faa in os.path.listdir(fo_prot_dir):
+		for prot_faa in os.listdir(fo_prot_dir):
 			prot_faa_file = fo_prot_dir + prot_faa
 			prefix = '.faa'.join(prot_faa.split('.faa')[:-1])
 			all_gcs.add(prefix)

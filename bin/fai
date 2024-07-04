@@ -37,13 +37,22 @@
 
 import os
 import sys
-import argparse
 from time import sleep
+import multiprocessing
+try:
+	multiprocessing.set_start_method('fork')
+except:
+	sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
+	try:
+		multiprocessing.set_start_method('fork', force=True)
+	except:
+		sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
+		sys.exit(1)
+import argparse
 from zol import util, fai
 import subprocess
 import pickle
 import shutil
-import multiprocessing
 import traceback
 from Bio import SeqIO
 
@@ -605,8 +614,4 @@ def faiMain():
 	sys.exit(0)
 
 if __name__ == '__main__':
-	try:
-		multiprocessing.set_start_method('fork')
-	except:
-		pass
 	faiMain()

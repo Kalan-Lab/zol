@@ -11,8 +11,7 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 	
-    
-								  
+    	Simple script to annotate a protein FASTA using zol's standard approach taken for consensus sequences for ortholog groups.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--protein_faa', help='Path to FASTA of protein sequences.', required=True)

@@ -16,7 +16,7 @@ def create_parser():
 
 	parser.add_argument('-i', '--protein_faa', help='Path to FASTA of protein sequences.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Path to output directory where subset of selected gene cluster GenBanks will be written.', required=True)
-	parser.add_argument('-c', '--cpus', help='The number of CPUs to use [Default is 1].', required=False, default=1)
+	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
 	args = parser.parse_args()
 
 	return args

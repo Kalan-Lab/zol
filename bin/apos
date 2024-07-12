@@ -64,18 +64,18 @@ def create_parser():
 	individually - without the requirement they are co-located in one scaffold like in the focal sample.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-i', '--sample_genome', help='Path to sample genome in GenBank or FASTA format.', required=True, default=True)
-	parser.add_argument('-ms', '--mobsuite_results', help='Path to MOB-suite (mob_recon) results directory for a single sample/genome.', required=False, default=None)
-	parser.add_argument('-gn', '--genomad_results', help='Path to GeNomad results directory for a single sample/genome.', required=False, default=None)
-	parser.add_argument('-tg', '--target_genomes_db', help='prepTG database directory for target genomes of interest.', required=True)
-	parser.add_argument('-fo', '--fai_options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-e 1e-10 -m 0.5 -dm -sct 0.0"]', required=False, default="-e 1e-10 -m 0.5 -dm -sct 0.0")
-	parser.add_argument('-s', '--use_simple_blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
-	parser.add_argument('-si', '--simple_blastp_identity_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
-	parser.add_argument('-sc', '--simple_blastp_coverage_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
-	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
-	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
+	parser.add_argument('-i', '--sample-genome', help='Path to sample genome in GenBank or FASTA format.', required=True, default=True)
+	parser.add_argument('-ms', '--mobsuite-results', help='Path to MOB-suite (mob_recon) results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-gn', '--genomad-results', help='Path to GeNomad results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-tg', '--target-genomes-db', help='prepTG database directory for target genomes of interest.', required=True)
+	parser.add_argument('-fo', '--fai-options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-e 1e-10 -m 0.5 -dm -sct 0.0"]', required=False, default="-e 1e-10 -m 0.5 -dm -sct 0.0")
+	parser.add_argument('-s', '--use-simple-blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
+	parser.add_argument('-si', '--simple-blastp-identity-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
+	parser.add_argument('-sc', '--simple-blastp-coverage-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
+	parser.add_argument('-se', '--simple-blastp-evalue-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
+	parser.add_argument('-sm', '--simple-blastp-sensitivity-mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use [Default is 1].', required=False, default=1)
 
 	args = parser.parse_args()
 	return args
@@ -94,7 +94,7 @@ def apos():
 	simple_blastp_coverage_cutoff = myargs.simple_blastp_coverage_cutoff
 	simple_blastp_evalue_cutoff = myargs.simple_blastp_evalue_cutoff
 	simple_blastp_sensitivity_mode = myargs.simple_blastp_sensitivity_mode
-	cpus = myargs.cpus
+	threads = myargs.threads
 
 	# create output directory if needed, or warn of over-writing
 	if os.path.isdir(outdir):
@@ -234,11 +234,11 @@ def apos():
 			util.diamondBlastAndGetBestHits(plasmid_id, locus_proteome, locus_proteome, preptg_db_dir, plasmid_fai_res_dir, logObject,
 								   			identity_cutoff=simple_blastp_identity_cutoff, coverage_cutoff=simple_blastp_coverage_cutoff, 
 											blastp_mode=simple_blastp_sensitivity_mode, prop_key_prots_needed=0.0,
-											evalue_cutoff=simple_blastp_evalue_cutoff, cpus=cpus)
+											evalue_cutoff=simple_blastp_evalue_cutoff, threads=threads)
 		else:
 			# run fai 
 			fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
-			           '-tg', preptg_db_dir, fai_options, '-o', plasmid_fai_res_dir, '-c', str(cpus)]
+			           '-tg', preptg_db_dir, fai_options, '-o', plasmid_fai_res_dir, '-c', str(threads)]
 			genome_wide_tsv_result_file = plasmid_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
 			util.runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	plasmid_info_handle.close()

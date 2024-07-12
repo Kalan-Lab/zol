@@ -205,7 +205,7 @@ def parseCoordsFromGenbank(genbanks, logObject):
 		sys.exit(1)
 	return dict(comp_gene_info)
 
-def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False):
+def genConsensusSequences(genbanks, outdir, logObject, threads=1, use_super5=False):
 	"""
 	Description:
 	This function performs zol-based ortholog group determination across CDS protein sequences from query GenBank files
@@ -215,7 +215,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 	- genbanks: A set of query GenBank files.
 	- outdir: The output directory/workspace where to write intermediate files/analyses.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE based alignment.
 	********************************************************************************************************************
 	Return:
@@ -246,7 +246,7 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 				sys.stderr.write(str(e) + '\n')
 				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
-		fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-c', str(cpus)]
+		fo_cmd = ['findOrthologs.py', '-p', prot_dir, '-o', og_dir, '-c', str(threads)]
 		try:
 			subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
 							stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -276,8 +276,8 @@ def genConsensusSequences(genbanks, outdir, logObject, cpus=1, use_super5=False)
 	consensus_prot_seqs_faa = outdir + 'OG_Consensus_Seqs.faa'
 	util.setupReadyDirectory([proc_dir, prot_algn_dir, phmm_dir, cons_dir, hg_prot_dir])
 	zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
-	zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, cpus=cpus)
-	zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1)
+	zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, threads=threads)
+	zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, threads=1)
 	consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
 	for f in os.listdir(cons_dir):
 		with open(cons_dir + f) as ocf:
@@ -383,7 +383,7 @@ def loadTargetGenomeInfo(target_annotation_information, target_genomes_pkl_dir, 
 	return(target_genome_gene_info)
 
 def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, logObject,
-					 diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, cpus=1, compute_query_coverage=False):
+					 diamond_sensitivity='very-sensitive', evalue_cutoff=1e-10, threads=1, compute_query_coverage=False):
 	"""
 	Description:
 	This functions runs DIAMOND blastp analysis in fai for assessing homology of target genome proteins to query
@@ -397,7 +397,7 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 	- diamond_sensitivity: The sensitivity mode to run DIAMOND blastp with.
 	- evalue_cutoff: The maximum E-value cutoff to regard an alignment to a target genome protein as homologous to a
 	                 query protein.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- compute_query_coverage: Whether to compute the query coverage - used for the simple BLASTp approach of abon,
 	                          atpoc, and apos.
 	********************************************************************************************************************
@@ -408,12 +408,12 @@ def runDiamondBlastp(target_concat_genome_db, query_fasta, diamond_work_dir, log
 
 	diamond_results_file = diamond_work_dir + 'DIAMOND_Results.txt'
 	try:
-		diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--' + diamond_sensitivity,
+		diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(threads), '--' + diamond_sensitivity,
 					   '--query', query_fasta, '--db', target_concat_genome_db, '--outfmt', '6', 'qseqid', 'sseqid',
 					   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
 					   'bitscore', 'qlen', 'slen', '-k0', '--out', diamond_results_file, '--evalue', str(evalue_cutoff)]
 		if compute_query_coverage:
-			diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--' + diamond_sensitivity,
+			diamond_blastp_cmd = ['diamond', 'blastp', '--ignore-warnings', '--threads', str(threads), '--' + diamond_sensitivity,
 				'--query', query_fasta, '--db', target_concat_genome_db, '--outfmt', '6', 'qseqid', 'sseqid',
 				'pident', 'evalue', 'bitscore', 'qlen', 'slen', 'qcovhsp', '-k0', '--out', diamond_results_file, 
 				'--evalue', str(evalue_cutoff)]
@@ -532,7 +532,7 @@ def processDiamondBlastp(target_annot_information, diamond_results_file, work_di
 
 	return(dict(diamond_results))
 
-def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, cpus=1):
+def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, threads=1):
 	"""
 	Description:
 	Function to align key protein queries FASTA to general query ortholog FASTA file and determine which general
@@ -545,7 +545,7 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 	- key_protein_queries_fasta: A FASTA file of key sequences.
 	- work_dir: The workspace directory where to perform mapping alignment and write intermediate files.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	Return:
 	- key_hgs: A set of "key" designated query ortholog groups.
@@ -559,7 +559,7 @@ def mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_d
 		query_dmnd_db = query_fasta.split('.faa')[0] + '.dmnd'
 		align_result_file = work_dir + 'Key_Proteins_to_General_Queries_Alignment.txt'
 		diamond_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', query_fasta, '-d', query_dmnd_db, ';',
-					   'diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--very-sensitive', '--query',
+					   'diamond', 'blastp', '--ignore-warnings', '--threads', str(threads), '--very-sensitive', '--query',
 					   key_protein_queries_fasta, '--db', query_dmnd_db, '--outfmt', '6', '--out',
 					   align_result_file, '--evalue', '1e-10']
 
@@ -616,7 +616,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 						 min_key_hits=3, draft_mode=False, gc_to_gc_transition_prob=0.9, bg_to_bg_transition_prob=0.9,
 						 gc_emission_prob_with_hit=0.95,  gc_emission_prob_without_hit=0.2,
 						 syntenic_correlation_threshold=0.8, max_int_genes_for_merge=0,  kq_evalue_threshold=1e-20,
-						 flanking_context=1000, cpus=1, block_size=3000, gc_delineation_mode="GENE-CLUMPER"):
+						 flanking_context=1000, threads=1, block_size=3000, gc_delineation_mode="GENE-CLUMPER"):
 	"""
 	Description:
 	This function sets up identification of homologous/orthologous instances of gene clusters in target genomes based
@@ -661,7 +661,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 	                       hit.
 	- flanking_context: The number of basepairs to take around identified gene clusters when extracting the gene cluster
 	                    specific GenBank from the full target genome GenBank.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- block_size: The maximum number of samples to consider at a time. This might be good to make an adjustable option
 	              for those interested in applying fai to metagenomes, where setting it to a much lower value likely
 	              makes sense.
@@ -819,7 +819,7 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 												   syntenic_correlation_threshold, max_int_genes_for_merge,
 												   flanking_context, draft_mode, gc_delineation_mode])
 
-			p = multiprocessing.Pool(cpus)
+			p = multiprocessing.Pool(threads)
 			p.map(identify_gc_instances, identify_gc_segments_input)
 			p.close()
 

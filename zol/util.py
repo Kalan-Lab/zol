@@ -778,7 +778,7 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 		return False
 
 def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_miniprot_outdir,
-								additional_proteomes_directory, additional_genbanks_directory, logObject, cpus=1,
+								additional_proteomes_directory, additional_genbanks_directory, logObject, threads=1,
 								locus_tag_length=3):
 	"""
 	Description:
@@ -793,7 +793,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 	                                  saved.
 	- additional_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
 	********************************************************************************************************************
 	"""
@@ -817,7 +817,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 									'-l', sample_locus_tag, '-og', sample_mp_gbk, '-op', sample_mp_faa]
 			miniprot_cmds.append(miniprot_index_cmd + [';'] + miniprot_run_cmd + [';'] + miniprot_process_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, miniprot_cmds)
 		p.close()
 
@@ -837,7 +837,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 		sys.exit(1)
 
 def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject,
-								cpus=1, locus_tag_length=3, gene_calling_method="pyrodigal", meta_mode=False,
+								threads=1, locus_tag_length=3, gene_calling_method="pyrodigal", meta_mode=False,
 								avoid_locus_tags=set([])):
 	"""
 	Description:
@@ -849,7 +849,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 	- prodigal_proteomes: Directory where final proteome files (in FASTA format) for target genomes will be saved.
 	- prodigal_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
 	- gene_calling_method: Whether to use pyrodigal (default), prodigal, or prodigal-gv.
 	- meta_mode: Whether to run pyrodigal/prodigal in metagenomics mode.
@@ -873,7 +873,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 				prodigal_cmd += ['-m']
 			prodigal_cmds.append(prodigal_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, prodigal_cmds)
 		p.close()
 
@@ -894,7 +894,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
-							 logObject, cpus=1, locus_tag_length=3, avoid_locus_tags=set([]),
+							 logObject, threads=1, locus_tag_length=3, avoid_locus_tags=set([]),
 							 rename_locus_tags=False):
 	"""
 	Description:
@@ -907,7 +907,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 	- genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- gene_name_mapping_outdir: Directory where mapping files for original locus tags to new locus tags will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
 	- avoid_locus_tags: Whether to avoid using certain locus tags.
 	- rename_locus_tags: Whether to rename locus tags.
@@ -935,7 +935,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 				process_cmd += ['-l', sample_locus_tag]
 			process_cmds.append(process_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, process_cmds)
 		p.close()
 
@@ -988,7 +988,7 @@ def determineGenomeFormat(inputs):
 	except:
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=1):
+def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, threads=1):
 	"""
 	Description:
 	This function parses the input sample target genomes and determines whether they are all provided in the same format
@@ -999,7 +999,7 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 	- format_assess_dir: The directory/workspace where genome format information will be saved.
 	- format_predictions_file: The file where to concatenate genome format information.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	Returns:
 	- sample_genomes: A dictionary which maps sample names to genome file paths (note, unknown format files will be
@@ -1027,7 +1027,7 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 					continue
 				sample_genomes[sample] = genome_file
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(determineGenomeFormat, assess_inputs)
 		p.close()
 
@@ -1476,7 +1476,7 @@ def convertGenomeGenBankToFasta(inputs):
 			output_fasta_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
 	output_fasta_handle.close()
 
-def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, logObject, cpus=1):
+def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, logObject, threads=1):
 	"""
 	Description:
 	Function to create a species tree using ANI estimates + a neighbor joining approach.
@@ -1485,7 +1485,7 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 	- additional_genbanks_directory: Directory with full genomes in GenBank format.
 	- workspace_dir: Workspace directory.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	"""
 
@@ -1508,13 +1508,13 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		all_genomes_listing_handle.close()
 
 		# parallelize conversion
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(convertGenomeGenBankToFasta, conversion_inputs)
 		p.close()
 
 		# run skani triangle
 		skani_result_file = workspace_dir + 'Skani_Triangle_Edge_Output.txt'
-		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(cpus), '-o', skani_result_file]
+		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(threads), '-o', skani_result_file]
 		try:
 			subprocess.call(' '.join(skani_triangle_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 			assert (os.path.isfile(skani_result_file))
@@ -1620,7 +1620,7 @@ def cleanUp(clean_up_dirs_and_files, logObject):
 		
 def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fasta, target_genomes_db, workspace_dir, logObject,
 							   identity_cutoff=40.0, coverage_cutoff=70.0, evalue_cutoff=1e-3, blastp_mode="very-sensitive", 
-							   prop_key_prots_needed=0.0, cpus=1):
+							   prop_key_prots_needed=0.0, threads=1):
 	"""
 	Description:
 
@@ -1638,7 +1638,7 @@ def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fast
 	- blastp_mode: Sensitivity mode for DIAMOND blastp.
 	- prop_key_prots_needed: The proportion of key proteins needed for the query gene cluster to be deemed present in a 
 	                         target genome.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	"""
 	try:
@@ -1649,7 +1649,7 @@ def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fast
 		diamond_results_file = workspace_dir + 'DIAMOND_Results.txt'
 		fai.runDiamondBlastp(target_genome_dmnd_db, query_protein_fasta, workspace_dir, logObject,
 					 diamond_sensitivity=blastp_mode, evalue_cutoff=evalue_cutoff, compute_query_coverage=True, 
-					 cpus=cpus)
+					 threads=threads)
 
 		all_hgs = set([])
 		key_hgs = set([])
@@ -1754,7 +1754,7 @@ def diamondBlast(inputs):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, cpus=1):
+def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, threads=1):
 	"""
 	Description:
 	Function to determine parameter recommendations for running fai from known instances based on zol orthology 
@@ -1802,7 +1802,7 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 			og_prot_dmnd_db = hg_prot_dir + f
 			diamond_self_blasting_inputs.append([og_prot_file, og_prot_dmnd_db, og_blast_file, logObject])
 		
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(diamondBlast, diamond_self_blasting_inputs)
 		p.close()
 
@@ -1942,17 +1942,17 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 		prf_handle.write('Median proportion of CDS which are near-core (conserved in 80 percent of gene-clusters):\t%s\n' % str(median_prop_cds_nc))
 		prf_handle.write('Best representative query gene-cluster instance to use:\t%s\n' % ref_gbk)
 		prf_handle.write('=============================================================\n')
-		prf_handle.write('Parameter recommendations - CPUs set to 4 by default\n')
+		prf_handle.write('Parameter recommendations - threads set to 4 by default\n')
 		prf_handle.write('please provide the path to the prepTG database yourself!\n')
 		prf_handle.write('=============================================================\n')
 		prf_handle.write('Lenient / Sensitive Recommendations for Exploratory Analysis:\n')
-		fai_cmd = ['fai', '--cpus', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', 
+		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', 
 			       '--evalue_cutoff', str(max(maximum_of_maximum_evalues, 1e-10)), '--min_prop', str(max(prop_ref_cds_nc-0.25, 0.1)), 
 				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs+3)]
 		prf_handle.write(' '.join(fai_cmd) + '\n')
 		prf_handle.write('-------------------------------------------------------------\n')
 		prf_handle.write('Strict / Specific Recommendations:\n')
-		fai_cmd = ['fai', '--cpus', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', '--filter_paralogs',
+		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', '--filter_paralogs',
 			       '--evalue_cutoff', str(maximum_of_maximum_evalues), '--min_prop', str(max(prop_ref_cds_nc, 0.25)), 
 				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs),
 				   'key_protein_queries', near_core_prots_faa_file, '--key_protein_min_prop', '0.5', 
@@ -2027,7 +2027,7 @@ def parseFeatureCoord(str_gbk_loc):
 	except Exception as e:
 		raise RuntimeError(traceback.format_exc())
 
-def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, cpus=1):
+def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, threads=1):
 	"""
 	Description:
 	Annotate ribosomal proteins from Hug et al. 2016 (using HMMs as provided in GToTree by Lee 2019) in a reference genome.
@@ -2037,7 +2037,7 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 	- tg_query_prots_file: The FASTA file to write ribosomal proteins identified to (note will append to file).
 	- ribo_norm_dir: Output workspace to write intermediate files to.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use [Default is 1].
+	- threads: The number of threads to use [Default is 1].
 	********************************************************************************************************************
 	"""
 	try:
@@ -2082,7 +2082,7 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 			rp_db_file = download_path + 'Universal_Hug_et_al.hmm'
 			try:
 				for dl in download_links:
-					axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+					axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 					os.system(' '.join(axel_download_dbs_cmd))
 					assert(os.path.isfile(rp_db_file))
 					os.system(' '.join(['hmmpress', rp_db_file]))
@@ -2123,7 +2123,7 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 
 		reference_ribo_prots = set([])
 		with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
-			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=cpus):
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), threads=threads):
 				for hit in hits:
 					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
 					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
@@ -2152,10 +2152,10 @@ def runPyHmmerForVOGforSalt(inputs):
 		- z: Size of database, used for E-value computation.
 		- protein_faa: sample's proteome FASTA file.
 		- annotation_result_file: Path to output file where to write annotation information.
-		- cpus: number of CPUs to use for search.
+		- threads: number of threads to use for search.
 	********************************************************************************************************************
 	"""
-	db_file, z, protein_faa, annotation_result_file, cpus = inputs
+	db_file, z, protein_faa, annotation_result_file, threads = inputs
 	try:
 		hmm_lengths = {}
 		try:
@@ -2172,7 +2172,7 @@ def runPyHmmerForVOGforSalt(inputs):
 
 		outf = open(annotation_result_file, 'w')
 		with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=cpus):
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), threads=threads):
 				for hit in hits:
 					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
 					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")

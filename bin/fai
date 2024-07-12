@@ -101,39 +101,39 @@ def create_parser():
     the specified criteria can be found in the subdirectory named: 
 	Final_Results/Homologous_Gene_Cluster_GenBanks/			  
     """, formatter_class=argparse.RawTextHelpFormatter)
-	parser.add_argument('-i', '--query_inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
-	parser.add_argument('-r', '--reference_genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
-	parser.add_argument('-rc', '--reference_contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
-	parser.add_argument('-rs', '--reference_start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
-	parser.add_argument('-re', '--reference_end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
-	parser.add_argument('-pq', '--protein_queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
-	parser.add_argument('-sq', '--single_query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
-	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
-	parser.add_argument('-o', '--output_dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-st', '--species_tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
-	parser.add_argument('-dm', '--draft_mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
-	parser.add_argument('-fp', '--filter_paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
-	parser.add_argument('-rgv', '--use_prodigal_gv_for_reference', action='store_true', help="If the --reference_genome option is used to define some coordinate\nalong a reference genome as the query, use prodigal-gv\ninstead of pyrodigal to call genes in the region.", required=False, default=False)
-	parser.add_argument('-e', '--evalue_cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
-	parser.add_argument('-m', '--min_prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported [Default is 0.5].", required=False, default=0.5)
-	parser.add_argument('-kpq', '--key_protein_queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
-	parser.add_argument('-kpe', '--key_protein_evalue_cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
-	parser.add_argument('-kpm', '--key_protein_min_prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster. [Default is 0.0].', required=False, default=0.0)
-	parser.add_argument('-sct', '--syntenic_correlation_threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.0]", required=False, default=0.0)
-	parser.add_argument('-gdm', '--gc_delineation_mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
-	parser.add_argument('-f', '--flanking_context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
-	parser.add_argument('-mgd', '--max_genes_disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to\nmerge segments together. Alternatively the number of genes separating\nhits if Gene-Clumper mode is used. Allows for more inclusivity of novel\nauxiliary genes. [Default is 5].", required=False, default=5)
-	parser.add_argument('-gt', '--gc_transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
-	parser.add_argument('-bt', '--bg_transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
-	parser.add_argument('-ge', '--gc_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a orthologis\nfound at the e-value cutoff. [Default is 0.95].", required=False, default=0.95)
-	parser.add_argument('-be', '--bg_emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog is\nfound at the e-value cutoff. [Default is 0.2].", required=False, default=0.2)
-	parser.add_argument('-gp', '--generate_plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
-	parser.add_argument('-ds', '--diamond_sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
-	parser.add_argument('-phl', '--phyloheatmap_length', type=int, help='Specify the height/length of the phylo-heatmap plot. Default is 7.', required=False, default=7)
-	parser.add_argument('-phw', '--phyloheatmap_width', type=int, help='Specify the width of the phylo-heatmap plot. Default is 10.', required=False, default=14)
-	parser.add_argument('-c', '--cpus', type=int, help="The number of cpus to use. [Default is 1].", required=False, default=1)
-	parser.add_argument('-cl', '--clean_up', action='store_true', help="Clean up disk-heavy files/folders.", default=False, required=False)
-	parser.add_argument('-mm', '--max_memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Generally memory shouldn\'t be a major concern unless\nworking with hundreds of large metagenomes. [currently\nexperimental; default is None].', default=None, required=False)
+	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
+	parser.add_argument('-r', '--reference-genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
+	parser.add_argument('-rc', '--reference-contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
+	parser.add_argument('-rs', '--reference-start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
+	parser.add_argument('-re', '--reference-end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
+	parser.add_argument('-pq', '--protein-queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
+	parser.add_argument('-sq', '--single-query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
+	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes of interest.', required=True)
+	parser.add_argument('-o', '--output-dir', help='Parent output/workspace directory.', required=True)
+	parser.add_argument('-st', '--species-tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
+	parser.add_argument('-dm', '--draft-mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
+	parser.add_argument('-fp', '--filter-paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
+	parser.add_argument('-rgv', '--use-prodigal-gv-for-reference', action='store_true', help="If the --reference_genome option is used to define some coordinate\nalong a reference genome as the query, use prodigal-gv\ninstead of pyrodigal to call genes in the region.", required=False, default=False)
+	parser.add_argument('-e', '--evalue-cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
+	parser.add_argument('-m', '--min-prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported [Default is 0.5].", required=False, default=0.5)
+	parser.add_argument('-kpq', '--key-protein-queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
+	parser.add_argument('-kpe', '--key-protein-evalue-cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
+	parser.add_argument('-kpm', '--key-protein-min-prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster. [Default is 0.0].', required=False, default=0.0)
+	parser.add_argument('-sct', '--syntenic-correlation-threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.0]", required=False, default=0.0)
+	parser.add_argument('-gdm', '--gc-delineation-mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
+	parser.add_argument('-f', '--flanking-context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
+	parser.add_argument('-mgd', '--max-genes-disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to\nmerge segments together. Alternatively the number of genes separating\nhits if Gene-Clumper mode is used. Allows for more inclusivity of novel\nauxiliary genes. [Default is 5].", required=False, default=5)
+	parser.add_argument('-gt', '--gc-transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
+	parser.add_argument('-bt', '--bg-transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
+	parser.add_argument('-ge', '--gc-emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a orthologis\nfound at the e-value cutoff. [Default is 0.95].", required=False, default=0.95)
+	parser.add_argument('-be', '--bg-emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog is\nfound at the e-value cutoff. [Default is 0.2].", required=False, default=0.2)
+	parser.add_argument('-gp', '--generate-plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
+	parser.add_argument('-ds', '--diamond-sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
+	parser.add_argument('-phl', '--phyloheatmap-length', type=int, help='Specify the height/length of the phylo-heatmap plot. Default is 7.', required=False, default=7)
+	parser.add_argument('-phw', '--phyloheatmap-width', type=int, help='Specify the width of the phylo-heatmap plot. Default is 10.', required=False, default=14)
+	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use. [Default is 1].", required=False, default=1)
+	parser.add_argument('-cl', '--clean-up', action='store_true', help="Clean up disk-heavy files/folders.", default=False, required=False)
+	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nConfigured in the shell environment [experimental; Default is None].', required=False, default=None)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
@@ -186,7 +186,7 @@ def faiMain():
 	phyloheatmap_length = myargs.phyloheatmap_length
 	phyloheatmap_width = myargs.phyloheatmap_width
 	delineation_mode = myargs.gc_delineation_mode.upper()
-	cpus = myargs.cpus
+	threads = myargs.threads
 	max_memory = myargs.max_memory
 	clean_up = myargs.clean_up
 
@@ -236,7 +236,7 @@ def faiMain():
 						min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop,
 						syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission,
 						be_emission, gc_transition, bg_transition, plotting_flag, diamond_sensitivity,
-						delineation_mode, phyloheatmap_length, phyloheatmap_width, cpus, max_memory, clean_up]
+						delineation_mode, phyloheatmap_length, phyloheatmap_width, threads, max_memory, clean_up]
 	parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster",
 					   "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster",
 					   "Reference end coordinate of gene cluster", "Protein queries multi-FASTA file",
@@ -257,7 +257,7 @@ def faiMain():
 					   "Probability for background to background transition in HMM",
 					   "Perform plotting?", "DIAMOND sensitivity", "Delineation mode",
 					   "Phylo-heatmap PDF length", "Phylo-heatmap PDF width", 
-					   "Number of CPUs requested", "Maximum memory in GB", "Clean Up Heavy Files?"]
+					   "Number of threads requested", "Maximum memory in GB", "Clean Up Heavy Files?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -356,7 +356,7 @@ def faiMain():
 				util.convertGenbankToCDSProtsFasta(list(genbanks)[0], protein_queries_fasta, logObject, use_either_lt_or_pi=True)
 				protein_to_hg = fai.collapseProteinsUsingCDHit(protein_queries_fasta, query_fasta, logObject)
 			else:
-				ortho_matrix_file, query_fasta = fai.genConsensusSequences(genbanks, work_dir, logObject, cpus=cpus)
+				ortho_matrix_file, query_fasta = fai.genConsensusSequences(genbanks, work_dir, logObject, threads=threads)
 				protein_to_hg = fai.parseHomologGroupMatrix(ortho_matrix_file, logObject)
 			comp_gene_info = fai.parseCoordsFromGenbank(genbanks, logObject)
 
@@ -412,7 +412,7 @@ def faiMain():
 
 		key_hgs = set([])
 		if key_protein_queries_fasta != None:
-			key_hgs = fai.mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, cpus=cpus)
+			key_hgs = fai.mapKeyProteinsToHomologGroups(query_fasta, key_protein_queries_fasta, work_dir, logObject, threads=threads)
 		query_information = {'protein_to_hg': protein_to_hg, 'query_fasta': query_fasta,
 							 'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs,
 							 'single_query_mode': single_query_mode}
@@ -468,7 +468,7 @@ def faiMain():
 	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
 	if not os.path.isfile(step2_check_file):
 		util.setupReadyDirectory([diamond_work_dir])
-		diamond_results_file = fai.runDiamondBlastp(target_genome_dmnd_db, query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, cpus=cpus)
+		diamond_results_file = fai.runDiamondBlastp(target_genome_dmnd_db, query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, threads=threads)
 		diamond_results = fai.processDiamondBlastp(target_annotation_information, diamond_results_file, diamond_work_dir, logObject)
 		with open(diamond_results_pickle_file, 'wb') as pickle_file:
 			pickle.dump(diamond_results, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
@@ -555,7 +555,7 @@ def faiMain():
 								 syntenic_correlation_threshold=syntenic_correlation_threshold,
 								 kq_evalue_threshold=key_protein_evalue_cutoff,
 								 max_int_genes_for_merge=max_genes_disconnect, flanking_context=flanking_context,
-								 cpus=cpus, block_size=1000, gc_delineation_mode=delineation_mode)
+								 threads=threads, block_size=1000, gc_delineation_mode=delineation_mode)
 		if draft_mode or filter_paralogs:
 			fai.filterParalogousSegmentsAndConcatenateIntoMultiRecordGenBanks(hmm_work_dir, homologous_gbk_dir,
 																			  query_information["single_query_mode"],

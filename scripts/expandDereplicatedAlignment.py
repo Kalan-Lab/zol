@@ -28,7 +28,7 @@ def create_parser():
 	parser.add_argument('-o', '--output_dir', help='Path to output directory.', required=True)
 	parser.add_argument('-mi', '--min_identity', type=float, help='Minimum identity to a known instance (sequence in query). Default is 95.0.', required=False, default=95.0)
 	parser.add_argument('-mc', '--min_coverage', type=float, help='Minimum query coverage of a known instance (sequence in query). Default is 95.0.', required=False, default=95.0)
-	parser.add_argument('-c', '--cpus', type=int, help='Number of cpus/threads to use. Default is 1.', required=False, default=1)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use. Default is 1.', required=False, default=1)
 	parser.add_argument('-f', '--run_fasttree', action='store_true', help='Run FastTree for approximate maximum-likelihood phylogeny generation of the orthogroup.', required=False, default=False)
 	args = parser.parse_args()
 
@@ -45,7 +45,7 @@ def expandOg():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	min_identity = myargs.min_identity
 	min_coverage = myargs.min_coverage
-	cpus = myargs.cpus
+	threads = myargs.threads
 	run_fasttree = myargs.run_fasttree
 
 	try:
@@ -76,7 +76,7 @@ def expandOg():
 
 	align_result_file = outdir + 'DIAMOND_Results.txt'
 	diamond_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', db_faa, '-d', db_dmnd, ';',
-				   'diamond', 'blastp', '--ignore-warnings', '--threads', str(cpus), '--very-sensitive', '--query',
+				   'diamond', 'blastp', '--ignore-warnings', '--threads', str(threads), '--very-sensitive', '--query',
 				   query_fasta, '--db', db_dmnd, '--outfmt', '6', 'qseqid', 'sseqid',
 				   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
 				   'bitscore', 'qcovhsp', 'scovhsp', '-k0', '--out', align_result_file, '--evalue', '1e-3']
@@ -108,7 +108,7 @@ def expandOg():
 	orthogroup_seqs_handle.close()
 
 	orthogroup_seqs_msa = outdir + 'OrthoGroup.msa.faa'
-	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(cpus)]
+	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads)]
 	try:
 		subprocess.call(' '.join(muscle_cmd), shell=True, stdout=subprocess.DEVNULL,
 						stderr=subprocess.DEVNULL, executable='/bin/bash')

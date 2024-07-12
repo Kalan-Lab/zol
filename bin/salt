@@ -66,10 +66,10 @@ def create_parser():
 	Similar to other zol programs, the final result is an auto-color-formatted XLSX spreadsheet.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-f', '--fai_results_dir', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=True)
-	parser.add_argument('-tg', '--target_genomes_db', help='Result directory from running prepTG for target genomes of interest.', required=True)
+	parser.add_argument('-f', '--fai-results-dir', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=True)
+	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes of interest.', required=True)
 	parser.add_argument('-o', '--outdir', help='Output directory for saHGT analysis.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use [Default is 1].', required=False, default=1)
 
 	args = parser.parse_args()
 	return args
@@ -80,7 +80,7 @@ def salt():
 	fai_results_dir = myargs.fai_results_dir
 	target_genomes_db = myargs.target_genomes_db
 	outdir = myargs.outdir
-	cpus = myargs.cpus
+	threads = myargs.threads
 	
 	try:
 		assert (os.path.isdir(fai_results_dir) and os.path.isdir(target_genomes_db))
@@ -205,7 +205,7 @@ def salt():
 			codoff_cmd = ['codoff', '-g', genome_gbk, '-f', gc_gbk, '-o', outf, logObject]
 			codoff_cmds.append(codoff_cmd)
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(util.multiProcess, codoff_cmds)
 		p.close()
 		
@@ -286,9 +286,9 @@ def salt():
 			logObject.error(msg)
 			sys.exit(1)
 
-		util.runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, cpus=cpus)
+		util.runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, threads=threads)
 
-		diamond_results_file = fai.runDiamondBlastp(tg_concat_dmnd_db, tg_query_prots_file, ribo_norm_dir, logObject, diamond_sensitivity='very-sensitive', evalue_cutoff=1e-3, cpus=cpus, compute_query_coverage=True)
+		diamond_results_file = fai.runDiamondBlastp(tg_concat_dmnd_db, tg_query_prots_file, ribo_norm_dir, logObject, diamond_sensitivity='very-sensitive', evalue_cutoff=1e-3, threads=threads, compute_query_coverage=True)
 		util.processDiamondForGCtoRiboRatio(diamond_results_file, tg_query_prots_file, fai_indiv_spreadsheet_tsv, gc_to_ribo_aai_stat_file, logObject)
 				
 		gc_ribo_aai_plot_pdf_file = outdir + 'GC_to_RiboProt_AAI_Relationships.pdf'

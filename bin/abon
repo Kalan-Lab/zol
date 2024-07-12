@@ -63,18 +63,18 @@ def create_parser():
 	individually - without the requirement they are co-located like in the focal sample's BGCs.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-a', '--antismash_results', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=False, default=None)
-	parser.add_argument('-g', '--gecco_results', help='Path to GECCO BGC prediction results directory for a single sample/genome.', required=False, default=None)
-	parser.add_argument('-tg', '--target_genomes_db', help='prepTG database directory for target genomes of interest.', required=True)
-	parser.add_argument('-fo', '--fai_options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6"]', required=False, default="-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6")
-	parser.add_argument('-s', '--use_simple_blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
-	parser.add_argument('-si', '--simple_blastp_identity_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
-	parser.add_argument('-sc', '--simple_blastp_coverage_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
-	parser.add_argument('-se', '--simple_blastp_evalue_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
-	parser.add_argument('-sk', '--simple_blastp_key_proteins_proportion_cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
-	parser.add_argument('-sm', '--simple_blastp_sensitivity_mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
+	parser.add_argument('-a', '--antismash-results', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-g', '--gecco-results', help='Path to GECCO BGC prediction results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-tg', '--target-genomes-db', help='prepTG database directory for target genomes of interest.', required=True)
+	parser.add_argument('-fo', '--fai-options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6"]', required=False, default="-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6")
+	parser.add_argument('-s', '--use-simple-blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
+	parser.add_argument('-si', '--simple-blastp-identity-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
+	parser.add_argument('-sc', '--simple-blastp-coverage-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
+	parser.add_argument('-se', '--simple-blastp-evalue-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
+	parser.add_argument('-sk', '--simple-blastp-key-proteins-proportion-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
+	parser.add_argument('-sm', '--simple-blastp-sensitivity-mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
 	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use [Default is 1].', required=False, default=1)
 
 	args = parser.parse_args()
 	return args
@@ -93,7 +93,7 @@ def abon():
 	simple_blastp_evalue_cutoff = myargs.simple_blastp_evalue_cutoff
 	simple_blastp_key_proteins_proportion_cutoff = myargs.simple_blastp_key_proteins_proportion_cutoff
 	simple_blastp_sensitivity_mode = myargs.simple_blastp_sensitivity_mode
-	cpus = myargs.cpus
+	threads = myargs.threads
 
 	# create output directory if needed, or warn of over-writing
 	if os.path.isdir(outdir):
@@ -122,7 +122,7 @@ def abon():
 	# Download GECCO weights pickle file from lsaBGC:
 	gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
 	gecco_weights_pkl_file = outdir + 'GECCO_PF_Weights.pkl'
-	axel_download_cmd = ['axel', '-a', '-n', str(cpus), gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
+	axel_download_cmd = ['axel', '-a', '-n', str(threads), gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
 	util.runCmdViaSubprocess(axel_download_cmd, logObject, check_files=[gecco_weights_pkl_file])
 
 	sys.stdout.write('Parsing BGC prediction results\n')
@@ -193,10 +193,10 @@ def abon():
 			util.diamondBlastAndGetBestHits(bgc_id, gen_prot_file, key_prot_file, preptg_db_dir, bgc_fai_res_dir, logObject,
 								   			identity_cutoff=simple_blastp_identity_cutoff, coverage_cutoff=simple_blastp_coverage_cutoff, 
 											blastp_mode=simple_blastp_sensitivity_mode, prop_key_prots_needed=simple_blastp_key_proteins_proportion_cutoff,
-											evalue_cutoff=simple_blastp_evalue_cutoff, cpus=cpus)
+											evalue_cutoff=simple_blastp_evalue_cutoff, threads=threads)
 		else:
 			# run fai 
-			fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(cpus)]
+			fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(threads)]
 			genome_wide_tsv_result_file = bgc_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
 			util.runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
 	bgc_info_handle.close()

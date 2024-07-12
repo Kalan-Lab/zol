@@ -16,7 +16,7 @@ def create_parser():
 
 	parser.add_argument('-i', '--protein_faa', help='Path to FASTA of protein sequences.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Path to output directory.', required=True)
-	parser.add_argument('-c', '--cpus', type=int, help='The number of CPUs to use [Default is 1].', required=False, default=1)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use [Default is 1].', required=False, default=1)
 	args = parser.parse_args()
 
 	return args
@@ -29,7 +29,7 @@ def annotateProtSeqs():
 
 	protein_faa = myargs.protein_faa
 	outdir = os.path.abspath(myargs.output_dir) + '/'
-	cpus = myargs.cpus
+	threads = myargs.threads
 
 	try:
 		assert(util.is_fasta(protein_faa))
@@ -44,7 +44,7 @@ def annotateProtSeqs():
 	logObject = util.createLoggerObject(log_file)
 
 	# perform annotate consensus sequences	
-	annotations = zol.annotateConsensusSequences(protein_faa, outdir, logObject, cpus=cpus)
+	annotations = zol.annotateConsensusSequences(protein_faa, outdir, logObject, threads=threads)
 		
 	header = ['Protein ID', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 			  'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',

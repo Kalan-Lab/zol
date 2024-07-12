@@ -38,7 +38,7 @@ if plot_prog == None or not os.path.isfile(plot_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in zol.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 
-def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_params="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000", cpus=1):
+def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_params="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000", threads=1):
 	"""
 	Description:
 	This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
@@ -54,7 +54,7 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_
 	- rog_dir: A directory to write temporary + result files pertaining to reinflation to.
 	- logObject: An object for logging messages.
 	- cdhit_params: CD-HIT parameters. Default is: "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"
-	- cpus: The number of CPUs to use for the CD-HIT clustering step.
+	- threads: The number of threads to use for the CD-HIT clustering step.
 	*******************************************************************************************************************
 	"""
 	try:
@@ -78,7 +78,7 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_
 		cdhit_nr_prefix = rog_dir + 'CD-HIT_Results'
 		cdhit_cluster_file = cdhit_nr_prefix + '.clstr'
 		cdhit_cmd = ['cd-hit', '-i', comp_prot_file, '-o', cdhit_nr_prefix, cdhit_params,
-					 '-d', '0', '-T', str(cpus)]
+					 '-d', '0', '-T', str(threads)]
 
 		try:
 			subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL,
@@ -166,7 +166,7 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_
 		sys.exit(1)
 
 def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0,
-						  skani_coverage_threshold=95.0, mcl_inflation=None, cpus=1):
+						  skani_coverage_threshold=95.0, mcl_inflation=None, threads=1):
 	"""
 	Description:
 	This function dereplicates a set of GenBank files using the skani to estimate pairwise gene-cluster ANI and either
@@ -185,7 +185,7 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 	- skani_coverage_threshold: The minimum coverage threshold for two sequences to be considered similar.
 	- mcl_inflation: The inflation factor to use for the MCL clustering algorithm. If not provided (default), single-
 	                 linkage clustering (via slclust) will be used instead.
-	- cpus: The number of CPUs to use for the skani and MCL clustering algorithms.
+	- threads: The number of threads to use for the skani and MCL clustering algorithms.
 	*******************************************************************************************************************
 	Returns:
 	A tuple of two lists:
@@ -220,7 +220,7 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 		flf_handle.close()
 
 		skani_sketch_db = derep_dir + 'skani_sketch/'
-		skani_sketch_cmd = ['skani', 'sketch', '-t', str(cpus), '-l', fasta_listing_file, '-o', skani_sketch_db]
+		skani_sketch_cmd = ['skani', 'sketch', '-t', str(threads), '-l', fasta_listing_file, '-o', skani_sketch_db]
 		try:
 			subprocess.call(' '.join(skani_sketch_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
@@ -233,7 +233,7 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 			sys.exit(1)
 
 		skani_result_file = derep_dir + 'skani_results.tsv'
-		skani_dist_cmd = ['skani', 'dist', '-t', str(cpus), '-q', skani_sketch_db + '*', '-r', skani_sketch_db + '*',
+		skani_dist_cmd = ['skani', 'dist', '-t', str(threads), '-q', skani_sketch_db + '*', '-r', skani_sketch_db + '*',
 						  '--min-af', str(skani_coverage_threshold), '-o', skani_result_file]
 
 		try:
@@ -291,7 +291,7 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 			clust_cmd = ['slclust', '<', similar_pairs_file, '>', clusters_file]
 		else:
 			clust_cmd = ['mcl', similar_pairs_file, '--abc', '-I', str(mcl_inflation), '-o', clusters_file,
-						 '-te', str(cpus)]
+						 '-te', str(threads)]
 
 		try:
 			subprocess.call(' '.join(clust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -405,7 +405,7 @@ def partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_
 		sys.exit(1)
 
 def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, hg_upst_dir, upst_algn_dir, logObject,
-											 cpus=1, use_super5=False):
+											 threads=1, use_super5=False):
 	"""
 	Description:
 	This function partitions upstream DNA sequences into ortholog groups and creates alignments for each group.
@@ -416,7 +416,7 @@ def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, 
 	- hg_upst_dir: A directory to write upstream DNA sequences for each ortholog group.
 	- upst_algn_dir: A directory to write alignments for each ortholog group.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use for alignment.
+	- threads: The number of threads to use for alignment.
 	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
 	"""
 	try:
@@ -456,9 +456,9 @@ def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, 
 						min_seq_len = len(str(rec.seq))
 			if min_seq_len < 10: continue
 			upst_algn_file = upst_algn_dir + prefix + '.msa.fna'
-			align_cmd = ['muscle', '-align', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(cpus)]
+			align_cmd = ['muscle', '-align', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads)]
 			if use_super5:
-				align_cmd = ['muscle', '-super5', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(cpus)]
+				align_cmd = ['muscle', '-super5', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads)]
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -477,7 +477,7 @@ def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, 
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False, cpus=1):
+def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False, threads=1):
 	"""
 	Description:
 	This function creates protein alignments from a directory of protein sequences.
@@ -487,16 +487,16 @@ def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False
 	- prot_algn_dir: A directory to write protein alignments.
 	- logObject: A logging object.
 	- use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
-	- cpus: The number of CPUs to use for alignment.
+	- threads: The number of threads to use for alignment.
 	"""
 	try:
 		for pf in os.listdir(prot_dir):
 			prefix = '.faa'.join(pf.split('.faa')[:-1])
 			prot_file = prot_dir + pf
 			prot_algn_file = prot_algn_dir + prefix + '.msa.faa'
-			align_cmd = ['muscle', '-align', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(cpus)]
+			align_cmd = ['muscle', '-align', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads)]
 			if use_super5:
-				align_cmd = ['muscle', '-super5', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(cpus)]
+				align_cmd = ['muscle', '-super5', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads)]
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -514,7 +514,7 @@ def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpus=1):
+def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates codon alignments from a directory of protein alignments and a directory of DNA sequences.
@@ -524,7 +524,7 @@ def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpu
 	- nucl_dir: A directory containing DNA sequences.
 	- codo_algn_dir: A directory to write codon alignments.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use for alignment.
+	- threads: The number of threads to use for alignment.
 	"""
 	try:
 		pal2nal_cmds = []
@@ -534,7 +534,7 @@ def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpu
 			nucl_file = nucl_dir + prefix + '.fna'
 			codo_algn_file = codo_algn_dir + prefix + '.msa.fna'
 			pal2nal_cmds.append(['pal2nal.pl', prot_algn_file, nucl_file, '-output', 'fasta', '>', codo_algn_file, logObject])
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(util.multiProcess, pal2nal_cmds)
 		p.close()
 	except Exception as e:
@@ -544,7 +544,7 @@ def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, cpu
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, cpus=1):
+def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, threads=1):
 	"""
 	Description:
 	This function trims protein and codon alignments using TrimAl.
@@ -555,7 +555,7 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 	- prot_algn_trim_dir: The directory where the trimmed protein alignments will be saved.
 	- codo_algn_trim_dir: The directory where the trimmed codon alignments will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use for trimming the alignments.
+	- threads: The number of threads to use for trimming the alignments.
 	*******************************************************************************************************************
 	"""
 	try:
@@ -568,7 +568,7 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 			codo_algn_trim_file = codo_algn_trim_dir + prefix + '.msa.fna'
 			trim_cmds.append(['trimal', '-in', prot_algn_file, '-out', prot_algn_trim_file, '-keepseqs', '-gt', '0.9', logObject])
 			trim_cmds.append(['trimal', '-in', codo_algn_file, '-out', codo_algn_trim_file, '-keepseqs', '-gt', '0.9', logObject])
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(util.multiProcess, trim_cmds)
 		p.close()
 	except Exception as e:
@@ -578,7 +578,7 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
+def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates gene trees from trimmed codon alignments using FastTree2 for ortholog groups.
@@ -587,7 +587,7 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
 	- codo_algn_trim_dir: The directory containing trimmed codon alignments.
 	- tree_dir: The directory where trees in Newick format will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	"""
 	try:
@@ -598,7 +598,7 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
 			codo_algn_trim_file = codo_algn_trim_dir + catf
 			tree_file = tree_dir + prefix + '.tre'
 			fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(util.multiProcess, fasttree_cmds)
 		p.close()
 	except Exception as e:
@@ -608,7 +608,7 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, cpus=1):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, cpus=1):
+def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates profile HMMs and emits consensus sequences based on protein MSAs using HMMER.
@@ -618,7 +618,7 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 	- phmm_dir: The directory where profile HMMs in HMMER3 HMM format will be saved.
 	- cons_dir: The directory where consensus sequences in FASTA format will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	"""
 	try:
@@ -631,7 +631,7 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 			prot_cons_file = cons_dir + prefix + '.cons.faa'
 			hmmbuild_cmds.append(['hmmbuild', '--amino', '--cpu', '2', '-n', prefix, prot_hmm_file, prot_algn_file, logObject])
 			hmmemit_cmds.append(['hmmemit', '-c', '-o', prot_cons_file, prot_hmm_file, logObject])
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(util.multiProcess, hmmbuild_cmds)
 		p.map(util.multiProcess, hmmemit_cmds)
 		p.close()
@@ -642,7 +642,7 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace_dir, logObject, use_super5=True, cpus=1):
+def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace_dir, logObject, use_super5=True, threads=1):
 	"""
 	Description:
 	This function refines protein alignments by DIAMOND BLASTing proteins from a reference gene cluster and filtering
@@ -658,7 +658,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 	- refine_workspace_dir: The workspace to perform the refinement of protein and nucleotide alignments.
 	- logObject: A logging object.
 	- use_super5: Whether to use SUPER5 algorithm for MUSCLE based alignment.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	Returns:
 	A list consisting of two items:
@@ -684,7 +684,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 		dmnd_db = refine_workpace_dir + 'All_Proteins.dmnd'
 		blastp_file = refine_workpace_dir + 'Blast_Results.txt'
 		makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', concat_proteins_faa_file, '-d', dmnd_db]
-		search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(cpus), '-d', dmnd_db, '-q', custom_database,
+		search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(threads), '-d', dmnd_db, '-q', custom_database,
 					  '-o', blastp_file]
 		try:
 			subprocess.call(' '.join(makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -747,9 +747,9 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 					hswq_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
 			hswq_handle.close()
 
-			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(cpus)]
+			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads)]
 			if use_super5:
-				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(cpus)]
+				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads)]
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -807,7 +807,7 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 
 	return([hg_prot_refined_dir, hg_nucl_refined_dir])
 
-def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, logObject, cpus=1,
+def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, logObject, threads=1,
 						   max_annotation_evalue=1e-5):
 	"""
 	Description:
@@ -820,7 +820,7 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 	- custom_protein_db_faa: Custom database of reference proteins in FASTA format.
 	- annotation_dir: Directory where to perform annotation analysis.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- max_annotation_evalue: The maximum E-value by DIAMOND to regard an alignment between a consensus ortholog group
 	                         sequence and a reference protein sequence.
 	*******************************************************************************************************************
@@ -837,7 +837,7 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 		dmnd_db = custom_annot_dir + 'Custom.dmnd'
 		blastp_file = custom_annot_dir + 'Custom.txt'
 		makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', custom_protein_db_faa, '-d', dmnd_db]
-		search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(cpus), '-d', dmnd_db, '-q', protein_faa,
+		search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(threads), '-d', dmnd_db, '-q', protein_faa,
 					  '-o', blastp_file]
 
 		try:
@@ -896,7 +896,7 @@ def annotateCustomDatabase(protein_faa, custom_protein_db_faa, annotation_dir, l
 	return(custom_annotations)
 
 def runPyhmmer(inputs):
-	name, db_file, z, protein_faa, annotation_result_file, cpus = inputs
+	name, db_file, z, protein_faa, annotation_result_file, threads = inputs
 	try:
 		alphabet = pyhmmer.easel.Alphabet.amino()
 		sequences = []
@@ -906,13 +906,13 @@ def runPyhmmer(inputs):
 		outf = open(annotation_result_file, 'w')
 		if name == 'pfam':
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=cpus):
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), threads=threads):
 					for hit in hits:
 						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score)]) + '\n')
 
 		else:
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=cpus):
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), threads=threads):
 					for hit in hits:
 						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
 											  str(hit.score)]) + '\n')
@@ -920,7 +920,7 @@ def runPyhmmer(inputs):
 	except:
 		raise RuntimeError('Problem running pyhmmer!')
 
-def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, max_annotation_evalue=1e-5):
+def annotateConsensusSequences(protein_faa, annotation_dir, logObject, threads=1, max_annotation_evalue=1e-5):
 	"""
 	Description:
 	This function will attempt to annotate consensus sequences for ortholog groups with the default databases supported
@@ -931,7 +931,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 	- protein_faa: Consensus protein sequences for ortholog groups in FASTA format.
 	- annotation_dir: Directory where to perform annotation analysis.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- max_annotation_evalue: The maximum E-value by DIAMOND to regard an alignment between a consensus ortholog group
 	                         sequence and a database sequence.
 	*******************************************************************************************************************
@@ -960,16 +960,16 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 		return (default_to_regular(annotations))
 
 	try:
-		dmnd_individual_cpus = 1
-		dmnd_pool_size = cpus
-		if cpus > 5:
-			dmnd_individual_cpus = math.floor(cpus/5)
+		dmnd_individual_threads = 1
+		dmnd_pool_size = threads
+		if threads > 5:
+			dmnd_individual_threads = math.floor(threads/5)
 			dmnd_pool_size = 5
 
-		hmm_individual_cpus = 1
-		hmm_pool_size = cpus
-		if cpus > 4:
-			hmm_individual_cpus = math.floor(cpus/4)
+		hmm_individual_threads = 1
+		hmm_pool_size = threads
+		if threads > 4:
+			hmm_individual_threads = math.floor(threads/4)
 			hmm_pool_size = 4
 
 		assert(os.path.isfile(db_locations))
@@ -985,9 +985,9 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, cpus=1, m
 				annotation_result_file = annotation_dir + name + '.txt'
 				if db_file.endswith('.hmm'):
 					hmm_based_annotations.add(name)
-					hmm_search_cmds.append([name, db_file, z, protein_faa, annotation_result_file, hmm_individual_cpus])
+					hmm_search_cmds.append([name, db_file, z, protein_faa, annotation_result_file, hmm_individual_threads])
 				elif db_file.endswith('.dmnd') and not name in set(['riboprots', 'mobsuite']):
-					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(dmnd_individual_cpus), '-d', db_file,
+					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', str(dmnd_individual_threads), '-d', db_file,
 								  '-q', protein_faa, '-o', annotation_result_file, logObject]
 					dmnd_search_cmds.append(search_cmd)
 
@@ -1154,9 +1154,9 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 
 		gcs_ordered = [ref_bgc] + sorted(list(set(gc_genes.keys()).difference(set([ref_bgc]))))
 		ref_hg_directions = {}
-		hg_pair_scpus = defaultdict(int)
-		hg_preceding_scpus = defaultdict(lambda: defaultdict(int))
-		hg_following_scpus = defaultdict(lambda: defaultdict(int))
+		hg_pair_sthreads = defaultdict(int)
+		hg_preceding_sthreads = defaultdict(lambda: defaultdict(int))
+		hg_following_sthreads = defaultdict(lambda: defaultdict(int))
 		all_hgs = set(['start', 'end'])
 		direction_forward_support = defaultdict(int)
 		direction_reverse_support = defaultdict(int)
@@ -1210,40 +1210,40 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 				all_hgs.add(hg)
 				if j == 0:
 					hg_previ = "start"
-					hg_preceding_scpus[hg][hg_previ] += 1
-					hg_following_scpus[hg_previ][hg] += 1
-					hg_pair_scpus[tuple([hg_previ, hg])] += 1
+					hg_preceding_sthreads[hg][hg_previ] += 1
+					hg_following_sthreads[hg_previ][hg] += 1
+					hg_pair_sthreads[tuple([hg_previ, hg])] += 1
 				try:
 					hg_after = hgs[j + 1]
 					# make sure you don't get lost with broken/fragmented genes in BGCs that might be
 					# in the process being lost.
 					if hg != hg_after:
-						hg_preceding_scpus[hg_after][hg] += 1
-						hg_following_scpus[hg][hg_after] += 1
-						hg_pair_scpus[tuple([hg, hg_after])] += 1
+						hg_preceding_sthreads[hg_after][hg] += 1
+						hg_following_sthreads[hg][hg_after] += 1
+						hg_pair_sthreads[tuple([hg, hg_after])] += 1
 				except:
 					hg_after = 'end'
-					hg_preceding_scpus[hg_after][hg] += 1
-					hg_following_scpus[hg][hg_after] += 1
-					hg_pair_scpus[tuple([hg, hg_after])] += 1
+					hg_preceding_sthreads[hg_after][hg] += 1
+					hg_following_sthreads[hg][hg_after] += 1
+					hg_pair_sthreads[tuple([hg, hg_after])] += 1
 
 		anchor_edge = None
 		if len(single_copy_core_hgs) > 0:
 			# first attempt to find anchor edge using a single copy core ortholog groups if any exist
-			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in single_copy_core_hgs and hps[0][1] in single_copy_core_hgs:
 					anchor_edge = hps[0]
 					break
 		if len(core_hgs) > 0 and anchor_edge == None:
 			# looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist 
-			for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
 					anchor_edge = hps[0]
 					break
 			try:
 				assert (anchor_edge != None)
 			except:
-				for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
 						anchor_edge = hps[0]
 						break
@@ -1254,14 +1254,14 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 			sys.stderr.write(stars + 'WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.\n' + stars)
 			logObject.warning('No core ortholog groups were detected across homologous gene cluster\ninstances - the quality of the consensus order and direction\npredictions will be lower.\n')
 			try:
-				for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in most_conserved_hgs and hps[0][1] in most_conserved_hgs:
 						anchor_edge = hps[0]
 						break
 				try:
 					assert (anchor_edge != None)
 				except:
-					for hps in sorted(hg_pair_scpus.items(), key=itemgetter(1), reverse=True):
+					for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
 						if hps[0][0] in most_conserved_hgs or hps[0][1] in most_conserved_hgs:
 							anchor_edge = hps[0]
 							break
@@ -1280,7 +1280,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 		left_expansion = [curr_hg]
 		while not curr_hg == 'start':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_preceding_scpus[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_preceding_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					left_expansion = [new_hg] + left_expansion
@@ -1297,7 +1297,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 		right_expansion = [curr_hg]
 		while not curr_hg == 'end':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_following_scpus[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_following_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					right_expansion.append(new_hg)
@@ -1320,13 +1320,13 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, logObject):
 				best_score = 0
 				relative_pos = None
 				neighboriest_hg = None
-				for phg in sorted(hg_preceding_scpus[hg].items(), key=itemgetter(1), reverse=True):
+				for phg in sorted(hg_preceding_sthreads[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < phg[1] and phg[0] in accounted_hgs:
 						best_score = phg[1]
 						relative_pos = 'after'
 						neighboriest_hg = phg[0]
 						break
-				for fhg in sorted(hg_following_scpus[hg].items(), key=itemgetter(1), reverse=True):
+				for fhg in sorted(hg_following_sthreads[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < fhg[1] and fhg[0] in accounted_hgs:
 						best_score = fhg[1]
 						relative_pos = 'before'
@@ -1547,7 +1547,7 @@ def individualHyphyRun(inputs):
 		sys.exit(1)
 
 def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, logObject, skip_gard=False,
-					 gard_mode="Faster", cpus=1):
+					 gard_mode="Faster", threads=1):
 	"""
 	Description:
 	This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting
@@ -1562,7 +1562,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 	- logObject: A logging object.
 	- skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
 	- gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	"""
 	try:
@@ -1577,7 +1577,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
 							skip_gard, gard_mode, logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(individualHyphyRun, hyphy_inputs)
 		p.close()
 
@@ -1689,7 +1689,7 @@ def determineSeqSimProteinAlignment(inputs):
 	with open(outf, 'wb') as pickle_file:
 		pickle.dump(pair_seq_matching_normal, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
 
-def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
+def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, threads=1):
 	"""
 	Description:
 	This function computes the BetaRD-gc statistic for each ortholog group - which is an estimate of how sequence
@@ -1701,7 +1701,7 @@ def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
 	- prot_algn_dir: The directory with protein alignments for ortholog groups.
 	- evo_dir: The workspace/directory where evolutionary analyses are to be performed under.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	Returns:
 	- A list of two dictionaries:
@@ -1720,7 +1720,7 @@ def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, cpus=1):
 			outf = brd_results_dir + hg + '.sims.pkl'
 			inputs.append([hg, prot_algn_dir + f, outf, logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(determineSeqSimProteinAlignment, inputs)
 		p.close()
 
@@ -1801,7 +1801,7 @@ def calculateMSAEntropy(inputs):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, cpus=1):
+def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, threads=1):
 	"""
 	Description:
 	This function computes the average entropy statistic for ortholog groups.
@@ -1811,7 +1811,7 @@ def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, cp
 	- upst_algn_dir: The directory with upstream nucleotide alignments for ortholog groups.
 	- evo_dir: The workspace/directory where evolutionary analyses are to be performed under.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	Returns:
 	- A list of two dictionaries:
@@ -1835,7 +1835,7 @@ def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, cp
 			outf = entropy_res_dir + hg + '_upstream.txt'
 			inputs.append([hg, uaf, outf, logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(calculateMSAEntropy, inputs)
 		p.close()
 
@@ -1961,7 +1961,7 @@ def runTajimasDAnalysisPerHG(inputs):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, cpus=1):
+def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, threads=1):
 	"""
 	Description:
 	This function runs Tajima's D analysis for all ortholog groups.
@@ -1970,7 +1970,7 @@ def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, cpus=1):
 	- codo_algn_trim_dir: The directory where trimmed codon alignments are stored for ortholog groups.
 	- evo_dir: The workspace/directory where Tajima's D analyses should be performed under.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	Returns:
 	- A list with two items:
@@ -1991,7 +1991,7 @@ def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, cpus=1):
 			outf = tajd_resdir + hg + '.txt'
 			inputs.append([hg, trim_codon_align, outf, logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(runTajimasDAnalysisPerHG, inputs)
 		p.close()
 

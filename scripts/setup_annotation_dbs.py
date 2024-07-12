@@ -17,8 +17,8 @@ def create_parser():
 	Downloads annotation databases for KO, PGAP, 
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
-	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=4)
+	parser.add_argument('-p', '--download-path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
+	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
 
 	args = parser.parse_args()
@@ -39,7 +39,7 @@ def setup_annot_dbs():
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
 
-	cpus = myargs.cpus
+	threads = myargs.threads
 	minimal_mode = myargs.minimal
 
 	try:
@@ -79,7 +79,7 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
@@ -163,7 +163,7 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')

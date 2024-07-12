@@ -84,7 +84,7 @@ def create_parser():
 	parser.add_argument('-q', '--coverage', type=float, help='Bi-directional coverage cutoff for determining orthologs.', required=False, default=50.0)
 	parser.add_argument('-cd', '--cdhit_orthogroup', action='store_true', help='Infer ortholog groups using CD-HIT.', required=False, default=False)
 	parser.add_argument('-cdp', '--cdhit_params', help='Parameters for performing CD-HIT based ortholog group\nclustering if requested via --cdhit_orthogroup.\n[Default is "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000"]', required=False, default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
-	parser.add_argument('-c', '--cpus', type=int, help='Maximum number of CPUs to use. Default is 1.', default=1,
+	parser.add_argument('-c', '--threads', type=int, help='Maximum number of threads to use. Default is 1.', default=1,
 		 				required=False)
 	args = parser.parse_args()
 	return args
@@ -238,7 +238,7 @@ def findOrthologs():
 
 	proteome_dir = os.path.abspath(myargs.proteome_dir) + '/'
 	outdir = os.path.abspath(myargs.output_dir) + '/'
-	cpus = myargs.cpus
+	threads = myargs.threads
 	coverage_cutoff = myargs.coverage
 	identity_cutoff = myargs.identity
 	evalue_cutoff = myargs.evalue
@@ -310,7 +310,7 @@ def findOrthologs():
 					refactor_proteomes.append([sample_name, prot_file, updated_prot_file, original_naming_file, logObject])
 					proteome_listing_handle.write(sample_name + '\t' + prot_file + '\t' + updated_prot_file + '\n')
 
-				with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
+				with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
 					executor.map(refactorProteomes, refactor_proteomes)
 
 
@@ -386,7 +386,7 @@ def findOrthologs():
 								alignment_result_file, '--outfmt', '6', 'qseqid', 'sseqid', 'pident', 'length',
 								'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore',
 								'qcovhsp', '-k0', '--very-sensitive', '-e', str(evalue_cutoff), '--masking', '0', '-p',
-								str(cpus)]
+								str(threads)]
 			try:
 				subprocess.call(' '.join(diamond_blastp_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -420,7 +420,7 @@ def findOrthologs():
 			for inp_tup in sample_inputs:
 				parallelize_inputs.append(list(inp_tup) + [identity_cutoff, coverage_cutoff, logObject])
 
-			with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
+			with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
 				executor.map(oneVsAllParse, parallelize_inputs)
 
 			os.system('cat %s* > %s' % (forth_res_dir, find_orthos_result_file))
@@ -466,7 +466,7 @@ def findOrthologs():
 		if not os.path.isfile(step4_checkpoint_file):
 			cluster_result_file = outdir + 'MCL_Cluster_Results.txt'
 			find_clusters_cmd = ['mcl', scaled_find_orthos_result_file, '--abc', '-I', '1.5', '-te',
-									str(cpus), '-o', cluster_result_file]
+									str(threads), '-o', cluster_result_file]
 			try:
 				subprocess.call(' '.join(find_clusters_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -538,7 +538,7 @@ def findOrthologs():
 			cdhit_nr_prefix = outdir + 'CD-HIT_Results'
 			cdhit_cluster_file = cdhit_nr_prefix + '.clstr'
 			cdhit_cmd = ['cd-hit', '-i', concat_faa, '-o', cdhit_nr_prefix, cdhit_params,
-						'-d', '0', '-T', str(cpus)]
+						'-d', '0', '-T', str(threads)]
 
 			try:
 				subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL,

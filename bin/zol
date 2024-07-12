@@ -102,7 +102,7 @@ def create_parser():
 	parser.add_argument('-dt', '--derep-identity', type=float, help='skani ANI threshold to use for dereplication. [Default is 99.0].', required=False, default=99.0)
 	parser.add_argument('-dc', '--derep-coverage', type=float, help='skani aligned fraction threshold to use for\ndereplication. [Default is 95.0].', required=False, default=95.0)
 	parser.add_argument('-di', '--derep-inflation', type=float, help='Inflation parameter for MCL to use for dereplication of\ngene-clusters. If not specified single-linkage clustering\nwill be used instead.', required=False, default=None)
-	parser.add_argument('-dsg', '--derep-small-genomes', action='store_true', help='Run skani with the --small-genomes preset for\ndereplication - recommended if dealing\nwith lots of gene cluster instances.', required=False, default=False)
+	parser.add_argument('-dsg', '--derep-small-genomes', action='store_true', help='Run skani with the --small-genomes preset for\ndereplication - recommended if dealing\nwith lots of gene cluster instances that are < 20 kb\nin length (requires skani version >0.2.2).', required=False, default=False)
 	parser.add_argument('-rp', '--reinflate-params', help='Parameters for running CD-HIT for re-inflation, please\nsurround argument input with double quotes.\n[Default is "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"].', required=False, default="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
 	parser.add_argument('-ibc', '--impute-broad-conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated\nwith dereplicated representatives.')
 	parser.add_argument('-ces', '--comprehensive-evo-stats', action='store_true', help='Allow computing of evolutionary statistics for non-single-copy genes.', required=False, default=False)
@@ -169,6 +169,7 @@ def zolMain():
 	derep_identity = myargs.derep_identity
 	derep_coverage = myargs.derep_coverage
 	derep_inflation = myargs.derep_inflation
+	derep_small_genomes = myargs.derep_small_genomes
 	filter_lq_flag = myargs.filter_low_quality
 	filter_dq_flag = myargs.filter_draft_quality
 	custom_database = myargs.custom_database
@@ -233,8 +234,8 @@ def zolMain():
 						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
 						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
 						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
-						derep_inflation, custom_database, refine_gene_calling_flag, length, width,full_genbank_labels, threads, 
-						max_memory, skip_cleanup_flag]
+						derep_inflation, derep_small_genomes, custom_database, refine_gene_calling_flag, length, width, 
+						full_genbank_labels, threads, max_memory, skip_cleanup_flag]
 	parameter_names = ["Input directory / GenBank files", "Output directory", "Select fai parameters mode?", 
 					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
 					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
@@ -249,9 +250,10 @@ def zolMain():
 					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
 					   "Perform Dereplication?", "Perform reinflation?", "Reinflation CD-HIT parameters", 
 					   "Dereplication identity threshold", "Dereplication coverage threshold", 
-					   "Dereplication clustering method / MCL inflation", "Custom annotation database", 
-					   "Refine gene calling using the custom annotation database", "Plot height", "Plot width", 
-					   "Use full GenBank labels?", "Number of threads requested", "Maximum memory in GB", "Skip Cleanup?"]
+					   "Dereplication clustering method / MCL inflation", "Dereplication using skani with --small-genomes preset", 
+					   "Custom annotation database", "Refine gene calling using the custom annotation database", 
+					   "Plot height", "Plot width", "Use full GenBank labels?", "Number of threads requested", 
+					   "Maximum memory in GB", "Skip Cleanup?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -331,7 +333,7 @@ def zolMain():
 	if dereplicate_flag:
 		if not os.path.isfile(step1_check_file):
 			util.setupReadyDirectory([derep_dir, kept_dir])
-			drep_genbanks, representative_associated_members = zol.dereplicateUsingSkani(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, skani_identiy_threshold=derep_identity, skani_coverage_threshold=derep_coverage, mcl_inflation=derep_inflation, threads=threads)
+			drep_genbanks, representative_associated_members = zol.dereplicateUsingSkani(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, skani_small_genomes_preset=derep_small_genomes, skani_identiy_threshold=derep_identity, skani_coverage_threshold=derep_coverage, mcl_inflation=derep_inflation, threads=threads)
 			drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[:-1]) for x in drep_genbanks])
 			with open(ref_gbks_pickle_file, 'wb') as pickle_file:
 				pickle.dump(drep_genbanks, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)

@@ -165,8 +165,8 @@ def reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, cdhit_
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_identiy_threshold=99.0,
-						  skani_coverage_threshold=95.0, mcl_inflation=None, threads=1):
+def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObject, skani_small_genomes_preset=False, 
+						  skani_identiy_threshold=99.0, skani_coverage_threshold=95.0, mcl_inflation=None, threads=1):
 	"""
 	Description:
 	This function dereplicates a set of GenBank files using the skani to estimate pairwise gene-cluster ANI and either
@@ -181,6 +181,7 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 	- derep_dir: The directory to write the dereplicated GenBank files to.
 	- kept_dir: The directory to write the GenBank files that were kept after dereplication to.
 	- logObject: An object for logging messages.
+	- skani_small_genomes_preset: Use the --small-genomes preset in skani for faster computes.
 	- skani_identiy_threshold: The minimum identity threshold for two sequences to be considered similar.
 	- skani_coverage_threshold: The minimum coverage threshold for two sequences to be considered similar.
 	- mcl_inflation: The inflation factor to use for the MCL clustering algorithm. If not provided (default), single-
@@ -235,6 +236,8 @@ def dereplicateUsingSkani(genbanks, focal_genbanks, derep_dir, kept_dir, logObje
 		skani_result_file = derep_dir + 'skani_results.tsv'
 		skani_dist_cmd = ['skani', 'dist', '-t', str(threads), '-q', skani_sketch_db + '*', '-r', skani_sketch_db + '*',
 						  '--min-af', str(skani_coverage_threshold), '-o', skani_result_file]
+		if skani_small_genomes_preset:
+			skani_dist_cmd += ['--small-genomes']
 
 		try:
 			subprocess.call(' '.join(skani_dist_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

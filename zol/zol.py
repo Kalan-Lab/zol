@@ -915,7 +915,7 @@ def runPyhmmer(inputs):
 
 		else:
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), threads=threads):
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=threads):
 					for hit in hits:
 						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
 											  str(hit.score)]) + '\n')

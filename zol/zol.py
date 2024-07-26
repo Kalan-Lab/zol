@@ -909,7 +909,7 @@ def runPyhmmer(inputs):
 		outf = open(annotation_result_file, 'w')
 		if name == 'pfam':
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), threads=threads):
+				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=threads):
 					for hit in hits:
 						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score)]) + '\n')
 

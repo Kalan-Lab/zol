@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import pickle
 from datetime import datetime
+from collections import defaultdict
 import traceback
 
 def create_parser():

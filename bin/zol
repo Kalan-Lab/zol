@@ -121,6 +121,7 @@ def create_parser():
 	parser.add_argument('-oo', '--only-orthogroups', action='store_true', help="Only compute ortholog groups and stop (runs up to step 2).", required=False, default=False)
 	parser.add_argument('-po', '--precomputed-orthogroups', help="Path to two-column tab delimited file where the first column\ncorresponds to locus_tags and the second column to corresponding\northogroup identifiers. Requires locus tags to be non-overlapping\nacross input gene cluster GenBank files and ortholog designations\nfor all CDS locus tags.", required=False, default=None)
 	parser.add_argument('-sc', '--skip-cleanup', action='store_true', help="Whether to skip cleanup of temporary files in the\n'Determine_Orthogroups/' subdirectory.", required=False, default=False)
+	parser.add_argument('-sc', '--skip-annotations', action='store_true', help="Whether to skip performing annotations.", required=False, default=False)
 	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use.", required=False, default=1)
 	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nConfigured in the shell environment [experimental; Default is None].', required=False, default=None)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
@@ -181,6 +182,7 @@ def zolMain():
 	cdhit_orthogroup_params = myargs.cdhit_params
 	max_memory = myargs.max_memory
 	skip_cleanup_flag = myargs.skip_cleanup
+	skip_annotations_flag = myargs.skip_annotations
 
 	input_files = []
 	try:
@@ -235,7 +237,7 @@ def zolMain():
 						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
 						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
 						derep_inflation, derep_small_genomes, custom_database, refine_gene_calling_flag, length, width, 
-						full_genbank_labels, threads, max_memory, skip_cleanup_flag]
+						full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
 	parameter_names = ["Input directory / GenBank files", "Output directory", "Select fai parameters mode?", 
 					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
 					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
@@ -253,7 +255,7 @@ def zolMain():
 					   "Dereplication clustering method / MCL inflation", "Dereplication using skani with --small-genomes preset", 
 					   "Custom annotation database", "Refine gene calling using the custom annotation database", 
 					   "Plot height", "Plot width", "Use full GenBank labels?", "Number of threads requested", 
-					   "Maximum memory in GB", "Skip Cleanup?"]
+					   "Maximum memory in GB", "Skip Cleanup?", "Skip Annotations?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -512,13 +514,13 @@ def zolMain():
 		os.system('touch %s' % step3_check_file)
 
 	# Step 4: Perform annotations
-	logObject.info('--------------------\nStep 4\n--------------------\nPerforming annotations')
-	sys.stdout.write('--------------------\nStep 4\n--------------------\nPerforming annotations\n')
+	logObject.info('--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)')
+	sys.stdout.write('--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)\n')
 	step4_check_file = check_dir + 'step4.txt'
 	annotation_dir = outdir + 'Annotation_Results/'
 	annotations = None
 	annotations_pickle_file = outdir + 'Annotations.pkl'
-	if not os.path.isfile(step4_check_file):
+	if not os.path.isfile(step4_check_file) and not skip_annotations_flag:
 		util.setupReadyDirectory([annotation_dir])
 		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, threads=threads)
 		if custom_database != None:
@@ -530,15 +532,17 @@ def zolMain():
 		os.system('touch %s' % step4_check_file)
 
 	if annotations == None:
-		try:
-			with open(annotations_pickle_file, 'rb') as handle:
-				annotations = pickle.load(handle)
-		except Exception as e:
-			sys.stderr.write('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
-			logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
-	#print(annotations.keys())
+		if skip_annotations_flag:
+			annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
+		else:
+			try:
+				with open(annotations_pickle_file, 'rb') as handle:
+					annotations = pickle.load(handle)
+			except Exception as e:
+				sys.stderr.write('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
+				logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
+				sys.stderr.write(str(e) + '\n')
+				sys.exit(1)
 
 	# Step 5: Determine consensus order, conservation, and median ortholog group lengths
 	logObject.info('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups')

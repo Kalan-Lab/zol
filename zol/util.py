@@ -2123,7 +2123,7 @@ def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir,
 
 		reference_ribo_prots = set([])
 		with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
-			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), threads=threads):
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=threads):
 				for hit in hits:
 					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
 					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
@@ -2172,7 +2172,7 @@ def runPyHmmerForVOGforSalt(inputs):
 
 		outf = open(annotation_result_file, 'w')
 		with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), threads=threads):
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=threads):
 				for hit in hits:
 					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
 					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")

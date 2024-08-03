@@ -20,6 +20,7 @@ def create_parser():
 	parser.add_argument('-p', '--download-path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
+	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download PGAP HMMs + MIBiG proteins.", required=False, default=False)	
 
 	args = parser.parse_args()
 	return args
@@ -41,15 +42,18 @@ def setup_annot_dbs():
 
 	threads = myargs.threads
 	minimal_mode = myargs.minimal
+	lsabgc_minimal_mode = myargs.lsabgc_minimal
 
 	try:
 		assert(os.path.isdir(download_path))
 	except:
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist!\n')
 
-	if minimal_mode:
+	if lsabgc_minimal_mode:
+		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the MIBiG and PGAP databases.\n')
+	elif minimal_mode:
 		sys.stdout.write('Minimal mode requested, will only be downloading the PGAP database.\n')
-
+	
 	try:
 		shutil.rmtree(download_path)
 		os.mkdir(download_path)
@@ -66,13 +70,91 @@ def setup_annot_dbs():
 	listing_handle = open(listing_file, 'w')
 	issues_handle = open(issues_file, 'w')
 
-	if minimal_mode:
+	if lsabgc_minimal_mode:
+		# Final annotation files
+		pgap_info_file = download_path + 'hmm_PGAP.tsv'
+		pgap_phmm_file = download_path + 'PGAP.hmm'
+		mb_faa_file = download_path + 'mibig.dmnd'
+
+		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
+				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_3.1.fasta',
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+
+		# Download
+		print('Starting download of files!')
+		os.chdir(download_path)
+		try:
+			for dl in download_links:
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
+				os.system(' '.join(axel_download_dbs_cmd))
+		except Exception as e:
+			sys.stderr.write('Error occurred during downloading!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+		try:
+			print('Setting up PGAP database!')
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
+			assert (os.path.isfile(pgap_info_file))
+			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
+			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
+			pdf_handle = open(pgap_descriptions_file, 'w')
+			with open(pgap_info_file) as opil:
+				for i, line in enumerate(opil):
+					if i == 0: continue
+					line = line.strip()
+					ls = line.split('\t')
+					label = ls[2]
+					description = ls[10]
+					pdf_handle.write(label + '\t' + description + '\n')
+			pdf_handle.close()
+			assert (os.path.isfile(pgap_phmm_file))
+			os.system(' '.join(['hmmpress', pgap_phmm_file]))
+			z = 0
+			with open(pgap_phmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+
+			listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
+			os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+		except Exception as e:
+			sys.stderr.write('Issues setting up PGAP database.\n')
+			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up MIBiG database!')
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
+			assert(os.path.isfile(mb_faa_file))
+			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
+			mdf_handle = open(mibig_descriptions_file, 'w')
+			with open(download_path + 'mibig_prot_seqs_3.1.fasta') as omf:
+				for rec in SeqIO.parse(omf, 'fasta'):
+					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
+			mdf_handle.close()
+			listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\tNA\n')
+			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_3.1.fasta']))
+		except Exception as e:
+			sys.stderr.write('Issues setting up MI-BiG database.\n')
+			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+	
+	elif minimal_mode:
 		# Final annotation files
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
 		pgap_phmm_file = download_path + 'PGAP.hmm'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
-						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
 
 		# Download
 		print('Starting download of files!')
@@ -280,7 +362,7 @@ def setup_annot_dbs():
 			sys.stderr.write(str(e) + '\n')
 
 		try:
-			print('Setting up MI-BiG database!')
+			print('Setting up MIBiG database!')
 			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'

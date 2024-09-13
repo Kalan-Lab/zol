@@ -32,4 +32,4 @@ ln -s ../run_ZOL.sh .
 ./run_ZOL.sh fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_3/ -c 4 --generate_plots
 
 # Step 3: run zol to perform comparative investigations of gene-clusters
-./run_ZOL.sh zol -i fai_Results_2/Homologous_GenBanks_Directory/ -o zol_Results/ -c 4 --full_genbank_labels
+./run_ZOL.sh zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 4 --full_genbank_labels

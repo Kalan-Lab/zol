@@ -63,8 +63,8 @@ def create_parser():
 	parser.add_argument('-o', '--output_directory', help='Path to output directory. Should already be created!', required=True)
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default='AAA', required=False)
-	parser.add_argument('-p', '--use_prodigal', action='store_true', help='Use prodigal instead of pyrodigal.', required=False, default=False)
-	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
+	parser.add_argument('-gcm', '--gene_calling_method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')
+	parser.add_argument('-m', '--meta_mode', action='store_true', help='Use meta mode instead of single for pyrodigal/prodigal. Automatically turned on if prodigal-gv is requested.', default=False, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -81,7 +81,7 @@ def prodigalAndReformat():
 
 	input_genomic_fasta_file = os.path.abspath(myargs.input_genomic_fasta)
 	outdir = os.path.abspath(myargs.output_directory) + '/'
-	use_prodigal = myargs.use_prodigal
+	gene_calling_method = (myargs.gene_calling_method).lower()
 	meta_mode = myargs.meta_mode
 
 	try:
@@ -117,11 +117,17 @@ def prodigalAndReformat():
 	# Step 1: Run Prodigal (if needed)
 	og_prod_pred_prot_file = outdir + sample_name + '.original_predicted_proteome'
 	prodigal_cmd = []
-	if not use_prodigal:
+	if gene_calling_method == 'pyrodigal':
 		prodigal_cmd = ['pyrodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	else:
+	elif gene_calling_method == 'prodigal':
 		prodigal_cmd = ['prodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	if meta_mode:
+	elif gene_calling_method == 'prodigal-gv':
+		prodigal_cmd = ['prodigal-gv', '-p', 'meta', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
+	else:
+		sys.stderr.write('The gene-calling method selected is not a valid option. Has to be either: prodigal, pyrodigal, or prodigal-gv.\n')
+		sys.exit(1)
+
+	if meta_mode and not gene_calling_method == 'prodigal-gv':
 		prodigal_cmd += ['-p', 'meta']
 
 	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')

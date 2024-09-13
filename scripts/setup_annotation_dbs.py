@@ -5,6 +5,7 @@ import sys
 import argparse
 from Bio import SeqIO
 import shutil
+import traceback
 
 def create_parser():
 	""" Parse arguments """
@@ -16,13 +17,13 @@ def create_parser():
 	Downloads annotation databases for KO, PGAP, 
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-p', '--download_path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
-	parser.add_argument('-c', '--cpus', type=int, help="Number of cpus/threads to use.", required=False, default=4)
+	parser.add_argument('-p', '--download-path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
+	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
+	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download PGAP HMMs + MIBiG proteins.", required=False, default=False)	
 
 	args = parser.parse_args()
 	return args
-
 
 def setup_annot_dbs():
 	myargs = create_parser()
@@ -39,17 +40,20 @@ def setup_annot_dbs():
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
 
-	cpus = myargs.cpus
+	threads = myargs.threads
 	minimal_mode = myargs.minimal
+	lsabgc_minimal_mode = myargs.lsabgc_minimal
 
 	try:
 		assert(os.path.isdir(download_path))
 	except:
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist!\n')
 
-	if minimal_mode:
+	if lsabgc_minimal_mode:
+		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the MIBiG and PGAP databases.\n')
+	elif minimal_mode:
 		sys.stdout.write('Minimal mode requested, will only be downloading the PGAP database.\n')
-
+	
 	try:
 		shutil.rmtree(download_path)
 		os.mkdir(download_path)
@@ -66,20 +70,22 @@ def setup_annot_dbs():
 	listing_handle = open(listing_file, 'w')
 	issues_handle = open(issues_file, 'w')
 
-	if minimal_mode:
+	if lsabgc_minimal_mode:
 		# Final annotation files
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
 		pgap_phmm_file = download_path + 'PGAP.hmm'
+		mb_faa_file = download_path + 'mibig.dmnd'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
-						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_3.1.fasta',
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
 
 		# Download
 		print('Starting download of files!')
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
@@ -88,11 +94,16 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up PGAP database!')
-			os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
 			assert (os.path.isfile(pgap_info_file))
 			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
-			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
-				os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
 			with open(pgap_info_file) as opil:
@@ -112,12 +123,89 @@ def setup_annot_dbs():
 					if line.startswith('NAME'): z += 1
 
 			listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
-			os.system(' '.join(
-				['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+			os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
 		except Exception as e:
 			sys.stderr.write('Issues setting up PGAP database.\n')
 			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up MIBiG database!')
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
+			assert(os.path.isfile(mb_faa_file))
+			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
+			mdf_handle = open(mibig_descriptions_file, 'w')
+			with open(download_path + 'mibig_prot_seqs_3.1.fasta') as omf:
+				for rec in SeqIO.parse(omf, 'fasta'):
+					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
+			mdf_handle.close()
+			listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\tNA\n')
+			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_3.1.fasta']))
+		except Exception as e:
+			sys.stderr.write('Issues setting up MI-BiG database.\n')
+			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+	
+	elif minimal_mode:
+		# Final annotation files
+		pgap_info_file = download_path + 'hmm_PGAP.tsv'
+		pgap_phmm_file = download_path + 'PGAP.hmm'
+
+		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+
+		# Download
+		print('Starting download of files!')
+		os.chdir(download_path)
+		try:
+			for dl in download_links:
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
+				os.system(' '.join(axel_download_dbs_cmd))
+		except Exception as e:
+			sys.stderr.write('Error occurred during downloading!\n')
+			sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
+
+		try:
+			print('Setting up PGAP database!')
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
+			assert (os.path.isfile(pgap_info_file))
+			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
+			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
+			pdf_handle = open(pgap_descriptions_file, 'w')
+			with open(pgap_info_file) as opil:
+				for i, line in enumerate(opil):
+					if i == 0: continue
+					line = line.strip()
+					ls = line.split('\t')
+					label = ls[2]
+					description = ls[10]
+					pdf_handle.write(label + '\t' + description + '\n')
+			pdf_handle.close()
+			assert (os.path.isfile(pgap_phmm_file))
+			os.system(' '.join(['hmmpress', pgap_phmm_file]))
+			z = 0
+			with open(pgap_phmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+
+			listing_handle.write('pgap\t' + pgap_descriptions_file + '\t' + pgap_phmm_file + '\t' + str(z) + '\n')
+			os.system(' '.join(['rm', '-rf', download_path + 'hmm_PGAP.HMM/', download_path + 'hmm_PGAP.HMM.tgz', pgap_info_file]))
+		except Exception as e:
+			sys.stderr.write('Issues setting up PGAP database.\n')
+			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
 	else:
 		# Final annotation files
 		pfam_phmm_file = download_path + 'Pfam-A.hmm'
@@ -133,6 +221,8 @@ def setup_annot_dbs():
 		mb_faa_file = download_path + 'mibig.dmnd'
 		card_faa_file = download_path + 'card.dmnd'
 		vfdb_faa_file = download_path + 'vfdb.dmnd'
+		mobs_faa_file = download_path + 'mobsuite_mpf_and_mob_proteins.dmnd'
+		unip_hmm_file = download_path + 'Universal_Hug_et_al.hmm'
 
 		download_links = ['https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
@@ -146,20 +236,22 @@ def setup_annot_dbs():
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
 						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
-						  'https://card.mcmaster.ca/download/0/broadstreet-v3.2.5.tar.bz2']
+						  'https://card.mcmaster.ca/download/0/broadstreet-v3.2.5.tar.bz2',
+						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
+						  'https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
 
 		# Download
 		print('Starting download of files!')
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(cpus), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
-			sys.stderr.write(str(e) + '\n')
 			issues_handle.write('Error occurred during downloading with axel.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up Pfam database!')
@@ -188,21 +280,23 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up Pfam database.\n')
 			issues_handle.write('Issues setting up Pfam database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up KO database!')
 			os.system(' '.join(['gunzip', 'ko_list.gz']))
-			os.system(' '.join(['tar', '-zxvf', download_path + 'profiles.tar.gz']))
-
+			extract_hmm_dir = 'profiles/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'profiles.tar.gz', '-C', extract_hmm_dir]))
 			assert(os.path.isfile(ko_annot_info_file))
 			assert(os.path.isdir(download_path + 'profiles/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', ko_phmm_file]))
 
-			if os.path.isfile(ko_phmm_file):
-				os.system(' '.join(['rm', '-f', ko_phmm_file]))
-			for f in os.listdir(download_path + 'profiles/'):
-				if not f.endswith('.hmm'): continue
-				os.system(' '.join(['cat', download_path + 'profiles/' + f, '>>', ko_phmm_file]))
 			assert(os.path.isfile(ko_phmm_file))
 			os.system(' '.join(['hmmpress', ko_phmm_file]))
 
@@ -227,15 +321,21 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up KO database.\n')
 			issues_handle.write('Issues setting up KO database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up PGAP database!')
-			os.system(' '.join(['tar', '-zxvf', 'hmm_PGAP.HMM.tgz']))
-			assert(os.path.isfile(pgap_info_file))
-			assert(os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
-			for f in os.listdir(download_path + 'hmm_PGAP.HMM/'):
-				os.system(' '.join(['cat', download_path + 'hmm_PGAP.HMM/' + f, '>>', pgap_phmm_file]))
+			extract_hmm_dir = 'hmm_PGAP.HMM/'
+			os.mkdir(extract_hmm_dir)
+			os.system(' '.join(['tar', '-zxf', 'hmm_PGAP.HMM.tgz', '-C', 'hmm_PGAP.HMM/']))
+			assert (os.path.isfile(pgap_info_file))
+			assert (os.path.isdir(download_path + 'hmm_PGAP.HMM/'))
+			for folder, subs, files in os.walk(extract_hmm_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
 			with open(pgap_info_file) as opil:
@@ -258,10 +358,11 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up PGAP database.\n')
 			issues_handle.write('Issues setting up PGAP database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
-			print('Setting up MI-BiG database!')
+			print('Setting up MIBiG database!')
 			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
@@ -275,6 +376,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up MI-BiG database.\n')
 			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -293,8 +395,9 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up VFDB database.\n')
 			issues_handle.write('Issues setting up VFDB database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
-
+		
 		# have note in program to recommend folks check out ARTS webserver for more detailed analysis
 		# in finding antibiotic BGCs
 		try:
@@ -315,16 +418,20 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up CARD database.\n')
 			issues_handle.write('Issues setting up CARD database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up VOG database!')
 			os.mkdir(download_path + 'VOG_HMM_Files/')
-			os.system(' '.join(['tar', '-xzvf', 'vog.hmm.tar.gz', '-C', download_path + 'VOG_HMM_Files/']))
+			os.system(' '.join(['tar', '-xzf', 'vog.hmm.tar.gz', '-C', download_path + 'VOG_HMM_Files/']))
 			os.system(' '.join(['gunzip', download_path + 'vog.annotations.tsv.gz']))
 			vog_db_dir = download_path + 'VOG_HMM_Files/'
-			for f in os.listdir(vog_db_dir):
-				os.system('cat %s >> %s' % (vog_db_dir + f, vog_phmm_file))
+			for folder, subs, files in os.walk(vog_db_dir):
+				for filename in files:
+					if filename.endswith('.HMM') or filename.endswith('.hmm'):
+						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						os.system(' '.join(['cat', hmm_file_path, '>>', vog_phmm_file]))
 			vog_descriptions_file = download_path + 'vog_descriptions.txt'
 			vdf_handle = open(vog_descriptions_file, 'w')
 			with open(download_path + 'vog.annotations.tsv') as ovf:
@@ -346,6 +453,7 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up VOG database.\n')
 			issues_handle.write('Issues setting up VOG database.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -362,11 +470,11 @@ def setup_annot_dbs():
 			assert(os.path.isfile(paperblast_descriptions_file))
 			assert(os.path.isfile(pb_faa_file))
 			listing_handle.write('paperblast\t' + paperblast_descriptions_file + '\t' + pb_faa_file + '\tNA\n')
-
 		except Exception as e:
 			sys.stderr.write('Issues setting up PaperBlast database.\n')
 			issues_handle.write('Issues setting up PaperBlast database.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up ISFinder database!')
@@ -385,7 +493,48 @@ def setup_annot_dbs():
 		except Exception as e:
 			sys.stderr.write('Issues setting up ISFinder database.\n')
 			issues_handle.write('Issues setting up ISFinder database.\n')
-			sys.exit(1)
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up MOB-suite plasmid associated proteins database!')
+			ms_tar_path = download_path + 'data.tar.gz'
+			ms_faa_path = download_path + 'MOB-suite_proteins.faa'
+			ms_descriptions_file = download_path + 'MOB-suite_proteins.txt'
+			os.mkdir(download_path + 'MOB-suite_files/')
+			os.system(' '.join(['tar', '-xzf', ms_tar_path, '-C', download_path + 'MOB-suite_files/']))
+			os.system(' '.join(['cat', download_path + 'MOB-suite_files/data/*.faa', '>', ms_faa_path]))
+			os.system(' '.join(['diamond', 'makedb', '--in', ms_faa_path, '-d', mobs_faa_file]))
+			mdf_handle = open(ms_descriptions_file, 'w')
+			with open(ms_faa_path) as oif:
+				for rec in SeqIO.parse(oif, 'fasta'):
+					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
+			mdf_handle.close()
+			assert(os.path.isfile(mobs_faa_file))
+			assert(os.path.isfile(ms_descriptions_file))
+			listing_handle.write('mobsuite\t' + ms_descriptions_file + '\t' + mobs_faa_file + '\tNA\n')
+			os.system(' '.join(['rm', '-rf', ms_faa_path, ms_tar_path, download_path + 'MOB-suite_files/']))
+		except Exception as e:
+			sys.stderr.write('Issues setting up MOB-suite proteins database.\n')
+			issues_handle.write('Issues setting MOB-suite proteins database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		try:
+			print('Setting up Hug et al. 2016 universal ribosomal proteins database!')
+			assert(os.path.isfile(unip_hmm_file))
+
+			os.system(' '.join(['hmmpress', unip_hmm_file]))
+			z = 0
+			with open(unip_hmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+			listing_handle.write('riboprots\tNA\t' + unip_hmm_file + '\t' + str(z) + '\n')
+		except Exception as e:
+			sys.stderr.write('Issues setting up Hug et al. 2016 database.\n')
+			issues_handle.write('Issues setting up Hug et al. 2016 database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 	listing_handle.close()
 	issues_handle.close()

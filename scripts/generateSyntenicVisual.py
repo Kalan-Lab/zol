@@ -92,9 +92,9 @@ def genSynVis():
 	pif_handle = open(plot_input_file, 'w')
 	pif_handle.write('\t'.join(['OG', 'Start', 'End', 'Direction', 'SC', 'Metric']) + '\n')
 	for index, row in df.iterrows():
-		og = row['ortholog group (OG) ID']
+		og = row['Ortholog Group (OG) ID']
 		og_cons = row['Proportion of Total Gene Clusters with OG']
-		if float(og_cons) < 0.25: continue
+		#if float(og_cons) < 0.25: continue
 		og_mlen = float(row['OG Median Length (bp)'])
 		og_dir = row['OG Consensus Direction']
 		sc_flag = row['OG is Single Copy?']

@@ -15,9 +15,9 @@ RUN apt-get update && apt-get install -y git wget
 RUN git clone https://github.com/Kalan-Lab/zol && rm -rf zol/test_case.tar.gz
 
 # Create and activate conda environment
-RUN conda install -c conda-forge mamba && \
-    mamba env create -f /usr/src/zol/zol_env.yml -p /usr/src/zol_conda_env/ && conda clean --all -y && \
-    conda remove mamba && echo "source activate /usr/src/zol_conda_env/" > ~/.bashrc && source ~/.bashrc && \
+RUN conda install -n base conda-libmamba-solver && conda config --set solver libmamba && \
+    conda env create -f /usr/src/zol/zol_env.yml -p /usr/src/zol_conda_env/ && conda clean --all -y && \
+    echo "source activate /usr/src/zol_conda_env/" > ~/.bashrc && source ~/.bashrc && \
     apt-get clean -y && apt-get autoclean -y && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 

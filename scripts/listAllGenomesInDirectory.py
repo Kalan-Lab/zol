@@ -73,7 +73,7 @@ def create_parser():
 	parser.add_argument('-p', '--bgc_prediction_software',
 						help='Software used to predict BGCs (Options: antiSMASH, DeepBGC, GECCO).\nDefault is antiSMASH.',
 						default='antiSMASH', required=False)
-	parser.add_argument('-c', '--cpus', help='Number of cpus to specify per job.', required=False, default=4)
+	parser.add_argument('-c', '--threads', help='The number of threads to use per BGC-prediction job [Default is 1].', required=False, default=1)
 	parser.add_argument('-t', '--taxon',
 						help='Taxon class to provide BGC prediction software, e.g. antiSMASH. Options: bacteri, fungi. Default: bacteria',
 						default="bacteria", required=False)
@@ -100,7 +100,7 @@ def siftAndPrint():
 	bgc_prediction_dir = os.path.abspath(myargs.bgc_prediction_dir) + '/'
 	list_cmds_flag = myargs.list_cmds
 	bgc_prediction_software = myargs.bgc_prediction_software.upper()
-	cpus = myargs.cpus
+	threads = myargs.threads
 	taxon = myargs.taxon.lower()
 	dryrun_naming_file = myargs.dryrun_naming_file
 
@@ -218,13 +218,13 @@ def siftAndPrint():
 						'.gbk') or genome_file.endswith('.gbff'):
 					gene_finding = 'none'
 				bgc_cmd = ['antismash', '--taxon', taxon, '--output-dir', bgc_prediction_dir + sample + '/', '-c',
-						   str(cpus), '--genefinding-tool', gene_finding, '--output-basename', sample, genome_file]
+						   str(threads), '--genefinding-tool', gene_finding, '--output-basename', sample, genome_file]
 			elif bgc_prediction_software == 'DEEPBGC':
 				bgc_cmd = ['deepbgc', 'pipeline', '--output', bgc_prediction_dir + sample + '/', genome_file]
 			elif bgc_prediction_software == 'GECCO':
 				if taxon == 'fungi':
 					raise RuntimeError("Not recommended to run GECCO with fungal genomes.")
-				bgc_cmd = ['gecco', 'run', '-j', str(cpus), '-o', bgc_prediction_dir + sample + '/', '-g', genome_file]
+				bgc_cmd = ['gecco', 'run', '-j', str(threads), '-o', bgc_prediction_dir + sample + '/', '-g', genome_file]
 			print(' '.join(bgc_cmd))
 		else:
 			print(sample + '\t' + genome_file)

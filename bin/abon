@@ -1,0 +1,479 @@
+#!/usr/bin/env python3
+
+### Program: abon
+### Author: Rauf Salamzade
+### Kalan Lab
+### UW Madison, Department of Medical Microbiology and Immunology
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import sys
+import argparse
+import subprocess
+from time import sleep
+from zol import util
+import _pickle as cPickle
+from Bio import SeqIO
+from operator import itemgetter
+from collections import defaultdict
+import traceback
+import pandas as pd
+import math
+
+def create_parser():
+	""" Parse arguments """
+	parser = argparse.ArgumentParser(description="""
+	Program: abon
+	Author: Rauf Salamzade
+	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+
+	abon - Assess Bgc-Ome Novelty 
+	
+	abon wraps fai to assess the novelty of a sample's BGC-ome relative to a set of target genomes.
+	Alternatively, it can run a simple DIAMOND BLASTp analysis to just assess the presence of BGC genes
+	individually - without the requirement they are co-located like in the focal sample's BGCs.
+	""", formatter_class=argparse.RawTextHelpFormatter)
+
+	parser.add_argument('-a', '--antismash-results', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-g', '--gecco-results', help='Path to GECCO BGC prediction results directory for a single sample/genome.', required=False, default=None)
+	parser.add_argument('-tg', '--target-genomes-db', help='prepTG database directory for target genomes of interest.', required=True)
+	parser.add_argument('-fo', '--fai-options', help='Provide fai options to run. Should be surrounded by quotes. [Default is "-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6"]', required=False, default="-kpm 0.75 -kpe 1e-10 -e 1e-10 -m 0.5 -dm -sct 0.6")
+	parser.add_argument('-s', '--use-simple-blastp', action='store_true', help='Use a simple DIAMOND BLASTp search with no requirement for co-localization of hits.', required=False, default=False)
+	parser.add_argument('-si', '--simple-blastp-identity-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for identity between query proteins and matches in target genomes [Default is 40.0].', required=False, default=40.0)
+	parser.add_argument('-sc', '--simple-blastp-coverage-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for coverage between query proteins and matches in target genomes [Default is 70.0].', required=False, default=70.0)
+	parser.add_argument('-se', '--simple-blastp-evalue-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for E-value between query proteins and matches in target genomes [Default is 1e-5].', required=False, default=1e-5)
+	parser.add_argument('-sk', '--simple-blastp-key-proteins-proportion-cutoff', type=float, help='If simple BLASTp mode requested : cutoff for proportion of key proteins needed to consider a BGC as present in a target genome [Default is 0.75].', required=False, default=0.75)
+	parser.add_argument('-sm', '--simple-blastp-sensitivity-mode', help='Sensitivity mode for DIAMOND BLASTp. [Default is "very-sensititve"].', required=False, default="very-sensitive")
+	parser.add_argument('-o', '--outdir', help='Output directory.', required=True)
+	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use [Default is 1].', required=False, default=1)
+
+	args = parser.parse_args()
+	return args
+
+def abon():
+	myargs = create_parser()
+
+	antismash_results_dir = myargs.antismash_results
+	gecco_results_dir = myargs.gecco_results
+	preptg_db_dir = myargs.target_genomes_db
+	outdir = os.path.abspath(myargs.outdir) + '/'
+	fai_options = myargs.fai_options
+	use_simple_blastp_flag = myargs.use_simple_blastp
+	simple_blastp_identity_cutoff = myargs.simple_blastp_identity_cutoff
+	simple_blastp_coverage_cutoff = myargs.simple_blastp_coverage_cutoff
+	simple_blastp_evalue_cutoff = myargs.simple_blastp_evalue_cutoff
+	simple_blastp_key_proteins_proportion_cutoff = myargs.simple_blastp_key_proteins_proportion_cutoff
+	simple_blastp_sensitivity_mode = myargs.simple_blastp_sensitivity_mode
+	threads = myargs.threads
+
+	# create output directory if needed, or warn of over-writing
+	if os.path.isdir(outdir):
+		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
+		sleep(5)
+	util.setupReadyDirectory([outdir])
+
+	if (antismash_results_dir == None or not os.path.isdir(antismash_results_dir)) and (gecco_results_dir == None or not os.path.isdir(gecco_results_dir)):
+		sys.stderr.write("Neither anitSMASH nor GECCO sample results directory provided as input or the paths are faulty!\n")
+		sys.exit(1)
+
+	# create logging object
+	log_file = outdir + 'Progress.log'
+	logObject = util.createLoggerObject(log_file)
+	version_string = util.getVersion()
+
+	sys.stdout.write('Running abon version %s\n' % version_string)
+	logObject.info('Running abon version %s' % version_string)
+
+	# log command used
+	parameters_file = outdir + 'Command_Issued.txt'
+	parameters_handle = open(parameters_file, 'a+')
+	parameters_handle.write(' '.join(sys.argv) + '\n')
+	parameters_handle.close()
+
+	# Download GECCO weights pickle file from lsaBGC:
+	gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
+	gecco_weights_pkl_file = outdir + 'GECCO_PF_Weights.pkl'
+	axel_download_cmd = ['axel', '-a', '-n', str(threads), gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
+	util.runCmdViaSubprocess(axel_download_cmd, logObject, check_files=[gecco_weights_pkl_file])
+
+	sys.stdout.write('Parsing BGC prediction results\n')
+	logObject.info('Parsing BGC prediction results')
+	bgc_genbank_paths = []
+	if antismash_results_dir != None and os.path.isdir(antismash_results_dir):
+		antismash_results_dir = os.path.abspath(antismash_results_dir) + '/'
+		for f in os.listdir(antismash_results_dir):
+			if f.endswith('.gbk') and '.region' in f:
+				bgc_genbank_paths.append([os.path.abspath(antismash_results_dir) + '/' + f, 'antismash'])
+
+	bgc_coords = {}
+	if gecco_results_dir != None and os.path.isdir(gecco_results_dir):
+		gecco_results_dir = os.path.abspath(gecco_results_dir) + '/'
+		for f in os.listdir(gecco_results_dir):
+			if f.endswith('.gbk') and '_cluster_' in f:
+				bgc_genbank_paths.append([os.path.abspath(gecco_results_dir) + '/' + f, 'gecco'])
+			elif f.endswith('.clusters.tsv'):
+				with open(gecco_results_dir + f) as ogcf:
+					for i, line in enumerate(ogcf):
+						if i == 0: continue
+						line = line.strip()
+						ls = line.split('\t')
+						bgc_coords[ls[1]] = [ls[0], ls[2], ls[3]]
+
+	sys.stdout.write('Found %d BGC predictions!\n' % len(bgc_genbank_paths))
+	logObject.info('Found %d BGC predictions!' % len(bgc_genbank_paths))
+
+	fai_results_dir = outdir + 'fai_or_blast_Results/'
+	proteins_dir = outdir + 'Protein_FASTAs/'
+	key_proteins_dir = outdir + 'Key_Proteins_FASTAs/'
+	if use_simple_blastp_flag:
+		util.setupReadyDirectory([fai_results_dir, proteins_dir, key_proteins_dir])
+	else:
+		util.setupReadyDirectory([fai_results_dir, key_proteins_dir])
+
+	bgc_info_file = outdir + 'BGCome_Info.tsv'
+	bgc_info_handle = open(bgc_info_file, 'w')
+	bgc_lengths = []
+	cds_counts = []
+	key_cds_counts = []
+	bgc_info_handle.write('\t'.join(['bgc_id', 'bgc_prediction_software', 'scaffold_id', 'start', 'end', 'bgc_type', 'bgc_length', 'cds_count', 'key_cds_count']) + '\n')
+	numeric_columns_t1 = ['bgc_length', 'cds_count', 'key_cds_count']
+	for bgc_path, bgc_program in bgc_genbank_paths:
+		bgc_id = '.gbk'.join(bgc_path.split('/')[-1].split('.gbk')[:-1])
+		key_prot_file = key_proteins_dir + bgc_id + '.faa'
+		gen_prot_file = proteins_dir + bgc_id + '.faa'
+		bgc_fai_res_dir = fai_results_dir + bgc_id + '/'
+
+		bgc_type, cds_count, key_cds_count, bp_length, scaffold, start_coord, end_coord = ['NA']*7
+		if bgc_program == 'antismash':
+			bgc_type, cds_count, key_cds_count, bp_length, scaffold, start_coord, end_coord = identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_prot_file, gen_prot_file, logObject, use_simple_blastp=use_simple_blastp_flag)
+		elif bgc_program == 'gecco':
+			bgc_type, cds_count, key_cds_count, bp_length = identifyKeyProteinsInGECCOBGC(gecco_weights_pkl_file, bgc_path, key_prot_file, gen_prot_file, logObject, use_simple_blastp=use_simple_blastp_flag)
+			try:
+				scaffold, start_coord, end_coord = bgc_coords[bgc_id]
+			except:
+				pass
+		bgc_lengths.append(bp_length)
+		cds_counts.append(cds_count)
+		key_cds_counts.append(key_cds_count)
+
+		bgc_info_handle.write('\t'.join([str(x) for x in [bgc_id, bgc_program, scaffold, start_coord, end_coord, bgc_type, bp_length, cds_count, key_cds_count]]) + '\n')	
+
+		if use_simple_blastp_flag:
+			# run simple blastp
+			util.setupReadyDirectory([bgc_fai_res_dir])
+			util.diamondBlastAndGetBestHits(bgc_id, gen_prot_file, key_prot_file, preptg_db_dir, bgc_fai_res_dir, logObject,
+								   			identity_cutoff=simple_blastp_identity_cutoff, coverage_cutoff=simple_blastp_coverage_cutoff, 
+											blastp_mode=simple_blastp_sensitivity_mode, prop_key_prots_needed=simple_blastp_key_proteins_proportion_cutoff,
+											evalue_cutoff=simple_blastp_evalue_cutoff, threads=threads)
+		else:
+			# run fai 
+			fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, fai_options, '-o', bgc_fai_res_dir, '-c', str(threads)]
+			genome_wide_tsv_result_file = bgc_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
+			util.runCmdViaSubprocess(fai_cmd, logObject, check_files=[genome_wide_tsv_result_file])
+	bgc_info_handle.close()
+
+	tg_bgc_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))
+	tg_bgc_sgp = defaultdict(lambda: defaultdict(lambda: 'NA'))
+	bgcs = set([])
+	tg_total_bgcs_found = defaultdict(int)
+	for bgc_path, bgc_program in bgc_genbank_paths:
+		bgc_id = bgc_path.split('/')[-1].split('.gbk')[0]
+		bgcs.add(bgc_id)
+		genome_wide_tsv_result_file = fai_results_dir + bgc_id + '/Spreadsheet_TSVs/total_gcs.tsv'
+		if use_simple_blastp_flag:
+			genome_wide_tsv_result_file = fai_results_dir + bgc_id + '/total_gcs.tsv'
+
+		with open(genome_wide_tsv_result_file) as ogwtrf:
+			for i, line in enumerate(ogwtrf):
+				line = line.strip()
+				ls = line.split('\t')
+				if i == 0: continue
+				tg = ls[0]
+				aai = ls[2]
+				sgp = ls[4]
+				tg_bgc_aai[tg][bgc_id] = aai
+				tg_bgc_sgp[tg][bgc_id] = sgp
+				if float(aai) > 0.0:
+					tg_total_bgcs_found[tg] += 1
+	
+	target_genome_listing_file = preptg_db_dir + 'Target_Genome_Annotation_Files.txt'
+	result_file = outdir + 'BGCome_to_Target_Genomes_Similarity.tsv'
+	result_handle = open(result_file, 'w')
+	result_handle.write('\t'.join(['target_genome', 'shared_bgcs', 'aggregate_score'] + [x + ' - AAI' + '\t' + x + ' - Proportion Shared Genes' for x in sorted(bgcs)]) + '\n')
+	numeric_columns_t2 = ['shared_bgcs', 'aggregate_score'] + [x + ' - AAI' for x in sorted(bgcs)] + [x + ' - Proportion Shared Genes' for x in sorted(bgcs)]
+	tgs = set([])
+	all_scores = []
+	with open(target_genome_listing_file) as otglf:
+		for line in otglf:
+			line = line.strip()
+			ls = line.split('\t')
+			tg = ls[0]
+			tgs.add(tg)
+			shared_bgcs = tg_total_bgcs_found[tg]
+			total_score = 0.0
+			for bgc in sorted(bgcs):
+				if tg_bgc_aai[tg][bgc] != "NA":
+					total_score += float(tg_bgc_aai[tg][bgc])*float(tg_bgc_sgp[tg][bgc])
+			printlist = [tg, str(shared_bgcs), str(total_score)]
+			all_scores.append(total_score)
+			for bgc in sorted(bgcs):
+				printlist.append(tg_bgc_aai[tg][bgc])
+				printlist.append(tg_bgc_sgp[tg][bgc])
+			result_handle.write('\t'.join(printlist) + '\n')
+	result_handle.close()
+
+	# construct spreadsheet
+	abon_spreadsheet_file = outdir + 'ABON_Results.xlsx'
+	writer = pd.ExcelWriter(abon_spreadsheet_file, engine='xlsxwriter')
+	workbook = writer.book
+	header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+
+	t1_results_df = util.loadTableInPandaDataFrame(bgc_info_file, numeric_columns_t1)
+	t1_results_df.to_excel(writer, sheet_name='Sample BGCome Overview', index=False, na_rep="NA")
+
+	t2_results_df = util.loadTableInPandaDataFrame(result_file, numeric_columns_t2)
+	t2_results_df.to_excel(writer, sheet_name='Similarity to Target Genomes', index=False, na_rep="NA")
+
+	t1_worksheet = writer.sheets['Sample BGCome Overview']
+	t2_worksheet = writer.sheets['Similarity to Target Genomes']
+
+	t1_worksheet.conditional_format('A1:F1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+	t2_worksheet.conditional_format('A1:HA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+
+	row_count = len(bgcs) + 1
+	t2_row_count = len(tgs) + 1
+
+	# bgc length (t1)
+	t1_worksheet.conditional_format('G2:G' + str(row_count), {'type': '2_color_scale', 'min_color': "#d5f0ea", 'max_color': "#83a39c", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": max(bgc_lengths)})
+	# bgc cds count
+	t1_worksheet.conditional_format('H2:H' + str(row_count), {'type': '2_color_scale', 'min_color': "#f5c4f3", 'max_color': "#a679a4", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": max(cds_counts)})
+	# bgc key cds count
+	t1_worksheet.conditional_format('I2:I' + str(row_count), {'type': '2_color_scale', 'min_color': "#bddec2", 'max_color': "#87c491", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": max(key_cds_counts)})
+
+	# total bgcs shared (t2)
+	t2_worksheet.conditional_format('B2:B' + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#d9d9d9", 'max_color': "#949494", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": len(bgcs)})
+
+	# aggregate score (t2)
+	t2_worksheet.conditional_format('C2:C' + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#f7db94", 'max_color': "#ad8f40", 'min_type': 'num', 'max_type': 'num', "min_value": 0, "max_value": max(all_scores)})
+
+	bgc_index = 3
+	for bgc in bgcs:
+		columnid_pid = util.determineColumnNameBasedOnIndex(bgc_index)
+		columnid_sgp = util.determineColumnNameBasedOnIndex(bgc_index+1)
+		bgc_index += 2
+
+		# aai
+		t2_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# prop genes found
+		t2_worksheet.conditional_format(columnid_sgp + '2:' + columnid_sgp + str(t2_row_count), {'type': '2_color_scale', 'min_color': "#e6bec0", 'max_color': "#f26168", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+	# Freeze the first row of both sheets
+	t1_worksheet.freeze_panes(1, 0)
+	t2_worksheet.freeze_panes(1, 0)
+
+	# close workbook
+	workbook.close()
+
+	sys.stdout.write('Done running abon!\nFinal results can be found at:\n%s\n' % (abon_spreadsheet_file))
+	logObject.info('Done running abon!\nFinal results can be found at:\n%s\n' % (abon_spreadsheet_file))
+
+	# Close logging object and exit
+	util.closeLoggerObject(logObject)
+	sys.exit(0)
+
+def identifyKeyProteinsInAntiSMASHBGC(bgc_path, key_proteins_fasta, general_proteins_fasta, logObject, use_simple_blastp=False):
+	try:
+		kpf_handle = open(key_proteins_fasta, 'w')
+		gpf_handle = None
+		if use_simple_blastp: 
+			gpf_handle = open(general_proteins_fasta, 'w')
+
+		bgc_type, cds_count, key_cds_count, bp_length = ['NA']*4
+		bgc_types = []
+		cds_count = 0 
+		key_cds_count = 0
+		with open(bgc_path) as obp:
+			for rec in SeqIO.parse(obp, 'genbank'):
+				bp_length = len(str(rec.seq))
+				for feature in rec.features:
+					if feature.type == 'protocluster':
+						try:
+							bt = feature.qualifiers.get('product')[0]
+						except:
+							bt = "NA"
+						bgc_types.append(bt)
+					elif feature.type == "CDS":
+						cds_count += 1
+						rule_based_bgc_cds = False
+						try:
+							if 'rule-based-clusters' in feature.qualifiers.get('gene_functions')[0]:
+								rule_based_bgc_cds = True
+						except:
+							pass
+						if rule_based_bgc_cds:
+							key_cds_count += 1
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')			
+						if use_simple_blastp:
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							gpf_handle.write('>' + lt + '\n' + prot_seq + '\n')				
+		kpf_handle.close()
+
+		if gpf_handle != None:
+			gpf_handle.close()
+
+		bgc_scaffold, bgc_start, bgc_end = ['NA']*3
+		bgc_starts = []
+		bgc_ends = []
+		with open(bgc_path) as obp:
+			for line in obp:
+				line = line.strip()
+				if line.startswith('LOCUS'):
+					bgc_scaffold = line.split()[1].strip()
+				elif line.startswith('Orig. start  ::'):
+					bgc_starts.append(int(line.split()[-1].replace('>', '').replace('<', '')))			
+				elif line.startswith('Orig. end    ::'):
+					bgc_ends.append(int(line.split()[-1].replace('>', '').replace('<', '')))
+				elif line.startswith('Original ID  ::'):
+					bgc_scaffold = line.split()[-1].strip()
+
+		try:
+			bgc_start = min(bgc_starts)
+		except:
+			bgc_start = 'NA'
+		
+		try:
+			bgc_end = max(bgc_ends)
+		except:
+			bgc_end = 'NA'
+
+		bgc_type = ';'.join(bgc_types)
+		return([bgc_type, cds_count, key_cds_count, bp_length, bgc_scaffold, bgc_start, bgc_end])
+
+	except Exception as e:
+		logObject.error('Had an issue parsing antiSMASH BGC: %s' % bgc_path)
+		sys.stderr.write('Had an issue parsing antiSMASH BGC: %s' % bgc_path)
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+def identifyKeyProteinsInGECCOBGC(dom_weights_file, bgc_path, key_proteins_fasta, general_proteins_fasta, logObject, use_simple_blastp=False):
+	try:
+		kpf_handle = open(key_proteins_fasta, 'w')
+		gpf_handle = None
+		if use_simple_blastp: 
+			gpf_handle = open(general_proteins_fasta, 'w')
+
+		domains = []
+		domain_weights = {}
+
+		gecco_pfam_weights_pickle_handle = open(dom_weights_file, "rb")
+		gecco_pfam_weights = cPickle.load(gecco_pfam_weights_pickle_handle)
+		bgc_type, cds_count, key_cds_count, bp_length = ['NA']*4
+		with open(bgc_path) as obp:
+			for rec in SeqIO.parse(obp, 'genbank'):
+				bp_length = len(str(rec.seq))
+				for feature in rec.features:
+					if feature.type == 'misc_feature':
+						start = feature.location.start + 1
+						end = feature.location.end
+						aSDomain = "NA"
+						dom_weight = -7
+						try:
+							aSDomain = feature.qualifiers['standard_name'][0]
+						except:
+							pass
+						try:
+							dom_weight = gecco_pfam_weights[aSDomain]
+						except:
+							pass
+						domain_weights[aSDomain + '|' + str(start+1) + '|' + str(end)] = dom_weight
+						domains.append({'start': start + 1, 'end': end, 'type': feature.type, 'aSDomain': aSDomain})
+
+		try:
+			bgc_type = rec.annotations['structured_comment']['GECCO-Data']['biosyn_class']
+		except:
+			try:
+				bgc_type = rec.annotations['structured_comment']['GECCO-Data']['cluster_type']
+			except:
+				pass
+
+		# determine top 10% of domains with highest GECCO CRF weights (as recommended by Martin Larralde)
+		num_total_domains = len(domain_weights)
+		core_domains = set([])
+		for i, d in enumerate(sorted(domain_weights.items(), key=itemgetter(1), reverse=True)):
+			if i <= num_total_domains*0.1:
+				core_domains.add(d[0])
+
+		cds_count = 0
+		key_cds_count = 0
+		with open(bgc_path) as obp:
+			for rec in SeqIO.parse(obp, 'genbank'):
+				for feature in rec.features:
+					if feature.type == "CDS":
+						cds_count += 1
+						start = feature.location.start + 1
+						end = feature.location.end
+						grange = set(range(start, end + 1))
+						core_overlap = False
+						for d in domains:
+							drange = set(range(d['start'], d['end'] + 1))
+							if len(drange.intersection(grange)) > 0:
+								if (d['aSDomain'] + '|' + str(d['start']) + '|' + str(d['end'])) in core_domains:
+									core_overlap = True
+						if core_overlap:
+							key_cds_count += 1
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							kpf_handle.write('>' + lt + '\n' + prot_seq + '\n')		
+						if use_simple_blastp:
+							lt = feature.qualifiers.get('locus_tag')[0]
+							prot_seq = feature.qualifiers.get('translation')[0]
+							gpf_handle.write('>' + lt + '\n' + prot_seq + '\n')					
+		kpf_handle.close()
+
+		if gpf_handle != None:
+			gpf_handle.close()
+
+		return([bgc_type, cds_count, key_cds_count, bp_length])
+	except Exception as e:
+		logObject.error('Had an issue parsing GECCO BGC: %s' % bgc_path)
+		sys.stderr.write('Had an issue parsing GECCO BGC: %s' % bgc_path)
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+if __name__ == '__main__':
+	abon()

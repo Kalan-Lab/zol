@@ -108,6 +108,7 @@ def convertMiniProtGFFtoGenbank():
 	# Step 1: Parse GFF3 for transcript coordinates
 	query_mrna_coords = defaultdict(list)
 	scaffold_queries = defaultdict(list)
+	map_counter = 0
 	with open(miniprot_gff3) as omg:
 		for line in omg:
 			line = line.strip()
@@ -125,8 +126,9 @@ def convertMiniProtGFFtoGenbank():
 			if ls[6] == '-':
 				dire = -1
 			# in case there are paralogs
-			query_mrna_coords[tuple([query, start_coord])] = [scaffold, start_coord, end_coord, dire, score]
-			scaffold_queries[scaffold].append([query, start_coord])
+			query_mrna_coords[tuple([query, map_counter])] = [scaffold, start_coord, end_coord, dire, score]
+			scaffold_queries[scaffold].append([query, start_coord, map_counter])
+			map_counter += 1
 
 	# Step 2: Resolve overlap between mRNA transcripts
 	redundant = set([])
@@ -147,6 +149,7 @@ def convertMiniProtGFFtoGenbank():
 
 	# Step 3: Parse GFF3 for CDS coordinates
 	query_cds_coords = defaultdict(list)
+	query_cds_coords_accounted = defaultdict(set)
 	with open(miniprot_gff3) as omg:
 		for line in omg:
 			line = line.strip()
@@ -160,7 +163,29 @@ def convertMiniProtGFFtoGenbank():
 			dire = 1
 			if ls[6] == '-':
 				dire = -1
-			query_cds_coords[query].append([scaffold, start_coord, end_coord, dire])
+			score = float(ls[5])
+			curr_coord = tuple([scaffold, start_coord, end_coord, dire, score])	
+			if not curr_coord in query_cds_coords_accounted[query]:
+				query_cds_coords[query].append([scaffold, start_coord, end_coord, dire, score])
+				query_cds_coords_accounted[query].add(curr_coord)
+
+	# handle overlapping exons
+	cds_redundant = defaultdict(set)
+	for query in sorted(query_cds_coords):
+		for i, cdsc1 in enumerate(sorted(query_cds_coords[query], key=itemgetter(1))):
+			c1_coords = set(range(cdsc1[1], cdsc1[2]))
+			c1_score = cdsc1[4]
+			for j, cdsc2 in enumerate(sorted(query_cds_coords[query], key=itemgetter(1))):
+				if i >= j: continue
+				# check scaffolds are the same
+				if cdsc1[0] != cdsc2[0]: continue
+				c2_coords = set(range(cdsc2[1], cdsc2[2]))
+				if len(c1_coords.intersection(c2_coords)) > 0:
+					c2_score = cdsc2[4]
+					if c1_score >= c2_score:
+						cds_redundant[query].add(tuple(cdsc2))
+					else:
+						cds_redundant[query].add(tuple(cdsc1))
 
 	# Step 4: Go through FASTA scaffold/contig by scaffold/contig and create output GenBank
 	gbk_handle = open(output_genbank, 'w')
@@ -174,15 +199,17 @@ def convertMiniProtGFFtoGenbank():
 			gbk_rec.annotations['molecule_type'] = 'DNA'
 			feature_list = []
 			for mrna in sorted(scaffold_queries[rec.id], key=itemgetter(1)):
-				qid, start = mrna
-				key = tuple([qid, start])
-				if key in redundant: continue
-				mrna_info = query_mrna_coords[key]
+				qid, start, map_counter = mrna
+				key_for_redundancy_check = tuple([qid, map_counter])
+				key_for_paf = tuple([qid, start])
+				if key_for_redundancy_check in redundant: continue
+				mrna_info = query_mrna_coords[key_for_redundancy_check]
 				mrna_coords = set(range(mrna_info[1], mrna_info[2]))
 
 				mrna_exon_locs = []
 				all_coords = []
 				for cds_info in query_cds_coords[qid]:
+					if tuple(cds_info) in cds_redundant[qid]: continue
 					cds_coords = set(range(cds_info[1], cds_info[2]))
 					if len(mrna_coords.intersection(cds_coords)) > 0 and cds_info[0] == mrna_info[0]:
 						all_coords.append([cds_info[1], cds_info[2]])
@@ -220,7 +247,7 @@ def convertMiniProtGFFtoGenbank():
 				assert(prot_seq != None)
 				"""
 
-				scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key]
+				scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key_for_paf]
 
 				paf_nucl_seq = ''
 				paf_coord = paf_start_coord
@@ -264,6 +291,7 @@ def convertMiniProtGFFtoGenbank():
 				"""
 
 				faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
+				feature.qualifiers['protein_from_reference'] = qid
 				feature.qualifiers['locus_tag'] = locus_tag + '_' + lt
 				feature.qualifiers['translation'] = paf_prot_seq
 				feature.qualifiers['open_reading_frame'] = paf_nucl_seq

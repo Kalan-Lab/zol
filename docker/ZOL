@@ -53,7 +53,7 @@ if __name__ == '__main__':
 		Author: Rauf Salamzade
 		Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 	
-		Wrapper for running 3 main programs of the zol suite within Docker:
+		Wrapper for running main programs of the zol suite within Docker:
 		
 		- prepTG: prepare/setup a database directory of target genomes to search against using fai.
 		- fai: perform targeted detection of query gene cluster(s) in genome database.
@@ -62,9 +62,9 @@ if __name__ == '__main__':
 		
 		Usage examples:
 		
-		prepTG -i Genomes/ -o prepTG_DB/ -c 10
+		./run_ZOL.sh prepTG -i Genomes/ -o prepTG_DB/ -c 10
 		./run_ZOL.sh fai -pq query_proteins.faa -tg prepTG_DB/ -o fai_Results/ -c 10
 		./run_ZOL.sh zol -i fai_Results/Homologous_GenBanks_Directory/ -o zol_Results/
 		""")
 	else:
-		os.system(' '.join(args))
+		os.system(' '.join([x.replace('"', '\\"').replace("'", "\\'") for x in args]))

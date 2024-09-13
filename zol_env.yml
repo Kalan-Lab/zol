@@ -7,22 +7,23 @@ dependencies:
   - "python=3.10"
   - pip
   - setuptools<=58.2.0
-  - biopython=1.79
+  - biopython
   - conda-forge::cxx-compiler
-  - bioconda::muscle
+  - bioconda::muscle>=5.0
   - bioconda::mcl
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
   - "fasttree>=2.0.0"
   - bioconda::diamond=2.0.15
   - prodigal
+  - prodigal-gv
   - pyrodigal
   - "pandas>=2.0"
   - "xlsxwriter>=3.0.3"
   - scikit-learn
   - axel
   - "hyphy>=2.5.14"
-  - conda-forge::pomegranate=0.13.3
+  - "pomegranate>=1.0.0"
   - bioconda::cd-hit
   - bioconda::ncbi-genome-download
   - conda-forge::r-base
@@ -40,3 +41,4 @@ dependencies:
   - conda-forge::r-dplyr
   - conda-forge::r-aplot
   - ete3
+  - codoff

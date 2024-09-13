@@ -1,7 +1,8 @@
 import os
 import sys
 from Bio import SeqIO
-from Bio.SeqFeature import SeqFeature, FeatureLocation
+from Bio.SeqFeature import FeatureLocation
+import decimal
 from Bio.Seq import Seq
 import logging
 import subprocess
@@ -18,6 +19,13 @@ import resource
 import pkg_resources  # part of setuptools
 import shutil
 from ete3 import Tree
+import math
+from zol import fai, zol
+import statistics
+import pyhmmer
+import pandas as pd
+from scipy import stats
+
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
@@ -26,17 +34,20 @@ valid_alleles = set(['A', 'C', 'G', 'T'])
 zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
 conda_setup_success = None
 nj_tree_prog = None
+salt_plot_prog = None
 if zol_exec_directory != 'None':
 	try:
 		zol_exec_directory = os.path.abspath(zol_exec_directory) + '/'
 		nj_tree_prog = zol_exec_directory + 'njTree.R'
+		salt_plot_prog = zol_exec_directory + 'salt_gc_vs_ribo_aai.R'
 		conda_setup_success = True
 	except:
 		conda_setup_success = False
 if zol_exec_directory == 'None' or conda_setup_success == False:
 	nj_tree_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/njTree.R'
+	salt_plot_prog = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/' + 'zol/salt_gc_vs_ribo_aai.R'
 
-if nj_tree_prog == None or not os.path.isfile(nj_tree_prog):
+if nj_tree_prog == None or not os.path.isfile(nj_tree_prog) or salt_plot_prog == None or not os.path.isfile(salt_plot_prog):
 	sys.stderr.write('Issues in setup of the zol-suite (in util.py) - please describe your installation process and post an issue on GitHub!\n')
 	sys.exit(1)
 
@@ -53,6 +64,37 @@ def memory_limit(mem):
 	soft, hard = resource.getrlimit(resource.RLIMIT_AS)
 	resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
 	print(resource.getrlimit(resource.RLIMIT_AS))
+
+
+def runCmdViaSubprocess(cmd, logObject, check_files=[], check_directories=[], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL):
+	"""
+	Description:
+	Function to run some command via subprocess.
+	********************************************************************************************************************
+	Parameters:
+	- cmd: The command as a list.
+	- logObject: A logging object.
+	- check_files: Files to check the existence of assuming successful run of the command.
+	- check_directories: Directories to check the existence of assuming successful run of the command.
+	- stdout: Where to have subprocess direct standard output.
+	- stderr: Where to have subprocess direct standard errorr.
+	********************************************************************************************************************
+	"""
+	logObject.info('Running %s' % ' '.join(cmd))
+	try:
+		subprocess.call(' '.join(cmd), shell=True, stdout=stdout, stderr=stderr,
+						executable='/bin/bash')
+		for cf in check_files:
+			assert (os.path.isfile(cf))
+		for cd in check_directories:
+			assert (os.path.isdir(cd))
+		logObject.info('Successfully ran: %s' % ' '.join(cmd))
+	except:
+		logObject.error('Had an issue running: %s' % ' '.join(cmd))
+		logObject.error(traceback.format_exc())
+		raise RuntimeError('Had an issue running: %s' % ' '.join(cmd))
+
+
 def cleanUpSampleName(original_name):
 	"""
 	Description:
@@ -126,110 +168,105 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	try:
 		ngf_handle = open(new_genbank_file, 'w')
 		pruned_coords = set(range(start_coord, end_coord + 1))
-		with open(full_genbank_file) as ogbk:
-			for rec in SeqIO.parse(ogbk, 'genbank'):
-				if not rec.id == scaffold: continue
-				original_seq = str(rec.seq)
-				filtered_seq = ""
-				start_coord = max(start_coord, 1)
-				if end_coord >= len(original_seq):
-					filtered_seq = original_seq[start_coord - 1:]
-				else:
-					filtered_seq = original_seq[start_coord - 1:end_coord]
+		full_genbank_index = SeqIO.index(full_genbank_file, 'genbank')
+		rec = full_genbank_index[scaffold]
+		original_seq = str(rec.seq)
+		filtered_seq = ""
+		start_coord = max(start_coord, 1)
+		if end_coord >= len(original_seq):
+			filtered_seq = original_seq[start_coord - 1:]
+		else:
+			filtered_seq = original_seq[start_coord - 1:end_coord]
 
-				new_seq_object = Seq(filtered_seq)
+		new_seq_object = Seq(filtered_seq)
+		updated_rec = copy.deepcopy(rec)
+		updated_rec.seq = new_seq_object
 
-				updated_rec = copy.deepcopy(rec)
-				updated_rec.seq = new_seq_object
+		updated_features = []
+		#print(start_coord)
+		#print(end_coord)
+		#print('--------')
+		for feature in rec.features:
+			start = None
+			end = None
+			direction = None
+			all_coords = []
+			#print(str(feature.location))
 
-				updated_features = []
-				#print(start_coord)
-				#print(end_coord)
-				#print('--------')
-				for feature in rec.features:
-					start = None
-					end = None
-					direction = None
-					all_coords = []
-					#print(str(feature.location))
+			if not 'join' in str(feature.location) and not 'order' in str(feature.location):
+				start = min([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
+				direction = str(feature.location).split('(')[1].split(')')[0]
+				all_coords.append([start, end, direction])
+			elif 'order' in str(feature.location):
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[6:-1].split(', '):
+					start = min(
+						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(start)
+					all_ends.append(end)
+					all_directions.append(direction)
+					all_coords.append([start, end, direction])
+				start = min(all_starts)
+				end = max(all_ends)
+			else:
+				all_starts = []
+				all_ends = []
+				all_directions = []
+				for exon_coord in str(feature.location)[5:-1].split(', '):
+					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+					direction = exon_coord.split('(')[1].split(')')[0]
+					all_starts.append(start)
+					all_ends.append(end)
+					all_directions.append(direction)
+					all_coords.append([start, end, direction])
+				start = min(all_starts)
+				end = max(all_ends)
 
-					if not 'join' in str(feature.location) and not 'order' in str(feature.location):
-						start = min([int(x.strip('>').strip('<')) for x in
-									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-						end = max(
-							[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-						direction = str(feature.location).split('(')[1].split(')')[0]
-						all_coords.append([start, end, direction])
-					elif 'order' in str(feature.location):
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[6:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start)
-							all_ends.append(end)
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-						start = min(all_starts)
-						end = max(all_ends)
-					else:
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start)
-							all_ends.append(end)
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-						start = min(all_starts)
-						end = max(all_ends)
-
-					feature_coords = set(range(start, end + 1))
-					edgy_feat = 'False'
-					if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
-						edgy_feat = 'True'
-					part_of_cds_hanging = False
-					if len(feature_coords.intersection(pruned_coords)) > 0:
-						fls = []
-						for sc, ec, dc in all_coords:
-							exon_coord = set(range(sc, ec+1))
-							if len(exon_coord.intersection(pruned_coords)) == 0: continue
-							updated_start = sc - start_coord + 1
-							updated_end = ec - start_coord + 1
-							if ec > end_coord:
-								# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
-								# with boundary proteins found by the HMM.
-								if feature.type == 'CDS':
-									part_of_cds_hanging = True
-									continue
-								else:
-									updated_end = end_coord - start_coord + 1  # ; flag1 = True
-							if sc < start_coord:
-								if feature.type == 'CDS':
-									part_of_cds_hanging = True
-									continue
-								else:
-									updated_start = 1  # ; flag2 = True
-							strand = 1
-							if dc == '-':
-								strand = -1
-							fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
-						if len(fls) > 0 and not part_of_cds_hanging:
-							updated_location = fls[0]
-							if len(fls) > 1:
-								updated_location = sum(fls)
-							feature.location = updated_location
-							feature.qualifiers['near_scaffold_edge'] = edgy_feat
-							updated_features.append(feature)
-				updated_rec.features = updated_features
-				SeqIO.write(updated_rec, ngf_handle, 'genbank')
+			feature_coords = set(range(start, end + 1))
+			edgy_feat = 'False'
+			if (start <= 2000) or (end + 1 >= len(original_seq)-2000):
+				edgy_feat = 'True'
+			part_of_cds_hanging = False
+			if len(feature_coords.intersection(pruned_coords)) > 0:
+				fls = []
+				for sc, ec, dc in all_coords:
+					exon_coord = set(range(sc, ec+1))
+					if len(exon_coord.intersection(pruned_coords)) == 0: continue
+					updated_start = sc - start_coord + 1
+					updated_end = ec - start_coord + 1
+					if ec > end_coord:
+						# note overlapping genes in prokaryotes are possible so avoid proteins that overlap
+						# with boundary proteins found by the HMM.
+						if feature.type == 'CDS':
+							part_of_cds_hanging = True
+							continue
+						else:
+							updated_end = end_coord - start_coord + 1  # ; flag1 = True
+					if sc < start_coord:
+						if feature.type == 'CDS':
+							part_of_cds_hanging = True
+							continue
+						else:
+							updated_start = 1  # ; flag2 = True
+					strand = 1
+					if dc == '-':
+						strand = -1
+					fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
+				if len(fls) > 0 and not part_of_cds_hanging:
+					updated_location = fls[0]
+					if len(fls) > 1:
+						updated_location = sum(fls)
+					feature.location = updated_location
+					feature.qualifiers['near_scaffold_edge'] = edgy_feat
+					updated_features.append(feature)
+		updated_rec.features = updated_features
+		SeqIO.write(updated_rec, ngf_handle, 'genbank')
 		ngf_handle.close()
 	except Exception as e:
 		sys.stderr.write(traceback.format_exc())
@@ -327,7 +364,7 @@ def is_genbank(gbk, check_for_cds=False):
 	try:
 		recs = 0
 		cds_flag = False
-		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz'))
+		assert (gbk.endswith('.gbk') or gbk.endswith('.gbff') or gbk.endswith('.gbk.gz') or gbk.endswith('.gbff.gz') or gbk.endswith('.gb') or gbk.endswith('.gb.gz') or gbk.endswith('genbank') or gbk.endswith('.genbank.gz'))
 		if gbk.endswith('.gz'):
 			with gzip.open(gbk, 'rt') as ogf:
 				for rec in SeqIO.parse(ogf, 'genbank'):
@@ -741,7 +778,7 @@ def checkCoreHomologGroupsExist(ortho_matrix_file):
 		return False
 
 def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_miniprot_outdir,
-								additional_proteomes_directory, additional_genbanks_directory, logObject, cpus=1,
+								additional_proteomes_directory, additional_genbanks_directory, logObject, threads=1,
 								locus_tag_length=3):
 	"""
 	Description:
@@ -756,7 +793,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 	                                  saved.
 	- additional_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
 	********************************************************************************************************************
 	"""
@@ -780,7 +817,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 									'-l', sample_locus_tag, '-og', sample_mp_gbk, '-op', sample_mp_faa]
 			miniprot_cmds.append(miniprot_index_cmd + [';'] + miniprot_run_cmd + [';'] + miniprot_process_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, miniprot_cmds)
 		p.close()
 
@@ -798,8 +835,9 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 		logObject.error(traceback.format_exc())
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
+
 def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteomes, prodigal_genbanks, logObject,
-								cpus=1, locus_tag_length=3, use_prodigal=False, meta_mode=False,
+								threads=1, locus_tag_length=3, gene_calling_method="pyrodigal", meta_mode=False,
 								avoid_locus_tags=set([])):
 	"""
 	Description:
@@ -811,9 +849,9 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 	- prodigal_proteomes: Directory where final proteome files (in FASTA format) for target genomes will be saved.
 	- prodigal_genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
-	- use_prodigal: Whether to use prodigal instead of pyrodigal.
+	- gene_calling_method: Whether to use pyrodigal (default), prodigal, or prodigal-gv.
 	- meta_mode: Whether to run pyrodigal/prodigal in metagenomics mode.
 	- avoid_locus_tags: Whether to avoid using certain locus tags.
 	********************************************************************************************************************
@@ -829,15 +867,13 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 			sample_assembly = sample_genomes[sample]
 			sample_locus_tag = ''.join(list(possible_locustags[i]))
 
-			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample,
+			prodigal_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_assembly, '-s', sample, '-gcm', gene_calling_method,
 							'-l', sample_locus_tag, '-o', prodigal_outdir]
-			if use_prodigal:
-				prodigal_cmd += ['-p']
 			if meta_mode:
 				prodigal_cmd += ['-m']
 			prodigal_cmds.append(prodigal_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, prodigal_cmds)
 		p.close()
 
@@ -858,7 +894,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
-							 logObject, cpus=1, locus_tag_length=3, avoid_locus_tags=set([]),
+							 logObject, threads=1, locus_tag_length=3, avoid_locus_tags=set([]),
 							 rename_locus_tags=False):
 	"""
 	Description:
@@ -871,7 +907,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 	- genbanks_directory: Directory where final GenBank files for target genomes will be saved.
 	- gene_name_mapping_outdir: Directory where mapping files for original locus tags to new locus tags will be saved.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	- locus_tag_length: The length of the locus tags to generate.
 	- avoid_locus_tags: Whether to avoid using certain locus tags.
 	- rename_locus_tags: Whether to rename locus tags.
@@ -893,13 +929,13 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 		for i, sample in enumerate(sample_genomes):
 			sample_locus_tag = possible_locustags[i]
 			sample_genbank = sample_genomes[sample]
-			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample,
+			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample, 
 						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]
 			if rename_locus_tags:
 				process_cmd += ['-l', sample_locus_tag]
 			process_cmds.append(process_cmd + [logObject])
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(multiProcess, process_cmds)
 		p.close()
 
@@ -952,7 +988,7 @@ def determineGenomeFormat(inputs):
 	except:
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, cpus=1):
+def parseSampleGenomes(genome_listing_file, format_assess_dir, format_predictions_file, logObject, threads=1):
 	"""
 	Description:
 	This function parses the input sample target genomes and determines whether they are all provided in the same format
@@ -963,7 +999,7 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 	- format_assess_dir: The directory/workspace where genome format information will be saved.
 	- format_predictions_file: The file where to concatenate genome format information.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	Returns:
 	- sample_genomes: A dictionary which maps sample names to genome file paths (note, unknown format files will be
@@ -991,7 +1027,7 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 					continue
 				sample_genomes[sample] = genome_file
 
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(determineGenomeFormat, assess_inputs)
 		p.close()
 
@@ -1440,7 +1476,7 @@ def convertGenomeGenBankToFasta(inputs):
 			output_fasta_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
 	output_fasta_handle.close()
 
-def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, logObject, cpus=1):
+def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, logObject, threads=1):
 	"""
 	Description:
 	Function to create a species tree using ANI estimates + a neighbor joining approach.
@@ -1449,7 +1485,7 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 	- additional_genbanks_directory: Directory with full genomes in GenBank format.
 	- workspace_dir: Workspace directory.
 	- logObject: A logging object.
-	- cpus: The number of CPUs to use.
+	- threads: The number of threads to use.
 	********************************************************************************************************************
 	"""
 
@@ -1472,13 +1508,13 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		all_genomes_listing_handle.close()
 
 		# parallelize conversion
-		p = multiprocessing.Pool(cpus)
+		p = multiprocessing.Pool(threads)
 		p.map(convertGenomeGenBankToFasta, conversion_inputs)
 		p.close()
 
 		# run skani triangle
 		skani_result_file = workspace_dir + 'Skani_Triangle_Edge_Output.txt'
-		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(cpus), '-o', skani_result_file]
+		skani_triangle_cmd = ['skani', 'triangle', '-E', '-l', all_genomes_listing_file,'-t', str(threads), '-o', skani_result_file]
 		try:
 			subprocess.call(' '.join(skani_triangle_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 			assert (os.path.isfile(skani_result_file))
@@ -1543,4 +1579,1100 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		sys.stderr.write(traceback.format_exc())
 		logObject.error('Issues with creating species tree.')
 		logObject.error(traceback.format_exc())		
+		sys.exit(1)
+
+def determineColumnNameBasedOnIndex(index):
+	"""
+	Function to determine spreadsheet column name for a given index
+	"""
+	# offset at 0 
+	num_to_char = {}
+	alphabet = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+	alphabet_first_spot = [''] + alphabet
+	for i, c in enumerate(alphabet):
+		num_to_char[i] = c
+	level = math.floor(index / 26)
+	remainder = index % 26
+	columname = alphabet_first_spot[level]
+	columname += alphabet[remainder]
+	return columname
+
+def cleanUp(clean_up_dirs_and_files, logObject):
+	"""
+	Basic function to clean-up disk heavy files/directories that are intermediate.
+	"""
+	try:
+		for df in clean_up_dirs_and_files:
+			if os.path.isfile(df):
+				logObject.warning('Deleting the file %s' % df)
+				os.system('rm -f %s' % df)
+			elif os.path.isdir(df):
+				logObject.warning('Deleting the file %s' % df)
+				shutil.rmtree(df)
+			else:
+				logObject.error('Couldn\'t find %s to delete!' % df)
+	except:
+		sys.stderr.write('Issues with cleaning up files/directories.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issues with cleaning up files/directories.\n')
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+		
+def diamondBlastAndGetBestHits(cluster_id, query_protein_fasta, key_protein_fasta, target_genomes_db, workspace_dir, logObject,
+							   identity_cutoff=40.0, coverage_cutoff=70.0, evalue_cutoff=1e-3, blastp_mode="very-sensitive", 
+							   prop_key_prots_needed=0.0, threads=1):
+	"""
+	Description:
+
+	********************************************************************************************************************
+	Parameters:
+	- cluster_id: Identifier of the query gene cluster (e.g. single BGC or phage) in consideration.
+	- query_protein_fasta: FASTA file with all protein sequences for the query gene cluster.
+	- key_protein_fasta: FASTA file with all the key (subset) protein sequences for the query gene cluster.
+	- target_genomes_db: prepTG results directory of target genomes.
+	- workspace_dir: Workspace directory.
+	- logObject: A logging object.
+	- identity_cutoff: Minimum percent identity for homologs to query gene cluster proteins.
+	- coverage_cutoff: Minimum query coverage for homologs to query gene cluster proteins.
+	- evalue_cutoff: Maximum E-value for homologs to query gene cluster proteins.
+	- blastp_mode: Sensitivity mode for DIAMOND blastp.
+	- prop_key_prots_needed: The proportion of key proteins needed for the query gene cluster to be deemed present in a 
+	                         target genome.
+	- threads: The number of threads to use.
+	********************************************************************************************************************
+	"""
+	try:
+		genome_wide_tsv_result_file = workspace_dir + 'total_gcs.tsv'
+		target_genome_dmnd_db = target_genomes_db + 'Target_Genomes_DB.dmnd'
+
+		# run diamond (use's fai function: runDiamondBlastp)
+		diamond_results_file = workspace_dir + 'DIAMOND_Results.txt'
+		fai.runDiamondBlastp(target_genome_dmnd_db, query_protein_fasta, workspace_dir, logObject,
+					 diamond_sensitivity=blastp_mode, evalue_cutoff=evalue_cutoff, compute_query_coverage=True, 
+					 threads=threads)
+
+		all_hgs = set([])
+		key_hgs = set([])
+
+		with open(query_protein_fasta) as oqpf:
+			for rec in SeqIO.parse(oqpf, 'fasta'):
+				all_hgs.add(rec.id)
+		
+		with open(key_protein_fasta) as okpf:
+			for rec in SeqIO.parse(okpf, 'fasta'):
+				key_hgs.add(rec.id)
+
+		# parse results (based closely on fai function: processDiamondBlastp)
+		best_hit_per_lt = defaultdict(lambda: defaultdict(lambda: [0.0, [], [], []]))
+		with open(diamond_results_file) as orf:
+			for line in orf:
+				line = line.strip()
+				ls = line.split()
+				hg = ls[0]
+				sample = ls[1].split('|')[0]
+				lt = ls[1].split('|')[1]
+				identity = float(ls[2])
+				qcovhsp = float(ls[7])
+				if qcovhsp < coverage_cutoff or identity < identity_cutoff: continue
+				bitscore = float(ls[4])
+				qlen = float(ls[5])
+				slen = float(ls[6])
+				sql_ratio = float(slen)/float(qlen)
+				if bitscore > best_hit_per_lt[sample][lt][0]:
+					best_hit_per_lt[sample][lt][0] = bitscore
+					best_hit_per_lt[sample][lt][1] = [hg]
+					best_hit_per_lt[sample][lt][2] = [identity]
+					best_hit_per_lt[sample][lt][3] = [sql_ratio]
+				elif bitscore == best_hit_per_lt[sample][lt][0]:
+					best_hit_per_lt[sample][lt][1].append(hg)
+					best_hit_per_lt[sample][lt][2].append(identity)
+					best_hit_per_lt[sample][lt][3].append(sql_ratio)
+
+		sample_best_hit_per_hg = defaultdict(lambda: defaultdict(list))
+		for sample in best_hit_per_lt:
+			for lt in best_hit_per_lt[sample]:
+				for hgi, hg in enumerate(best_hit_per_lt[sample][lt][1]):
+					sample_best_hit_per_hg[sample][hg].append([best_hit_per_lt[sample][lt][0],
+												               best_hit_per_lt[sample][lt][2][hgi], 
+															   best_hit_per_lt[sample][lt][3][hgi], lt])
+
+		outf_handle = open(genome_wide_tsv_result_file, 'w')
+		outf_handle.write('genome\tblank1\taai\tblank2\tshared_gene_prop\n')
+		for sample in sample_best_hit_per_hg:
+			top_identities = []
+			hgs_found = set([])
+			key_hgs_found = set([])
+			for hg in sample_best_hit_per_hg[sample]:
+				for i, hginfo in enumerate(sorted(sample_best_hit_per_hg[sample][hg], key=itemgetter(0,1,2), reverse=False)):
+					if i == 0:
+						top_identities.append(hginfo[1])
+						hgs_found.add(hginfo[3])
+						if hg in key_hgs:
+							key_hgs_found.add(hg)
+
+			key_hgs_found_prop = float(len(key_hgs_found))/len(key_hgs)
+			if key_hgs_found_prop < prop_key_prots_needed: continue
+			aai = statistics.mean(top_identities)
+			sgp = float(len(hgs_found))/len(all_hgs)
+			printrow = [sample, 'NA', str(aai), 'NA', str(sgp)]
+			outf_handle.write('\t'.join(printrow) + '\n')
+		outf_handle.close()
+		
+	except:
+		sys.stderr.write('Issues with running simple BLASTp for abon, atpoc, or apos.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issues with running simple BLASTp for abon, atpoc, or apos.\n')
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def diamondBlast(inputs):
+	og_prot_file, og_prot_dmnd_db, og_blast_file, logObject = inputs
+
+	makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', og_prot_file, '-d', og_prot_dmnd_db]
+	search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-p', '1', '-d', og_prot_dmnd_db, '-q', og_prot_file, '-o', og_blast_file]
+	try:
+		subprocess.call(' '.join(makedb_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		assert (os.path.isfile(og_prot_dmnd_db))
+		logObject.info('Successfully ran: %s' % ' '.join(makedb_cmd))
+	except Exception as e:
+		logObject.error('Had an issue running DIAMOND makedb: %s' % ' '.join(makedb_cmd))
+		sys.stderr.write('Had an issue running DIAMOND makedb: %s\n' % ' '.join(makedb_cmd))
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+	try:
+		subprocess.call(' '.join(search_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		assert (os.path.isfile(og_blast_file))
+		logObject.info('Successfully ran: %s' % ' '.join(search_cmd))	
+	except Exception as e:
+		logObject.error('Had an issue running DIAMOND blastp: %s' % ' '.join(search_cmd))
+		sys.stderr.write('Had an issue running DIAMOND blastp: %s\n' % ' '.join(search_cmd))
+		logObject.error(e)
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
+def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, threads=1):
+	"""
+	Description:
+	Function to determine parameter recommendations for running fai from known instances based on zol orthology 
+	inference.
+	********************************************************************************************************************
+	Parameters:
+	- genbanks: list of gene cluster GenBank files.
+	- ortho_matrix_file: zol orthology inference.
+	- hg_prot_dir: directory of ortholog group protein sequences, each ortholog group is its own FASTA file. 
+	- outdir: workspace directory
+	- logObject: A logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		lt_to_og = {}
+		og_gbks = defaultdict(set)
+		og_gbk_lts = defaultdict(lambda: defaultdict(set))
+		og_lts = defaultdict(set)
+		gbks = []
+		with open(ortho_matrix_file) as oomf:
+			for i, line in enumerate(oomf):
+				line = line.strip('\n')
+				ls = line.split('\t')
+				if i == 0:
+					gbks = ls[1:]
+				else:
+					og = ls[0]
+					for j, lts in enumerate(ls[1:]):
+						gbk = gbks[j]
+						for lt in lts.split(', '):
+							if lt.strip() != '':
+								lt = '|'.join(lt.split('|')[1:])
+								lt_to_og[lt] = og
+								og_lts[og].add(lt)
+								og_gbk_lts[og][gbk].add(lt)
+								og_gbks[og].add(gbk)
+		
+		self_blast_dir = outdir + 'Self_Blast_OG_Proteins/' 
+		setupReadyDirectory([self_blast_dir])
+		diamond_self_blasting_inputs = []
+		for f in os.listdir(hg_prot_dir):
+			og = f.split('.faa')[0]
+			og_prot_file = hg_prot_dir + f 
+			og_blast_file = self_blast_dir + og + '.txt'
+			og_prot_dmnd_db = hg_prot_dir + f
+			diamond_self_blasting_inputs.append([og_prot_file, og_prot_dmnd_db, og_blast_file, logObject])
+		
+		p = multiprocessing.Pool(threads)
+		p.map(diamondBlast, diamond_self_blasting_inputs)
+		p.close()
+
+		og_min_eval_params = outdir + 'OG_Information.txt'
+		omep_handle = open(og_min_eval_params, 'w')
+		maximum_evalues = []
+		near_core_ogs_maximum_evalues = []
+		omep_handle.write('\t'.join(['og', 'maximum_evalue', 'conservation', 'is_near_core', 'is_single_copy']) + '\n')
+		near_core_ogs = set([])
+		for f in os.listdir(self_blast_dir):
+			self_blast_file = self_blast_dir + f 
+			og = f.split('.txt')[0]
+			maximum_evalue = -1.0
+			with open(self_blast_file) as osbf:
+				for line in osbf:
+					line = line.strip()
+					ls = line.split('\t')
+					evalue = float(ls[-2])
+					if evalue > maximum_evalue:
+						maximum_evalue = evalue
+			maximum_evalues.append(maximum_evalue)
+
+			og_gbk_count = 0			
+			singlecopy = True
+			for gbk in og_gbk_lts[og]:
+				og_gbk_count += 1
+				lt_count = 0
+				for lt in og_gbk_lts[og][gbk]:
+					lt_count += 1
+				if lt_count > 1:
+					singlecopy = False
+			
+			conservation = og_gbk_count/float(len(genbanks))
+			nearcore = False
+			if conservation >= 0.8:
+				nearcore = True
+				near_core_ogs.add(og)
+				near_core_ogs_maximum_evalues.append(maximum_evalue)
+
+			omep_handle.write(og + '\t' + str(maximum_evalue) + '\t' + str(conservation) + '\t' + str(nearcore) + '\t' + str(singlecopy) + '\n')
+		omep_handle.close()
+
+		og_list = defaultdict(list)
+		cds_counts = []
+		prop_genes_nc = []
+		gbk_og_counts = defaultdict(lambda: defaultdict(int))
+		for gbk in genbanks:
+			cds_count = 0
+			nc_cds_count = 0
+			with open(gbk) as ogbk:
+				for i, rec in enumerate(SeqIO.parse(ogbk, 'genbank')):
+					for feature in rec.features:
+						if feature.type != 'CDS': continue
+						lt = feature.qualifiers.get('locus_tag')[0]
+						loc_str = str(feature.location)
+						all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+						og = lt_to_og[lt]
+						gbk_og_counts[gbk][og] += 1
+						nc = False
+						if og in near_core_ogs:
+							nc = True
+							nc_cds_count += 1
+						og_list[gbk + '|' + str(i)].append([lt, og, start, nc])
+						cds_count += 1
+			prop_genes_nc.append(nc_cds_count/float(cds_count))
+			cds_counts.append(cds_count)
+
+		cds_between_ncs = []
+		for rec in og_list:
+			last_nc = None
+			for i, lt_info in enumerate(sorted(og_list[rec], key=itemgetter(2))):
+				is_nc = lt_info[3]
+				if is_nc:
+					if last_nc != None:
+						cbn = i - last_nc
+						cds_between_ncs.append(cbn)
+					last_nc = i
+
+		gbk_scores = {}
+		for i, gbk1 in enumerate(genbanks):
+			go1cs = gbk_og_counts[gbk1]
+			g1ogs = set(go1cs.keys())
+			sum_jaccard = 0.0
+			for j, gbk2 in enumerate(genbanks):
+				go2cs = gbk_og_counts[gbk2]
+				g2ogs = set(go2cs.keys())
+				ogs_intersect = g1ogs.intersection(g2ogs)
+				ogs_union = g1ogs.union(g2ogs)
+				ogs_jaccard = len(ogs_intersect)/float(len(ogs_union))
+				sum_jaccard += ogs_jaccard
+			gbk_scores[gbk1] = sum_jaccard
+	
+		ref_gbk = None
+		for i, gbk in enumerate(sorted(gbk_scores.items(), key=itemgetter(1), reverse=True)):
+			if i == 0:
+				ref_gbk = gbk[0]
+
+		# extract near-core OG sequences from ref GBK
+		near_core_prots_faa_file = outdir + 'NearCore_Proteins_from_Representative.faa'
+		ncpff_handle = open(near_core_prots_faa_file, 'w')
+		ref_cds_nc = 0
+		ref_cds = 0
+		with open(ref_gbk) as orgf:
+			for rec in SeqIO.parse(orgf, 'genbank'): 
+				for feature in rec.features:
+					if not feature.type == 'CDS': continue
+					lt = feature.qualifiers.get('locus_tag')[0]
+					seq = feature.qualifiers.get('translation')[0]
+					ref_cds += 1
+					og = lt_to_og[lt]
+					if lt in near_core_ogs:
+						ref_cds_nc += 1
+						ncpff_handle.write('>' + lt + '\n' + seq + '\n')
+		ncpff_handle.close()
+ 	
+		prop_ref_cds_nc = ref_cds_nc/float(ref_cds)
+		max_distance_between_ncs = max(cds_between_ncs)
+		median_cds_count = statistics.median(cds_counts)
+		maximum_of_maximum_evalues = max(maximum_evalues)
+		maximum_of_near_core_ogs_maximum_evalues = max(near_core_ogs_maximum_evalues)
+		median_prop_cds_nc = statistics.median(prop_genes_nc)
+
+		parameter_recommendations_file = outdir + 'Parameter_Recommendations_for_fai.txt'
+		prf_handle = open(parameter_recommendations_file, 'w')
+
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Recommendations for running fai to find additional instances of gene cluster:\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.write('Note, this functionality assumes that the known instances of the gene cluster\nare representative of the gene cluster/taxonomic diversity you will be searching.\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('General statistics:\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Maximum of maximum E-values observed for any OG\t%s\n' % str(maximum_of_maximum_evalues))
+		prf_handle.write('Maximum of near-core OG E-values observed:\t%s\n' % str(maximum_of_near_core_ogs_maximum_evalues))
+		prf_handle.write('Maximum distance between near-core OGs:\t%s\n' % str(max_distance_between_ncs))
+		prf_handle.write('Median CDS count:\t%s\n' % str(median_cds_count))
+		prf_handle.write('Median proportion of CDS which are near-core (conserved in 80 percent of gene-clusters):\t%s\n' % str(median_prop_cds_nc))
+		prf_handle.write('Best representative query gene-cluster instance to use:\t%s\n' % ref_gbk)
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Parameter recommendations - threads set to 4 by default\n')
+		prf_handle.write('please provide the path to the prepTG database yourself!\n')
+		prf_handle.write('=============================================================\n')
+		prf_handle.write('Lenient / Sensitive Recommendations for Exploratory Analysis:\n')
+		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', 
+			       '--evalue_cutoff', str(max(maximum_of_maximum_evalues, 1e-10)), '--min_prop', str(max(prop_ref_cds_nc-0.25, 0.1)), 
+				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs+3)]
+		prf_handle.write(' '.join(fai_cmd) + '\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.write('Strict / Specific Recommendations:\n')
+		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', '--filter_paralogs',
+			       '--evalue_cutoff', str(maximum_of_maximum_evalues), '--min_prop', str(max(prop_ref_cds_nc, 0.25)), 
+				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs),
+				   'key_protein_queries', near_core_prots_faa_file, '--key_protein_min_prop', '0.5', 
+				   '--key_protein_evalue_cutoff', str(maximum_of_near_core_ogs_maximum_evalues)]
+		prf_handle.write(' '.join(fai_cmd) + '\n')
+		prf_handle.write('-------------------------------------------------------------\n')
+		prf_handle.close()
+
+		os.system('cat %s' % parameter_recommendations_file)
+
+	except Exception as e:
+		sys.stderr.write('Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error('Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n')
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+
+def parseFeatureCoord(str_gbk_loc):
+	try:
+		start = None
+		end = None
+		direction = None
+		all_coords = []
+		is_multi_part = False
+		if not 'join' in str(str_gbk_loc) and not 'order' in str(str_gbk_loc):
+			start = min([int(x.strip('>').strip('<')) for x in
+						 str(str_gbk_loc)[1:].split(']')[0].split(':')]) + 1
+			end = max([int(x.strip('>').strip('<')) for x in
+					   str(str_gbk_loc)[1:].split(']')[0].split(':')])
+			direction = str(str_gbk_loc).split('(')[1].split(')')[0]
+			all_coords.append([start, end, direction])
+		elif 'order' in str(str_gbk_loc):
+			is_multi_part = True
+			all_starts = []
+			all_ends = []
+			all_directions = []
+			for exon_coord in str(str_gbk_loc)[6:-1].split(', '):
+				ec_start = min(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				ec_end = max(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				ec_direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(ec_start)
+				all_ends.append(ec_end)
+				all_directions.append(ec_direction)
+				all_coords.append([ec_start, ec_end, ec_direction])
+			assert (len(set(all_directions)) == 1)
+			start = min(all_starts)
+			end = max(all_ends)
+			direction = all_directions[0]
+		else:
+			is_multi_part = True
+			all_starts = []
+			all_ends = []
+			all_directions = []
+			for exon_coord in str(str_gbk_loc)[5:-1].split(', '):
+				ec_start = min(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				ec_end = max(
+					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				ec_direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(ec_start)
+				all_ends.append(ec_end)
+				all_directions.append(ec_direction)
+				all_coords.append([ec_start, ec_end, ec_direction])
+			assert (len(set(all_directions)) == 1)
+			start = min(all_starts)
+			end = max(all_ends)
+			direction = all_directions[0]
+		return(all_coords, start, end, direction, is_multi_part)
+	except Exception as e:
+		raise RuntimeError(traceback.format_exc())
+
+def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, threads=1):
+	"""
+	Description:
+	Annotate ribosomal proteins from Hug et al. 2016 (using HMMs as provided in GToTree by Lee 2019) in a reference genome.
+	********************************************************************************************************************
+	Parameters:
+	- best_tg_gbk_file: The full genome GenBank file for the reference/select genome.
+	- tg_query_prots_file: The FASTA file to write ribosomal proteins identified to (note will append to file).
+	- ribo_norm_dir: Output workspace to write intermediate files to.
+	- logObject: A logging object.
+	- threads: The number of threads to use [Default is 1].
+	********************************************************************************************************************
+	"""
+	try:
+		rp_db_file = None
+		try:
+			zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+			db_locations = None
+			conda_setup_success = None
+			if zol_data_directory != 'None':
+				try:
+					zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+					db_locations = zol_data_directory + 'database_location_paths.txt'
+					conda_setup_success = True
+				except:
+					conda_setup_success = False
+			if zol_data_directory == 'None' or conda_setup_success == False:
+				db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+	
+			if db_locations == None or not os.path.isfile(db_locations):
+				sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
+	
+			with open(db_locations) as odl:
+				for line in odl:
+					line = line.strip()
+					if len(line.split('\t')) != 4: continue
+					name, _, db_file, _ = line.split('\t')
+					if name == 'riboprots': 
+						rp_db_file = db_file
+	
+			assert(rp_db_file != None and os.path.isfile(rp_db_file))
+		except:
+			msg = 'Issues validating that the ribosomal proteins file is available. Downloading from Zenodo to output directory.'
+			logObject.warning(msg)
+			sys.stderr.write(msg + '\n')
+			
+			curr_path = os.path.abspath(os.getcwd()) + '/'
+			download_path = '/'.join((db_locations.split('/')[:-1])) + '/'
+			download_links = ['https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
+
+			# Download
+			os.chdir(download_path)
+			rp_db_file = download_path + 'Universal_Hug_et_al.hmm'
+			try:
+				for dl in download_links:
+					axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
+					os.system(' '.join(axel_download_dbs_cmd))
+					assert(os.path.isfile(rp_db_file))
+					os.system(' '.join(['hmmpress', rp_db_file]))
+			except Exception as e:
+				sys.stderr.write('Error occurred during downloading!\n')
+				logObject.error('Error occurred during downloading with axel.\n')
+				sys.exit(1)
+			os.chdir(curr_path)
+
+		hmm_lengths = {}
+		z = 0
+		try:
+			with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
+				for hmm in hmm_file:
+					hmm_lengths[hmm.name] = len(hmm.consensus)
+					z += 1
+		except:
+			raise RuntimeError("Problem getting HMM consensus lengths!")
+
+		best_tg_faa_file = ribo_norm_dir + 'Reference_Genome_All_Proteins.faa'
+		best_tg_faa_handle = open(best_tg_faa_file, 'w')
+		try:
+			with open(best_tg_gbk_file) as obtgf:
+				for rec in SeqIO.parse(obtgf, 'genbank'):
+					for feat in rec.features:
+						if feat.type == 'CDS':
+							lt = feat.qualifiers.get('locus_tag')[0]
+							prot_seq = feat.qualifiers.get('translation')[0]
+							best_tg_faa_handle.write('>' + lt + '\n' + prot_seq + '\n')
+		except:
+			raise RuntimeError("Problem processing full genome GenBank file.")
+		best_tg_faa_handle.close()
+		
+		alphabet = pyhmmer.easel.Alphabet.amino()
+		sequences = []
+		with pyhmmer.easel.SequenceFile(best_tg_faa_file, digital=True, alphabet=alphabet) as seq_file:
+			sequences = list(seq_file)
+
+		reference_ribo_prots = set([])
+		with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=threads):
+				for hit in hits:
+					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
+					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
+					hmm_coverage = (n_aligned_positions / hmm_lengths[hit.best_domain.alignment.hmm_name])
+					if hmm_coverage >= 0.25:
+						reference_ribo_prots.add(hit.name.decode())
+			
+		tg_query_prots_handle = open(tg_query_prots_file, 'a+')
+		with open(best_tg_faa_file) as obtff:
+			for rec in SeqIO.parse(obtff, 'fasta'):
+				if rec.id in reference_ribo_prots:
+					tg_query_prots_handle.write('>Ribosomal_Protein|' + rec.id + '\n' + str(rec.seq) + '\n')
+		tg_query_prots_handle.close()
+
+	except:
+		raise RuntimeError('Problem with running pyhmmer for finding ribosomal proteins in reference genome!')
+
+def runPyHmmerForVOGforSalt(inputs):
+	"""
+	Description:
+	Annotate a single sample's predicted proteome file for VOG HMMs.
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 5:
+		- db_file: HMM database.
+		- z: Size of database, used for E-value computation.
+		- protein_faa: sample's proteome FASTA file.
+		- annotation_result_file: Path to output file where to write annotation information.
+		- threads: number of threads to use for search.
+	********************************************************************************************************************
+	"""
+	db_file, z, protein_faa, annotation_result_file, threads = inputs
+	try:
+		hmm_lengths = {}
+		try:
+			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+				for hmm in hmm_file:
+					hmm_lengths[hmm.name] = len(hmm.consensus)
+		except:
+			raise RuntimeError("Problem getting HMM consensus lengths!")
+
+		alphabet = pyhmmer.easel.Alphabet.amino()
+		sequences = []
+		with pyhmmer.easel.SequenceFile(protein_faa, digital=True, alphabet=alphabet) as seq_file:
+			sequences = list(seq_file)
+
+		outf = open(annotation_result_file, 'w')
+		with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+			for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=threads):
+				for hit in hits:
+					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
+					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
+					hmm_coverage = (n_aligned_positions / hmm_lengths[hit.best_domain.alignment.hmm_name])
+					outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score), str(hmm_coverage)]) + '\n')
+		outf.close()
+	except:
+		raise RuntimeError('Problem running pyhmmer for annotating MGEs in target genomes!')
+
+			
+def annotateMGEs(inputs):
+	"""
+	Description:
+	Annotate MGEs for a single sample's predicted proteome file.
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 6:
+		- sample: sample/genome name.
+		- faa_file: path to proteome for sample/genome.
+		- vog_annot_file: path to the pyhmmer results for VOG annotations (will be written to - should not exist).
+		- mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (will be written to - should not exist).
+		- is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (will be written to - should not exist).
+		- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	sample = 'NA'
+	try:
+		sample, faa_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject = inputs
+
+		zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+		db_locations = None
+		conda_setup_success = None
+		if zol_data_directory != 'None':
+			try:
+				zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+				db_locations = zol_data_directory + 'database_location_paths.txt'
+				conda_setup_success = True
+			except:
+				conda_setup_success = False
+		if zol_data_directory == 'None' or conda_setup_success == False:
+			db_locations = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/database_location_paths.txt'
+
+		if db_locations == None or not os.path.isfile(db_locations):
+			sys.stderr.write('Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n')
+
+		with open(db_locations) as odl:
+			for line in odl:
+				line = line.strip()
+				if len(line.split('\t')) != 4: continue
+				name, _, db_file, z = line.split('\t')
+				if name == 'vog':
+					vog_pyhmmer_input = [db_file, z, faa_file, vog_annot_file, 1]
+					runPyHmmerForVOGforSalt(vog_pyhmmer_input)
+				elif name == 'mobsuite' or name == 'isfinder':
+					annot_result_file = is_annot_file
+					if name == 'mobsuite':
+						annot_result_file = mobsuite_annot_file
+					search_cmd = ['diamond', 'blastp', '--ignore-warnings', '-fast', '--outfmt', '6', 'qseqid', 'sseqid',
+					   'pident', 'evalue', 'qcovhsp', '-p', '1', '-d', db_file, '-q', faa_file, '-o', annot_result_file]
+					runCmdViaSubprocess(search_cmd, logObject, check_files=[annot_result_file])
+	except Exception as e:
+		sys.stderr.write('Issues with MGE annotation commands for sample %s.\n' % sample)
+		logObject.error('Issues with MGE annotation commands for sample %s.' % sample)
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def processMGEAnnotations(inputs):
+	"""
+	Description:
+	Function to process MGE annotation results from DIAMOND blastp and pyhmmer searching for a single sample as well as 
+	corresponding genomic GenBank file to determine summarized information for 
+	********************************************************************************************************************
+	Parameters:
+	- inputs: A list of length 6:
+		- sample: sample/genome name.
+		- gbk_file: path to GenBank for sample/genome.
+		- summary_file: The output file for the sample with information on MGE locations.
+		- vog_annot_file: path to the pyhmmer results for VOG annotations (should already exist).
+		- mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (should already exist).
+		- is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (should already exist).
+		- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		# CURRENTLY HARDCODED! 
+		max_dmnd_annotation_evalue = 1e-5
+		max_hmm_annotation_evalue = 1e-5
+		min_percent_identity = 40.0 # only used for diamond
+		min_coverage = 70.0
+		sample, gbk_file, summary_file, vog_annot_file, mobsuite_annot_file, is_annot_file, logObject = inputs
+
+		try:
+			assert(os.path.isfile(vog_annot_file) and os.path.isfile(mobsuite_annot_file) and os.path.isfile(is_annot_file))
+		except:
+			sys.stderr.write('Issue validating the existence of one or more of the annotation files for sample: %s\n' % sample)
+			logObject.error('Issue validating the existence of one or more of the annotation files for sample: %s' % sample)
+			# TODO: Consider making this an end-program error
+			return 
+		
+		vog_hits = set([])
+		with open(vog_annot_file) as ovaf:
+			for line in ovaf:
+				line = line.rstrip('\n')
+				if line.startswith('#'): continue
+				ls = line.split('\t')
+				_, _, query, _, evalue, score, coverage = ls
+				evalue = decimal.Decimal(evalue)
+				coverage = float(coverage)*100.0
+				if evalue <= max_hmm_annotation_evalue and coverage >= min_coverage: 
+					vog_hits.add(query)
+		
+		mobsuite_hits = set([])
+		with open(mobsuite_annot_file) as omaf:
+			for line in omaf:
+				line = line.strip()
+				query, _, pident, evalue, qcovhsp = line.split('\t')
+				pident = float(pident)
+				evalue = decimal.Decimal(evalue)
+				qcovhsp = float(pident)
+				if qcovhsp >= min_coverage and evalue <= max_dmnd_annotation_evalue and pident >= min_percent_identity:
+					mobsuite_hits.add(query) 
+
+		isfinder_hits = set([])
+		with open(is_annot_file) as oiaf:
+			for line in oiaf:
+				line = line.strip()
+				query, _, pident, evalue, qcovhsp = line.split('\t')
+				pident = float(pident)
+				evalue = decimal.Decimal(evalue)
+				qcovhsp = float(pident)
+				if qcovhsp >= min_coverage and evalue <= max_dmnd_annotation_evalue and pident >= min_percent_identity:
+					isfinder_hits.add(query) 
+
+		summary_handle = open(summary_file, 'w')
+		summary_handle.write('\t'.join(['sample', 'scaffold', 'total_cds', 'mobsuite_cds_hits', 'mobsuite_cds_prop', 'vog_cds_hits', 'vog_cds_prop', 'is_cds_hits', 'is_cds_prop', 'is_cds_boundaries']) + '\n')
+		with open(gbk_file) as ogbf:
+			for rec in SeqIO.parse(ogbf, 'genbank'):
+				scaffold_id = rec.id
+				scaffold_is_boundary_coords = set([])				
+				total_cds = 0
+				mhits = 0
+				vhits = 0
+				ihits = 0
+				for feat in rec.features:
+					if feat.type != 'CDS': continue
+					lt = feat.qualifiers.get('locus_tag')[0]
+					total_cds += 1
+					if lt in isfinder_hits:
+						ihits += 1
+						start = min([int(x.strip('>').strip('<')) for x in
+									 str(feat.location)[1:].split(']')[0].split(':')]) + 1
+						end = max([int(x.strip('>').strip('<')) for x in
+								   str(feat.location)[1:].split(']')[0].split(':')])
+						scaffold_is_boundary_coords.add(start)
+						scaffold_is_boundary_coords.add(end)
+					if lt in mobsuite_hits: mhits += 1
+					if lt in vog_hits: vhits += 1
+				if total_cds > 0:
+					summary_handle.write('\t'.join( [str(x) for x in [sample, scaffold_id, total_cds, mhits, round(mhits/total_cds, 3), vhits, round(vhits/total_cds, 3), ihits, round(ihits/total_cds, 3)]] + [', '.join([str(y) for y in scaffold_is_boundary_coords]) ]) + '\n')
+		summary_handle.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with MGE annotation processing for sample %s.\n' % sample)
+		logObject.error('Issues with MGE annotation processing for sample %s.' % sample)
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def processDiamondForGCtoRiboRatio(diamond_results_file, query_faa, fai_ind_gc_file, gc_to_ribo_aai_stat_file, logObject):
+	"""
+	Description:
+	Function to process results from DIAMOND blastping ribosomal + focal gene-cluster proteins from reference genome 
+	to the remainder of target genomes to determine the Beta-RD statistic.
+	********************************************************************************************************************
+	Parameters:
+	- diamond_results_file: DIAMOND blastp results searching for query gene cluster and ribosomal proteins from reference
+	                        genome against all target genomes.  
+	- query_faa: the query FASTA file containing all ribosomal + gene-cluster protein seqeunces.
+	- fai_ind_gc_file: fai individual gene cluster instances tsv.
+	- gc_to_ribo_aai_stat_file: Path to output file to write statistics per gene cluster instance.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		gc_prots = defaultdict(set)
+		genome_gcis = defaultdict(set)
+		lt_to_gci = {}
+		with open(fai_ind_gc_file) as ofigf:
+			for i, line in enumerate(ofigf):
+				if i == 0: continue			
+				line = line.strip()
+				ls = line.split('\t')
+				gc_gbk = ls[1]
+				gc_gbk_file = gc_gbk.split('/')[-1]
+				gci = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				genome = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				if '_fai-gene-cluster' in genome:
+					genome = genome.split('_fai-gene-cluster')[0]
+				genome_gcis[genome].add(gci)
+				with open(gc_gbk) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						for feat in rec.features:
+							if feat.type == 'CDS':
+								lt = feat.qualifiers.get('locus_tag')[0]
+								gc_prots[genome].add(lt)
+								lt_to_gci[genome + '|' + lt] = gci 
+
+		gci_query_top_hits = defaultdict(lambda: defaultdict(lambda: [[], 0.0, []]))
+		with open(diamond_results_file) as odrf:
+			for line in odrf:
+				line = line.strip()
+				ls = line.split('\t')
+				query = ls[0]
+				query_class = query.split('|')[0]
+				hit = ls[1]
+				genome, lt = hit.split('|')
+				if query_class == 'Gene_Cluster_Protein' and not lt in gc_prots[genome]: continue
+				identity = float(ls[2])
+				bitscore = float(ls[4])
+				qcovhsp = float(ls[7])
+				if qcovhsp <= 25.0: continue
+				if query_class == 'Ribosomal_Protein':
+					gcis = genome_gcis[genome]
+				else:
+					gcis = set([lt_to_gci[hit]])
+				for gci in gcis:
+					if bitscore > gci_query_top_hits[gci][query][1]:
+						gci_query_top_hits[gci][query][0] = [hit]
+						gci_query_top_hits[gci][query][1] = bitscore
+						gci_query_top_hits[gci][query][2] = [identity]
+					elif bitscore == gci_query_top_hits[gci][query][1]:
+						gci_query_top_hits[gci][query][0].append(hit)
+						gci_query_top_hits[gci][query][2].append(identity)
+
+		all_ribo_prots = set([])
+		all_gc_prots = set([])
+		with open(query_faa) as oqf:
+			for rec in SeqIO.parse(oqf, 'fasta'):
+				if rec.id.startswith('Gene_Cluster_Protein|'):
+					all_gc_prots.add(rec.id)
+				else:
+					all_ribo_prots.add(rec.id)
+
+		gci_top_hits = defaultdict(list)
+		for gci in gci_query_top_hits:
+			for query in gci_query_top_hits[gci]:
+				max_identity = 0.0
+				max_hit = None
+				for i, hit in enumerate(gci_query_top_hits[gci][query][0]):
+					if gci_query_top_hits[gci][query][2][i] >= max_identity:
+						max_identity = gci_query_top_hits[gci][query][2][i] 
+						max_hit = hit
+				gci_top_hits[gci].append([query, bitscore, max_hit, max_identity])
+
+		gc_aais = []
+		rp_aais = []
+		data = []
+		for gci in gci_top_hits:
+			ribo_identities = []
+			gc_identities = []
+			accounted_lts = set([])
+			hits = gci_top_hits[gci]
+			for query_hit_data in sorted(hits, key=itemgetter(1), reverse=True):
+				query = query_hit_data[0]
+				max_ident = query_hit_data[3]
+				if not query_hit_data[2] in accounted_lts:
+					if query.split('|')[0] == 'Ribosomal_Protein':
+						ribo_identities.append(max_ident)
+					else:
+						gc_identities.append(max_ident)
+				accounted_lts.add(query_hit_data[2])
+			if len(ribo_identities) > 0 and len(gc_identities) > 0:
+				ribo_aai = round(statistics.mean(ribo_identities),3)
+				gc_aai = round(statistics.mean(gc_identities),3)
+				ribo_prot_prop = round(len(ribo_identities)/len(all_ribo_prots),3)
+				gc_prot_prop = round(len(gc_identities)/len(all_gc_prots),3)
+				gc_aais.append(gc_aai)
+				rp_aais.append(ribo_aai)
+				data.append([gci, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop])
+		
+		slope, intercept, r, p, se = stats.linregress(rp_aais, gc_aais)
+
+		gc_to_ribo_aai_stat_handle = open(gc_to_ribo_aai_stat_file, 'w')
+		gc_to_ribo_aai_stat_handle.write('\t'.join(['gc_instance', 'distance_to_linear_regression', 'ribo_aai', 'gc_aai', 'prop_ribo_prots', 'prop_gc_prots']) + '\n')
+		for rd in data:
+			gci, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop = rd
+			expected_gc_aai = ribo_aai*slope + intercept
+			diff_obs_to_exp = gc_aai - expected_gc_aai
+			row_data = [gci, diff_obs_to_exp, ribo_aai, gc_aai, ribo_prot_prop, gc_prot_prop]
+			gc_to_ribo_aai_stat_handle.write('\t'.join([str(x) for x in row_data]) + '\n')
+		gc_to_ribo_aai_stat_handle.close()
+	except Exception as e:
+		sys.stderr.write('Issues with processing DIAMOND results for aligning ribosomal and gene cluster proteins from the reference to the remainder of the target genomes.')
+		logObject.error('Issues with processing DIAMOND results for aligning ribosomal and gene cluster proteins from the reference to the remainder of the target genomes.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+
+def makeGCvsRiboProtAAIScatterplot(gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file, logObject):
+	"""
+	Description:
+	Function to plot the gene cluster to ribosomal protein AAI relationship as a scatterplot.
+	********************************************************************************************************************
+	Parameters:
+	- gc_to_ribo_aai_stat_file: The gene cluster and ribosomal proteins AAI relationship file.
+	- gc_ribo_aai_plot_pdf_file: The path to the resulting PDF with the scatterplot showing the GC to ribo proteins AAI
+								 relationship.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+		plot_cmd = ['Rscript', salt_plot_prog, gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file]
+		try:
+			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+							executable='/bin/bash')
+			assert (os.path.isfile(gc_ribo_aai_plot_pdf_file))
+			logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+		except Exception as e:
+			logObject.error('Had an issue running R based plotting - potentially because of R setup issues in conda: %s' % ' '.join(plot_cmd))
+			sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
+			logObject.error(e)
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+	except Exception as e:
+		sys.stderr.write('Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.\n')
+		logObject.error('Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
+		sys.exit(1)
+
+def consolidateSaltySpreadsheet(fai_ind_gc_file, genome_gbks, codoff_result_dir, mge_annot_result_file, gc_to_ribo_aai_stat_file, result_tsv_file, result_xlsx_file, logObject):
+	"""
+	Description:
+	Consolidate results from all three analyses to inform on lateral transfer into a table and create an auto-colored
+	spreadsheet XLSX file.
+	********************************************************************************************************************
+	Parameters:
+	- fai_ind_gc_file: fai individual gene cluster instances tsv.
+	- genome_gbks: A dictionary mapping a genome id/name to a full-genome GenBank file.
+	- codoff_result_dir: results directory from running codoff for each gene cluster against their respective background 
+				         genomes.
+	- mge_annot_result_file: overview file with MGE annotations for scaffolds from target genomes.
+	- gc_to_ribo_aai_stat_file: Path to output file to write statistics per gene cluster instance.
+	- result_tsv_file: The path to the output file to write the consolidated table to in TSV format.
+	- result_xlsx_file: The path to the output file to write the consolidated table to in XLSX format.
+	- logObject: a logging object.
+	********************************************************************************************************************
+	"""
+	try:
+
+		header = ['gene cluster (GC) instance', 'GC gbk path', 'genome', 'scaffold', 'scaffold length (bp)', 'scaffold CDS count', 'GC CDS count', 
+			      'codoff empirical p-value', 'GC AAI observed - expectation',  'GC AAI between genome and reference genome', 
+				  'ribosomal protein AAI between genome and reference genome', 'distance to IS element', 'scaffold CDS proportion IS elements', 
+				  'scaffold CDS proportion VOGs', 'scaffold CDS proportion plasmid-associated']
+
+		gc_codoff_pvals = defaultdict(lambda: 'NA')
+		for f in os.listdir(codoff_result_dir):
+			gc = '.txt'.join(f.split('.txt')[:-1])
+			gc_codoff_file = codoff_result_dir + f
+			with open(gc_codoff_file) as ogcf:
+				for line in ogcf:
+					line = line.strip()
+					ls = line.split('\t')
+					if ls[0] == 'Empirical P-value': 
+						gc_codoff_pvals[gc] = ls[1]
+
+		genome_scaffold_annot_info = defaultdict(lambda: defaultdict(lambda: ['NA']*8))
+		if mge_annot_result_file != None and os.path.isfile(mge_annot_result_file):
+			with open(mge_annot_result_file) as omarf:
+				for i, line in enumerate(omarf):
+					if i == 0: continue 
+					line = line.strip('\n')
+					sample, scaffold, total_cds, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries = line.split('\t')
+					genome_scaffold_annot_info[sample][scaffold] = [total_cds, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries] 
+
+		gc_aai_stats = defaultdict(lambda: ['NA']*5)
+		with open(gc_to_ribo_aai_stat_file) as ogtrasf:
+			for i, line in enumerate(ogtrasf):
+				if i == 0: continue
+				line = line.strip('\n')
+				gc, ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots = line.split('\t')
+				gc_aai_stats[gc] = [ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots]
+
+		num_rows = 0
+		tsv_outf = open(result_tsv_file, 'w')
+		tsv_outf.write('\t'.join(header) + '\n')
+		with open(fai_ind_gc_file) as ofigf:
+			for i, line in enumerate(ofigf):
+				if i == 0: continue		
+				line = line.strip()
+				ls = line.split('\t')	
+				gc_gbk = ls[1]
+				gc_gbk_file = gc_gbk.split('/')[-1]
+				gc = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				genome = '.gbk'.join(gc_gbk_file.split('.gbk')[:-1])
+				if '_fai-gene-cluster' in genome:
+					genome = genome.split('_fai-gene-cluster')[0]
+	
+				scaffold = 'NA'
+				gc_cds_count = 0
+
+				cds_coords = {}
+				scaffold_lens = {}
+				with open(genome_gbks[genome]) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						scaffold_lens[rec.id] = len(str(rec.seq))
+						for feat in rec.features:
+							if feat.type == 'CDS':
+								lt = feat.qualifiers.get('locus_tag')[0]
+								loc_str = str(feat.location)
+								all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+								cds_coords[lt] = [start, end]
+				
+				min_gc_coord = 1e100
+				max_gc_coord = 0
+				with open(gc_gbk) as ogg:
+					for rec in SeqIO.parse(ogg, 'genbank'):
+						scaffold = rec.id
+						for feat in rec.features:
+							if feat.type == "CDS":
+								gc_cds_count += 1
+								lt = feat.qualifiers.get('locus_tag')[0]
+								cds_start = cds_coords[lt][0]
+								cds_end = cds_coords[lt][1]
+								if cds_start < min_gc_coord:
+									min_gc_coord = cds_start
+								if cds_end > max_gc_coord:
+									max_gc_coord = cds_end
+
+				scaffold_cds_count, mobsuite_cds_hits, mobsuite_cds_prop, vog_cds_hits, vog_cds_prop, is_cds_hits, is_cds_prop, is_cds_boundaries = genome_scaffold_annot_info[genome][scaffold]
+				ratio_statistic, ribo_aai, gc_aai, prop_ribo_prots, prop_gc_prots = gc_aai_stats[gc]
+				gc_codoff_pval = gc_codoff_pvals[gc]
+			
+				min_is_distance = 1e100
+				for is_coord in is_cds_boundaries.split(', '):
+					if is_numeric(is_coord):
+						is_coord = int(is_coord)
+						dist = None 
+						if is_coord >= min_gc_coord and is_coord <= max_gc_coord:
+							dist = 0
+						else:
+							dist = min([abs(is_coord-min_gc_coord), abs(is_coord-max_gc_coord)])
+						if dist < min_is_distance:
+							min_is_distance = dist
+				if min_is_distance == 1e100:
+					min_is_distance = 'NA'
+
+				scaffold_length = scaffold_lens[scaffold]
+
+				row = [gc, gc_gbk, genome, scaffold, scaffold_length, scaffold_cds_count, gc_cds_count, gc_codoff_pval, ratio_statistic, gc_aai, ribo_aai, min_is_distance, 
+		               is_cds_prop, vog_cds_prop, mobsuite_cds_prop]
+				tsv_outf.write('\t'.join([str(x) for x in row]) + '\n')
+				num_rows += 1
+		tsv_outf.close()
+			
+		# Generate Excel spreadsheet
+		writer = pd.ExcelWriter(result_xlsx_file, engine='xlsxwriter')
+		workbook = writer.book
+		dd_sheet = workbook.add_worksheet('Data Dictionary')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "SALT Results" spreadsheet can be found on zol\'s Wiki page at:')
+		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt')
+
+		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+
+		numeric_columns = {'total scaffold CDS count', 'GC CDS count', 'codoff empirical p-value', 'GC AAI observed - expectation', 'distance to IS element', 
+         			       'scaffold CDS proportion IS elements', 'scaffold CDS proportion VOGs', 'scaffold CDS proportion plasmid-associated', 
+						   'GC AAI between genome and reference genome', 'ribosomal protein AAI between genome and reference genome'}
+
+		results_df = loadTableInPandaDataFrame(result_tsv_file, numeric_columns)
+		results_df.to_excel(writer, sheet_name='SALT Results', index=False, na_rep="NA")
+		worksheet =  writer.sheets['SALT Results']
+		worksheet.conditional_format('A2:BA' + str(num_rows+1), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})
+		worksheet.conditional_format('A1:BA1', {'type': 'cell', 'criteria': '!=', 'value': 'NA', 'format': header_format})
+
+		# codoff p-value
+		worksheet.conditional_format('H2:H' + str(num_rows+1), {'type': '3_color_scale', 'min_color': "#f07878", 'mid_color': '#f7ca81', 'max_color': "#f7de99", "min_value": 0.0, "mid_value": 0.05, "max_value": 1.0, 'min_type': 'num', 'mid_type': 'num', 'max_type': 'num'})
+
+		# diff
+		worksheet.conditional_format('I2:I' + str(num_rows+1), {'type': '3_color_scale', 'min_color': "#917967", 'mid_color': '#FFFFFF', 'max_color': "#ba8dc9", "min_value": -100.0, "mid_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'mid_type': 'num', 'max_type': 'num'})
+
+		# AAI columns 
+		worksheet.conditional_format('J2:J' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#dfedf5", 'max_color': "#8fa9b8", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('K2:K' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#dfedf5", 'max_color': "#8fa9b8", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# dist to IS/transposon
+		worksheet.conditional_format('L2:L' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#ed87ad", 'max_color': "#f5c6d8", "min_value": 0.0, "max_value": 10000.0, 'min_type': 'num', 'max_type': 'num'})
+
+		# IS/VOG/plasmid
+		worksheet.conditional_format('M2:M' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('N2:N' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+		worksheet.conditional_format('O2:O' + str(num_rows+1), {'type': '2_color_scale', 'min_color': "#98ad93", 'max_color': "#78b56b", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+
+		workbook.close()
+
+	except Exception as e:
+		sys.stderr.write('Issues with creating the final salt XLSX spreadsheet.\n')
+		logObject.error('Issues with creating the final salt XLSX spreadsheet.')
+		sys.stderr.write(traceback.format_exc())
+		logObject.error(traceback.format_exc())
 		sys.exit(1)

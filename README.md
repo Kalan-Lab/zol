@@ -61,8 +61,9 @@ conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be ~40 GB! You can also run in minimal mode
-# (which will only download PGAP HMM models ~8.5 GB) using -m. 
-setup_annotation_dbs.py
+# (which will only download Pfam & PGAP HMM models ~8.5 GB)
+# using the -m argument. 
+setup_annotation_dbs.py [-m]
 ```
 
 > [!NOTE]

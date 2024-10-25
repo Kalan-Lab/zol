@@ -6,7 +6,6 @@ channels:
 dependencies:
   - "python=3.10"
   - pip
-  - setuptools<=58.2.0
   - biopython
   - conda-forge::cxx-compiler
   - bioconda::muscle>=5.0
@@ -42,3 +41,5 @@ dependencies:
   - conda-forge::r-aplot
   - ete3
   - codoff
+  - gravis
+  - colour

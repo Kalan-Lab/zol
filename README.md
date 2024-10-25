@@ -1,6 +1,6 @@
 # *zol (& fai)*
 
-[![Preprint](https://img.shields.io/badge/Preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v2)
+[![Preprint](https://img.shields.io/badge/Preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3)
 [![Documentation](https://img.shields.io/badge/Documentation-Wiki-darkgreen?style=flat-square&maxAge=2678400)](https://github.com/Kalan-Lab/zol/wiki)
 [![Docker](https://img.shields.io/badge/Docker-DockerHub-darkred?style=flat-square&maxAge=2678400)](https://hub.docker.com/r/raufs/zol)
 [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/zol/README.html) [![Conda](https://img.shields.io/conda/dn/bioconda/zol.svg)](https://anaconda.org/bioconda/zol/files)
@@ -68,8 +68,8 @@ conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
-# end product will be ~36 GB! You can also run in minimal mode
-# (which will only download PGAP HMM models < 5 GB) using -m. 
+# end product will be ~40 GB! You can also run in minimal mode
+# (which will only download PGAP HMM models ~8.5 GB) using -m. 
 setup_annotation_dbs.py
 ```
 
@@ -90,28 +90,6 @@ chmod a+x ./run_ZOL.sh
 
 # run script
 ./run_ZOL.sh
-```
-
-#### Conda Manual:
-
-```bash
-# 1. clone Git repo and change directories into it!
-git clone https://github.com/Kalan-Lab/zol
-cd zol/
-
-# 2. create conda environment using yaml file and activate it!
-conda env create -f zol_env.yml -n zol_env
-conda activate zol_env
-
-# 3. complete python installation with the following commands:
-python setup.py install
-pip install -e .
-
-# 4. depending on internet speed, this can take 20-30 minutes
-# end product will be 28 GB! You can also run in minimal mode
-# (which will only download PGAP HMM models < 5 GB) using -m.
-# within zol Git repo with conda environment activated, run:
-setup_annotation_dbs.py
 ```
 
 ## Short Note on Resource Requirements:
@@ -149,14 +127,6 @@ chmod a+x ./test_docker.sh
 ```
 
 Note, the script `test_docker.sh` must be run in the same folder as run_ZOL.sh!
-
-#### Conda Manual:
-
-Within the zol GitHub repo, run the following:
-
-```bash
-bash run_tests.sh
-```
 
 ## License:
 

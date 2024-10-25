@@ -291,8 +291,9 @@ def salt():
 		diamond_results_file = fai.runDiamondBlastp(tg_concat_dmnd_db, tg_query_prots_file, ribo_norm_dir, logObject, diamond_sensitivity='very-sensitive', evalue_cutoff=1e-3, threads=threads, compute_query_coverage=True)
 		util.processDiamondForGCtoRiboRatio(diamond_results_file, tg_query_prots_file, fai_indiv_spreadsheet_tsv, gc_to_ribo_aai_stat_file, logObject)
 				
+		rscript_file = outdir + 'generateSaltGCvsRiboAAIPlot.R'
 		gc_ribo_aai_plot_pdf_file = outdir + 'GC_to_RiboProt_AAI_Relationships.pdf'
-		util.makeGCvsRiboProtAAIScatterplot(gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file, logObject)
+		util.makeGCvsRiboProtAAIScatterplot(rscript_file, gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file, logObject)
 
 		os.system('touch %s' % checkpoint_4_file)
 

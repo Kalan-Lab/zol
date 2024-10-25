@@ -83,13 +83,16 @@ def create_parser():
 	  the type of protein clustering we perform in zol. Since v1.28 - result files and logging
 	  messages should largely use "ortholog group" or "OG".
 	* Dereplication uses ANI & AF estimates by skani, which the author recommends should be 
-          used on contigs (or gene-clusters in this case) greater than 10 kb for accurate 
-          calculations.
+	  used on contigs (or gene-clusters in this case) greater than 10 kb for accurate 
+      calculations.
+	* "Domain mode" chops up CDS features in input GenBank files based on Pfam annotation,
+	  retaining domain and intra-domain regions that are of a certain length (60 aa) by 
+	  default. This mode is also not compatible with re-inflation.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--input', nargs='+', help='Either a directory or set of files with orthologous/homologous\nlocus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=True, default=[])
 	parser.add_argument('-o', '--output-dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-sfp', '--select-fai-params-mode', action='store_true', help='Determine statistics informative for selecting parameters for running\nfai to find more instances of the gene cluster.', required=False, default=False)
+	parser.add_argument('-sfp', '--select-fai-params-mode', action='store_true', help='Determine statistics informative for selecting parameters for\nrunning fai to find more instances of the gene cluster.', required=False, default=False)
 	parser.add_argument('-it', '--identity-threshold', type=float, help='Minimum identity coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 30].', required=False, default=30.0)
 	parser.add_argument('-ct', '--coverage-threshold', type=float, help='Minimum query coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 50].', required=False, default=50.0)
 	parser.add_argument('-et', '--evalue-threshold', type=float, help='Maximum E-value for an alignment between protein pairs from\ntwo gene-clusters to consider in search for orthologs.\n[Default is 0.001].', required=False, default=0.001)
@@ -98,13 +101,15 @@ def create_parser():
 	parser.add_argument('-r', '--rename-lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
 	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani\nand single-linkage clustering or MCL.', required=False, default=False)
 	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform re-inflation with all gene-clusters of\northo-groups identified via dereplicated analysis.', required=False, default=False)
-	parser.add_argument('-cdo', '--cdhit-orthogroup', action='store_true', help='Cluster proteins using CD-HIT instead of using the\nstandard InParanoid-like ortholog group prediction approach.\nThis approach is faster and uses less memory, but is less accurate.', required=False, default=False)
+	parser.add_argument('-cdo', '--cdhit-orthogroup', action='store_true', help='Cluster proteins using CD-HIT instead of using the\nstandard InParanoid-like ortholog group prediction approach.\nThis approach is faster and uses less memory, but is less\naccurate.', required=False, default=False)
 	parser.add_argument('-cdp', '--cdhit-params', help='Parameters for performing CD-HIT based ortholog group\nclustering if requested via --cdhit_orthogroup.\n[Default is "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000"]', required=False, default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
-	parser.add_argument('-dt', '--derep-identity', type=float, help='skani ANI threshold to use for dereplication. [Default is 99.0].', required=False, default=99.0)
+	parser.add_argument('-dt', '--derep-identity', type=float, help='skani ANI threshold to use for dereplication. [Default\nis 99.0].', required=False, default=99.0)
 	parser.add_argument('-dc', '--derep-coverage', type=float, help='skani aligned fraction threshold to use for\ndereplication. [Default is 95.0].', required=False, default=95.0)
 	parser.add_argument('-di', '--derep-inflation', type=float, help='Inflation parameter for MCL to use for dereplication of\ngene-clusters. If not specified single-linkage clustering\nwill be used instead.', required=False, default=None)
 	parser.add_argument('-dsg', '--derep-small-genomes', action='store_true', help='Run skani with the --small-genomes preset for\ndereplication - recommended if dealing\nwith lots of gene cluster instances that are < 20 kb\nin length (requires skani version >0.2.2).', required=False, default=False)
 	parser.add_argument('-rp', '--reinflate-params', help='Parameters for running CD-HIT for re-inflation, please\nsurround argument input with double quotes.\n[Default is "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"].', required=False, default="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
+	parser.add_argument('-dom', '--domain-mode', action='store_true', help='Run zol in domain mode instead of full protein mode.', required=False, default=False)
+	parser.add_argument('-cml', '--ccds-min-length', type=int, help='chopped CDS (cCDS) feature minimum length for inclusion.\nRelavent to "domain-mode". [Default is 50aa].', required=False, default=50)
 	parser.add_argument('-ibc', '--impute-broad-conservation', action='store_true', help='Impute weighted conservation stats based on cluster size associated\nwith dereplicated representatives.')
 	parser.add_argument('-ces', '--comprehensive-evo-stats', action='store_true', help='Allow computing of evolutionary statistics for non-single-copy genes.', required=False, default=False)
 	parser.add_argument('-aec', '--allow-edge-cds', action='store_true', help='Allow CDS within gene-cluster GenBanks with the attribute\n"near_scaffold_edge=True", which is set by fai for features\nwithin 2kb of contig edges.', required=False, default=False)
@@ -149,6 +154,8 @@ def zolMain():
 	input = myargs.input
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 	select_fai_params_mode = myargs.select_fai_params_mode
+	domain_mode = myargs.domain_mode 
+	ccds_min_length = myargs.ccds_min_length
 	threads = myargs.threads
 	use_super5 = (not myargs.quality_align)
 	fubar_selection = myargs.selection_analysis
@@ -207,6 +214,7 @@ def zolMain():
 
 	fin_outdir = outdir + 'Final_Results/'
 	check_dir = outdir + 'Checkpoint_Files/'
+
 	if not os.path.isdir(fin_outdir):
 		util.setupReadyDirectory([fin_outdir])
 	if not os.path.isdir(check_dir):
@@ -230,16 +238,22 @@ def zolMain():
 		logObject.warning('can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.\n')
 		ibc_flag = False
 
+	if domain_mode and reinflate_flag:
+		sys.sdterr.write('Warning: can\'t currently use reinflation and with domain-mode! Setting reinflation to false!')
+		logObject.warning('can\'t currently use reinflation and with domain-mode! Setting reinflation to False.\n')
+		reinflate_flag = False
+
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input, outdir, select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params,
+	parameter_values = [input, outdir, domain_mode, ccds_min_length, select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params,
 					    identity_threshold, coverage_threshold, evalue_threshold, (not use_super5), fubar_selection, skip_gard, 
 						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
 						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
 						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
 						derep_inflation, derep_small_genomes, custom_database, refine_gene_calling_flag, length, width, 
 						full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
-	parameter_names = ["Input directory / GenBank files", "Output directory", "Select fai parameters mode?", 
+	parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
+					   "Minimum length of chopped CDS features for inclusion", "Select fai parameters mode?", 
 					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
 					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
 					   "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
@@ -358,6 +372,50 @@ def zolMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
+	# Step 1.5: Switch to Domain Mode if Requested
+	chopped_genbanks = None
+	ccds_to_cds_relation_file = outdir + 'cCDS_to_CDS_Relation.txt'
+	if domain_mode:
+		msg = 'Note, using domain mode - if rerunning on the same output directory, but domain\nmode was not previously requested please just run in a\nnew directory.'
+		sys.stdout.write(msg + '\n')
+		logObject.info(msg)
+
+		if reinflate_flag:
+			msg = 'WARNING: Reinflate flag not compatible with . Reinflation is being turned and not used!!!'
+			logObject.warning(msg)
+			sys.stderr.write(msg + '\n')
+			reinflate_flag = False
+
+		msg = '--------------------\nStep 1.5\n--------------------\nRe-creating GenBank files with chopped CDS features.'
+		sys.stdout.write(msg + '\n')
+		logObject.info(msg)
+		
+		dm_scratch_dir = outdir + 'Domain_Mode_Scratch_Space/'
+		chopped_genbanks_pickle_file = dm_scratch_dir + 'Chopped_Genbank_Path_Information.pkl'
+		modified_genbank_dir = outdir + 'Chopped_Up_CDS_GenBanks/'
+		step15_check_file = check_dir + 'step1.5.txt'
+		if not os.path.isfile(step15_check_file):
+			util.setupReadyDirectory([dm_scratch_dir, modified_genbank_dir])
+
+			input_genbanks = genbanks
+			if drep_genbanks:
+				input_genbanks = drep_genbanks
+
+			chopped_genbanks = zol.batchCreateChoppedGenbanks(input_genbanks, ccds_min_length, dm_scratch_dir, modified_genbank_dir, ccds_to_cds_relation_file, logObject, threads=threads)
+			with open(chopped_genbanks_pickle_file, 'wb') as pickle_file:
+				pickle.dump(chopped_genbanks, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+			os.system('touch %s' % step15_check_file)
+
+		if chopped_genbanks == None:
+			try:
+				with open(chopped_genbanks_pickle_file, 'rb') as handle:
+					chopped_genbanks = pickle.load(handle)
+			except Exception as e:
+				sys.stderr.write('Issues with reading in paths to chopped-CDS GenBanks from pickle file (might not exist).\n')
+				logObject.error('Issues with reading in paths to chopped-CDS GenBnaks from pickle file (might not exist).\n')
+				sys.stderr.write(str(e) + '\n')
+				sys.exit(1)
+
 	# Step 2: Determine Orthologs
 	logObject.info('--------------------\nStep 2\n--------------------\nDetermining orthogroups')
 	sys.stdout.write('--------------------\nStep 2\n--------------------\nDetermining orthogroups\n')
@@ -374,12 +432,17 @@ def zolMain():
 		util.setupReadyDirectory([prot_dir, fo_prot_dir, nucl_dir, nucl_upstream_dir])
 		try:
 			gset = genbanks
-			if drep_genbanks != None and not reinflate_flag:
+			if chopped_genbanks != None:
+				gset = chopped_genbanks
+			elif drep_genbanks != None and not reinflate_flag:
 				gset = drep_genbanks
 			for gbk in gset:
 				try:
 					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=allow_edge_cds_flag)
+					feature_type = 'CDS'
+					if domain_mode:
+						feature_type = 'cCDS'
+					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=allow_edge_cds_flag, feature_type=feature_type)
 					protein_outf = prot_dir + prefix + '.faa'
 					nucleotide_outf = nucl_dir + prefix + '.fna'
 					upstream_outf = nucl_upstream_dir + prefix + '.fna'
@@ -454,6 +517,9 @@ def zolMain():
 	elif dereplicate_flag:
 		genbanks = drep_genbanks
 		assert(os.path.isfile(ortho_matrix_file))
+	if domain_mode:
+		genbanks = chopped_genbanks
+
 
 	# If fai param selection mode, do that and exit:
 	if select_fai_params_mode:
@@ -471,7 +537,22 @@ def zolMain():
 		logObject.info('--------------------\nRequested mode was to only compute ortholog groups across gene clusters\n.The ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
 		sys.stdout.write('--------------------\nRequested mode was to only compute ortholog groups across gene clusters.\nThe ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
 		sys.exit(0)
-		
+	
+	full_prot_clustering_file = outdir + 'Full_Protein_Secondary_SL_Clustering.txt'
+	if domain_mode and not os.path.isfile(full_prot_clustering_file):
+		full_prot_cluster_workspace_dir = outdir + 'Full_Protein_Secondary_Clustering/'
+		util.setupReadyDirectory([full_prot_cluster_workspace_dir])
+		# perform secondary clustering of full proteins based on domain ortholog groups
+		zol.performSLFullProteinClustering(ortho_matrix_file, full_prot_cluster_workspace_dir, full_prot_clustering_file, logObject)
+
+	full_protein_clusters = {}
+	if domain_mode:
+		with open(full_prot_clustering_file) as ofpcf:
+			for line in ofpcf:
+				line = line.strip()
+				ls = line.split('\t')
+				full_protein_clusters[ls[0]] = ls[1]
+
 	# Step 3 (normal): Create Alignments, Phylogenies and Consensus Sequences
 	logObject.info('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups')
 	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups\n')
@@ -550,10 +631,11 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups\n')
 	step5_check_file = check_dir + 'step5.txt'
 	hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
+	markovian_file = outdir + 'Markovian_Order_Information.txt'
 	hg_stats = None
 	if not os.path.isfile(step5_check_file):
 		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
-		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, logObject)
+		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, logObject, domain_mode=domain_mode)
 		hg_full_amb, hg_trim_amb = zol.calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject)
 		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
 					'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc,
@@ -677,7 +759,7 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
 	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, logObject, ces=ces_flag, run_hyphy=fubar_selection)
+	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, full_protein_clusters, logObject, ces=ces_flag, run_hyphy=fubar_selection, domain_mode=domain_mode)
 
 	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
 	logObject.info('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')

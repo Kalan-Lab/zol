@@ -18,7 +18,7 @@ After finding homologous sets of gene clusters - using fai or other software - u
 <img src="https://github.com/user-attachments/assets/b0ec16bf-f302-4018-a7eb-91ff8a8b7817" width="600">
 </p>
 
-**Citation:**
+### Citation:
 ```
 zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
 
@@ -27,22 +27,23 @@ MS Gilmore, AM Earl, K Anantharaman, LR Kalan
 bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
 ```
 
-1. [Program Descriptions](#program-description)
-2. [Installation](#installation)
-3. [Overview of Major Results](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files)
-4. [Short note on resource requirements](#short-note-on-resource-requirements)
+*In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.*
+
+## Main Contents:
+
+1. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
+2. [Overview of Major Results](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files)
+3. [Short note on resource requirements](#short-note-on-resource-requirements)
+4. [Installation](#installation)
 5. [Test Case](#test-case)
-6. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
-7. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
-8. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
-9. [Premade Target Genome Databases](https://github.com/Kalan-Lab/zol/wiki/7.-premade-prepTG-dbs)
-10. [Dependencies](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies)
-11. [Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome using abon, atpoc, and apos](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
-12. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
-13. [(***New***) Assessing support for lateral gene transfer using salt](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
+6. [Example Usages](https://github.com/Kalan-Lab/zol/wiki/4.-basic-usage-examples)
+7. [Tutorial with Tips and Tricks](https://github.com/Kalan-Lab/zol/wiki/5.-tutorial-%E2%80%90-a-detailed-walkthrough)
 
-
-In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.
+### Auxiliary tools within the suite:
+8. [abon, atpoc, and apos: Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
+9. [(***New***) cgc: Summary visualization of 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
+10. [(***New***) cgcg: Network visualization of ortholog groups across 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
+11. [(***New***) salt: Assessing support for lateral gene transfer](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
 
 ## Installation:
 

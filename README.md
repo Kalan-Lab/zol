@@ -19,13 +19,7 @@ After finding homologous sets of gene clusters - using fai or other software - u
 </p>
 
 ### Citation:
-```
-zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
-
-R Salamzade, PQ Tran, C Martin, AL Manson, 
-MS Gilmore, AM Earl, K Anantharaman, LR Kalan
-bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
-```
+> [zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3). *bioRxiv 2023.* Rauf Salamzade, Patricia Q Tran, Cody Martin, Abigail L Manson, Michael S Gilmore, Ashlee M Earl, Karthik Anantharaman, Lindsay R Kalan
 
 *In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.*
 

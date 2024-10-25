@@ -8,7 +8,21 @@
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/platforms.svg)](https://anaconda.org/bioconda/zol)
 [![Anaconda-Server Badge](https://anaconda.org/bioconda/zol/badges/license.svg)](https://anaconda.org/bioconda/zol)
 
-*zol (& fai)* are tools to search for gene clusters (sets of co-located genes - e.g. viruses/phages or biosynthetic gene clusters) in a target set of (meta-)genomes and to subsequently simplify the identification of interesting functional, evolutionary, and conservation patterns through creating detailed and color-formatted XLSX spreadsheets that can summarize information across 100s to 1000s of homologous gene cluster instances where visualization-based approaches might be overwhelming or computationally intensive to render.
+*zol (& fai)* are tools to search for gene clusters (sets of co-located genes - e.g. viruses/phages or biosynthetic gene clusters) in a target set of (meta-)genomes and to subsequently simplify the identification of interesting functional, evolutionary, and conservation patterns through creating detailed and color-formatted XLSX spreadsheets that can summarize information across 100s to 1000s of homologous gene cluster instances where pairwise visualization-based approaches might be overwhelming or computationally intensive to render. More recently, we have also introduced scalable visualization tools (*cgc & cgcg*) that allow for simpler assessment of information represented across thousands of homologous gene cluster instances.
+
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/3bf21e94-c3d1-40cc-aa42-a22f9687e9ed" width="300">
+</p>
+
+**Citation:**
+```
+zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
+
+R Salamzade, PQ Tran, C Martin, AL Manson, 
+MS Gilmore, AM Earl, K Anantharaman, LR Kalan
+bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
+```
 
 1. [Program Descriptions](#program-description)
 2. [Installation](#installation)
@@ -24,35 +38,8 @@
 12. [(***New***) Summary visualization of 1000s of gene clusters using cgc](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
 13. [(***New***) Assessing support for lateral gene transfer using salt](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
 
-![image](https://github.com/Kalan-Lab/zol/assets/4260723/23c8eae2-ed2f-4c58-bf69-89506c258d9a)
-
-
-**Citation:**
-```
-zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters
-
-R Salamzade, PQ Tran, C Martin, AL Manson, 
-MS Gilmore, AM Earl, K Anantharaman, LR Kalan
-bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
-```
 
 In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.
-
-## Program Descriptions:
-
-### Prepare Target Genomes (prepTG)
-
-**`prepTG`** processes and performs gene-calling or gene-mapping on an input set of genomes to ease and optimize downstream searches using fai.
-
-### Find Additional Instances (fai)
-
-**`fai`** is a program to search for additional instances of a gene-cluster or genomic locus in some set of target genomes. Inspired by cblaster, CORASON, ClusterFinder, MultiGeneBlast, etc. It leverages DIAMOND alignment similar to [cblaster](https://github.com/gamcil/cblaster) and runs fairly rapidly (allowing it to scale to thousands of genomes and even work on metagenomic assemblies). fai features some key differentiating options relative to other software: (i) can assess syntenic similarity of candidate homologous gene clusters to the query gene cluster, (ii) can allow for looser criteria thresholds for gene cluster detection in target genomes if multiple neighborhoods are identified as homologous and on scaffold edges (thus improving fragmented gene cluster identification due to assembly issues) - similar to lsaBGC-Expansion, (iii) filter secondary neighborhoods - e.g. homologous gene neighborhoods to the query which meet the criteria but are not the best match.
-
-### Zoom on Locus (zol)
-
-**`zol`** is a program to create table reports showing ortholog group conservation, annotation, and evolutionary stats for any gene-cluster or locus of interest. At it's core it performs ortholog group inference de novo across gene-cluster instances similar to [CORASON](https://github.com/nselem/corason), but uses an InParanoid-like algorithm. Tables are similar but currently more in-depth and feature some different statistics than lsaBGC-PopGene reports. zol produces a basic heatmap, but for visualizations of gene-clusters we recommend other tools such as [clinker](https://github.com/gamcil/clinker), [pyGenomeViz](https://github.com/moshi4/pyGenomeViz), [CORASON](https://github.com/nselem/corason), and [gggenomes](https://github.com/thackl/gggenomes), which we think the in-depth spreadsheet complements nicely. We also provide examples of how zol and skani can be used to select representative gene clusters for such visual investigations. 
-
-Critically, ***with the development of some key options, together, fai and zol enable high-throughput detection of orthologs across multi-species datasets comprising of thousands of genomes.***
 
 ## Installation:
 

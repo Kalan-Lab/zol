@@ -45,6 +45,13 @@ bioRxiv 2023.06.07.544063; doi: https://doi.org/10.1101/2023.06.07.544063
 * [(***New***) cgcg: Network visualization of ortholog groups across 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
 * [(***New***) salt: Assessing support for lateral gene transfer](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
 
+
+## Short Note on Resource Requirements:
+
+Different programs in the zol suite have different resource requirements. Moving forward, the default settings in the `zol` program itself should usually allow for low memory usage and faster runtime. For thousands of gene cluster instances, we recommend to either use the dereplication/reinflation approach (see manuscript for comparison on evolutionary statistics between this approach and a full processing) or using CD-HIT clustering (a greedy incremental clustering approach - which is nicely illustrated/explained on the [MMSeqs2 wiki](https://github.com/soedinglab/MMseqs2/wiki#clustering-modes)) to determine protein clusters/families (not true ortholog groups). Disk space is generally not a huge concern for zol analysis, but if working with thousands of gene clusters things can temporarily get large. 
+
+Available disk space is the primary concern however for `fai` and `prepTG`. This is mostly the case for users interested in the construction and searching of large databases (containing over a thousand genomes). Generally, `prepTG` and `fai` are designed to work on metagenomic as well as genomic datasets and do not have a high memory usage, but genomic files stack up in space and DIAMOND alignment files can quite get large as well.
+
 ## Installation:
 
 #### Bioconda (Recommended):
@@ -83,12 +90,6 @@ chmod a+x ./run_ZOL.sh
 # run script
 ./run_ZOL.sh
 ```
-
-## Short Note on Resource Requirements:
-
-Different programs in the zol suite have different resource requirements. Moving forward, the default settings in the `zol` program itself should usually allow for low memory usage and faster runtime. For thousands of gene cluster instances, we recommend to either use the dereplication/reinflation approach (see manuscript for comparison on evolutionary statistics between this approach and a full processing) or using CD-HIT clustering (a greedy incremental clustering approach - which is nicely illustrated/explained on the [MMSeqs2 wiki](https://github.com/soedinglab/MMseqs2/wiki#clustering-modes)) to determine protein clusters/families (not true ortholog groups). Disk space is generally not a huge concern for zol analysis, but if working with thousands of gene clusters things can temporarily get large. 
-
-Available disk space is the primary concern however for `fai` and `prepTG`. This is mostly the case for users interested in the construction and searching of large databases (containing over a thousand genomes). Generally, `prepTG` and `fai` are designed to work on metagenomic as well as genomic datasets and do not have a high memory usage, but genomic files stack up in space and DIAMOND alignment files can quite get large as well.
 
 ## Test case:
 

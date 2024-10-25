@@ -2855,11 +2855,11 @@ def generateSaltGCvsRiboAAIPlot(rscript_path, input_data_file, pdf_file, logObje
 
 def generateNjTree(rscript_path, input_dist_file, output_tree_file, logObject):
 	try:
-		rph.write('library(ape)\n\n')
+		rph = open(rscript_path, 'w')
 
+		rph.write('library(ape)\n\n')
 		rph.write('input.dist.file <- "' + input_dist_file + '"\n')
 		rph.write('output.nwk.file <- "' + output_tree_file + '"\n\n')
-
 		rph.write('dat <- read.table(input.dist.file, header=T, sep="\\t", row.names=1)\n')
 		rph.write('d <- as.dist(as.matrix(dat))\n')
 		rph.write('njt <- nj(d)\n')

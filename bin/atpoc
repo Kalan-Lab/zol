@@ -38,16 +38,13 @@
 import os
 import sys
 import argparse
-import subprocess
 from time import sleep
 from zol import util, fai
-import _pickle as cPickle
 from Bio import SeqIO
-from operator import itemgetter
 from collections import defaultdict
-import traceback
 import pandas as pd
 import math 
+import traceback
 
 def create_parser():
 	""" Parse arguments """
@@ -141,6 +138,17 @@ def atpoc():
 	sys.stdout.write('Parsing phage prediction results\n')
 	logObject.info('Parsing phage prediction results')
 
+
+	scaff_lengths = {}
+	try:
+		with open(sample_genome) as osg:
+			for rec in SeqIO.parse():
+				scaff_lengths[rec.id] = len(str(rec.seq))
+	except:
+		msg = 'Issue processing genome file.'
+		sys.stderr.write(msg + '\n')
+		sys.stderr.write(traceback.format_exc() + '\n')
+
 	sample_phages = []
 	if vibrant_results_dir != None and os.path.isdir(vibrant_results_dir):
 		for root, dirs, files in os.walk(vibrant_results_dir):
@@ -180,10 +188,14 @@ def atpoc():
 							phage_id, phage_length, topology, coords, n_genes, genetic_code, virus_score, fdr, n_hallmarks, marker_enrichment, taxonomy = line.split('\t')
 							scaff = phage_id.split('|')[0]
 							phage_id = phage_id.replace('|', '_')
-							start_coord, end_coord = coords.split('-')
+							if coords != 'NA':
+								start_coord, end_coord = coords.split('-')
+							else:
+								start_coord = 1 
+								end_coord = scaff_lengths[scaff]
 							additional_info = '; '.join(['virus_score' + virus_score, 'topology=' + topology, 'genetic_code=' + genetic_code, 'n_hallmarks=' + n_hallmarks, 'marker_enrichment=' + marker_enrichment, 'taxonomy=' + taxonomy])
 							sample_phages.append(['geNomad', 'GN-' + phage_id, scaff, start_coord, end_coord, phage_length, additional_info])
-
+	
 	sys.stdout.write('Found %d prophage predictions!\n' % len(sample_phages))
 	logObject.info('Found %d prophage predictions!' % len(sample_phages))
 

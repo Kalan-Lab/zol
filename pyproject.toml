@@ -1,0 +1,38 @@
+[project]
+name = "zol"
+authors = [{name="Rauf Salamzade", email="salamzader@gmail.com"}]
+version = "1.5.0"
+readme = "README.md"
+description = "zol suite for detection and evolutionary analysis of gene clusters."
+
+[build-system]
+requires = ['setuptools']
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+script-files=['docker/ZOL',
+               'bin/zol',
+               'bin/fai',
+               'bin/prepTG',
+               'bin/abon',
+               'bin/apos',
+               'bin/atpoc',
+               'bin/cgc',
+               'bin/cgcg', 
+               'bin/salt',
+               'bin/zol-scape',
+               'scripts/genbankToFasta.py',
+               'scripts/annotateProtSeqs.py',
+               'scripts/selectSpecificGeneClusters.py',
+               'scripts/runProdigalAndMakeProperGenbank.py',
+               'scripts/listAllGenomesInDirectory.py',
+               'scripts/setup_annotation_dbs.py',
+               'scripts/processNCBIGenBank.py',
+               'scripts/extractBiG-SCAPEclusters.py',
+               'src/zol/orthologs/findOrthologs.py',
+               'scripts/convertMiniprotGffToGbkAndProt.py',
+               'scripts/cagecatProcess.py',
+               'scripts/fastgenomicsNeighborhoodToGenBanks.py']
+
+[tool.setuptools.packages.find]
+where = ["src"]

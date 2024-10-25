@@ -20,5 +20,7 @@ fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_
 # Step 3: run zol to perform comparative investigations of gene-clusters
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 4 --full-genbank-labels
 
-# Step 4: test out cgc for visualization generation
+# Step 4: test out cgc and cgcg for collapsed gene cluster visualization generation
 cgc -i zol_Results/ -o cgc_Results/
+
+cgcg -i zol_Results/ -o cgcg_Results/

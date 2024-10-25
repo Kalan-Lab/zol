@@ -14,13 +14,19 @@ def create_parser():
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 		
-	Downloads annotation databases for KO, PGAP, 
+	Downloads annotation databases for annotations and lateral transfer inference: KOfam, 
+	PGAP, PaperBlast, MIBiG, CARD, Conserved Ribosomal Proteins, VOGs, ISFinder, VFDB,
+	MOB-suite MPF and MOB Proteins, and Pfam.
+								  
+	Location of where to download databases is controlled by setting the environmental
+	variable ZOL_DATA_PATH e.g.:
+								  							   
+	$ export ZOL_DATA_PATH=/path/to/database_location/
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
-	parser.add_argument('-p', '--download-path', help='Path to where the databases should be downloaded. Default is\neither set by ENV variable ZOL_DATA_PATH or set to\n/path/to/zol_Github_clone/db/.', required=False, default=None)
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
-	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download PGAP.", required=False, default=False)
-	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download PGAP HMMs + MIBiG proteins.", required=False, default=False)	
+	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download Pfam and PGAP HMMs.", required=False, default=False)
+	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, & MIBiG proteins.", required=False, default=False)	
 
 	args = parser.parse_args()
 	return args
@@ -29,13 +35,8 @@ def setup_annot_dbs():
 	myargs = create_parser()
 
 	download_path = None
-	if myargs.download_path != None:
-		download_path = os.path.abspath(myargs.download_path) + '/'
-	elif str(os.getenv("ZOL_DATA_PATH")) != 'None':
+	if str(os.getenv("ZOL_DATA_PATH")) != 'None':
 		download_path = str(os.getenv("ZOL_DATA_PATH"))
-	else:
-		download_path = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/db/'
-
 	if download_path == None or not os.path.isdir(download_path):
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
@@ -50,9 +51,9 @@ def setup_annot_dbs():
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist!\n')
 
 	if lsabgc_minimal_mode:
-		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the MIBiG and PGAP databases.\n')
+		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG and PGAP databases.\n')
 	elif minimal_mode:
-		sys.stdout.write('Minimal mode requested, will only be downloading the PGAP database.\n')
+		sys.stdout.write('Minimal mode requested, will only be downloading the Pfam and PGAP databases.\n')
 	
 	try:
 		shutil.rmtree(download_path)
@@ -75,10 +76,12 @@ def setup_annot_dbs():
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
 		pgap_phmm_file = download_path + 'PGAP.hmm'
 		mb_faa_file = download_path + 'mibig.dmnd'
+		pfam_phmm_file = download_path + 'Pfam-A.hmm'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
 				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_3.1.fasta',
-				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
+				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz']
 
 		# Download
 		print('Starting download of files!')
@@ -91,6 +94,36 @@ def setup_annot_dbs():
 			sys.stderr.write('Error occurred during downloading!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
+
+		try:
+			print('Setting up Pfam database!')
+			os.system(' '.join(['gunzip', 'Pfam-A.hmm.gz']))
+			assert(os.path.isfile(pfam_phmm_file))
+			name = None
+			desc = None
+			pfam_descriptions_file = download_path + 'pfam_descriptions.txt'
+			pdf_handle = open(pfam_descriptions_file, 'w')
+			with open(pfam_phmm_file) as oppf:
+				for line in oppf:
+					line = line.strip()
+					ls = line.split()
+					if ls[0].strip() == 'NAME':
+						name = ' '.join(ls[1:]).strip()
+					elif ls[0].strip() == 'DESC':
+						desc = ' '.join(ls[1:]).strip()
+						pdf_handle.write(name + '\t' + desc + '\n')
+			pdf_handle.close()
+			os.system(' '.join(['hmmpress', pfam_phmm_file]))
+			z = 0
+			with open(pfam_phmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+			listing_handle.write('pfam\t' + pfam_descriptions_file + '\t' + pfam_phmm_file + '\t' + str(z) + '\n')
+		except Exception as e:
+			sys.stderr.write('Issues setting up Pfam database.\n')
+			issues_handle.write('Issues setting up Pfam database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up PGAP database!')
@@ -152,9 +185,11 @@ def setup_annot_dbs():
 		# Final annotation files
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
 		pgap_phmm_file = download_path + 'PGAP.hmm'
+		pfam_phmm_file = download_path + 'Pfam-A.hmm'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
-				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv']
+						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
+						  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz']
 
 		# Download
 		print('Starting download of files!')
@@ -167,6 +202,36 @@ def setup_annot_dbs():
 			sys.stderr.write('Error occurred during downloading!\n')
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
+
+		try:
+			print('Setting up Pfam database!')
+			os.system(' '.join(['gunzip', 'Pfam-A.hmm.gz']))
+			assert(os.path.isfile(pfam_phmm_file))
+			name = None
+			desc = None
+			pfam_descriptions_file = download_path + 'pfam_descriptions.txt'
+			pdf_handle = open(pfam_descriptions_file, 'w')
+			with open(pfam_phmm_file) as oppf:
+				for line in oppf:
+					line = line.strip()
+					ls = line.split()
+					if ls[0].strip() == 'NAME':
+						name = ' '.join(ls[1:]).strip()
+					elif ls[0].strip() == 'DESC':
+						desc = ' '.join(ls[1:]).strip()
+						pdf_handle.write(name + '\t' + desc + '\n')
+			pdf_handle.close()
+			os.system(' '.join(['hmmpress', pfam_phmm_file]))
+			z = 0
+			with open(pfam_phmm_file) as oppf:
+				for line in oppf:
+					if line.startswith('NAME'): z += 1
+			listing_handle.write('pfam\t' + pfam_descriptions_file + '\t' + pfam_phmm_file + '\t' + str(z) + '\n')
+		except Exception as e:
+			sys.stderr.write('Issues setting up Pfam database.\n')
+			issues_handle.write('Issues setting up Pfam database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
 
 		try:
 			print('Setting up PGAP database!')

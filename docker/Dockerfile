@@ -3,6 +3,10 @@
 # you are interested in clustering diverse gene-clusters based on protein domain simlarity or are interested
 # in investigating the variability of contexts for a single reference gene!
 
+
+FROM continuumio/miniconda3
+LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
+
 FROM continuumio/miniconda3
 LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
 
@@ -29,7 +33,8 @@ RUN python setup.py install && pip install -e . && setup_annotation_dbs.py -m &&
 USER 1000:1000
 RUN mkdir /home/prepTG_input /home/prepTG_refproteome /home/prepTG_output && \
     mkdir /home/fai_input /home/fai_protque /home/fai_refgenome /home/fai_keyprot /home/fai_targetgen /home/fai_output && \
-    mkdir /home/zol_input /home/zol_customdb /home/zol_foclisting /home/zol_complisting /home/zol_output
+    mkdir /home/zol_input /home/zol_customdb /home/zol_foclisting /home/zol_complisting /home/zol_output /home/cgc_input && \
+    mkdir /home/cgc_output /home/cgcg_input /home/cgcg_output
 
 WORKDIR /home
 ENV LANG C.UTF-8

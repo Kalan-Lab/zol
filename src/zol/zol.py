@@ -1465,7 +1465,7 @@ def default_to_regular(d):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, logObject, domain_mode=False):
+def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, consensus_path_file, logObject, domain_mode=False):
 	"""
 	Description:
 	This function determines the consensus order and directionality of ortholog groups in a set of gene cluster
@@ -1542,9 +1542,9 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 
 		gcs_ordered = [ref_bgc] + sorted(list(set(gc_genes.keys()).difference(set([ref_bgc]))))
 		ref_hg_directions = {}
-		hg_pair_sthreads = defaultdict(int)
-		hg_preceding_sthreads = defaultdict(lambda: defaultdict(int))
-		hg_following_sthreads = defaultdict(lambda: defaultdict(int))
+		hg_pair_score = defaultdict(int)
+		hg_preceding_score = defaultdict(lambda: defaultdict(int))
+		hg_following_score = defaultdict(lambda: defaultdict(int))
 		all_hgs = set(['start', 'end'])
 		direction_forward_support = defaultdict(int)
 		direction_reverse_support = defaultdict(int)
@@ -1598,47 +1598,66 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 				all_hgs.add(hg)
 				if j == 0:
 					hg_previ = "start"
-					hg_preceding_sthreads[hg][hg_previ] += 1
-					hg_following_sthreads[hg_previ][hg] += 1
-					hg_pair_sthreads[tuple([hg_previ, hg])] += 1
+					hg_preceding_score[hg][hg_previ] += 1
+					hg_following_score[hg_previ][hg] += 1
+					hg_pair_score[tuple([hg_previ, hg])] += 1
 				try:
 					hg_after = hgs[j + 1]
 					# make sure you don't get lost with broken/fragmented genes in BGCs that might be
 					# in the process being lost.
 					if hg != hg_after:
-						hg_preceding_sthreads[hg_after][hg] += 1
-						hg_following_sthreads[hg][hg_after] += 1
-						hg_pair_sthreads[tuple([hg, hg_after])] += 1
+						hg_preceding_score[hg_after][hg] += 1
+						hg_following_score[hg][hg_after] += 1
+						hg_pair_score[tuple([hg, hg_after])] += 1
 				except:
 					hg_after = 'end'
-					hg_preceding_sthreads[hg_after][hg] += 1
-					hg_following_sthreads[hg][hg_after] += 1
-					hg_pair_sthreads[tuple([hg, hg_after])] += 1
+					hg_preceding_score[hg_after][hg] += 1
+					hg_following_score[hg][hg_after] += 1
+					hg_pair_score[tuple([hg, hg_after])] += 1
 
 		markovian_handle = open(markovian_file, 'w')
-		markovian_handle.write('og\tog_after\tsupport\n')
-		for hg in hg_following_sthreads:
-			for hg_after in hg_following_sthreads[hg]:
-				markovian_handle.write(hg + '\t' + hg_after + '\t' + str(hg_following_sthreads[hg][hg_after]) + '\n')
+		markovian_handle.write('og\tog_after\tog_direction\tog_after_direction\tsupport\n')
+		for hg in hg_following_score:
+			for hg_after in hg_following_score[hg]:
+				hg_dir = '-'
+				if direction_forward_support[hg] >= direction_reverse_support[hg]: 
+					hg_dir = '+'
+				hg_after_dir = '-'
+				if direction_forward_support[hg_after] >= direction_reverse_support[hg_after]:
+					hg_after_dir = '+'
+				markovian_handle.write(hg + '\t' + hg_after + '\t' + str(hg_following_score[hg][hg_after]) + '\t' + hg_dir + '\t' + hg_after_dir + '\n')
 		markovian_handle.close()
+
+		consensus_handle = open(consensus_path_file, 'w')		
+		curr_og = 'start'
+		while curr_og != 'end':
+			next_og = ""
+			max_score = 0 
+			for follow_og in hg_following_score[curr_og]:
+				if hg_following_score[curr_og][follow_og] >= max_score:
+					max_score = hg_following_score[curr_og][follow_og]
+					next_og = follow_og
+			consensus_handle.write(curr_og + '\t' + next_og + '\n')
+			curr_og = next_og
+		consensus_handle.close()
 
 		anchor_edge = None
 		if len(single_copy_core_hgs) > 0:
 			# first attempt to find anchor edge using a single copy core ortholog groups if any exist
-			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in single_copy_core_hgs and hps[0][1] in single_copy_core_hgs:
 					anchor_edge = hps[0]
 					break
 		if len(core_hgs) > 0 and anchor_edge == None:
 			# looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist 
-			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
 					anchor_edge = hps[0]
 					break
 			try:
 				assert (anchor_edge != None)
 			except:
-				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
 						anchor_edge = hps[0]
 						break
@@ -1649,14 +1668,14 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 			sys.stderr.write(stars + 'WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.\n' + stars)
 			logObject.warning('No core ortholog groups were detected across homologous gene cluster\ninstances - the quality of the consensus order and direction\npredictions will be lower.\n')
 			try:
-				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in most_conserved_hgs and hps[0][1] in most_conserved_hgs:
 						anchor_edge = hps[0]
 						break
 				try:
 					assert (anchor_edge != None)
 				except:
-					for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+					for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 						if hps[0][0] in most_conserved_hgs or hps[0][1] in most_conserved_hgs:
 							anchor_edge = hps[0]
 							break
@@ -1675,7 +1694,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 		left_expansion = [curr_hg]
 		while not curr_hg == 'start':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_preceding_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_preceding_score[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					left_expansion = [new_hg] + left_expansion
@@ -1692,7 +1711,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 		right_expansion = [curr_hg]
 		while not curr_hg == 'end':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_following_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_following_score[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					right_expansion.append(new_hg)
@@ -1715,13 +1734,13 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 				best_score = 0
 				relative_pos = None
 				neighboriest_hg = None
-				for phg in sorted(hg_preceding_sthreads[hg].items(), key=itemgetter(1), reverse=True):
+				for phg in sorted(hg_preceding_score[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < phg[1] and phg[0] in accounted_hgs:
 						best_score = phg[1]
 						relative_pos = 'after'
 						neighboriest_hg = phg[0]
 						break
-				for fhg in sorted(hg_following_sthreads[hg].items(), key=itemgetter(1), reverse=True):
+				for fhg in sorted(hg_following_score[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < fhg[1] and fhg[0] in accounted_hgs:
 						best_score = fhg[1]
 						relative_pos = 'before'

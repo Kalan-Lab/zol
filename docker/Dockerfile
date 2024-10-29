@@ -3,10 +3,6 @@
 # you are interested in clustering diverse gene-clusters based on protein domain simlarity or are interested
 # in investigating the variability of contexts for a single reference gene!
 
-
-FROM continuumio/miniconda3
-LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
-
 FROM continuumio/miniconda3
 LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
 
@@ -28,7 +24,10 @@ RUN conda install -n base conda-libmamba-solver && conda config --set solver lib
 # Install zol
 WORKDIR /usr/src/zol/ 
 ENV PATH /usr/src/zol_conda_env/bin:$PATH
-RUN python setup.py install && pip install -e . && setup_annotation_dbs.py -m && chmod -R 555 /usr/src/zol/ && chmod 777 /home
+ENV CONDA_PREFIX /usr/src/zol_conda_env
+ENV ZOL_EXEC_PATH /usr/src/zol_conda_env/bin/
+ENV ZOL_DATA_PATH /usr/src/zol_conda_env/share/zol/db/
+RUN pip install . && setup_annotation_dbs.py -m && chmod -R 555 /usr/src/zol/ && chmod 777 /home
 
 USER 1000:1000
 RUN mkdir /home/prepTG_input /home/prepTG_refproteome /home/prepTG_output && \

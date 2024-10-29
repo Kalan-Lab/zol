@@ -632,10 +632,12 @@ def zolMain():
 	step5_check_file = check_dir + 'step5.txt'
 	hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
 	markovian_file = outdir + 'Markovian_Order_Information.txt'
+	consensus_path_file = outdir + 'Consensus_Path_Information.txt'
 	hg_stats = None
 	if not os.path.isfile(step5_check_file):
 		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
-		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, logObject, domain_mode=domain_mode)
+		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, 
+													       consensus_path_file, logObject, domain_mode=domain_mode)
 		hg_full_amb, hg_trim_amb = zol.calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject)
 		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
 					'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc,

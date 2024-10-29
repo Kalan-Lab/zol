@@ -262,7 +262,7 @@ def createChoppedGenbank(inputs):
 		with pyhmmer.plan7.HMMFile(pfam_db_file) as hmm_file:
 			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs="trusted", Z=int(pfam_z), cpus=1):
 				for hit in hits:
-					for domain in hit.domains:
+					for domain in hit.domains.included:
 						target_dom_hits[hit.name.decode()].append([hits.query_name.decode(), domain.alignment.target_from, domain.alignment.target_to, domain.score, domain.i_evalue])
 
 		# chop up FASTA based on mostly non-overlapping domains, 10% leaway is given

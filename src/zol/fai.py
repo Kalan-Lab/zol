@@ -1,9 +1,10 @@
 import os
 import sys
-from zol import util, zol
+from zol import util, zol, data_dictionary
 from Bio import SeqIO
 from collections import defaultdict
 import multiprocessing
+import tqdm
 import subprocess
 import decimal
 from operator import itemgetter
@@ -806,8 +807,13 @@ def identifyGCInstances(query_information, target_information, diamond_results, 
 												   syntenic_correlation_threshold, max_int_genes_for_merge,
 												   flanking_context, draft_mode, gc_delineation_mode])
 
+			msg = "Determining gene cluster homologous hits for %d genomes" % len(identify_gc_segments_input)
+			logObject.info(msg)
+			sys.stdout.write(msg + '\n')
+
 			p = multiprocessing.Pool(threads)
-			p.map(identify_gc_instances, identify_gc_segments_input)
+			for _ in tqdm.tqdm(p.imap_unordered(identify_gc_instances, identify_gc_segments_input), total=len(identify_gc_segments_input)):
+				pass
 			p.close()
 
 		os.system('find %s -type f -name "*.bgcs.txt" -exec cat {} + >> %s' % (gc_info_dir, gc_list_file))
@@ -1791,13 +1797,30 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 		writer = pd.ExcelWriter(spreadsheet_result_file, engine='xlsxwriter')
 		workbook = writer.book
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
-		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found on fai\'s Wiki page at:')
-		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-fai#explanation-of-report')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "Overview" spreadsheets can be found below and on fai\'s Wiki page at:')
+		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai#explanation-of-report')
+
+		wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'border': 1})
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#FFFFFF', 'border': 1})
+
+		data_dict_fai = data_dictionary.fai_dd()
+		data_dict_fai_df = util.loadTableInPandaDataFrameFromString(data_dict_fai)
+		worksheet_dd =  writer.sheets['Data Dictionary']
+		worksheet_dd.set_column(1, 3, 50)
+
+		for col_num, value in enumerate(data_dict_fai_df.columns.values):
+			worksheet_dd.write(3, col_num + 1, value, header_format)
+
+		colnames = ['Column', 'Description', 'Notes']
+		for index, row in data_dict_fai_df.iterrows():
+			row_ind = index + 4
+			format = wrap_format
+			for col_ind in range(0,3):
+				col_name = colnames[col_ind]
+				worksheet_dd.write(row_ind, col_ind+1, row[col_name], format)
 
 		numeric_columns = set(['aggregate-bitscore', 'aai-to-query', 'mean-sequence-to-query-ratio', 'proportion-query-genes-found', 
 					 	   		'syntenic-correlation', 'avg-syntenic-correlation', 'number-background-genes', 'number-gene-clusters'] + hg_headers)
-
-		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
 
 		tot_results_df = util.loadTableInPandaDataFrame(tot_tsv_file, numeric_columns)
 		tot_results_df.to_excel(writer, sheet_name='Genome Wide - Report', index=False, na_rep="NA")

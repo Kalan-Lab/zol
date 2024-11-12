@@ -38,6 +38,7 @@
 import os
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 import subprocess
 from zol import util
 from operator import itemgetter
@@ -81,7 +82,7 @@ def create_parser():
 	---------------------------------------------------------------------------------------------
 	cgc -i zol_Results_Directory/ -t conservation tajimas_d -c white_to_black blue_white_red
 								  
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--zol-results-dir', help='Path to zol results directory.', required=True)
 	parser.add_argument('-o', '--outdir', help='Output directory for cgc analysis.', required=True)

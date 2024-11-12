@@ -38,16 +38,11 @@
 import os
 import sys
 import argparse
-import subprocess
+from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util
-import _pickle as cPickle
-from Bio import SeqIO
-from operator import itemgetter
 from collections import defaultdict
-import traceback
 import pandas as pd
-import math
 import multiprocessing
 
 def create_parser():
@@ -79,7 +74,7 @@ def create_parser():
 								  
     zol-scape -i Input_Folder_to_BiG-SCAPE/ -r Result_Folder_to_BiG-SCAPE/ \\
               -o ZOL-SCAPE_Results/ -p -c 4					
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--big-scape-input', help='Path to folder which was input into BiG-SCAPE.', required=True)
 	parser.add_argument('-r', '--big-scape-results', help='Path to BiG-SCAPE results directory - if multiple', required=True)

@@ -42,6 +42,7 @@ from time import sleep
 from zol import util, fai
 from Bio import SeqIO
 import multiprocessing
+from rich_argparse import RawTextRichHelpFormatter
 
 def create_parser():
 	""" Parse arguments """
@@ -64,7 +65,7 @@ def create_parser():
 	was requestd for prepTG).
 								  
 	Similar to other zol programs, the final result is an auto-color-formatted XLSX spreadsheet.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-f', '--fai-results-dir', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=True)
 	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes of interest.', required=True)

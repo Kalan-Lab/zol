@@ -38,6 +38,7 @@
 import os
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 from Bio import SeqIO
 from time import sleep
 from zol import util, zol
@@ -76,7 +77,7 @@ def create_parser():
 	* It is advised that multiple GenBanks from the same genome/sample be concatenated into 
 	  a multi-record GenBank to account for fragmentation of gene-clusters and properly 
 	  calculate copy count of ortholog groups.
-	* Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag 
+	* Locus tags cannot contain commas, if they do however, you can use the --rename-lt flag 
 	  to request new locus tags!
 	* Ortholog group and homolog group are/were used inter-changeably in the code/comments. We 
 	  recommend using the term ortholog group which is more commonly used in literature for 
@@ -88,7 +89,7 @@ def create_parser():
 	* "Domain mode" chops up CDS features in input GenBank files based on Pfam annotation,
 	  retaining domain and intra-domain regions that are of a certain length (60 aa) by 
 	  default. This mode is also not compatible with re-inflation.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--input', nargs='+', help='Either a directory or set of files with orthologous/homologous\nlocus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=True, default=[])
 	parser.add_argument('-o', '--output-dir', help='Parent output/workspace directory.', required=True)

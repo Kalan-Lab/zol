@@ -38,9 +38,8 @@
 import os
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 from zol import util
-from operator import itemgetter
-from collections import defaultdict
 import traceback
 import gravis as gv
 from colour import Color
@@ -85,7 +84,7 @@ def create_parser():
 	- zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters 
 	  https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3 by Salamzade et al. 2023
 
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--zol-results-dir', help='Path to zol results directory.', required=True)
 	parser.add_argument('-o', '--outdir', help='Output directory for cgc analysis.', required=True)

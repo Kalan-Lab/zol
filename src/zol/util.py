@@ -14,6 +14,7 @@ import gzip
 import copy
 import itertools
 import multiprocessing
+import tqdm
 import pickle
 import resource
 import pkg_resources  # part of setuptools
@@ -29,6 +30,30 @@ from scipy import stats
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
+
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+	"""
+	Function from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-terminal-with-block-characters
+    Call in a loop to create terminal progress bar
+	@params:
+        iteration   - Required  : current iteration (Int)
+		total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    
+	percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+	filledLength = int(length * iteration // total)
+	bar = fill * filledLength + '-' * (length - filledLength)
+	sys.stderr.write(f'\r{prefix} |{bar}| {percent}% {suffix}')
+    # Print New Line on Complete
+	if iteration == total:        
+		sys.stderr.write('\n')
 
 def memory_limit(mem):
 	"""
@@ -587,6 +612,7 @@ def parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=True, featur
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
+
 def getVersion():
 	"""
 	Description:
@@ -800,8 +826,13 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 									'-l', sample_locus_tag, '-og', sample_mp_gbk, '-op', sample_mp_faa]
 			miniprot_cmds.append(miniprot_index_cmd + [';'] + miniprot_run_cmd + [';'] + miniprot_process_cmd + [logObject])
 
+		msg = "Running miniprot for %d genomes" % len(miniprot_cmds) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(multiProcess, miniprot_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(multiProcess, miniprot_cmds), total=len(miniprot_cmds)):
+			pass
 		p.close()
 
 		for sample in sample_genomes:
@@ -856,8 +887,13 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 				prodigal_cmd += ['-m']
 			prodigal_cmds.append(prodigal_cmd + [logObject])
 
+		msg = "Running %s for %d genomes" % (gene_calling_method, len(prodigal_cmds)) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(multiProcess, prodigal_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(multiProcess, prodigal_cmds), total=len(prodigal_cmds)):
+			pass
 		p.close()
 
 		for sample in sample_genomes:
@@ -879,7 +915,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 		
 def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
 							 logObject, threads=1, locus_tag_length=3, avoid_locus_tags=set([]),
-							 rename_locus_tags=False):
+							 rename_locus_tags=False, rename_problem_gbks=False):
 	"""
 	Description:
 	This function oversees processing of input genomes as GenBanks with CDS features already available.
@@ -908,33 +944,50 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 		possible_locustags = sorted(list(
 			set([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]).difference(
 				avoid_locus_tags)))
-		lacking_cds_gbks = set([])
 
 		for i, sample in enumerate(sample_genomes):
 			sample_locus_tag = possible_locustags[i]
 			sample_genbank = sample_genomes[sample]
 			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample, 
-						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', gene_name_mapping_outdir]
-			if rename_locus_tags:
+						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', 
+						   gene_name_mapping_outdir]
+			if rename_problem_gbks:
+				process_cmd += ['-r', '-l', sample_locus_tag]
+			elif rename_locus_tags:
 				process_cmd += ['-l', sample_locus_tag]
 			process_cmds.append(process_cmd + [logObject])
+				
+		msg = "Attempting to process/re-format %d genomes provided as GenBank files" % len(process_cmds) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
 
 		p = multiprocessing.Pool(threads)
-		p.map(multiProcess, process_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(multiProcess, process_cmds), total=len(process_cmds)):
+			pass
 		p.close()
 
+		successfully_processed = 0
 		for sample in sample_genomes:
-			if sample in lacking_cds_gbks:
-				continue
+			faa_file = proteomes_directory + sample + '.faa'
+			gbk_file = genbanks_directory + sample + '.gbk'
+			map_file = gene_name_mapping_outdir + sample + '.txt'
 			try:
-				assert (os.path.isfile(proteomes_directory + sample + '.faa') and
-						os.path.isfile(genbanks_directory + sample + '.gbk') and
-						os.path.isfile(gene_name_mapping_outdir + sample + '.txt'))
+				assert (os.path.isfile(faa_file) and os.path.isfile(gbk_file) and os.path.isfile(map_file))
+				assert (os.path.getsize(faa_file) > 0 and os.path.getsize(gbk_file) > 0 and os.path.getsize(map_file) > 0)
 				sample_genomes_updated[sample] = genbanks_directory + sample + '.gbk'
-			except:
-				sys.stderr.write("Unable to validate successful genbank/predicted-proteome creation for sample %s" % sample)
-				sys.stderr.write(traceback.format_exc())
-				sys.exit(1)
+				successfully_processed += 1
+			except AssertionError:
+				if os.path.isfile(faa_file):
+					os.system('rm -f ' + faa_file)
+				if os.path.isfile(gbk_file):
+					os.system('rm -f ' + gbk_file)
+				if os.path.isfile(map_file):
+					os.system('rm -f ' + map_file)
+				sys.stderr.write("Unable to validate successful genbank reformatting/predicted-proteome creation for sample %s\n" % sample)
+				pass
+
+		sys.stdout.write('Successfully processed %s genomes!\n' % successfully_processed)
+	
 	except Exception as e:
 		logObject.error("Problem with processing existing Genbanks to (re)create genbanks/proteomes. Exiting now ...")
 		logObject.error(traceback.format_exc())
@@ -1012,8 +1065,13 @@ def parseSampleGenomes(genome_listing_file, format_assess_dir, format_prediction
 					continue
 				sample_genomes[sample] = genome_file
 
+		msg = "Attempting to determine format (FASTA or GenBank) for %d genomes" % len(assess_inputs) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(determineGenomeFormat, assess_inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(determineGenomeFormat, assess_inputs), total=len(assess_inputs)):
+			pass
 		p.close()
 
 		os.system('find %s -maxdepth 1 -type f | xargs cat >> %s' % (format_assess_dir, format_predictions_file))
@@ -1299,6 +1357,41 @@ def gatherValueFromDictForHomologGroup(hg, info_dict):
 	except:
 		return ("NA")
 
+def loadTableInPandaDataFrameFromString(input_string):
+	"""
+	Description:
+	This function processes a string and stores it as a pandas dataframe.
+	********************************************************************************************************************
+	Parameters:
+	- input_file: The input TSV file, with first row corresponding to the header.
+	- numeric_columns: Set of column names which should have numeric data.
+	********************************************************************************************************************
+	Returns:
+	- panda_df: A pandas DataFrame object reprsentation of the input TSV file.
+	********************************************************************************************************************
+	"""
+	import pandas as pd
+	panda_df = None
+	try:
+		data = []
+		for line in input_string.split('\n'):		
+			if line.strip() == '': continue	
+			line = line.strip('\n')
+			ls = line.split('\t')
+			data.append(ls)
+
+		panda_dict = {}
+		for ls in zip(*data):
+			key = ls[0]
+			cast_vals = ls[1:]
+			panda_dict[key] = cast_vals
+		panda_df = pd.DataFrame(panda_dict)
+
+	except Exception as e:
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+	return panda_df
+
 def loadTableInPandaDataFrame(input_file, numeric_columns):
 	"""
 	Description:
@@ -1494,9 +1587,15 @@ def createNJTree(additional_genbanks_directory, species_tree, workspace_dir, log
 		all_genomes_listing_handle.close()
 
 		# parallelize conversion
+		msg = "Converting genome GenBank to FASTA for %d genomes" % len(conversion_inputs) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(convertGenomeGenBankToFasta, conversion_inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(convertGenomeGenBankToFasta, conversion_inputs), total=len(conversion_inputs)):
+			pass
 		p.close()
+
 
 		# run skani triangle
 		skani_result_file = workspace_dir + 'Skani_Triangle_Edge_Output.txt'
@@ -1790,8 +1889,13 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 			og_prot_dmnd_db = hg_prot_dir + f
 			diamond_self_blasting_inputs.append([og_prot_file, og_prot_dmnd_db, og_blast_file, logObject])
 		
+		msg = "Running reflexive DIAMOND BLASTp for %d ortholog groups" % len(diamond_self_blasting_inputs) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(diamondBlast, diamond_self_blasting_inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(diamondBlast, diamond_self_blasting_inputs), total=len(diamond_self_blasting_inputs)):
+			pass
 		p.close()
 
 		og_min_eval_params = outdir + 'OG_Information.txt'

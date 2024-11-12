@@ -38,6 +38,7 @@
 import os
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter	
 import subprocess
 from time import sleep
 from zol import util
@@ -61,7 +62,7 @@ def create_parser():
 	abon wraps fai to assess the novelty of a sample's BGC-ome relative to a set of target genomes.
 	Alternatively, it can run a simple DIAMOND BLASTp analysis to just assess the presence of BGC genes
 	individually - without the requirement they are co-located like in the focal sample's BGCs.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-a', '--antismash-results', help='Path to antiSMASH BGC prediction results directory for a single sample/genome.', required=False, default=None)
 	parser.add_argument('-g', '--gecco-results', help='Path to GECCO BGC prediction results directory for a single sample/genome.', required=False, default=None)

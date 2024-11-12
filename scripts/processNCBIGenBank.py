@@ -66,6 +66,7 @@ def create_parser():
 						required=True)
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default=None, required=False)
+	parser.add_argument('-r', '--rename-if-issue', action='store_true', help='Rename locus tags if an issue.', default=False, required=False)
 
 	args = parser.parse_args()
 	return args
@@ -102,6 +103,7 @@ def processAndReformatNCBIGenbanks():
 
 	sample_name = myargs.sample_name
 	locus_tag = myargs.locus_tag
+	rename_if_issue = myargs.rename_if_issue
 
 	"""
 	START WORKFLOW
@@ -117,12 +119,30 @@ def processAndReformatNCBIGenbanks():
 		pro_outfile_handle = open(pro_outfile, 'w')
 		map_outfile_handle = open(map_outfile, 'w')
 
-		locus_tag_iterator = 1
+		cds_without_lt = False
+		if rename_if_issue:
+			oigf = None
+			if input_genbank_file.endswith('.gz'):
+				oigf = gzip.open(input_genbank_file, 'rt')
+			else:
+				oigf = open(input_genbank_file)
+
+			for rec in SeqIO.parse(oigf, 'genbank'):
+				for feature in rec.features:
+					if feature.type == "CDS":
+						try:
+							old_locus_tag = feature.qualifiers.get('locus_tag')[0]
+						except:
+							cds_without_lt = True					
+			oigf.close()
+
+		locus_tag_iterator = 1		
 		oigf = None
 		if input_genbank_file.endswith('.gz'):
 			oigf = gzip.open(input_genbank_file, 'rt')
 		else:
 			oigf = open(input_genbank_file)
+
 		for rec in SeqIO.parse(oigf, 'genbank'):
 			for feature in rec.features:
 				if feature.type == "CDS":
@@ -131,8 +151,7 @@ def processAndReformatNCBIGenbanks():
 					all_directions = []
 					all_coords = []
 					if 'order' in str(feature.location):
-						raise RuntimeError(
-							'Currently order is not allowed for CDS features in Genbanks. Please consider removing sample %s from analysis and trying again.' % sample_name)
+						raise RuntimeError('Currently order is not allowed for CDS features in Genbanks. Please consider removing sample %s from analysis and trying again.' % sample_name)
 					if not 'join' in str(feature.location):
 						start = min([int(x.strip('>').strip('<')) for x in
 									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
@@ -148,8 +167,7 @@ def processAndReformatNCBIGenbanks():
 						all_ends = []
 						all_directions = []
 						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+							start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
 							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
 							direction = exon_coord.split('(')[1].split(')')[0]
 							all_starts.append(start);
@@ -160,8 +178,8 @@ def processAndReformatNCBIGenbanks():
 					start = min(all_starts)
 					end = max(all_ends)
 					direction = all_directions[0]
-					old_locus_tag = 'NA'
-					prot_seq = ''
+					old_locus_tag = None
+					prot_seq = None
 					try:
 						old_locus_tag = feature.qualifiers.get('locus_tag')[0]
 					except:
@@ -169,21 +187,11 @@ def processAndReformatNCBIGenbanks():
 					try:
 						prot_seq = str(feature.qualifiers.get('translation')[0]).replace('*', '')
 					except:
-						raise RuntimeError(
-							"Currently only full Genbanks with translations available for each CDS is accepted.")
-						nucl_seq = str(rec.seq)[start - 1:end]
-						if direction == '-':
-							nucl_seq = str(Seq(nucl_seq).reverse_complement())
-						prot_seq = Seq(nucl_seq).translate()
-						feature.qualifiers['translation'] = prot_seq
-					# sys.stderr.write('CDS with locus tag %s does not have translation available, generating translation.\n' % old_locus_tag)
+						msg = "Currently only full Genbanks with translations available for each CDS is accepted."
+						sys.stderr.write(msg + '\n')
 
-					new_locus_tag = None
-					try:
-						new_locus_tag = feature.qualifiers.get('locus_tags')[0]
-					except:
-						pass
-					if locus_tag != None or new_locus_tag == None:
+					
+					if (locus_tag != None and not rename_if_issue) or (rename_if_issue and cds_without_lt):
 						if locus_tag == None:
 							sys.stderr.write('Using AAAA as locus tag because non-provided by user or GenBank for CDS.\n')
 							locus_tag = 'AAAA'
@@ -202,7 +210,13 @@ def processAndReformatNCBIGenbanks():
 							new_locus_tag += str(locus_tag_iterator)
 						locus_tag_iterator += 1
 						feature.qualifiers['locus_tag'] = new_locus_tag
+					else:
+						new_locus_tag = old_locus_tag
+						assert(new_locus_tag != None)
+
 					pro_outfile_handle.write('>' + str(new_locus_tag) + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
+					if old_locus_tag == None:
+						old_locus_tag = 'NA'
 					map_outfile_handle.write(str(old_locus_tag) + '\t' + str(new_locus_tag) + '\n')
 			SeqIO.write(rec, gbk_outfile_handle, 'genbank')
 		oigf.close()
@@ -210,7 +224,9 @@ def processAndReformatNCBIGenbanks():
 		pro_outfile_handle.close()
 		map_outfile_handle.close()
 	except:
-		raise RuntimeError("Issue processing NCBI Genbank file.")
+		msg = "Issue processing NCBI Genbank file."
+		sys.stderr.write(msg + '\n')
+		sys.exit(1)
 
 if __name__ == '__main__':
 	processAndReformatNCBIGenbanks()

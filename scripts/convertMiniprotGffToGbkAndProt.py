@@ -287,8 +287,11 @@ def convertMiniProtGFFtoGenbank():
 			for cds_part in ranges(sorted(cds_positions)):
 				cds_locs.append(FeatureLocation(cds_part[0], cds_part[1]+1, strand=mrna_info[3]))
 				#all_coords.append([cds_part[0]+1, cds_part[1]+1])
-
+			
 			feature_loc = sum(cds_locs)
+			if mrna_info[3] == -1:
+				feature_loc = sum(cds_locs[::-1])
+
 			feature = SeqFeature(feature_loc, type='CDS')
 			
 			paf_prot_seq = None
@@ -302,6 +305,8 @@ def convertMiniProtGFFtoGenbank():
 				paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
 
 			"""
+			# legacy code for validation
+			
 			cds_nucl_seq = ''
 			cds_prot_seq = None
 			for sc, ec in sorted(all_coords, key=itemgetter(0)):
@@ -316,7 +321,7 @@ def convertMiniProtGFFtoGenbank():
 
 			assert(paf_prot_seq == cds_prot_seq)
 			"""
-			
+
 			faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
 			feature.qualifiers['prot_from_ref'] = qid
 			feature.qualifiers['locus_tag'] = locus_tag + '_' + lt

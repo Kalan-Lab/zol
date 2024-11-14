@@ -174,7 +174,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 		pruned_coords = set(range(start_coord, end_coord + 1))
 		full_genbank_index = SeqIO.index(full_genbank_file, 'genbank')
 		rec = full_genbank_index[scaffold]
-		original_seq = str(rec.seq)
+		original_seq = str(rec.seq).replace(' ', '')
 		filtered_seq = ""
 		start_coord = max(start_coord, 1)
 		if end_coord >= len(original_seq):
@@ -197,16 +197,18 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 			all_coords = []
 			#print(str(feature.location))
 
-			if not 'join' in str(feature.location) and not 'order' in str(feature.location):
-				start = min([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
-				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-				direction = str(feature.location).split('(')[1].split(')')[0]
+			feat_loc = str(feature.location).replace(' ', '')
+
+			if not 'join' in feat_loc and not 'order' in feat_loc:
+				start = min([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')])
+				direction = feat_loc.split('(')[1].split(')')[0]
 				all_coords.append([start, end, direction])
-			elif 'order' in str(feature.location):
+			elif 'order' in feat_loc:
 				all_starts = []
 				all_ends = []
 				all_directions = []
-				for exon_coord in str(feature.location)[6:-1].split(', '):
+				for exon_coord in feat_loc.split(', '):
 					start = min(
 						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
 					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
@@ -221,7 +223,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				all_starts = []
 				all_ends = []
 				all_directions = []
-				for exon_coord in str(feature.location)[5:-1].split(', '):
+				for exon_coord in feat_loc[5:-1].split(', '):
 					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
 					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
 					direction = exon_coord.split('(')[1].split(')')[0]
@@ -2065,6 +2067,7 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 
 def parseFeatureCoord(str_gbk_loc):
 	try:
+		str_gbk_loc = str_gbk_loc.replace(' ', '')
 		start = None
 		end = None
 		direction = None

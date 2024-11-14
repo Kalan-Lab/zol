@@ -219,10 +219,17 @@ def faiMain():
 		util.setupReadyDirectory([check_dir])
 
 	try:
+		assert(os.path.isdir(target_genomes) and os.path.isfile(target_genomes + '/Target_Genomes_DB.faa') and os.path.getsize(target_genomes + '/Target_Genomes_DB.faa') > 0)
+	except:
+		sys.stderr.write('Something is wrong with the target genomes database (result directory from prepTG). Please check path provided.\n')
+		sys.exit(1)
+
+	try:
 		assert(diamond_sensitivity in set(['fast', 'very-sensitive', 'ultra-sensitive', 'mid-sensitive', 'more-sensitive']))
 	except:
 		sys.stderr.write('Invalid value provided for --diamond_sensitivity option.\n')
-
+		sys.exit(1)
+		
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)

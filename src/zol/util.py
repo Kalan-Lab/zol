@@ -583,12 +583,12 @@ def parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=True, featur
 					edgy_cds = False
 
 					try:
-						final_upstream_region = feature.qualifiers.get('orf_upstream')[0]
+						final_upstream_region = feature.qualifiers.get('orf_upstream')[0].replace(' ', '')
 					except:
 						final_upstream_region = upstream_region
 
 					try:
-						final_nucl_seq = feature.qualifiers.get('open_reading_frame')[0]
+						final_nucl_seq = feature.qualifiers.get('paf_nucl_seq')[0].replace(' ', '')
 					except:
 						final_nucl_seq = nucl_seq
 					try:
@@ -821,7 +821,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 			sample_mp_faa = additional_proteomes_directory + sample + '.faa'
 
 			miniprot_index_cmd = ['miniprot', '-t1', '-d', sample_mp_db, sample_assembly]
-			miniprot_run_cmd = ['miniprot', '--gff', '-t1', sample_mp_db, reference_proteome, '>', sample_mp_gff]
+			miniprot_run_cmd = ['miniprot', '--trans', '--gff', '-I', '-t1', sample_mp_db, reference_proteome, '>', sample_mp_gff]
 			miniprot_process_cmd = ['convertMiniprotGffToGbkAndProt.py', '-g', sample_mp_gff, '-f', sample_assembly,
 									'-l', sample_locus_tag, '-og', sample_mp_gbk, '-op', sample_mp_faa]
 			miniprot_cmds.append(miniprot_index_cmd + [';'] + miniprot_run_cmd + [';'] + miniprot_process_cmd + [logObject])

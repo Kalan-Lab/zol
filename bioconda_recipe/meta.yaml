@@ -52,7 +52,7 @@ requirements:
     - slclust
     - trimal
     - gzip
-    - miniprot =0.7
+    - miniprot >=0.13
     - bioconductor-ggtree
     - ete3
     - codoff

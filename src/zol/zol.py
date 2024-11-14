@@ -182,6 +182,10 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 			logObject.warning(msg)
 			sys.stderr.write(msg + '\n')
 
+		#print(name)
+		#print(direction)
+		#print(translated_prot_seq)
+		#print(tg_seq_chunk)
 		assert(translated_prot_seq == tg_seq_chunk)
 
 		fstrand = 1
@@ -198,7 +202,7 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 		feature = SeqFeature(summed_coord_feat_locs, type='cCDS')
 
 		feature.qualifiers['translation'] = Seq(tg_seq_chunk)
-		feature.qualifiers['open_reading_frame'] = chunk_nucl_seq
+		feature.qualifiers['paf_nucl_seq'] = chunk_nucl_seq
 		feature.qualifiers['locus_tag'] = name
 		feature.qualifiers['ccds_pyhmmer_evalue'] = evalue
 		return(feature)
@@ -238,16 +242,19 @@ def createChoppedGenbank(inputs):
 					if feature.type == 'CDS':
 						lt = feature.qualifiers.get('locus_tag')[0]
 						seq = feature.qualifiers.get('translation')[0]
+						nucl_seq = None
 						all_coords, start, end, direction, is_multi_part = util.parseFeatureCoord(str(feature.location))
-
-						nucl_seq = ''
-						for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
-							if ec >= len(full_sequence):
-								nucl_seq += full_sequence[sc - 1:]
-							else:
-								nucl_seq += full_sequence[sc - 1:ec]					
-						if direction == '-':
-							nucl_seq = str(Seq(nucl_seq).reverse_complement())
+						try:
+							nucl_seq = feature.qualifiers.get('paf_nucl_seq')[0].replace(' ', '')
+						except:
+							nucl_seq = ''
+							for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
+								if ec >= len(full_sequence):
+									nucl_seq += full_sequence[sc - 1:]
+								else:
+									nucl_seq += full_sequence[sc - 1:ec]					
+							if direction == '-':
+								nucl_seq = str(Seq(nucl_seq).reverse_complement())
 						feat_record[lt] = rec.id
 						lt_coord_info[lt] = [nucl_seq, all_coords, start, end, direction, is_multi_part]
 						pf_handle.write('>' + lt + '\n' + str(seq) + '\n')

@@ -151,6 +151,9 @@ def convertMiniProtGFFtoGenbank():
 				else:
 					redundant.add(mrna1[0])
 
+	"""
+	# legacy for previous handling in versions 1.5.2 and prior.
+
 	# Step 3: Parse GFF3 for CDS coordinates
 	query_cds_coords = defaultdict(list)
 	query_cds_coords_accounted = defaultdict(set)
@@ -190,7 +193,8 @@ def convertMiniProtGFFtoGenbank():
 						cds_redundant[query].add(tuple(cdsc2))
 					else:
 						cds_redundant[query].add(tuple(cdsc1))
-
+	"""
+	
 	# Step 4: Go through FASTA scaffold/contig by scaffold/contig and create output GenBank
 	gbk_handle = open(output_genbank, 'w')
 	faa_handle = open(output_proteome, 'w')
@@ -217,18 +221,7 @@ def convertMiniProtGFFtoGenbank():
 			mrna_start = mrna_info[1]
 			mrna_end = mrna_info[2]
 			mrna_coords = set(range(mrna_start, mrna_end))
-
-			mrna_exon_locs = []
-			all_coords = []
-			for cds_info in query_cds_coords[qid]:
-				if tuple(cds_info) in cds_redundant[qid]: continue
-				cds_coords = set(range(cds_info[1], cds_info[2]))
-				if len(mrna_coords.intersection(cds_coords)) > 0 and cds_info[0] == mrna_info[0]:
-					all_coords.append([cds_info[1], cds_info[2]])
-					assert(mrna_info[3] == cds_info[3])
-					mrna_exon_locs.append(FeatureLocation(cds_info[1]-1, cds_info[2], strand=cds_info[3]))
-			feature_loc = sum(mrna_exon_locs)
-			feature = SeqFeature(feature_loc, type='CDS')
+			
 			lt = None
 			if (lt_iter + 1) < 10:
 				lt = '00000' + str(lt_iter + 1)
@@ -243,8 +236,71 @@ def convertMiniProtGFFtoGenbank():
 			else:
 				lt = str(lt_iter + 1)
 			lt_iter += 1
+
+			scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key_for_paf]
 			
-			"""
+			paf_nucl_seq = ''
+			paf_coord = paf_start_coord
+			cds_positions = []
+			if mrna_info[3] == -1:
+				paf_cigar_parsed.reverse()
+			for op in paf_cigar_parsed:
+				length = op['length']
+				if op['type'] in set(['M', 'D']):
+					paf_nucl_seq += seq[paf_coord:(paf_coord+(length*3))]
+					for pos in range(paf_coord, (paf_coord+(length*3))):
+						cds_positions.append(pos)
+					paf_coord += length*3
+				elif op['type'] in set(['F', 'N']):
+					paf_coord += length
+				elif op['type'] == 'U':
+					tmp = seq[paf_coord:(paf_coord+length)]
+					if mrna_info[3] == -1:
+						paf_nucl_seq += tmp[:2] + tmp[-1]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+1)
+						cds_positions.append(paf_coord+length-1)
+					else:
+						paf_nucl_seq += tmp[0] + tmp[-2:]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+length-1)
+						cds_positions.append(paf_coord+length-2)
+					paf_coord += length
+				elif op['type'] == 'V':
+					tmp = seq[paf_coord:(paf_coord+length)]
+					if mrna_info[3] == -1:
+						paf_nucl_seq += tmp[0] + tmp[-2:]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+length-1)
+						cds_positions.append(paf_coord+length-2)
+					else:
+						paf_nucl_seq += tmp[:2] + tmp[-1]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+1)
+						cds_positions.append(paf_coord+length-1)
+					paf_coord += length
+				elif op['type'] == 'G':
+					paf_coord += length
+
+			cds_locs = []
+			all_coords = []
+			for cds_part in ranges(sorted(cds_positions)):
+				cds_locs.append(FeatureLocation(cds_part[0], cds_part[1]+1, strand=mrna_info[3]))
+				all_coords.append([cds_part[0]+1, cds_part[1]+1])
+
+			feature_loc = sum(cds_locs)
+			feature = SeqFeature(feature_loc, type='CDS')
+			
+			paf_prot_seq = None
+			paf_upstream_nucl_seq = None
+			if mrna_info[3] == -1:
+				paf_nucl_seq = str(Seq(paf_nucl_seq).reverse_complement())
+				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+				paf_upstream_nucl_seq = str(Seq(seq[paf_end_coord:paf_end_coord+100]).reverse_complement())
+			else:
+				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+				paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
+
 			cds_nucl_seq = ''
 			cds_prot_seq = None
 			for sc, ec in sorted(all_coords, key=itemgetter(0)):
@@ -256,48 +312,8 @@ def convertMiniProtGFFtoGenbank():
 				cds_prot_seq = str(Seq(cds_nucl_seq).reverse_complement().translate())
 			else:
 				cds_prot_seq = str(Seq(cds_nucl_seq).translate())
-			"""
 
-			scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key_for_paf]
-			
-			paf_nucl_seq = ''
-			paf_coord = paf_start_coord
-			if mrna_info[3] == -1:
-				paf_cigar_parsed.reverse()
-			for op in paf_cigar_parsed:
-				length = op['length']
-				if op['type'] in set(['M', 'D']):
-					paf_nucl_seq += seq[paf_coord:(paf_coord+(length*3))]
-					paf_coord += length*3
-				elif op['type'] in set(['F', 'N']):
-					paf_coord += length
-				elif op['type'] == 'U':
-					tmp = seq[paf_coord:(paf_coord+length)]
-					paf_coord += length
-					if mrna_info[3] == -1:
-						paf_nucl_seq += tmp[:2] + tmp[-1]
-					else:
-						paf_nucl_seq += tmp[0] + tmp[-2:]
-				elif op['type'] == 'V':
-					tmp = seq[paf_coord:(paf_coord+length)]
-					paf_coord += length
-					if mrna_info[3] == -1:
-						paf_nucl_seq += tmp[0] + tmp[-2:]  
-					else:
-						paf_nucl_seq += tmp[:2] + tmp[-1]
-				elif op['type'] == 'G':
-					paf_coord += length
-
-			paf_prot_seq = None
-			paf_upstream_nucl_seq = None
-			#paf_upstream_check = None
-			if mrna_info[3] == -1:
-				paf_nucl_seq = str(Seq(paf_nucl_seq).reverse_complement())
-				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
-				paf_upstream_nucl_seq = str(Seq(seq[mrna_end:mrna_end+100]).reverse_complement())
-			else:
-				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
-				paf_upstream_nucl_seq = seq[mrna_start-100:mrna_start]
+			assert(paf_prot_seq == cds_prot_seq)
 
 			faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
 			feature.qualifiers['prot_from_ref'] = qid
@@ -307,7 +323,7 @@ def convertMiniProtGFFtoGenbank():
 			#feature.qualifiers['cds_prot_seq'] = cds_prot_seq
 			feature.qualifiers['cigar_string'] = paf_string
 			#feature.qualifiers['full_orf'] = seq[paf_start_coord:paf_end_coord]
-			feature.qualifiers['orf_upstream'] = paf_upstream_nucl_seq
+			feature.qualifiers['paf_upstream'] = paf_upstream_nucl_seq
 			feature_list.append(feature)
 		gbk_rec.features = feature_list
 		SeqIO.write(gbk_rec, gbk_handle, 'genbank')
@@ -315,6 +331,22 @@ def convertMiniProtGFFtoGenbank():
 	ogf.close()
 	gbk_handle.close()
 	faa_handle.close()
+
+def ranges(seq):
+	"""
+	Solution by Gareth Latty on StackOverflow:
+	https://stackoverflow.com/questions/10420464/group-list-of-ints-by-continuous-sequence
+	"""
+	start, end = seq[0], seq[0]
+	count = start
+	for item in seq:
+		if not count == item:
+			yield start, end
+			start, end = item, item
+			count = item
+		end = item
+		count += 1
+	yield start, end
 
 if __name__ == '__main__':
 	convertMiniProtGFFtoGenbank()

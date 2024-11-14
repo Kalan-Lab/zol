@@ -244,17 +244,16 @@ def createChoppedGenbank(inputs):
 						seq = feature.qualifiers.get('translation')[0]
 						nucl_seq = None
 						all_coords, start, end, direction, is_multi_part = util.parseFeatureCoord(str(feature.location))
-						try:
-							nucl_seq = feature.qualifiers.get('paf_nucl_seq')[0].replace(' ', '')
-						except:
-							nucl_seq = ''
-							for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
-								if ec >= len(full_sequence):
-									nucl_seq += full_sequence[sc - 1:]
-								else:
-									nucl_seq += full_sequence[sc - 1:ec]					
-							if direction == '-':
-								nucl_seq = str(Seq(nucl_seq).reverse_complement())
+
+						nucl_seq = ''
+						for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
+							if ec >= len(full_sequence):
+								nucl_seq += full_sequence[sc - 1:]
+							else:
+								nucl_seq += full_sequence[sc - 1:ec]					
+						if direction == '-':
+							nucl_seq = str(Seq(nucl_seq).reverse_complement())
+							
 						feat_record[lt] = rec.id
 						lt_coord_info[lt] = [nucl_seq, all_coords, start, end, direction, is_multi_part]
 						pf_handle.write('>' + lt + '\n' + str(seq) + '\n')

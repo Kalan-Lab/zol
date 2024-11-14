@@ -583,7 +583,7 @@ def parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=True, featur
 					edgy_cds = False
 
 					try:
-						final_upstream_region = feature.qualifiers.get('orf_upstream')[0].replace(' ', '')
+						final_upstream_region = feature.qualifiers.get('paf_upstream')[0].replace(' ', '')
 					except:
 						final_upstream_region = upstream_region
 

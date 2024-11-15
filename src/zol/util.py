@@ -2067,7 +2067,7 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 
 def parseFeatureCoord(str_gbk_loc):
 	try:
-		str_gbk_loc = str_gbk_loc.replace(' ', '')
+		str_gbk_loc = str_gbk_loc#.replace(' ', '')
 		start = None
 		end = None
 		direction = None

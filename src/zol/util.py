@@ -197,8 +197,8 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 			all_coords = []
 			#print(str(feature.location))
 
-			feat_loc = str(feature.location).replace(' ', '')
-
+			feat_loc = str(feature.location)
+			
 			if not 'join' in feat_loc and not 'order' in feat_loc:
 				start = min([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')]) + 1
 				end = max([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')])

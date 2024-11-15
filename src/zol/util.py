@@ -238,12 +238,6 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				edgy_feat = 'True'
 			part_of_cds_hanging = False
 			if len(feature_coords.intersection(pruned_coords)) > 0:
-				if feature.type == 'CDS':
-					print(feature.qualifiers.get('locus_tag')[0])
-					print(str(feature.location))
-					print(all_coords)
-					print(start_coord)
-					print(end_coord)
 				fls = []
 				for sc, ec, dc in all_coords:
 					exon_coord = set(range(sc, ec+1))
@@ -270,8 +264,6 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 					if dc == '-':
 						strand = -1
 					fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
-				print(fls)
-				print(part_of_cds_hanging)
 				if len(fls) > 0 and not part_of_cds_hanging:
 					updated_location = fls[0]
 					if len(fls) > 1:

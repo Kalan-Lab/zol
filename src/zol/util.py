@@ -174,7 +174,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 		pruned_coords = set(range(start_coord, end_coord + 1))
 		full_genbank_index = SeqIO.index(full_genbank_file, 'genbank')
 		rec = full_genbank_index[scaffold]
-		original_seq = str(rec.seq).replace(' ', '')
+		original_seq = str(rec.seq)
 		filtered_seq = ""
 		start_coord = max(start_coord, 1)
 		if end_coord >= len(original_seq):
@@ -197,18 +197,16 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 			all_coords = []
 			#print(str(feature.location))
 
-			feat_loc = str(feature.location)
-			
-			if not 'join' in feat_loc and not 'order' in feat_loc:
-				start = min([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')]) + 1
-				end = max([int(x.strip('>').strip('<')) for x in feat_loc[1:].split(']')[0].split(':')])
-				direction = feat_loc.split('(')[1].split(')')[0]
+			if not 'join' in str(feature.location) and not 'order' in str(feature.location):
+				start = min([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
+				direction = str(feature.location).split('(')[1].split(')')[0]
 				all_coords.append([start, end, direction])
-			elif 'order' in feat_loc:
+			elif 'order' in str(feature.location):
 				all_starts = []
 				all_ends = []
 				all_directions = []
-				for exon_coord in feat_loc.split(', '):
+				for exon_coord in str(feature.location)[6:-1].split(', '):
 					start = min(
 						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
 					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
@@ -223,7 +221,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				all_starts = []
 				all_ends = []
 				all_directions = []
-				for exon_coord in feat_loc[5:-1].split(', '):
+				for exon_coord in str(feature.location)[5:-1].split(', '):
 					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
 					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
 					direction = exon_coord.split('(')[1].split(')')[0]
@@ -240,10 +238,18 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 				edgy_feat = 'True'
 			part_of_cds_hanging = False
 			if len(feature_coords.intersection(pruned_coords)) > 0:
+				if feature.type == 'CDS':
+					print(feature.qualifiers.get('locus_tag')[0])
+					print(str(feature.location))
+					print(all_coords)
+					print(start_coord)
+					print(end_coord)
 				fls = []
 				for sc, ec, dc in all_coords:
 					exon_coord = set(range(sc, ec+1))
-					if len(exon_coord.intersection(pruned_coords)) == 0: continue
+					if len(exon_coord.intersection(pruned_coords)) == 0: 
+						part_of_cds_hanging = True	
+						continue
 					updated_start = sc - start_coord + 1
 					updated_end = ec - start_coord + 1
 					if ec > end_coord:
@@ -264,6 +270,8 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 					if dc == '-':
 						strand = -1
 					fls.append(FeatureLocation(updated_start - 1, updated_end, strand=strand))
+				print(fls)
+				print(part_of_cds_hanging)
 				if len(fls) > 0 and not part_of_cds_hanging:
 					updated_location = fls[0]
 					if len(fls) > 1:
@@ -277,6 +285,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 	except Exception as e:
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
+
 
 def multiProcess(input):
 	"""

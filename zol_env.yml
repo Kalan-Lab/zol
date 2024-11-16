@@ -8,12 +8,12 @@ dependencies:
   - pip
   - biopython
   - conda-forge::cxx-compiler
-  - bioconda::muscle>=5.0
+  - "bioconda::muscle=5.1"
   - bioconda::mcl
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
   - "fasttree>=2.0.0"
-  - bioconda::diamond=2.0.15
+  - "bioconda::diamond=2.0.15"
   - prodigal
   - prodigal-gv
   - pyrodigal

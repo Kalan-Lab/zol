@@ -814,7 +814,7 @@ def processGenomesUsingMiniprot(reference_proteome, sample_genomes, additional_m
 		possible_locustags = sorted(list([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]))
 
 		miniprot_cmds = []
-		for i, sample in enumerate(sample_genomes):
+		for i, sample in enumerate(sorted(sample_genomes)):
 			sample_assembly = sample_genomes[sample]
 			sample_locus_tag = ''.join(list(possible_locustags[i]))
 
@@ -880,7 +880,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 				avoid_locus_tags)))
 
 		prodigal_cmds = []
-		for i, sample in enumerate(sample_genomes):
+		for i, sample in enumerate(sorted(sample_genomes)):
 			sample_assembly = sample_genomes[sample]
 			sample_locus_tag = ''.join(list(possible_locustags[i]))
 
@@ -948,7 +948,7 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 			set([''.join(list(x)) for x in list(itertools.product(alphabet, repeat=locus_tag_length))]).difference(
 				avoid_locus_tags)))
 
-		for i, sample in enumerate(sample_genomes):
+		for i, sample in enumerate(sorted(sample_genomes)):
 			sample_locus_tag = possible_locustags[i]
 			sample_genbank = sample_genomes[sample]
 			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample, 

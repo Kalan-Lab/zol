@@ -1684,6 +1684,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, co
 
 		consensus_handle = open(consensus_path_file, 'w')		
 		curr_og = 'start'
+		visited_ogs = set([])
 		while curr_og != 'end':
 			next_og = ""
 			max_score = 0 
@@ -1692,6 +1693,9 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, co
 					max_score = hg_following_score[curr_og][follow_og]
 					next_og = follow_og
 			consensus_handle.write(curr_og + '\t' + next_og + '\n')
+			if next_og in visited_ogs:
+				break
+			visited_ogs.add(curr_og)
 			curr_og = next_og
 		consensus_handle.close()
 

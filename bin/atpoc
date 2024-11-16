@@ -36,6 +36,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import argparse
 from time import sleep

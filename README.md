@@ -18,13 +18,13 @@ After finding homologous instances of a gene cluster - using fai or other softwa
 <img src="https://github.com/user-attachments/assets/b0ec16bf-f302-4018-a7eb-91ff8a8b7817" width="600">
 </p>
 
-> [!CAUTION]
-> Please avoid using versions 1.5.1 to 1.5.3 in which zol has the possibility to get stuck in a while loop and write a large file. This issue is resolved in v1.5.4. 
-
 ### Citation:
 > [zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3). *bioRxiv 2023.* Rauf Salamzade, Patricia Q Tran, Cody Martin, Abigail L Manson, Michael S Gilmore, Ashlee M Earl, Karthik Anantharaman, Lindsay R Kalan
 
 *In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.*
+
+> [!CAUTION]
+> Please avoid using versions 1.5.1 to 1.5.3 in which zol has the possibility to get stuck in a while loop and write a large file. This issue is resolved in v1.5.4. 
 
 ## Main Contents:
 

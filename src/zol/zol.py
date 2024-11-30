@@ -7,7 +7,8 @@ from Bio.SeqFeature import SeqFeature, FeatureLocation
 import subprocess
 from collections import defaultdict
 import multiprocessing
-from zol import util
+import tqdm
+from zol import util, data_dictionary
 import itertools
 import math
 from operator import itemgetter
@@ -181,6 +182,10 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 			logObject.warning(msg)
 			sys.stderr.write(msg + '\n')
 
+		#print(name)
+		#print(direction)
+		#print(translated_prot_seq)
+		#print(tg_seq_chunk)
 		assert(translated_prot_seq == tg_seq_chunk)
 
 		fstrand = 1
@@ -197,7 +202,7 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 		feature = SeqFeature(summed_coord_feat_locs, type='cCDS')
 
 		feature.qualifiers['translation'] = Seq(tg_seq_chunk)
-		feature.qualifiers['open_reading_frame'] = chunk_nucl_seq
+		feature.qualifiers['paf_nucl_seq'] = chunk_nucl_seq
 		feature.qualifiers['locus_tag'] = name
 		feature.qualifiers['ccds_pyhmmer_evalue'] = evalue
 		return(feature)
@@ -237,6 +242,7 @@ def createChoppedGenbank(inputs):
 					if feature.type == 'CDS':
 						lt = feature.qualifiers.get('locus_tag')[0]
 						seq = feature.qualifiers.get('translation')[0]
+						nucl_seq = None
 						all_coords, start, end, direction, is_multi_part = util.parseFeatureCoord(str(feature.location))
 
 						nucl_seq = ''
@@ -247,6 +253,7 @@ def createChoppedGenbank(inputs):
 								nucl_seq += full_sequence[sc - 1:ec]					
 						if direction == '-':
 							nucl_seq = str(Seq(nucl_seq).reverse_complement())
+							
 						feat_record[lt] = rec.id
 						lt_coord_info[lt] = [nucl_seq, all_coords, start, end, direction, is_multi_part]
 						pf_handle.write('>' + lt + '\n' + str(seq) + '\n')
@@ -262,7 +269,7 @@ def createChoppedGenbank(inputs):
 		with pyhmmer.plan7.HMMFile(pfam_db_file) as hmm_file:
 			for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs="trusted", Z=int(pfam_z), cpus=1):
 				for hit in hits:
-					for domain in hit.domains:
+					for domain in hit.domains.included:
 						target_dom_hits[hit.name.decode()].append([hits.query_name.decode(), domain.alignment.target_from, domain.alignment.target_to, domain.score, domain.i_evalue])
 
 		# chop up FASTA based on mostly non-overlapping domains, 10% leaway is given
@@ -396,8 +403,13 @@ def batchCreateChoppedGenbanks(genbanks, minimal_length, dm_scratch_dir, modifie
 			mapping_file = mapping_dir + '.'.join(gbk.split('/')[-1].split('.')[:-1]) + '.txt'
 			gbk_mod_inputs.append([gbk, prot_file, mapping_file, ccds_gbk_file, pfam_db_file, pfam_z, minimal_length, logObject])
 
+		msg = "Creating domain-chopped up version of GenBank files for %d gene clusters" % len(gbk_mod_inputs) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(createChoppedGenbank, gbk_mod_inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(createChoppedGenbank, gbk_mod_inputs), total=len(gbk_mod_inputs)):
+			pass
 		p.close()
 
 		ccc_handle = open(dom_to_cds_relations_file, 'w')
@@ -920,9 +932,16 @@ def createCodonAlignments(prot_algn_dir, nucl_dir, codo_algn_dir, logObject, thr
 			nucl_file = nucl_dir + prefix + '.fna'
 			codo_algn_file = codo_algn_dir + prefix + '.msa.fna'
 			pal2nal_cmds.append(['pal2nal.pl', prot_algn_file, nucl_file, '-output', 'fasta', '>', codo_algn_file, logObject])
+		
+		msg = "Running PAL2NAL to generate codon alignments for %d ortholog groups" % len(pal2nal_cmds) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(util.multiProcess, pal2nal_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, pal2nal_cmds), total=len(pal2nal_cmds)):
+			pass
 		p.close()
+
 	except Exception as e:
 		sys.stderr.write('Issues with creating codon alignments.\n')
 		logObject.error('Issues with creating codon alignments.')
@@ -954,9 +973,16 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 			codo_algn_trim_file = codo_algn_trim_dir + prefix + '.msa.fna'
 			trim_cmds.append(['trimal', '-in', prot_algn_file, '-out', prot_algn_trim_file, '-keepseqs', '-gt', '0.9', logObject])
 			trim_cmds.append(['trimal', '-in', codo_algn_file, '-out', codo_algn_trim_file, '-keepseqs', '-gt', '0.9', logObject])
+
+		msg = "Running trimal to generate trimmed protein and codon alignments for %d ortholog groups" % (len(trim_cmds)/2) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(util.multiProcess, trim_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, trim_cmds), total=len(trim_cmds)):
+			pass
 		p.close()
+
 	except Exception as e:
 		sys.stderr.write('Issues with trimming protein/codon alignments.\n')
 		logObject.error('Issues with trimming protein/codon alignments.')
@@ -984,9 +1010,16 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
 			codo_algn_trim_file = codo_algn_trim_dir + catf
 			tree_file = tree_dir + prefix + '.tre'
 			fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
+
+		msg = "Running FastTree 2 to generate gene trees (based on trimmed codon alignments) for %d ortholog groups" % len(fasttree_cmds) 
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(util.multiProcess, fasttree_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, fasttree_cmds), total=len(fasttree_cmds)):
+			pass
 		p.close()
+
 	except Exception as e:
 		sys.stderr.write('Issues with creating gene-trees.\n')
 		logObject.error('Issues with creating gene-trees.')
@@ -1018,13 +1051,24 @@ def createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObje
 			hmmbuild_cmds.append(['hmmbuild', '--amino', '--cpu', '2', '-n', prefix, prot_hmm_file, prot_algn_file, logObject])
 			hmmemit_cmds.append(['hmmemit', '-c', '-o', prot_cons_file, prot_hmm_file, logObject])
 
-		p = multiprocessing.Pool(threads)
-		p.map(util.multiProcess, hmmbuild_cmds)
-		p.close()
+		msg = "Running HMMER3 hmmbuild to generate profile HMMs for %d ortholog groups" % len(hmmbuild_cmds)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
 
 		p = multiprocessing.Pool(threads)
-		p.map(util.multiProcess, hmmemit_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, hmmbuild_cmds), total=len(hmmbuild_cmds)):
+			pass
 		p.close()
+
+		msg = "Running HMMER3 hmmemit to generate consensus protein sequences for %d ortholog groups" % len(hmmemit_cmds)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
+		p = multiprocessing.Pool(threads)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, hmmemit_cmds), total=len(hmmemit_cmds)):
+			pass
+		p.close()
+
 	except Exception as e:
 		sys.stderr.write('Issues with creating profile HMMs and consensus sequences.\n')
 		logObject.error('Issues with creating profile HMMs and consensus sequences.')
@@ -1376,12 +1420,22 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, threads=1
 								  '-q', protein_faa, '-o', annotation_result_file, logObject]
 					dmnd_search_cmds.append(search_cmd)
 
+		msg = "Running pyhmmer hmmsearch for functional annotation for %d databases" % len(hmm_search_cmds)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(hmm_pool_size)
-		p.map(runPyhmmer, hmm_search_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(runPyhmmer, hmm_search_cmds), total=len(hmm_search_cmds)):
+			pass
 		p.close()
 
+		msg = "Running DIAMOND blastp for functional annotation for %d databases" % len(dmnd_search_cmds)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(dmnd_pool_size)
-		p.map(util.multiProcess, dmnd_search_cmds)
+		for _ in tqdm.tqdm(p.imap_unordered(util.multiProcess, dmnd_search_cmds), total=len(dmnd_search_cmds)):
+			pass
 		p.close()
 
 		annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA'])) # db -> query -> [hit descriptions, evalue]
@@ -1465,7 +1519,7 @@ def default_to_regular(d):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, logObject, domain_mode=False):
+def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, consensus_path_file, logObject, domain_mode=False):
 	"""
 	Description:
 	This function determines the consensus order and directionality of ortholog groups in a set of gene cluster
@@ -1542,9 +1596,9 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 
 		gcs_ordered = [ref_bgc] + sorted(list(set(gc_genes.keys()).difference(set([ref_bgc]))))
 		ref_hg_directions = {}
-		hg_pair_sthreads = defaultdict(int)
-		hg_preceding_sthreads = defaultdict(lambda: defaultdict(int))
-		hg_following_sthreads = defaultdict(lambda: defaultdict(int))
+		hg_pair_score = defaultdict(int)
+		hg_preceding_score = defaultdict(lambda: defaultdict(int))
+		hg_following_score = defaultdict(lambda: defaultdict(int))
 		all_hgs = set(['start', 'end'])
 		direction_forward_support = defaultdict(int)
 		direction_reverse_support = defaultdict(int)
@@ -1598,47 +1652,70 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 				all_hgs.add(hg)
 				if j == 0:
 					hg_previ = "start"
-					hg_preceding_sthreads[hg][hg_previ] += 1
-					hg_following_sthreads[hg_previ][hg] += 1
-					hg_pair_sthreads[tuple([hg_previ, hg])] += 1
+					hg_preceding_score[hg][hg_previ] += 1
+					hg_following_score[hg_previ][hg] += 1
+					hg_pair_score[tuple([hg_previ, hg])] += 1
 				try:
 					hg_after = hgs[j + 1]
 					# make sure you don't get lost with broken/fragmented genes in BGCs that might be
 					# in the process being lost.
 					if hg != hg_after:
-						hg_preceding_sthreads[hg_after][hg] += 1
-						hg_following_sthreads[hg][hg_after] += 1
-						hg_pair_sthreads[tuple([hg, hg_after])] += 1
+						hg_preceding_score[hg_after][hg] += 1
+						hg_following_score[hg][hg_after] += 1
+						hg_pair_score[tuple([hg, hg_after])] += 1
 				except:
 					hg_after = 'end'
-					hg_preceding_sthreads[hg_after][hg] += 1
-					hg_following_sthreads[hg][hg_after] += 1
-					hg_pair_sthreads[tuple([hg, hg_after])] += 1
+					hg_preceding_score[hg_after][hg] += 1
+					hg_following_score[hg][hg_after] += 1
+					hg_pair_score[tuple([hg, hg_after])] += 1
 
 		markovian_handle = open(markovian_file, 'w')
-		markovian_handle.write('og\tog_after\tsupport\n')
-		for hg in hg_following_sthreads:
-			for hg_after in hg_following_sthreads[hg]:
-				markovian_handle.write(hg + '\t' + hg_after + '\t' + str(hg_following_sthreads[hg][hg_after]) + '\n')
+		markovian_handle.write('og\tog_after\tog_direction\tog_after_direction\tsupport\n')
+		for hg in hg_following_score:
+			for hg_after in hg_following_score[hg]:
+				hg_dir = '-'
+				if direction_forward_support[hg] >= direction_reverse_support[hg]: 
+					hg_dir = '+'
+				hg_after_dir = '-'
+				if direction_forward_support[hg_after] >= direction_reverse_support[hg_after]:
+					hg_after_dir = '+'
+				markovian_handle.write(hg + '\t' + hg_after + '\t' + str(hg_following_score[hg][hg_after]) + '\t' + hg_dir + '\t' + hg_after_dir + '\n')
 		markovian_handle.close()
+
+		consensus_handle = open(consensus_path_file, 'w')		
+		curr_og = 'start'
+		visited_ogs = set([])
+		while curr_og != 'end':
+			next_og = ""
+			max_score = 0 
+			for follow_og in hg_following_score[curr_og]:
+				if hg_following_score[curr_og][follow_og] >= max_score:
+					max_score = hg_following_score[curr_og][follow_og]
+					next_og = follow_og
+			consensus_handle.write(curr_og + '\t' + next_og + '\n')
+			if next_og in visited_ogs:
+				break
+			visited_ogs.add(curr_og)
+			curr_og = next_og
+		consensus_handle.close()
 
 		anchor_edge = None
 		if len(single_copy_core_hgs) > 0:
 			# first attempt to find anchor edge using a single copy core ortholog groups if any exist
-			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in single_copy_core_hgs and hps[0][1] in single_copy_core_hgs:
 					anchor_edge = hps[0]
 					break
 		if len(core_hgs) > 0 and anchor_edge == None:
 			# looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist 
-			for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+			for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 				if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
 					anchor_edge = hps[0]
 					break
 			try:
 				assert (anchor_edge != None)
 			except:
-				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in core_hgs or hps[0][1] in core_hgs:
 						anchor_edge = hps[0]
 						break
@@ -1649,14 +1726,14 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 			sys.stderr.write(stars + 'WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.\n' + stars)
 			logObject.warning('No core ortholog groups were detected across homologous gene cluster\ninstances - the quality of the consensus order and direction\npredictions will be lower.\n')
 			try:
-				for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+				for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 					if hps[0][0] in most_conserved_hgs and hps[0][1] in most_conserved_hgs:
 						anchor_edge = hps[0]
 						break
 				try:
 					assert (anchor_edge != None)
 				except:
-					for hps in sorted(hg_pair_sthreads.items(), key=itemgetter(1), reverse=True):
+					for hps in sorted(hg_pair_score.items(), key=itemgetter(1), reverse=True):
 						if hps[0][0] in most_conserved_hgs or hps[0][1] in most_conserved_hgs:
 							anchor_edge = hps[0]
 							break
@@ -1675,7 +1752,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 		left_expansion = [curr_hg]
 		while not curr_hg == 'start':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_preceding_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_preceding_score[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					left_expansion = [new_hg] + left_expansion
@@ -1692,7 +1769,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 		right_expansion = [curr_hg]
 		while not curr_hg == 'end':
 			new_hg = None
-			for i, hg in enumerate(sorted(hg_following_sthreads[curr_hg].items(), key=itemgetter(1), reverse=True)):
+			for i, hg in enumerate(sorted(hg_following_score[curr_hg].items(), key=itemgetter(1), reverse=True)):
 				if not hg[0] in accounted_hgs:
 					new_hg = hg[0]
 					right_expansion.append(new_hg)
@@ -1715,13 +1792,13 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, lo
 				best_score = 0
 				relative_pos = None
 				neighboriest_hg = None
-				for phg in sorted(hg_preceding_sthreads[hg].items(), key=itemgetter(1), reverse=True):
+				for phg in sorted(hg_preceding_score[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < phg[1] and phg[0] in accounted_hgs:
 						best_score = phg[1]
 						relative_pos = 'after'
 						neighboriest_hg = phg[0]
 						break
-				for fhg in sorted(hg_following_sthreads[hg].items(), key=itemgetter(1), reverse=True):
+				for fhg in sorted(hg_following_score[hg].items(), key=itemgetter(1), reverse=True):
 					if best_score < fhg[1] and fhg[0] in accounted_hgs:
 						best_score = fhg[1]
 						relative_pos = 'before'
@@ -1972,8 +2049,13 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
 							skip_gard, gard_mode, logObject])
 
+		msg = "Running HyPhy selection analyses using FUBAR for %d ortholog groups" % len(hyphy_inputs)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(individualHyphyRun, hyphy_inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(individualHyphyRun, hyphy_inputs), total=len(hyphy_inputs)):
+			pass
 		p.close()
 
 		gard_partitions = {}
@@ -2115,8 +2197,13 @@ def computeBetaRDgc(prot_algn_dir, evo_dir, logObject, threads=1):
 			outf = brd_results_dir + hg + '.sims.pkl'
 			inputs.append([hg, prot_algn_dir + f, outf, logObject])
 
+		msg = "Determining Beta-RDgc statistic for %d ortholog groups" % len(inputs)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(determineSeqSimProteinAlignment, inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(determineSeqSimProteinAlignment, inputs), total=len(inputs)):
+			pass
 		p.close()
 
 		hg_sims_dict = {}
@@ -2230,9 +2317,15 @@ def runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_dir, logObject, th
 			outf = entropy_res_dir + hg + '_upstream.txt'
 			inputs.append([hg, uaf, outf, logObject])
 
+		msg = "Computing sequence and upstream sequence entropy for ortholog groups"
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(calculateMSAEntropy, inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(calculateMSAEntropy, inputs), total=len(inputs)):
+			pass
 		p.close()
+
 
 		hg_entropy = {}
 		hg_upst_entropy = {}
@@ -2386,8 +2479,13 @@ def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, threads=1):
 			outf = tajd_resdir + hg + '.txt'
 			inputs.append([hg, trim_codon_align, outf, logObject])
 
+		msg = "Computing Tajima's D statistic (using trimmed codon alignments) for %d ortholog groups" % len(inputs)
+		logObject.info(msg)
+		sys.stdout.write(msg + '\n')
+
 		p = multiprocessing.Pool(threads)
-		p.map(runTajimasDAnalysisPerHG, inputs)
+		for _ in tqdm.tqdm(p.imap_unordered(runTajimasDAnalysisPerHG, inputs), total=len(inputs)):
+			pass
 		p.close()
 
 		hg_tajimas_d = {}
@@ -2844,8 +2942,28 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		writer = pd.ExcelWriter(final_report_xlsx, engine='xlsxwriter')
 		workbook = writer.book
 		dd_sheet = workbook.add_worksheet('Data Dictionary')
-		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "ZoL Results" spreadsheet can be found on zol\'s Wiki page at:')
+		dd_sheet.write(0, 0, 'Data Dictionary describing columns of "ZoL Results" spreadsheet can be found below and on zol\'s Wiki page at:')
 		dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
+
+
+		wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'border': 1})
+		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#FFFFFF', 'border': 1})
+
+		data_dict_zol = data_dictionary.zol_dd()
+		data_dict_zol_df = util.loadTableInPandaDataFrameFromString(data_dict_zol)
+		worksheet_dd =  writer.sheets['Data Dictionary']
+		worksheet_dd.set_column(1, 3, 50)
+
+		for col_num, value in enumerate(data_dict_zol_df.columns.values):
+			worksheet_dd.write(3, col_num + 1, value, header_format)
+
+		colnames = ['Column', 'Description', 'Notes']
+		for index, row in data_dict_zol_df.iterrows():
+			row_ind = index + 4
+			format = wrap_format
+			for col_ind in range(0,3):
+				col_name = colnames[col_ind]
+				worksheet_dd.write(row_ind, col_ind+1, row[col_name], format)
 
 		numeric_columns = {'Proportion of Total Gene Clusters with OG', 'Proportion of Focal Gene Clusters with OG',
 						   'Proportion of Comparator Gene Clusters with OG', 'Fixation Index',
@@ -2865,6 +2983,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 
 		results_df = util.loadTableInPandaDataFrame(final_report_tsv, numeric_columns)
 		results_df.to_excel(writer, sheet_name='ZoL Results', index=False, na_rep="NA")
+		
 		worksheet =  writer.sheets['ZoL Results']
 		worksheet.conditional_format('B2:B' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"False"', 'format': warn_format})
 		worksheet.conditional_format('A2:BA' + str(num_rows), {'type': 'cell', 'criteria': '==', 'value': '"NA"', 'format': na_format})

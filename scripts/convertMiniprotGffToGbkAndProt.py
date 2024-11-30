@@ -45,6 +45,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from collections import defaultdict
 from operator import itemgetter
+import gzip
 
 def create_parser():
 	""" Parse arguments """
@@ -55,14 +56,13 @@ def create_parser():
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-g', '--miniprot_gff3', help='Path to miniprot produced GFF3.', required=True)
-	parser.add_argument('-f', '--genome_fasta', help='Path to target genome used for miniprot.', required=True)
+	parser.add_argument('-f', '--genome_fasta', help='Path to target genome used for searching with miniprot.', required=True)
 	parser.add_argument('-og', '--output_genbank', help='Path to output GenBank.', required=True)
 	parser.add_argument('-op', '--output_proteome', help='Path to output Proteome (FASTA format).', required=True)
-	parser.add_argument('-l', '--locus_tag', help='Locus tag. Default is AAA.', required=False, default='AAA')
+	parser.add_argument('-l', '--locus_tag', help='Locus tag [Default is AAA].', required=False, default='AAA')
 
 	args = parser.parse_args()
 	return args
-
 
 def convertMiniProtGFFtoGenbank():
 	myargs = create_parser()
@@ -98,10 +98,14 @@ def convertMiniProtGFFtoGenbank():
 					mrna_coords = set(range(mrna_start_coord, mrna_end_coord+1))
 					paf_coords = set(range(paf_start_coord, paf_end_coord+1))
 					if len(mrna_coords.intersection(paf_coords))/len(paf_coords) >= 0.95 and len(mrna_coords.intersection(paf_coords))/len(paf_coords) <= 1.05:
-						paf_cigar = paf[17]
+						paf_cigar = None
+						for item in paf:
+							if item.startswith('cg:Z:'):
+								paf_cigar = item.split('cg:Z:')[1]
+						if paf_cigar == None: continue
 						paf_matches = re.findall(r'(\d+)([A-Z]{1})', paf_cigar)
-						paf_cigar_parsed = [{'type': m[1], 'length': int(m[0])} for m in paf_matches]
-						query_mrna_paf_info[tuple([query, mrna_start_coord])] = [scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, '\t'.join(paf)]
+						paf_cigar_parsed = [{'type': m[1].strip(), 'length': int(m[0])} for m in paf_matches]
+						query_mrna_paf_info[tuple([query, mrna_start_coord])] = [scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_cigar]
 				else:
 					paf = None
 
@@ -147,6 +151,9 @@ def convertMiniProtGFFtoGenbank():
 				else:
 					redundant.add(mrna1[0])
 
+	"""
+	# legacy for previous handling in versions 1.5.2 and prior.
+
 	# Step 3: Parse GFF3 for CDS coordinates
 	query_cds_coords = defaultdict(list)
 	query_cds_coords_accounted = defaultdict(set)
@@ -186,121 +193,167 @@ def convertMiniProtGFFtoGenbank():
 						cds_redundant[query].add(tuple(cdsc2))
 					else:
 						cds_redundant[query].add(tuple(cdsc1))
-
+	"""
+	
 	# Step 4: Go through FASTA scaffold/contig by scaffold/contig and create output GenBank
 	gbk_handle = open(output_genbank, 'w')
 	faa_handle = open(output_proteome, 'w')
 
 	lt_iter = 0
-	with open(genome_fasta) as ogf:
-		for rec in SeqIO.parse(ogf, 'fasta'):
-			seq = rec.seq
-			gbk_rec = SeqRecord(seq, id=rec.id, name=rec.id, description=rec.description)
-			gbk_rec.annotations['molecule_type'] = 'DNA'
-			feature_list = []
-			for mrna in sorted(scaffold_queries[rec.id], key=itemgetter(1)):
-				qid, start, map_counter = mrna
-				key_for_redundancy_check = tuple([qid, map_counter])
-				key_for_paf = tuple([qid, start])
-				if key_for_redundancy_check in redundant: continue
-				mrna_info = query_mrna_coords[key_for_redundancy_check]
-				mrna_coords = set(range(mrna_info[1], mrna_info[2]))
+	
+	ogf = None
+	if not genome_fasta.endswith('.gz'):
+		ogf = open(genome_fasta)
+	else:
+		ogf = gzip.open(genome_fasta, 'rt')
 
-				mrna_exon_locs = []
-				all_coords = []
-				for cds_info in query_cds_coords[qid]:
-					if tuple(cds_info) in cds_redundant[qid]: continue
-					cds_coords = set(range(cds_info[1], cds_info[2]))
-					if len(mrna_coords.intersection(cds_coords)) > 0 and cds_info[0] == mrna_info[0]:
-						all_coords.append([cds_info[1], cds_info[2]])
-						assert(mrna_info[3] == cds_info[3])
-						mrna_exon_locs.append(FeatureLocation(cds_info[1]-1, cds_info[2], strand=cds_info[3]))
-				feature_loc = sum(mrna_exon_locs)
-				feature = SeqFeature(feature_loc, type='CDS')
-				lt = None
-				if (lt_iter + 1) < 10:
-					lt = '00000' + str(lt_iter + 1)
-				elif (lt_iter + 1) < 100:
-					lt = '0000' + str(lt_iter + 1)
-				elif (lt_iter + 1) < 1000:
-					lt = '000' + str(lt_iter + 1)
-				elif (lt_iter + 1) < 10000:
-					lt = '00' + str(lt_iter + 1)
-				elif (lt_iter + 1) < 100000:
-					lt = '0' + str(lt_iter + 1)
-				else:
-					lt = str(lt_iter + 1)
-				lt_iter += 1
+	for rec in SeqIO.parse(ogf, 'fasta'):
+		seq = str(rec.seq)
+		gbk_rec = SeqRecord(seq, id=rec.id, name=rec.id, description=rec.description)
+		gbk_rec.annotations['molecule_type'] = 'DNA'
+		feature_list = []
+		for mrna in sorted(scaffold_queries[rec.id], key=itemgetter(1)):
+			qid, start, map_counter = mrna
+			key_for_redundancy_check = tuple([qid, map_counter])
+			key_for_paf = tuple([qid, start])
+			if key_for_redundancy_check in redundant: continue
+			mrna_info = query_mrna_coords[key_for_redundancy_check]
+			mrna_start = mrna_info[1]
+			mrna_end = mrna_info[2]
+			mrna_coords = set(range(mrna_start, mrna_end))
+			
+			lt = None
+			if (lt_iter + 1) < 10:
+				lt = '00000' + str(lt_iter + 1)
+			elif (lt_iter + 1) < 100:
+				lt = '0000' + str(lt_iter + 1)
+			elif (lt_iter + 1) < 1000:
+				lt = '000' + str(lt_iter + 1)
+			elif (lt_iter + 1) < 10000:
+				lt = '00' + str(lt_iter + 1)
+			elif (lt_iter + 1) < 100000:
+				lt = '0' + str(lt_iter + 1)
+			else:
+				lt = str(lt_iter + 1)
+			lt_iter += 1
 
-				"""
-				nucl_seq = ''
-				prot_seq = None
-				for sc, ec in sorted(all_coords, key=itemgetter(0)):
-					if ec >= len(seq):
-						nucl_seq += seq[sc - 1:]
+			scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key_for_paf]
+			
+			paf_nucl_seq = ''
+			paf_coord = paf_start_coord
+			cds_positions = []
+			if mrna_info[3] == -1:
+				paf_cigar_parsed.reverse()
+			for op in paf_cigar_parsed:
+				length = op['length']
+				if op['type'] in set(['M', 'D']):
+					paf_nucl_seq += seq[paf_coord:(paf_coord+(length*3))]
+					for pos in range(paf_coord, (paf_coord+(length*3))):
+						cds_positions.append(pos)
+					paf_coord += length*3
+				elif op['type'] in set(['F', 'N']):
+					paf_coord += length
+				elif op['type'] == 'U':
+					tmp = seq[paf_coord:(paf_coord+length)]
+					if mrna_info[3] == -1:
+						paf_nucl_seq += tmp[:2] + tmp[-1]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+1)
+						cds_positions.append(paf_coord+length-1)
 					else:
-						nucl_seq += seq[sc - 1:ec]
-				if mrna_info[3] == -1:
-					prot_seq = str(Seq(nucl_seq).reverse_complement().translate())
+						paf_nucl_seq += tmp[0] + tmp[-2:]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+length-1)
+						cds_positions.append(paf_coord+length-2)
+					paf_coord += length
+				elif op['type'] == 'V':
+					tmp = seq[paf_coord:(paf_coord+length)]
+					if mrna_info[3] == -1:
+						paf_nucl_seq += tmp[0] + tmp[-2:]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+length-1)
+						cds_positions.append(paf_coord+length-2)
+					else:
+						paf_nucl_seq += tmp[:2] + tmp[-1]
+						cds_positions.append(paf_coord)
+						cds_positions.append(paf_coord+1)
+						cds_positions.append(paf_coord+length-1)
+					paf_coord += length
+				elif op['type'] == 'G':
+					paf_coord += length
+
+			cds_locs = []
+			#all_coords = []
+			for cds_part in ranges(sorted(cds_positions)):
+				cds_locs.append(FeatureLocation(cds_part[0], cds_part[1]+1, strand=mrna_info[3]))
+				#all_coords.append([cds_part[0]+1, cds_part[1]+1])
+			
+			feature_loc = sum(cds_locs)
+			if mrna_info[3] == -1:
+				feature_loc = sum(cds_locs[::-1])
+
+			feature = SeqFeature(feature_loc, type='CDS')
+			
+			paf_prot_seq = None
+			paf_upstream_nucl_seq = None
+			if mrna_info[3] == -1:
+				paf_nucl_seq = str(Seq(paf_nucl_seq).reverse_complement())
+				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+				paf_upstream_nucl_seq = str(Seq(seq[paf_end_coord:paf_end_coord+100]).reverse_complement())
+			else:
+				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
+				paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
+
+			"""
+			# legacy code for validation
+			
+			cds_nucl_seq = ''
+			cds_prot_seq = None
+			for sc, ec in sorted(all_coords, key=itemgetter(0)):
+				if ec >= len(seq):
+					cds_nucl_seq += seq[sc - 1:]
 				else:
-					prot_seq = str(Seq(nucl_seq).translate())
-				assert(prot_seq != None)
-				"""
+					cds_nucl_seq += seq[sc - 1:ec]
+			if mrna_info[3] == -1:
+				cds_prot_seq = str(Seq(cds_nucl_seq).reverse_complement().translate())
+			else:
+				cds_prot_seq = str(Seq(cds_nucl_seq).translate())
 
-				scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_string = query_mrna_paf_info[key_for_paf]
+			assert(paf_prot_seq == cds_prot_seq)
+			"""
 
-				paf_nucl_seq = ''
-				paf_coord = paf_start_coord
-				if mrna_info[3] == -1:
-					paf_cigar_parsed.reverse()
-				for op in paf_cigar_parsed:
-					length = op['length']
-					if op['type'] == 'M':
-						paf_nucl_seq += seq[paf_coord:(paf_coord+(length*3))]
-						paf_coord += length*3
-					elif op['type'] == 'D':
-						paf_coord += length*3
-					elif op['type'] == 'G':
-						#paf_coord += seq[paf_coord:paf_coord+length]
-						paf_coord += length
-					elif op['type'] in set(['F', 'N', 'U', 'V']):
-						paf_coord += length
+			faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
+			feature.qualifiers['prot_from_ref'] = qid
+			feature.qualifiers['locus_tag'] = locus_tag + '_' + lt
+			feature.qualifiers['translation'] = paf_prot_seq
+			feature.qualifiers['paf_nucl_seq'] = paf_nucl_seq
+			#feature.qualifiers['cds_prot_seq'] = cds_prot_seq
+			feature.qualifiers['cigar_string'] = paf_string
+			#feature.qualifiers['full_orf'] = seq[paf_start_coord:paf_end_coord]
+			feature.qualifiers['paf_upstream'] = paf_upstream_nucl_seq
+			feature_list.append(feature)
+		gbk_rec.features = feature_list
+		SeqIO.write(gbk_rec, gbk_handle, 'genbank')
 
-				paf_prot_seq = None
-				paf_upstream_nucl_seq = None
-				#paf_upstream_check = None
-				if mrna_info[3] == -1:
-					paf_nucl_seq = str(Seq(paf_nucl_seq).reverse_complement())
-					paf_prot_seq = str(Seq(paf_nucl_seq).translate())
-					paf_upstream_nucl_seq = str(Seq(seq[paf_end_coord:paf_end_coord+100]).reverse_complement())
-					#paf_upstream_check = str(Seq(seq[paf_end_coord-1:paf_end_coord+99]).reverse_complement())
-				else:
-					paf_prot_seq = str(Seq(paf_nucl_seq).translate())
-					paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
-
-				"""
-				print('----------------------')
-				print(paf_string)
-				print(locus_tag + '_' + lt)
-				print(paf_nucl_seq)
-				print('++++++++++++++++++++++')
-				print(paf_upstream_nucl_seq)
-				print('++++++++++++++++++++++')
-				print(paf_upstream_check)
-				#print(paf_prot_seq)
-				"""
-
-				faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
-				feature.qualifiers['protein_from_reference'] = qid
-				feature.qualifiers['locus_tag'] = locus_tag + '_' + lt
-				feature.qualifiers['translation'] = paf_prot_seq
-				feature.qualifiers['open_reading_frame'] = paf_nucl_seq
-				feature.qualifiers['orf_upstream'] = paf_upstream_nucl_seq
-				feature_list.append(feature)
-			gbk_rec.features = feature_list
-			SeqIO.write(gbk_rec, gbk_handle, 'genbank')
+	ogf.close()
 	gbk_handle.close()
 	faa_handle.close()
+
+def ranges(seq):
+	"""
+	Solution by Gareth Latty on StackOverflow:
+	https://stackoverflow.com/questions/10420464/group-list-of-ints-by-continuous-sequence
+	"""
+	start, end = seq[0], seq[0]
+	count = start
+	for item in seq:
+		if not count == item:
+			yield start, end
+			start, end = item, item
+			count = item
+		end = item
+		count += 1
+	yield start, end
 
 if __name__ == '__main__':
 	convertMiniProtGFFtoGenbank()

@@ -36,11 +36,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 from zol import util
-from operator import itemgetter
-from collections import defaultdict
 import traceback
 import gravis as gv
 from colour import Color
@@ -59,14 +59,23 @@ def create_parser():
 	cgcg takes as input a zol results directory and uses the gravis library to summarize 
 	gene clusters into a graphical representation where nodes are ortholog groups and edges
 	indicate the Markovian information determined by zol as part of its algorithm for 
-	determining consensus order/direction. It is inspired by various pangenome graph
-	visualization software and the STRING web application by the Bork lab.
-								  								  
+	determining consensus order/direction. The coloring of the node corresponds to a 
+	quantitative evolutionary statistic. The size of the node is the median length in 100 bp 
+	units. The border color of the node indicates whether it is in the sense or antisense 
+	direction. It is inspired by various pangenome graph visualization software and the STRING 
+	web application by the Bork lab.
+
+	Note, if you want to remove border colors - you can do so by setting --node-border-size to 0,
+	but then you should probably also switch to an undirected graph to avoid misintrepretation 
+	of gene order/directionality. 
+
+	Also, the "major path" which can be shown in gold is simply the path which is most supported
+	across gene cluster instances, it is not all inclusive of every ortholog group like the 
+	consensus path calculated in zol.
 	---------------------------------------------------------------------------------------------
 	Example command:
 	---------------------------------------------------------------------------------------------
-	cgcg -i zol_Results_Directory/ -o cgcg_Results/ --color-track conservation
-
+	$ cgcg -i zol_Results_Directory/ -o cgcg_Results/ --color-track conservation
 	---------------------------------------------------------------------------------------------
 	Citation notice:
 	---------------------------------------------------------------------------------------------
@@ -76,20 +85,26 @@ def create_parser():
 	- zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters 
 	  https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3 by Salamzade et al. 2023
 
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--zol-results-dir', help='Path to zol results directory.', required=True)
 	parser.add_argument('-o', '--outdir', help='Output directory for cgc analysis.', required=True)
 	parser.add_argument('-c', '--color-track', help='The track from the zol spreadsheet to use for coloring.\nOptions include: conservation, tajimas_d, entorpy,\nupstream_entropy, median_beta_rd, max_beta_rd, fst,\nalternative_conservation. [Default is conservation].', required=False, default="conservation")
 	parser.add_argument('-vl', '--low-value', type=float, help='Low value [Default is 0.0].', required=False, default=0.0)
 	parser.add_argument('-vh', '--high-value', type=float, help='High value [Default is 1.0].', required=False, default=1.0)
-	parser.add_argument('-cl', '--low-value-color', help='Hex code for color for low-value [Default is "#a2b7e8"].', required=False, default="#a2b7e8")
-	parser.add_argument('-ch', '--high-value-color', help='Hex code for color for high-value [Default is "#102f75"].', required=False, default="#102f75")
-	parser.add_argument('-nc', '--na-value-color', help='The hex code for setting color of NA/non-numeric values\n[Default is" #adadad"].', required=False, default="#adadad")
+	parser.add_argument('-cl', '--low-value-color', help='Hex code for color for low-value. Surround by quotes\n[Default is "#a2b7e8"].', required=False, default="#a2b7e8")
+	parser.add_argument('-ch', '--high-value-color', help='Hex code for color for high-value. Surround by quotes\n[Default is "#102f75"].', required=False, default="#102f75")
+	parser.add_argument('-nc', '--na-value-color', help='The hex code for setting color of NA/non-numeric values.\nSuround by quotes. [Default is" #adadad"].', required=False, default="#adadad")
 	parser.add_argument('-mc', '--min-conservation', help='Minimum conservation of ortholog group to be shown\n[Default is 0.25].', required=False, default=0.25)
 	parser.add_argument('-sl', '--show-labels', action='store_true', help='Show orthogroup labels.', required=False, default=False)
 	parser.add_argument('-cul', '--custom-labels', help='Tab-separated file with OG identifiers as first column\nand labels to use as the second column.', required=False, default=None)
 	parser.add_argument('-cuc', '--custom-colors', help='Tab-separated file with OG identifiers as first column\nand hex-code for colors to use as the second column.', required=False, default=None)
+	parser.add_argument('-as', '--arrow-size', type=int, help='Arrow size [Default is 10].', required=False, default=10)
+	parser.add_argument('-nbs', '--node-border-size', type=int, help='Node border size [Default is 1].', required=False, default=1)
+	parser.add_argument('-f', '--flip', action='store_true', help='Flag to flip the direction of arrows and the border\ncoloring for orthogroup consensus direction.', required=False, default=False)
+	parser.add_argument('-u', '--undirected-graph', action='store_true', help='Flag for hiding arrows.', required=False, default=False)
+	parser.add_argument('-bc', '--background-color', help='The background color. Surround by quotes [Default is\n"#FFFFFF"].', required=False, default="#FFFFFF")
+	parser.add_argument('-sm', '--show-major-path', action='store_true', help='Flag to show edges which belong to the major path in\ngold.', required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -115,6 +130,12 @@ def cgcg():
 	show_labels_flag = myargs.show_labels
 	custom_labels_file = myargs.custom_labels
 	custom_colors_file = myargs.custom_colors
+	flip_flag = myargs.flip
+	arrow_size = myargs.arrow_size
+	node_border_size = myargs.node_border_size
+	undirected_graph = myargs.undirected_graph
+	show_consensus_flag = myargs.show_major_path
+	background_color = myargs.background_color
 
 	try:
 		assert (os.path.isdir(zol_results_dir))
@@ -184,6 +205,7 @@ def cgcg():
 
 	zol_spreadsheet_tsv = zol_results_dir + 'Final_Results/Consolidated_Report.tsv'
 	order_information_tsv = zol_results_dir + 'Markovian_Order_Information.txt'
+	consensus_path_tsv = zol_results_dir + 'Consensus_Path_Information.txt'
 	try:
 		assert(os.path.isfile(zol_spreadsheet_tsv))
 	except:
@@ -195,10 +217,19 @@ def cgcg():
 	try:
 		assert(os.path.isfile(order_information_tsv))
 	except:
-		msg = 'The "Markovian_Order_Information.tsv" table results from zol analysis is not available in the zol directory provided.'
+		msg = 'The "Markovian_Order_Information.txt" table results from zol analysis is not available in the zol directory provided.'
 		logObject.error(msg)
 		sys.stderr.write(msg + '\n')
 		sys.exit(1)
+
+	try:
+		assert(os.path.isfile(consensus_path_tsv))
+	except:
+		msg = 'The "Consensus_Path_Information.txt" table results from zol analysis is not available in the zol directory provided.'
+		logObject.error(msg)
+		sys.stderr.write(msg + '\n')
+		sys.exit(1)
+
 
 	# Step 2: Generate color mapping
 	msg = '------------------Step 2------------------\nDetermining color scale.'
@@ -229,9 +260,17 @@ def cgcg():
 	logObject.info(msg)
 	sys.stdout.write(msg + '\n')
 
-	metadata = {'background_color': 'white', 'node_label_size': 14, 
-			    'edge_color': 'grey', 'arrow_color': 'grey'}
-	graph_object = {'graph': {'directed': True, 'metadata': metadata, 'nodes': {}, 'edges': []}}
+	try:
+		assert(background_color.startswith('#') and len(background_color) == 7)
+	except:
+		msg = 'background color provided is not valid - either does not start with "#" or length != 7.'
+		sys.stderr.write(msg + '\n')
+		logObject.error(msg)
+		sys.exit(1)
+
+	metadata = {'background_color': background_color, 'node_border_size': node_border_size,
+			    'arrow_size': arrow_size, 'arrow_color': '#999696', 'node_label_size': 14}
+	graph_object = {'graph': {'directed': (not undirected_graph), 'metadata': metadata, 'nodes': {}, 'edges': []}}
 	node_name_to_id = {}
 	retained_ogs = set([])
 	try:
@@ -261,7 +300,8 @@ def cgcg():
 					tajimas_d = 'NA'
 					pgap_annotation = 'NA'
 					pfam_domains = 'NA'
-
+					og_con_dir = '+' 
+					og_con_ord = -1
 					for j, val in enumerate(ls):
 						col_name = header[j]
 						if col_name == track_name_to_full_label[color_track]:	
@@ -290,6 +330,20 @@ def cgcg():
 							pfam_domains = val
 						elif col_name == 'GAP Annotation (E-value)':
 							pgap_annotation = val
+						elif col_name == 'OG Consensus Direction':
+							og_con_dir = val.replace('"', '')
+						elif col_name == 'OG Consensus Order':
+							og_con_ord = int(val)
+
+					og_con_color = '#c94962'
+					if flip_flag:
+						if og_con_dir == '-':
+							og_con_color = '#242323'
+					else:
+						if og_con_dir == '+':
+							og_con_color = '#242323'
+						
+					og_metadata['border_color'] = og_con_color
 					median_length = str(median_length)
 					if og_to_color != None:
 						if og in og_to_color:
@@ -306,6 +360,14 @@ def cgcg():
   <tr>
     <td>Ortholog Group (OG) ID</td>
     <td>{og}</td>
+  </tr>
+  <tr>
+	<td>Ortholog Group Consensus Direction</td>
+	<td>{og_con_dir}</td>
+  </tr>
+  <tr>
+	<td>Ortholog Group Consensus Order</td>
+	<td>{og_con_ord}</td>
   </tr>
   <tr>
     <td>Median Length (bp)</td>
@@ -331,7 +393,7 @@ def cgcg():
 					"""
 
 					og_metadata['click'] = og_details
-					graph_object['graph']['nodes'][og_id] = {'metadata': og_metadata, 'pgap_annotation': 'test'}
+					graph_object['graph']['nodes'][og_id] = {'label': og_metadata['label'], 'metadata': og_metadata}
 		
 	except:
 		msg = 'Issue appending node information to gJCF.'
@@ -341,6 +403,23 @@ def cgcg():
 		sys.stderr.write(traceback.format_exc() + '\n')
 		sys.exit(1)
 	
+	consensus_og_pairs = set([])
+	try:
+		with open(consensus_path_tsv) as ocpt:
+			for line in ocpt:
+				line = line.strip()
+				ls = line.split('\t')
+				if 'start' in ls: continue
+				if 'end' in ls: continue
+				consensus_og_pairs.add(tuple(sorted([ls[0], ls[1]])))
+	except:
+		msg = 'Issue reading in consensus path information.'
+		logObject.error(msg)
+		sys.stderr.write(msg + '\n')
+		logObject.error(traceback.format_exc())
+		sys.stderr.write(traceback.format_exc() + '\n')
+		sys.exit(1)		
+
 	try:
 		edge_weights = []
 		with open(order_information_tsv) as ooit:
@@ -348,7 +427,7 @@ def cgcg():
 				line = line.strip('\n')
 				ls = line.split('\t')
 				if i == 0: continue
-				og, og_after, weight = ls
+				og, og_after, weight, og_dir, og_after_dir = ls
 				if og == 'start': continue
 				if og_after == 'end': continue
 				if not og in retained_ogs or not og_after in retained_ogs: continue
@@ -359,14 +438,24 @@ def cgcg():
 				line = line.strip('\n')
 				ls = line.split('\t')
 				if i == 0: continue
-				og, og_after, weight = ls
-				
+				og, og_after, weight, og_dir, og_after_dir = ls
 				if og == 'start': continue
 				if og_after == 'end': continue
+				if flip_flag:
+					og_after = ls[0]
+					og = ls[1]
+				
 				if not og in retained_ogs or not og_after in retained_ogs: continue
 				
+				og_pair = tuple(sorted([og, og_after]))
+				edge_color = '#999696'
+				if show_consensus_flag:
+					if og_pair in consensus_og_pairs:
+						edge_color = '#b57c0b'
+
 				edge_dict = {'source': node_name_to_id[og], 'target': node_name_to_id[og_after], 
-				             'metadata': {'weight': int(weight)/max(edge_weights)}}				
+				             'metadata': {'edge_size': int(weight)/max(edge_weights), 
+							 'color': edge_color}}
 				graph_object['graph']['edges'].append(edge_dict)
 	except:
 		msg = 'Issue appending edge information to gJCF.'
@@ -394,9 +483,10 @@ def cgcg():
 	sys.stdout.write(msg + '\n')
 	html_file = findir + 'cgcg_gravis_visual.html'	
 	try:
-		fig = gv.d3(graph_object, use_node_size_normalization=False, node_size_data_source='OG Median Length (bp)',
-					use_edge_size_normalization=False, edge_size_data_source='weight', edge_curvature=0.3, 
-					show_node_label=show_labels_flag, node_label_data_source='label', show_menu=True, show_details=True,
+		fig = gv.d3(graph_object, use_node_size_normalization=False, 
+			        node_size_data_source='OG Median Length (bp)', node_label_data_source='label',
+					use_edge_size_normalization=False, edge_curvature=0.3, 
+					show_node_label=show_labels_flag, show_menu=True, show_details=True,
 					graph_height=400, details_height=200, edge_size_factor=2)
 		fig.export_html(html_file)
 	except:

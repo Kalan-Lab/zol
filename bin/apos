@@ -36,18 +36,15 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import argparse
-import subprocess
+from rich_argparse import RawTextRichHelpFormatter	
 from time import sleep
 from zol import util, fai
-import _pickle as cPickle
 from Bio import SeqIO
-from operator import itemgetter
 from collections import defaultdict
-import traceback
 import pandas as pd
-import math 
 
 def create_parser():
 	""" Parse arguments """
@@ -62,7 +59,7 @@ def create_parser():
 	relative to a set of target genomes (e.g. genomes belonging to the same genus). Alternatively, 
 	it can run a simple DIAMOND BLASTp analysis to just assess the presence of plasmid genes
 	individually - without the requirement they are co-located in one scaffold like in the focal sample.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--sample-genome', help='Path to sample genome in GenBank or FASTA format.', required=True, default=True)
 	parser.add_argument('-ms', '--mobsuite-results', help='Path to MOB-suite (mob_recon) results directory for a single sample/genome.', required=False, default=None)

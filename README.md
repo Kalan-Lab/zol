@@ -12,7 +12,7 @@
 
 First, fai allows users to search for homologous/orthologous instances of a query gene cluster in a database of (meta-)genomes. There are some other similar tools, including convenient webservers, to fai (which we highlight and recommend as altneratives on [this documentation page](https://github.com/Kalan-Lab/zol/wiki/5.1-tutorial-for-using-zol-with-output-from-fast.genomics-and-CAGECAT)); but, fai also has some unique/rarer options. Mainly, fai pays special attention to see whether gene cluster hits in target (meta-)genomes are on scaffold/contig edges and takes consideration of this, during both detection and downstream assessment. E.g. fai will mark individual coding genes and gene cluster instances if they are on the edge of a scaffold/contig, which can then be used as a filter in zol. *This is important for calculation of conservation of genes across homologous gene clusters!* 
 
-After finding homologous sets of gene clusters - using fai or other software - users often wish to investigate their similarity. This is often performed using pairwise similarity assessment via visualization with tools such as clinker, gggenomes, etc. While these tools are great, **if you found 100s or 1000s of gene cluster instances** such visualizations can get overwhelming and computationally expensive to render. To simplify the identification of interesting functional, evolutionary, and conservation patterns across 100s to 1000s of homologous gene cluster instances, we developed zol to be able to perform *de novo* ortholog group predictions and create detailed color-formatted XLSX spreadsheets summarizing information. More recently, we have also introduced scalable visualization tools (*cgc & cgcg*) that allow for simpler assessment of information represented across thousands of homologous gene cluster instances.
+After finding homologous instances of a gene cluster - using fai or other software - users often wish to investigate the similarity between instances. This is often performed using pairwise similarity assessment via visualization with tools such as clinker, gggenomes, etc. While these tools are great, **if you found 100s or 1000s of gene cluster instances** such visualizations can get overwhelming and computationally expensive to render. To simplify the identification of interesting functional, evolutionary, and conservation patterns across 100s to 1000s of homologous gene cluster instances, we developed zol to perform *de novo* ortholog group predictions and create detailed color-formatted XLSX spreadsheets summarizing information. More recently, we have also introduced scalable visualization tools (*cgc & cgcg*) that allow for simpler assessment of information represented across thousands of homologous gene cluster instances.
 
 <p align="center">
 <img src="https://github.com/user-attachments/assets/b0ec16bf-f302-4018-a7eb-91ff8a8b7817" width="600">
@@ -22,6 +22,9 @@ After finding homologous sets of gene clusters - using fai or other software - u
 > [zol & fai: large-scale targeted detection and evolutionary investigation of gene clusters](https://www.biorxiv.org/content/10.1101/2023.06.07.544063v3). *bioRxiv 2023.* Rauf Salamzade, Patricia Q Tran, Cody Martin, Abigail L Manson, Michael S Gilmore, Ashlee M Earl, Karthik Anantharaman, Lindsay R Kalan
 
 *In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.*
+
+> [!CAUTION]
+> Please avoid using versions 1.5.1 to 1.5.3 in which zol has the possibility to get stuck in a while loop and write a large file. This issue is resolved in v1.5.4. 
 
 ## Main Contents:
 
@@ -61,8 +64,9 @@ conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be ~40 GB! You can also run in minimal mode
-# (which will only download PGAP HMM models ~8.5 GB) using -m. 
-setup_annotation_dbs.py
+# (which will only download Pfam & PGAP HMM models ~8.5 GB)
+# using the -m argument. 
+setup_annotation_dbs.py [-m]
 ```
 
 > [!NOTE]
@@ -72,7 +76,7 @@ setup_annotation_dbs.py
 
 ___Requires docker to be installed on your system!___
 
-To keep the Docker image size relatively low (currently ~8GB), only the PGAP database is included.
+To keep the Docker image size relatively low (currently ~13 GB), only the Pfam and PGAP HMMs/databases are included.
 
 ```bash
 # get wrapper script from GitHub

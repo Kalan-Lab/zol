@@ -36,6 +36,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 from time import sleep
 import multiprocessing
@@ -43,12 +44,14 @@ try:
 	multiprocessing.set_start_method('fork')
 except:
 	sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
+	sleep(10)
 	try:
 		multiprocessing.set_start_method('fork', force=True)
 	except:
 		sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
 		sys.exit(1)
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 from zol import util, fai
 import subprocess
 import pickle
@@ -100,7 +103,7 @@ def create_parser():
     The final set of homologous gene cluster instances within target genomes which meet
     the specified criteria can be found in the subdirectory named: 
 	Final_Results/Homologous_Gene_Cluster_GenBanks/			  
-    """, formatter_class=argparse.RawTextHelpFormatter)
+    """, formatter_class=RawTextRichHelpFormatter)
 	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference-genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
 	parser.add_argument('-rc', '--reference-contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
@@ -217,10 +220,17 @@ def faiMain():
 		util.setupReadyDirectory([check_dir])
 
 	try:
+		assert(os.path.isdir(target_genomes) and os.path.isfile(target_genomes + '/Target_Genomes_DB.faa') and os.path.getsize(target_genomes + '/Target_Genomes_DB.faa') > 0)
+	except:
+		sys.stderr.write('Something is wrong with the target genomes database (result directory from prepTG). Please check path provided.\n')
+		sys.exit(1)
+
+	try:
 		assert(diamond_sensitivity in set(['fast', 'very-sensitive', 'ultra-sensitive', 'mid-sensitive', 'more-sensitive']))
 	except:
 		sys.stderr.write('Invalid value provided for --diamond_sensitivity option.\n')
-
+		sys.exit(1)
+		
 	# create logging object
 	log_file = outdir + 'Progress.log'
 	logObject = util.createLoggerObject(log_file)

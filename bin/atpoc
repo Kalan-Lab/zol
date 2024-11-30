@@ -36,6 +36,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import argparse
 from time import sleep
@@ -45,6 +46,7 @@ from collections import defaultdict
 import pandas as pd
 import math 
 import traceback
+from rich_argparse import RawTextRichHelpFormatter	
 
 def create_parser():
 	""" Parse arguments """
@@ -59,7 +61,7 @@ def create_parser():
 	relative to a set of target genomes (e.g. genomes belonging to the same genus). Alternatively, 
 	it can run a simple DIAMOND BLASTp analysis to just assess the presence of prophage genes
 	individually - without the requirement they are co-located like in the focal sample.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--sample-genome', help='Path to sample genome in GenBank or FASTA format.', required=True, default=True)
 	parser.add_argument('-vi', '--vibrant-results', help='Path to VIBRANT results directory for a single sample/genome.', required=False, default=None)

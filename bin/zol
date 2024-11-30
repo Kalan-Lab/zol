@@ -36,8 +36,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import argparse
+from rich_argparse import RawTextRichHelpFormatter
 from Bio import SeqIO
 from time import sleep
 from zol import util, zol
@@ -76,7 +78,7 @@ def create_parser():
 	* It is advised that multiple GenBanks from the same genome/sample be concatenated into 
 	  a multi-record GenBank to account for fragmentation of gene-clusters and properly 
 	  calculate copy count of ortholog groups.
-	* Locus tags cannot contain commas, if they do however, you can use the --rename_lt flag 
+	* Locus tags cannot contain commas, if they do however, you can use the --rename-lt flag 
 	  to request new locus tags!
 	* Ortholog group and homolog group are/were used inter-changeably in the code/comments. We 
 	  recommend using the term ortholog group which is more commonly used in literature for 
@@ -88,7 +90,7 @@ def create_parser():
 	* "Domain mode" chops up CDS features in input GenBank files based on Pfam annotation,
 	  retaining domain and intra-domain regions that are of a certain length (60 aa) by 
 	  default. This mode is also not compatible with re-inflation.
-	""", formatter_class=argparse.RawTextHelpFormatter)
+	""", formatter_class=RawTextRichHelpFormatter)
 
 	parser.add_argument('-i', '--input', nargs='+', help='Either a directory or set of files with orthologous/homologous\nlocus-specific GenBanks.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=True, default=[])
 	parser.add_argument('-o', '--output-dir', help='Parent output/workspace directory.', required=True)
@@ -632,10 +634,12 @@ def zolMain():
 	step5_check_file = check_dir + 'step5.txt'
 	hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
 	markovian_file = outdir + 'Markovian_Order_Information.txt'
+	consensus_path_file = outdir + 'Consensus_Path_Information.txt'
 	hg_stats = None
 	if not os.path.isfile(step5_check_file):
 		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
-		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, logObject, domain_mode=domain_mode)
+		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, 
+													       consensus_path_file, logObject, domain_mode=domain_mode)
 		hg_full_amb, hg_trim_amb = zol.calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject)
 		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
 					'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc,

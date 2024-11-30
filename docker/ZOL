@@ -39,7 +39,7 @@ import os
 import sys
 from zol import util
 
-prog_set = set(['prepTG', 'fai', 'zol'])
+prog_set = set(['prepTG', 'fai', 'zol', 'cgc', 'cgcg'])
 
 version = util.getVersion()
 
@@ -59,12 +59,16 @@ if __name__ == '__main__':
 		- fai: perform targeted detection of query gene cluster(s) in genome database.
 		- zol: create a tabular report profiling conservation, evo stats, and annotation for ortholog groups found 
 		  across homologous/orthologous gene-cluster instance.
+		- cgc: create collapsed gene cluster visual
+		- cgcg: create collapsed gene cluster network visual
 		
 		Usage examples:
 		
 		./run_ZOL.sh prepTG -i Genomes/ -o prepTG_DB/ -c 10
 		./run_ZOL.sh fai -pq query_proteins.faa -tg prepTG_DB/ -o fai_Results/ -c 10
 		./run_ZOL.sh zol -i fai_Results/Homologous_GenBanks_Directory/ -o zol_Results/
+		./run_ZOL.sh cgc -i zol_Results/ -o cgc_Results/
+		./run_ZOL.sh cgcg -i zol_Results/ -o cgcg_Results/
 		""")
 	else:
 		os.system(' '.join([x.replace('"', '\\"').replace("'", "\\'") for x in args]))

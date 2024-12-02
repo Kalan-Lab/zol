@@ -245,7 +245,7 @@ def zolMain():
 		logObject.warning('can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.\n')
 		ibc_flag = False
 
-	if (domain_mode and reinflate_flag) or (domain_mode and comp_stats):
+	if (domain_mode and reinflate_flag) or (domain_mode and ces_flag):
 		sys.sdterr.write('Warning: can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!')
 		logObject.warning('can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!\n')
 		reinflate_flag = False

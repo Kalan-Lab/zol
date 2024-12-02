@@ -249,7 +249,7 @@ def zolMain():
 		sys.sdterr.write('Warning: can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!')
 		logObject.warning('can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!\n')
 		reinflate_flag = False
-		comp_stats = False
+		ces_flag = False
 
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'

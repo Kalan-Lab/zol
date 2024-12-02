@@ -113,15 +113,15 @@ def create_parser():
 	> Considerations
 	If FASTA format is provided, assumption is that genomes are prokaryotic and 
 	pyrodigal/prodigal will be used to perform gene-calling. Eukaryotic genomes can 
-	be provided as FASTA format but the --reference_proteome file should be used in 
+	be provided as FASTA format but the --reference-proteome file should be used in 
 	such case to map proteins from a reference proteome (from the same species ideally) 
 	on to the target genomes. This will prevent detection of new genes in gene-clusters 
 	detected by fai but synchronize gene-calling and allow for better similarity 
 	assessment between orthologous genes.
 								  
-	If you are interested in inferring horizontal gene transfer and working with bacterial
-	genomes - consider issuing the "--mge_annotation" flag to annotate phage, plasmid and 
-	IS element associated proteins. 
+	If you are interested in inferring horizontal gene transfer using salt downstream 
+	and are working with bacterial genomes - consider issuing the "--mge-annotation" 
+	flag to annotate phage, plasmid and IS element associated proteins. 
 								  
 	If GenBank files are provided, CDS features are expected and further each CDS 
 	feature must contain a "translation" qualifier which features the protein sequence
@@ -129,21 +129,21 @@ def create_parser():
 	"locus_tag" include --rename-locus-tags and --rename-problem-gbk-lts.
 	""", formatter_class=RawTextRichHelpFormatter)
 
-	parser.add_argument('-d', '--download-premade', help='Download and setup pre-made databases of representative genomes for\nspecific taxon/genus. Provide name of the taxon, e.g.\n"Escherichia"', required=False, default=None)
 	parser.add_argument('-i', '--input-dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
 	parser.add_argument('-g', '--gtdb-taxon', help='Name of a GTDB valid genus or species to incorporate genomes from.\nShould be surrounded by\nquotes (e.g. "Escherichia coli").', required=False, default=None)
 	parser.add_argument('-gr', '--gtdb-release', help='GTDB release to use. [Current default is R220].', default='R220', required=False)
+	parser.add_argument('-d', '--download-premade', help='Download and setup pre-made databases of representative genomes\nfor specific taxon/genus. Provide name of the taxon,\ne.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-o', '--output-dir', help='Output directory, which can then be provided as input for the\n"-tg" argument in fai.', required=True)
-	parser.add_argument('-l', '--locus-tag-length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k genomes.', required=False, default=3)
-	parser.add_argument('-r', '--rename-locus-tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in GenBanks.', required=False, default=False)
+	parser.add_argument('-r', '--rename-locus-tags', action='store_true', help='Whether to rename locus tags if provided for CDS features in\nGenBanks.', required=False, default=False)
 	parser.add_argument('-ro', '--rename-problem-gbk-lts', action='store_true', help='Whether to rename locus tags of only problem GenBank\nfiles which have CDS but no locus_tag qualifier. By default\nsuch GenBank files are skipped.', required=False, default=False)
+	parser.add_argument('-l', '--locus-tag-length', type=int, help='Length of locus tags to set. Default is 3, allows for <~18k\ngenomes.', required=False, default=3)
 	parser.add_argument('-gcm', '--gene-calling-method', help='Method to use for gene calling. Options are: pyrodigal, prodigal,\nor prodigal-gv. [Default is pyrodigal].', required=False, default='pyrodigal')
 	parser.add_argument('-m', '--meta-mode', action='store_true', help='Flag to use meta mode instead of single for pyrodigal/prodigal.', default=False, required=False)
-	parser.add_argument('-rp', '--reference-proteome', help='Provide path to a reference proteome to use for protein/gene-calling\nin target genomes - which should be in FASTA format.', default=None, required=False)
-	parser.add_argument('-cst', '--create-species-tree', action='store_true', help='Use skani to infer a neighbor-joing based species tree for the genomes.', required=False, default=False)
-	parser.add_argument('-ma', '--mge-annotation', action='store_true', help="Perform MGE annotation of proteins - for bacterial genomes only.", required=False, default=False)
+	parser.add_argument('-rp', '--reference-proteome', help='Provide path to a reference proteome to use for protein/\ngene-calling in target genomes - which should be in FASTA\nformat.', default=None, required=False)
+	parser.add_argument('-cst', '--create-species-tree', action='store_true', help='Use skani to infer a neighbor-joing based species\ntree for the genomes.', required=False, default=False)
+	parser.add_argument('-ma', '--mge-annotation', action='store_true', help="Perform MGE annotation of proteins - for\nbacterial genomes only.", required=False, default=False)
 	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use.\n[Default is 1].", required=False, default=1)
-	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nConfigured in the shell environment [experimental; Default is None].', required=False, default=None)
+	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Configured in the shell environment\n[Default is None; experimental].', required=False, default=None)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
@@ -267,6 +267,7 @@ def prepTG():
 	
 		genbank_accession_listing_file = outdir + 'NCBI_Genbank_Accession_Listing.txt'
 		sys.stdout.write("--------------------\nStep 0\n--------------------\nBeginning by assessing which genomic assemblies are available for the taxa %s in GTDB %s and NCBI's Genbank db\n" % (gtdb_taxon, gtdb_release))
+		logObject.info("\n--------------------\nStep 0\n--------------------\nBeginning by assessing which genomic assemblies are available for the taxa %s in GTDB %s and NCBI's Genbank db\n" % (gtdb_taxon, gtdb_release))
 
 		if not os.path.isfile(genbank_accession_listing_file):
 			genbank_accession_listing_handle = open(genbank_accession_listing_file, 'w')
@@ -363,7 +364,7 @@ def prepTG():
 			util.memory_limit(max_memory)
 		except Exception as e:
 			logObject.info("Error setting memory limit")
-			sys.stdout.write("Error setting memory limit\n")
+			sys.stderr.write("Error setting memory limit\n")
 
 	if download_premade != None:
 		# Step 1: Download and setup premade prepTG database for genus
@@ -392,6 +393,8 @@ def prepTG():
 	else:
 		# Step 1: List genomes in directory
 		sys.stdout.write('--------------------\nStep 1\n--------------------\nProcessing genomes provided in input or requested for download from GTDB/NCBI.\n')
+		logObject.info('\n--------------------\nStep 1\n--------------------\nProcessing genomes provided in input or requested for download from GTDB/NCBI.\n')
+
 		target_listing_file = outdir + 'Target_Genomes.txt'
 		uncompress_dir = outdir + 'Uncompressed_Genomes/'
 
@@ -428,8 +431,10 @@ def prepTG():
 
 		# Step 2: Setup files needed for fai
 		sys.stdout.write('--------------------\nStep 2\n--------------------\nRe-formatting (and gene-calling/gene-mapping) genomes for usage in fai downstream.\n')
+		logObject.info('\n--------------------\nStep 2\n--------------------\nRe-formatting (and gene-calling/gene-mapping) genomes for usage in fai downstream.\n')
+
 		format_assess_dir = outdir + 'Format_Assessment/'
-		util.setupReadyDirectory([format_assess_dir])
+		util.setupReadyDirectory([format_assess_dir], delete_if_exist=True)
 		format_predictions_file = outdir + 'All_Format_Inferences.txt'
 		target_genome_annotation_listing_file = outdir + 'Target_Genome_Annotation_Files.txt'
 		additional_sample_genomes, additional_format_prediction = util.parseSampleGenomes(target_listing_file, format_assess_dir, format_predictions_file, logObject, threads=threads)
@@ -442,11 +447,11 @@ def prepTG():
 		additional_proteomes_directory = outdir + 'Predicted_Proteomes_Additional/'
 		additional_genbanks_directory = outdir + 'Genomic_Genbanks_Additional/'
 		additional_genbanks_directory_local = 'Genomic_Genbanks_Additional/'
-		util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory])
+		util.setupReadyDirectory([additional_proteomes_directory, additional_genbanks_directory], delete_if_exist=True)
 		if additional_format_prediction == 'fasta':
 			if reference_proteome == None:
 				additional_prodigal_outdir = outdir + 'Prodigal_Gene_Calling_Additional/'
-				util.setupReadyDirectory([additional_prodigal_outdir])
+				util.setupReadyDirectory([additional_prodigal_outdir], delete_if_exist=True)
 				util.processGenomesUsingProdigal(additional_sample_genomes, additional_prodigal_outdir,
 												additional_proteomes_directory, additional_genbanks_directory, logObject,
 												threads=threads, locus_tag_length=locus_tag_length, gene_calling_method=gene_calling_method,
@@ -454,7 +459,7 @@ def prepTG():
 				shutil.rmtree(additional_prodigal_outdir)
 			else:
 				additional_miniprot_outdir = outdir + 'Miniprot_Gene_Calling_Additional/'
-				util.setupReadyDirectory([additional_miniprot_outdir])
+				util.setupReadyDirectory([additional_miniprot_outdir], delete_if_exist=True)
 				util.processGenomesUsingMiniprot(reference_proteome, additional_sample_genomes, additional_miniprot_outdir,
 												additional_proteomes_directory, additional_genbanks_directory, logObject,
 												threads=threads, locus_tag_length=locus_tag_length)
@@ -462,7 +467,7 @@ def prepTG():
 		else:
 			# genomes are provided as Genbanks with CDS features
 			gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
-			util.setupReadyDirectory([gene_name_mapping_outdir])
+			util.setupReadyDirectory([gene_name_mapping_outdir], delete_if_exist=True)
 			util.processGenomesAsGenbanks(additional_sample_genomes, additional_proteomes_directory,
 										additional_genbanks_directory, gene_name_mapping_outdir, logObject,
 										threads=threads, locus_tag_length=locus_tag_length, rename_locus_tags=rename_locus_tags,
@@ -477,7 +482,7 @@ def prepTG():
 			try:
 				with open(additional_proteomes_directory + sample + '.faa') as ospf:
 					for rec in SeqIO.parse(ospf, 'fasta'):
-						target_genomes_concat_db_handle.write('>' + sample + '|' + rec.id + '\n' + str(rec.seq) + '\n')
+						target_genomes_concat_db_handle.write('>' + sample + '|' + rec.id + '\n' + str(rec.seq).rstrip('*') + '\n')
 			except:
 				pass
 		target_genome_annotation_listing_handle.close()
@@ -488,7 +493,7 @@ def prepTG():
 			mge_annot_dir = outdir + 'MGE_Annotations/'
 			mge_annot_search_dir = mge_annot_dir + 'Search_Results/'
 			mge_annot_summary_dir = mge_annot_dir + 'Summary_Results/'
-			util.setupReadyDirectory([mge_annot_dir, mge_annot_search_dir, mge_annot_summary_dir])
+			util.setupReadyDirectory([mge_annot_dir, mge_annot_search_dir, mge_annot_summary_dir], delete_if_exist=True)
 			search_mge_annot_inputs = []
 			process_mge_annot_inputs = []
 			for f in os.listdir(additional_proteomes_directory):
@@ -512,6 +517,8 @@ def prepTG():
 
 		# remove individual proteome files
 		sys.stdout.write('--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
+		logObject.info('\n--------------------\nStep 4\n--------------------\nRemoving intermediate files to save space.\n')
+
 		shutil.rmtree(additional_proteomes_directory)
 
 		target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'
@@ -530,7 +537,7 @@ def prepTG():
 		target_genome_annotation_data = util.readInAnnotationFilesForExpandedSampleSet(target_genome_annotation_listing_file, additional_genbanks_directory)
 
 		pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
-		util.setupReadyDirectory([pickle_output_dir])
+		util.setupReadyDirectory([pickle_output_dir], delete_if_exist=True)
 		try:
 			sample_genbank_info = []
 			for sample in target_genome_annotation_data:
@@ -551,8 +558,10 @@ def prepTG():
 		species_tree_dir = outdir + 'Species_Tree_Workspace/'
 		species_tree = outdir + 'Species_Tree.nwk'
 		if create_species_tree:
-				util.setupReadyDirectory([species_tree_dir])
+				util.setupReadyDirectory([species_tree_dir], delete_if_exist=True)
 				sys.stdout.write('--------------------\nStep 5\n--------------------\nInferring speices tree based on skani ANI estimates + neighbor-joining.\n')
+				logObject.info('\n--------------------\nStep 5\n--------------------\nInferring speices tree based on skani ANI estimates + neighbor-joining.\n')
+
 				util.createNJTree(additional_genbanks_directory, species_tree, species_tree_dir, logObject, threads=threads)
 
 	# Close logging object and exit

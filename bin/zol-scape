@@ -155,7 +155,7 @@ def zolscape():
 	# Step 3: Run zol or create zol task file
 	zol_results_dir = outdir + 'zol_Results/'
 	if not os.path.isdir(zol_results_dir):
-		util.setupReadyDirectory([zol_results_dir])
+		util.setupReadyDirectory([zol_results_dir], delete_if_exist=True)
 	
 	zol_results = 0
 	for item in os.listdir(zol_results_dir):

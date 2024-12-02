@@ -40,8 +40,6 @@ After finding homologous instances of a gene cluster - using fai or other softwa
 * [abon, atpoc, and apos: Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
 * [(***New***) cgc: Summary visualization of 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
 * [(***New***) cgcg: Network visualization of ortholog groups across 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
-* [(***New***) salt: Assessing support for lateral gene transfer](https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt)
-
 
 ## Short Note on Resource Requirements:
 

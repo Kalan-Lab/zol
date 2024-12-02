@@ -157,9 +157,9 @@ def abon():
 	proteins_dir = outdir + 'Protein_FASTAs/'
 	key_proteins_dir = outdir + 'Key_Proteins_FASTAs/'
 	if use_simple_blastp_flag:
-		util.setupReadyDirectory([fai_results_dir, proteins_dir, key_proteins_dir])
+		util.setupReadyDirectory([fai_results_dir, proteins_dir, key_proteins_dir], delete_if_exist=True)
 	else:
-		util.setupReadyDirectory([fai_results_dir, key_proteins_dir])
+		util.setupReadyDirectory([fai_results_dir, key_proteins_dir], delete_if_exist=True)
 
 	bgc_info_file = outdir + 'BGCome_Info.tsv'
 	bgc_info_handle = open(bgc_info_file, 'w')
@@ -191,7 +191,7 @@ def abon():
 
 		if use_simple_blastp_flag:
 			# run simple blastp
-			util.setupReadyDirectory([bgc_fai_res_dir])
+			util.setupReadyDirectory([bgc_fai_res_dir], delete_if_exist=True)
 			util.diamondBlastAndGetBestHits(bgc_id, gen_prot_file, key_prot_file, preptg_db_dir, bgc_fai_res_dir, logObject,
 								   			identity_cutoff=simple_blastp_identity_cutoff, coverage_cutoff=simple_blastp_coverage_cutoff, 
 											blastp_mode=simple_blastp_sensitivity_mode, prop_key_prots_needed=simple_blastp_key_proteins_proportion_cutoff,

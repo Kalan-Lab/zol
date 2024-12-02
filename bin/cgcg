@@ -273,6 +273,7 @@ def cgcg():
 	graph_object = {'graph': {'directed': (not undirected_graph), 'metadata': metadata, 'nodes': {}, 'edges': []}}
 	node_name_to_id = {}
 	retained_ogs = set([])
+	dom_mode = False
 	try:
 		header = []
 		with open(zol_spreadsheet_tsv) as ozst:
@@ -281,6 +282,8 @@ def cgcg():
 				ls = line.split('\t')
 				if i == 0: 
 					header = ls
+					if 'Single-Linkage Full Protein Cluster' in header:				
+						dom_mode = True
 				else:
 					graph_object['graph']['nodes']
 					og = ls[0]
@@ -411,7 +414,10 @@ def cgcg():
 				ls = line.split('\t')
 				if 'start' in ls: continue
 				if 'end' in ls: continue
-				consensus_og_pairs.add(tuple(sorted([ls[0], ls[1]])))
+				if dom_mode:
+					consensus_og_pairs.add(tuple(sorted(['D' + ls[0], 'D' + ls[1]])))
+				else:					
+					consensus_og_pairs.add(tuple(sorted([ls[0], ls[1]])))
 	except:
 		msg = 'Issue reading in consensus path information.'
 		logObject.error(msg)
@@ -428,6 +434,9 @@ def cgcg():
 				ls = line.split('\t')
 				if i == 0: continue
 				og, og_after, weight, og_dir, og_after_dir = ls
+				if dom_mode:
+					og = 'D' + og
+					og_after = 'D' + og_after
 				if og == 'start': continue
 				if og_after == 'end': continue
 				if not og in retained_ogs or not og_after in retained_ogs: continue
@@ -487,7 +496,8 @@ def cgcg():
 			        node_size_data_source='OG Median Length (bp)', node_label_data_source='label',
 					use_edge_size_normalization=False, edge_curvature=0.3, 
 					show_node_label=show_labels_flag, show_menu=True, show_details=True,
-					graph_height=400, details_height=200, edge_size_factor=2)
+					graph_height=400, details_height=200, edge_size_factor=2, 
+					edge_size_data_source='edge_size')
 		fig.export_html(html_file)
 	except:
 		msg = 'Issue running gravis or saving to HTML.'

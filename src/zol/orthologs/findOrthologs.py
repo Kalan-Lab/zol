@@ -77,6 +77,7 @@ def create_parser():
 	parser.add_argument('-e', '--evalue', type=float, help='E-value cutoff for determining orthologs.', required=False, default=0.001)
 	parser.add_argument('-i', '--identity', type=float, help='Percent identity cutoff for determining orthologs.', required=False, default=30.0)
 	parser.add_argument('-q', '--coverage', type=float, help='Bi-directional coverage cutoff for determining orthologs.', required=False, default=50.0)
+	parser.add_argument('-mi', '--mcl_inflation', type=float, help='The inflation parameter value for MCL. If -1 will use single-linkage clustering.', required=False, default=1.5)
 	parser.add_argument('-cd', '--cdhit_orthogroup', action='store_true', help='Infer ortholog groups using CD-HIT.', required=False, default=False)
 	parser.add_argument('-cdp', '--cdhit_params', help='Parameters for performing CD-HIT based ortholog group\nclustering if requested via --cdhit_orthogroup.\n[Default is "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000"]', required=False, default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
 	parser.add_argument('-c', '--threads', type=int, help='Maximum number of threads to use. Default is 1.', default=1,
@@ -237,6 +238,7 @@ def findOrthologs():
 	coverage_cutoff = myargs.coverage
 	identity_cutoff = myargs.identity
 	evalue_cutoff = myargs.evalue
+	mcl_inflation = myargs.mcl_inflation
 	cdhit_orthogroup_flag = myargs.cdhit_orthogroup
 	cdhit_params = myargs.cdhit_params
 
@@ -281,7 +283,7 @@ def findOrthologs():
 			os.system('mkdir %s' % proteome_name_dir)
 
 		sys.stdout.write("--------------------\nStep 0\n--------------------\nProcessing proteomes\n")
-		logObject.info("--------------------\nStep 0\n--------------------\nProcessing proteomes")
+		logObject.info("\n--------------------\nStep 0\n--------------------\nProcessing proteomes")
 
 		proteome_listing_file = outdir + 'Proteome_Listing.txt'
 		step0_checkpoint_file = checkpoint_dir + 'Step0_Checkpoint.txt'
@@ -322,7 +324,7 @@ def findOrthologs():
 
 		# Step 1: Concatenate all proteins into single multi-FASTA file
 		sys.stdout.write("--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA\n")
-		logObject.info("--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA.")
+		logObject.info("\n--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA.")
 		concat_faa = outdir + 'All_Proteins.faa'
 		if not os.path.isfile(concat_faa):
 			cf_handle = open(concat_faa, 'w')
@@ -336,7 +338,7 @@ def findOrthologs():
 
 		# Step 2: Perform reflexive alignment via Diamond
 		sys.stdout.write("--------------------\nStep 2\n--------------------\nRunning reflexive alignment using Diamond\n")
-		logObject.info("--------------------\nStep 2\n--------------------\nRunning reflexive alignment using Diamond")
+		logObject.info("\n--------------------\nStep 2\n--------------------\nRunning reflexive alignment using Diamond")
 		step2_checkpoint_file = checkpoint_dir + 'Step2_Checkpoint.txt'
 
 		align_res_dir = outdir + 'Alignments/'
@@ -403,7 +405,7 @@ def findOrthologs():
 			os.system('touch %s' % step2_checkpoint_file)
 
 		sys.stdout.write("--------------------\nStep 3\n--------------------\nRunning RBH.\n")
-		logObject.info("--------------------\nStep 3\n--------------------\nRunning RBH.")
+		logObject.info("\n--------------------\nStep 3\n--------------------\nRunning RBH.")
 		scaled_find_orthos_result_file = outdir + 'All.normalized.abc-like'
 		step3_checkpoint_file = checkpoint_dir + 'Step3_Checkpoint.txt'
 		if not os.path.isfile(step3_checkpoint_file):
@@ -447,21 +449,30 @@ def findOrthologs():
 					qh_pair = tuple(sorted([query, hit]))
 					if qh_pair in qh_pairs_accounted: continue
 					qh_pairs_accounted.add(qh_pair)
-					if query_samp == hit_samp:
+					if query_samp == hit_samp and mcl_inflation > 0:
 						scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(float(bs)/100.0) + '\n')
 					else:
 						sample_pair = tuple(sorted([query_samp, hit_samp]))
-						scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(float(bs)/qshs_rbh_avg[sample_pair]) + '\n')
+						if mcl_inflation > 0:
+							scaled_find_orthos_result_handle.write(query + '\t' + hit + '\t' + str(float(bs)/qshs_rbh_avg[sample_pair]) + '\n')
+						elif mcl_inflation == -1:
+							scaled_find_orthos_result_handle.write(query + '\t' + hit + '\n')
 			scaled_find_orthos_result_handle.close()
 
-		sys.stdout.write("--------------------\nStep 4\n--------------------\nRun MCL to determine OrthoGroups.\n")
-		logObject.info("--------------------\nStep 4\n--------------------\nRun MCL to determine OrthoGroups.")
+		sys.stdout.write("--------------------\nStep 4\n--------------------\nRun MCL or single-linkage clustering to determine OrthoGroups.\n")
+		logObject.info("\n--------------------\nStep 4\n--------------------\nRun MCL or single-linkage clustering to determine OrthoGroups.")
 		tmp_result_file = outdir + 'Tmp_Results.txt'
 		step4_checkpoint_file = checkpoint_dir + 'Step4_Checkpoint.txt'
 		if not os.path.isfile(step4_checkpoint_file):
 			cluster_result_file = outdir + 'MCL_Cluster_Results.txt'
-			find_clusters_cmd = ['mcl', scaled_find_orthos_result_file, '--abc', '-I', '1.5', '-te',
+			if mcl_inflation > 0:
+				find_clusters_cmd = ['mcl', scaled_find_orthos_result_file, '--abc', '-I', str(mcl_inflation), '-te',
 									str(threads), '-o', cluster_result_file]
+			elif mcl_inflation == -1:
+				find_clusters_cmd = ['slclust', '<', scaled_find_orthos_result_file, '>', cluster_result_file]
+			else:
+				msg = 'MCL inflation parameter value is not valid is less than 0 but not -1 to indicate single-linkage clustering requested.'
+			logObject.info('Running: %s' % ' '.join(find_clusters_cmd))
 			try:
 				subprocess.call(' '.join(find_clusters_cmd), shell=True, stdout=subprocess.DEVNULL,
 								stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -498,7 +509,7 @@ def findOrthologs():
 
 		step5_checkpoint_file = checkpoint_dir + 'Step5_Checkpoint.txt'
 		sys.stdout.write("--------------------\nStep 5\n--------------------\nCreate final result files!\n")
-		logObject.info("--------------------\nStep 5\n--------------------\nCreate final result files!")
+		logObject.info("\n--------------------\nStep 5\n--------------------\nCreate final result files!")
 
 		if not os.path.isfile(step5_checkpoint_file):
 			createFinalResults(tmp_result_file, proteome_listing_file, proteome_name_dir, result_tab_file,
@@ -512,7 +523,7 @@ def findOrthologs():
 
 		# Step 1: Concatenate all proteins into single multi-FASTA file
 		sys.stdout.write("--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA\n")
-		logObject.info("--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA.")
+		logObject.info("\n--------------------\nStep 1\n--------------------\nConcatenating proteins into multi-FASTA.")
 		concat_faa = outdir + 'All_Proteins.faa'
 		if not os.path.isfile(concat_faa):
 			cf_handle = open(concat_faa, 'w')
@@ -526,7 +537,7 @@ def findOrthologs():
 
 		# Step 2: Run CD-HIT
 		sys.stdout.write("--------------------\nStep 2\n--------------------\nRunning CD-HIT to determine protein clusters\n")
-		logObject.info("--------------------\nStep 2\n--------------------\nRunning CD-HIT to determine protein clusters")
+		logObject.info("\n--------------------\nStep 2\n--------------------\nRunning CD-HIT to determine protein clusters")
 		step2_checkpoint_file = checkpoint_dir + 'CDHIT_Step2_Checkpoint.txt'
 		
 		if not os.path.isfile(step2_checkpoint_file):
@@ -548,7 +559,7 @@ def findOrthologs():
 			os.system('touch %s' % step2_checkpoint_file)
 
 		sys.stdout.write("--------------------\nStep 3\n--------------------\nCreate final result files!\n")
-		logObject.info("--------------------\nStep 3\n--------------------\nCreate final result files!")
+		logObject.info("\n--------------------\nStep 3\n--------------------\nCreate final result files!")
 		step3_checkpoint_file = checkpoint_dir + 'CDHIT_Step3_Checkpoint.txt'
 
 		if not os.path.isfile(step3_checkpoint_file):

@@ -149,7 +149,10 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 			for pos in range(sc, ec+1):
 				if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
 					chunk_nucl_seq += nucl_seq[nucl_coord]
-					chunk_coords.append(pos)
+					if direction == '+':
+						chunk_coords.append(pos)
+					else:
+						chunk_coords.append(end-(pos-start))
 				nucl_coord += 1
 			
 		translated_prot_seq = str(Seq(chunk_nucl_seq).translate())

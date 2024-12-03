@@ -434,11 +434,11 @@ def cgcg():
 				ls = line.split('\t')
 				if i == 0: continue
 				og, og_after, weight, og_dir, og_after_dir = ls
+				if og == 'start': continue
+				if og_after == 'end': continue
 				if dom_mode:
 					og = 'D' + og
 					og_after = 'D' + og_after
-				if og == 'start': continue
-				if og_after == 'end': continue
 				if not og in retained_ogs or not og_after in retained_ogs: continue
 				edge_weights.append(int(weight))
 
@@ -450,6 +450,9 @@ def cgcg():
 				og, og_after, weight, og_dir, og_after_dir = ls
 				if og == 'start': continue
 				if og_after == 'end': continue
+				if dom_mode:
+					og = 'D' + og
+					og_after = 'D' + og_after
 				if flip_flag:
 					og_after = ls[0]
 					og = ls[1]

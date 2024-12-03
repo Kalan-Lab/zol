@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import pandas
@@ -113,6 +115,7 @@ def genSynVis():
 		prev_end = end + 200
 	pif_handle.close()
 
+	plot_result_pdf = outdir + 'Plot.pdf'
 	rscript_path = outdir + 'generateSyntenicVisual.R'
 	util.generateSyntenicVisualR(plot_input_file, plot_result_pdf, plot_height, plot_width, rscript_path)
 	plot_cmd = ['Rscript', rscript_path]
@@ -125,17 +128,6 @@ def genSynVis():
 		sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
-
-
-	plot_result_pdf = outdir + 'Plot.pdf'
-	plot_cmd = ['Rscript', plot_prog, plot_input_file, str(plot_height), str(plot_width), plot_result_pdf]
-	try:
-		subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-						executable='/bin/bash')
-		assert (os.path.isfile(plot_result_pdf))
-	except Exception as e:
-		sys.stderr.write('Had an issue running R based plotting: %s\n' % ' '.join(plot_cmd))
-		sys.exit(1)
-
+		
 if __name__ == '__main__':
 	genSynVis()

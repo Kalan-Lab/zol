@@ -231,10 +231,10 @@ def prepTG():
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, outdir, reference_proteome, gene_calling_method, 
-					    meta_mode, create_species_tree, threads, max_memory]
+					    meta_mode, create_species_tree, threads, max_memory, mge_annotation_flag]
 	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "Output Directory", 
 					   "Reference Proteome Provided", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", 
-					   "Number of threads", "Maximum Memory in GB"]
+					   "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 

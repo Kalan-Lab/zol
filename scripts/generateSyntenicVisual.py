@@ -123,7 +123,6 @@ def genSynVis():
 		subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 						executable='/bin/bash')
 		assert (os.path.isfile(plot_result_pdf))
-		logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
 	except Exception as e:
 		sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
 		sys.stderr.write(traceback.format_exc())

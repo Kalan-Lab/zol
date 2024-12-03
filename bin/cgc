@@ -306,7 +306,7 @@ def cgc():
 
 			mapping_dir = outdir + 'Protein_Mapping/'
 			proteomes_dir = mapping_dir + 'Inputs/'
-			util.setupReadyDirectory([mapping_dir, proteomes_dir])
+			util.setupReadyDirectory([mapping_dir, proteomes_dir], delete_if_exist=True)
 			try:
 				shutil.copy(annotation_db_faa, proteomes_dir + '1_queries.faa')
 				shutil.copy(og_consensus_seqs_faa,proteomes_dir + '2_references.faa')

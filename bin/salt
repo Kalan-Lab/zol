@@ -100,7 +100,7 @@ def salt():
 
 	check_dir = outdir + 'Checkpoint_Files/'
 	if not os.path.isdir(check_dir):
-		util.setupReadyDirectory([check_dir])
+		util.setupReadyDirectory([check_dir], delete_if_exist=True)
 
 	# create logging object
 	log_file = outdir + 'Progress.log'
@@ -195,7 +195,7 @@ def salt():
 	codoff_res_dir = outdir + 'codoff_Results/'
 	checkpoint_2_file = check_dir + 'step2.txt'
 	if not os.path.isfile(checkpoint_2_file):
-		util.setupReadyDirectory([codoff_res_dir])
+		util.setupReadyDirectory([codoff_res_dir], delete_if_exist=True)
 		
 		codoff_cmds = []
 		
@@ -236,7 +236,7 @@ def salt():
 	ribo_norm_dir = outdir + 'Ribosomal_Normalization/'
 	gc_to_ribo_aai_stat_file = outdir + 'GeneCluster_to_Ribosomal_AAI_Ratios.txt'
 	if not os.path.isfile(checkpoint_4_file):
-		util.setupReadyDirectory([ribo_norm_dir])
+		util.setupReadyDirectory([ribo_norm_dir], delete_if_exist=True)
 
 		best_tg_hit = None
 		best_tg_gc_gbk_file = None

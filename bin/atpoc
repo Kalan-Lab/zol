@@ -202,7 +202,7 @@ def atpoc():
 	logObject.info('Found %d prophage predictions!' % len(sample_phages))
 
 	fai_results_dir = outdir + 'fai_or_blast_Results/'
-	util.setupReadyDirectory([fai_results_dir])
+	util.setupReadyDirectory([fai_results_dir], delete_if_exist=True)
 	phage_info_file = outdir + 'TemperatePhageOme_Info.tsv'
 	phage_info_handle = open(phage_info_file, 'w')
 	phage_lengths = []
@@ -218,7 +218,7 @@ def atpoc():
 
 		if use_simple_blastp_flag:
 			# run simple blastp
-			util.setupReadyDirectory([phage_fai_res_dir])
+			util.setupReadyDirectory([phage_fai_res_dir], delete_if_exist=True)
 			reference_genome_gbk = phage_fai_res_dir + 'reference.gbk'
 			gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_genome, '-s', 'reference', '-l',
 								'OG', '-o', phage_fai_res_dir]

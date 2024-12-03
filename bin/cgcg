@@ -96,6 +96,7 @@ def create_parser():
 	parser.add_argument('-ch', '--high-value-color', help='Hex code for color for high-value. Surround by quotes\n[Default is "#102f75"].', required=False, default="#102f75")
 	parser.add_argument('-nc', '--na-value-color', help='The hex code for setting color of NA/non-numeric values.\nSuround by quotes. [Default is" #adadad"].', required=False, default="#adadad")
 	parser.add_argument('-mc', '--min-conservation', help='Minimum conservation of ortholog group to be shown\n[Default is 0.25].', required=False, default=0.25)
+	parser.add_argument('-mer', '--min-edge-ratio', help='Minimum ratio of weight between two ortholog groups to the maximum weight observed to be shown [Default is 0.05].', required=False, default=0.05) 
 	parser.add_argument('-sl', '--show-labels', action='store_true', help='Show orthogroup labels.', required=False, default=False)
 	parser.add_argument('-cul', '--custom-labels', help='Tab-separated file with OG identifiers as first column\nand labels to use as the second column.', required=False, default=None)
 	parser.add_argument('-cuc', '--custom-colors', help='Tab-separated file with OG identifiers as first column\nand hex-code for colors to use as the second column.', required=False, default=None)
@@ -127,6 +128,7 @@ def cgcg():
 	high_value_color = myargs.high_value_color
 	na_value_color = myargs.na_value_color
 	min_conservation = myargs.min_conservation
+	min_edge_ratio = myargs.min_edge_ratio
 	show_labels_flag = myargs.show_labels
 	custom_labels_file = myargs.custom_labels
 	custom_colors_file = myargs.custom_colors
@@ -273,6 +275,7 @@ def cgcg():
 	graph_object = {'graph': {'directed': (not undirected_graph), 'metadata': metadata, 'nodes': {}, 'edges': []}}
 	node_name_to_id = {}
 	retained_ogs = set([])
+	dom_mode = False
 	try:
 		header = []
 		with open(zol_spreadsheet_tsv) as ozst:
@@ -281,6 +284,8 @@ def cgcg():
 				ls = line.split('\t')
 				if i == 0: 
 					header = ls
+					if 'Single-Linkage Full Protein Cluster' in header:				
+						dom_mode = True
 				else:
 					graph_object['graph']['nodes']
 					og = ls[0]
@@ -411,7 +416,10 @@ def cgcg():
 				ls = line.split('\t')
 				if 'start' in ls: continue
 				if 'end' in ls: continue
-				consensus_og_pairs.add(tuple(sorted([ls[0], ls[1]])))
+				if dom_mode:
+					consensus_og_pairs.add(tuple(sorted(['D' + ls[0], 'D' + ls[1]])))
+				else:					
+					consensus_og_pairs.add(tuple(sorted([ls[0], ls[1]])))
 	except:
 		msg = 'Issue reading in consensus path information.'
 		logObject.error(msg)
@@ -430,8 +438,15 @@ def cgcg():
 				og, og_after, weight, og_dir, og_after_dir = ls
 				if og == 'start': continue
 				if og_after == 'end': continue
+				if dom_mode:
+					og = 'D' + og
+					og_after = 'D' + og_after
 				if not og in retained_ogs or not og_after in retained_ogs: continue
 				edge_weights.append(int(weight))
+		
+		max_edge_weight = 0
+		if len(edge_weights) > 0:
+			max_edge_weight = max(edge_weights)
 
 		with open(order_information_tsv) as ooit:
 			for i, line in enumerate(ooit):
@@ -441,6 +456,9 @@ def cgcg():
 				og, og_after, weight, og_dir, og_after_dir = ls
 				if og == 'start': continue
 				if og_after == 'end': continue
+				if dom_mode:
+					og = 'D' + og
+					og_after = 'D' + og_after
 				if flip_flag:
 					og_after = ls[0]
 					og = ls[1]
@@ -452,11 +470,14 @@ def cgcg():
 				if show_consensus_flag:
 					if og_pair in consensus_og_pairs:
 						edge_color = '#b57c0b'
-
-				edge_dict = {'source': node_name_to_id[og], 'target': node_name_to_id[og_after], 
-				             'metadata': {'edge_size': int(weight)/max(edge_weights), 
-							 'color': edge_color}}
-				graph_object['graph']['edges'].append(edge_dict)
+	
+				if max_edge_weight > 0:
+					edge_weight_ratio = int(weight)/max_edge_weight
+					if edge_weight_ratio >= min_edge_ratio:
+						edge_dict = {'source': node_name_to_id[og], 'target': node_name_to_id[og_after], 
+						             'metadata': {'edge_size': edge_weight_ratio, 
+									 'color': edge_color}}
+						graph_object['graph']['edges'].append(edge_dict)
 	except:
 		msg = 'Issue appending edge information to gJCF.'
 		logObject.error(msg)
@@ -487,7 +508,8 @@ def cgcg():
 			        node_size_data_source='OG Median Length (bp)', node_label_data_source='label',
 					use_edge_size_normalization=False, edge_curvature=0.3, 
 					show_node_label=show_labels_flag, show_menu=True, show_details=True,
-					graph_height=400, details_height=200, edge_size_factor=2)
+					graph_height=400, details_height=200, edge_size_factor=2, 
+					edge_size_data_source='edge_size')
 		fig.export_html(html_file)
 	except:
 		msg = 'Issue running gravis or saving to HTML.'

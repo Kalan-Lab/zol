@@ -1,7 +1,7 @@
 [project]
 name = "zol"
 authors = [{name="Rauf Salamzade", email="salamzader@gmail.com"}]
-version = "1.5.5"
+version = "1.5.6"
 readme = "README.md"
 description = "zol suite for detection and evolutionary analysis of gene clusters."
 
@@ -22,6 +22,7 @@ script-files=['docker/ZOL',
                'bin/salt',
                'bin/zol-scape',
                'scripts/genbankToFasta.py',
+               'scripts/generateSyntenicVisual.py',
                'scripts/annotateProtSeqs.py',
                'scripts/selectSpecificGeneClusters.py',
                'scripts/runProdigalAndMakeProperGenbank.py',

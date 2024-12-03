@@ -4,9 +4,9 @@ import pandas
 import argparse
 import subprocess
 from time import sleep
+from zol import util
+import traceback
 
-zol_main_directory = '/'.join(os.path.realpath(__file__).split('/')[:-2]) + '/'
-plot_prog = zol_main_directory + 'scripts/generateSyntenicVisual.R'
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""
@@ -112,6 +112,20 @@ def genSynVis():
 		pif_handle.write('\t'.join([str(x) for x in print_row]) + '\n')
 		prev_end = end + 200
 	pif_handle.close()
+
+	rscript_path = outdir + 'generateSyntenicVisual.R'
+	util.generateSyntenicVisualR(plot_input_file, plot_result_pdf, plot_height, plot_width, rscript_path)
+	plot_cmd = ['Rscript', rscript_path]
+	try:
+		subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+						executable='/bin/bash')
+		assert (os.path.isfile(plot_result_pdf))
+		logObject.info('Successfully ran: %s' % ' '.join(plot_cmd))
+	except Exception as e:
+		sys.stderr.write('Had an issue running R based plotting - potentially because of R setup issues in conda: %s\n' % ' '.join(plot_cmd))
+		sys.stderr.write(traceback.format_exc())
+		sys.exit(1)
+
 
 	plot_result_pdf = outdir + 'Plot.pdf'
 	plot_cmd = ['Rscript', plot_prog, plot_input_file, str(plot_height), str(plot_width), plot_result_pdf]

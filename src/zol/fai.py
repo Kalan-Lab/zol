@@ -1872,10 +1872,10 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 
 				# percent identity
 				tot_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
-				igc_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
+				igc_worksheet.conditional_format(columnid_pid + '2:' + columnid_pid + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#d8eaf0", 'max_color': "#83c1d4", "min_value": 0.0, "max_value": 100.0, 'min_type': 'num', 'max_type': 'num'})
 
 				# sequence-to-query ratio
-				tot_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
+				tot_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(tot_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
 				igc_worksheet.conditional_format(columnid_sql + '2:' + columnid_sql + str(igc_row_count), {'type': '2_color_scale', 'min_color': "#dbd5e8", 'max_color': "#afa1cf", "min_value": 0.0, "max_value": 1.0, 'min_type': 'num', 'max_type': 'num'})
 
 		else:

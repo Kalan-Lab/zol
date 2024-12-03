@@ -117,7 +117,7 @@ def performSLFullProteinClustering(ortho_matrix_file, workspace_dir, full_prot_c
 		logObject.error(traceback.format_exc())
 		sys.exit(1)
 
-def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, tg_coord_info, name, evalue, logObject):
+def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, tg_coord_info, name, evalue, eukaryotic_gene_cluster_flag, logObject):
 	"""
 	Description:
 	Determines coordinates of chopped protein region from feature nucleotide coordinate info - which could include 
@@ -144,14 +144,21 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 		nucl_end_coord = end_coord*3
 		chunk_coords = []
 		nucl_coord = 0
-		
-		for sc, ec, dc in all_coords:
-			for pos in range(sc, ec+1):
-				if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
-					chunk_nucl_seq += nucl_seq[nucl_coord]
-					chunk_coords.append(pos)
-				nucl_coord += 1
-			
+	
+		if direction == '+':	
+			for sc, ec, dc in all_coords:
+				for pos in range(sc, ec+1):
+					if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
+						chunk_nucl_seq += nucl_seq[nucl_coord]
+						chunk_coords.append(pos)
+					nucl_coord += 1
+		else:
+			for sc, ec, dc in all_coords[::-1]:
+				for pos in range(sc, ec+1):
+					if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
+						chunk_nucl_seq += nucl_seq[nucl_coord]
+						chunk_coords.append(end-(pos-start))
+					nucl_coord += 1		
 		translated_prot_seq = str(Seq(chunk_nucl_seq).translate())
 		
 		"""
@@ -176,7 +183,7 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 		"""
 		
 		# account for alterante initiator codons "GTG" and "TTG"
-		if start_coord == 0 and translated_prot_seq[0] in set(['V', 'L']):
+		if not eukaryotic_gene_cluster_flag and start_coord == 0 and translated_prot_seq[0] in set(['V', 'L']):
 			translated_prot_seq = 'M' + translated_prot_seq[1:]
 			msg = "Warning: changing starting protein residue from V or L to M. This is expected for bacteria, but if you are seeing this with running a eukaryotic dataset - it indicates an issue!"
 			logObject.warning(msg)
@@ -194,11 +201,13 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 
 		range_coords = determine_ranges(sorted(chunk_coords))
 		coord_feat_locs = []
+		
 		for rc in range_coords:
 			coord_feat_locs.append(FeatureLocation(rc[0], rc[1], strand=fstrand))
-
+	
 		summed_coord_feat_locs = sum(coord_feat_locs)
-
+		#if direction == '-':
+		#	summed_coord_feat_locs = sum(coord_feat_locs[::-1])
 		feature = SeqFeature(summed_coord_feat_locs, type='cCDS')
 
 		feature.qualifiers['translation'] = Seq(tg_seq_chunk)
@@ -209,7 +218,7 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 	except:
 		sys.stderr.write(traceback.format_exc() + '\n')
 		logObject.error(traceback.format_exc())
-		sys.exit(1)
+		raise RuntimeError()
 
 def createChoppedGenbank(inputs):
 	"""
@@ -230,7 +239,7 @@ def createChoppedGenbank(inputs):
 	- threads: The number of threads to use [Default is 1].
 	********************************************************************************************************************
 	"""
-	gbk, prot_file, mapping_file, ccds_gbk_file, pfam_db_file, pfam_z, minimal_length, logObject = inputs
+	gbk, prot_file, mapping_file, ccds_gbk_file, pfam_db_file, pfam_z, minimal_length, eukaryotic_gene_cluster_flag, logObject = inputs
 	try:
 		lt_coord_info = {}
 		pf_handle = open(prot_file, 'w')
@@ -304,7 +313,7 @@ def createChoppedGenbank(inputs):
 				if not tg in breakpoints and len(tg_seq) >= minimal_length:
 					dn = tg + '|full_protein|1'
 					de = 'NA'
-					chopped_feature = mapChunkProteinCoordsToFeatureCoords(1, len(tg_seq), tg_seq, lt_coord_info[tg], dn, de, logObject)
+					chopped_feature = mapChunkProteinCoordsToFeatureCoords(1, len(tg_seq), tg_seq, lt_coord_info[tg], dn, de, eukaryotic_gene_cluster_flag, logObject)
 					chopped_features[record].append(chopped_feature)
 				else:
 					for tg_seq_chunk in split_by_idx(tg_seq, ([0] + sorted(breakpoints[tg]))):
@@ -317,7 +326,7 @@ def createChoppedGenbank(inputs):
 							if dn == 'NA':
 								dn = tg + '|inter-domain_region|' + str(tg_interdomain_index)
 								tg_interdomain_index += 1
-							chopped_feature = mapChunkProteinCoordsToFeatureCoords(prev_end_coord, end_coord, tg_seq_chunk, lt_coord_info[tg], dn, de, logObject)
+							chopped_feature = mapChunkProteinCoordsToFeatureCoords(prev_end_coord, end_coord, tg_seq_chunk, lt_coord_info[tg], dn, de, eukaryotic_gene_cluster_flag, logObject)
 							chopped_features[record].append(chopped_feature)
 
 						prev_end_coord = end_coord + 1
@@ -339,7 +348,7 @@ def createChoppedGenbank(inputs):
 		sys.stderr.write(msg + '\n')
 		sys.exit(1)
 
-def batchCreateChoppedGenbanks(genbanks, minimal_length, dm_scratch_dir, modified_genbank_dir, dom_to_cds_relations_file, logObject, threads=1):
+def batchCreateChoppedGenbanks(genbanks, minimal_length, dm_scratch_dir, modified_genbank_dir, dom_to_cds_relations_file, logObject, eukaryotic_gene_cluster_flag=False, threads=1):
 	"""	
 	Description:
 	Create chopped CDS GenBank files from regular GenBank input with CDS features.
@@ -352,6 +361,7 @@ def batchCreateChoppedGenbanks(genbanks, minimal_length, dm_scratch_dir, modifie
 	- modified_genbank_dir: The output directory where to write chopped CDS GenBank files. 
 	- dom_to_cds_relations_file: The chopped CDS to full CDS relationship file.
 	- logObject: A logging object.
+	- eukaryotic_gene_cluster_flag: Flag for weather eukaryotic gene clusters are being investigated.
 	- threads: The number of threads to use [Default is 1].
 	********************************************************************************************************************
 	Returns:
@@ -401,7 +411,7 @@ def batchCreateChoppedGenbanks(genbanks, minimal_length, dm_scratch_dir, modifie
 			ccds_gbk_file = modified_genbank_dir + gbk.split('/')[-1]
 			prot_file = proteome_dir + '.'.join(gbk.split('/')[-1].split('.')[:-1]) + '.faa'
 			mapping_file = mapping_dir + '.'.join(gbk.split('/')[-1].split('.')[:-1]) + '.txt'
-			gbk_mod_inputs.append([gbk, prot_file, mapping_file, ccds_gbk_file, pfam_db_file, pfam_z, minimal_length, logObject])
+			gbk_mod_inputs.append([gbk, prot_file, mapping_file, ccds_gbk_file, pfam_db_file, pfam_z, minimal_length, eukaryotic_gene_cluster_flag, logObject])
 
 		msg = "Creating domain-chopped up version of GenBank files for %d gene clusters" % len(gbk_mod_inputs) 
 		logObject.info(msg)

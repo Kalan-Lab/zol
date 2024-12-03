@@ -2008,17 +2008,30 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 					seq = feature.qualifiers.get('translation')[0]
 					ref_cds += 1
 					og = lt_to_og[lt]
-					if lt in near_core_ogs:
+					if og in near_core_ogs:
 						ref_cds_nc += 1
 						ncpff_handle.write('>' + lt + '\n' + seq + '\n')
 		ncpff_handle.close()
  	
-		prop_ref_cds_nc = ref_cds_nc/float(ref_cds)
-		max_distance_between_ncs = max(cds_between_ncs)
-		median_cds_count = statistics.median(cds_counts)
-		maximum_of_maximum_evalues = max(maximum_evalues)
-		maximum_of_near_core_ogs_maximum_evalues = max(near_core_ogs_maximum_evalues)
-		median_prop_cds_nc = statistics.median(prop_genes_nc)
+		prop_ref_cds_nc = 'NA'
+		if float(ref_cds) > 0:
+			prop_ref_cds_nc = ref_cds_nc/float(ref_cds)
+
+		max_distance_between_ncs = 'NA'
+		if len(cds_between_ncs) > 0:
+			max_distance_between_ncs = max(cds_between_ncs)
+		median_cds_count = 'NA'
+		if len(cds_counts) > 0:
+			median_cds_count = statistics.median(cds_counts)
+		maximum_of_maximum_evalues = 'NA'
+		if len(maximum_evalues) > 0:
+			maximum_of_maximum_evalues = max(maximum_evalues)
+		maximum_of_near_core_ogs_maximum_evalues = 'NA'
+		if len(near_core_ogs_maximum_evalues) > 0:
+			maximum_of_near_core_ogs_maximum_evalues = max(near_core_ogs_maximum_evalues)
+		median_prop_cds_nc = 'NA'
+		if len(prop_genes_nc) > 0:
+			median_prop_cds_nc = statistics.median(prop_genes_nc)
 
 		parameter_recommendations_file = outdir + 'Parameter_Recommendations_for_fai.txt'
 		prf_handle = open(parameter_recommendations_file, 'w')
@@ -2041,17 +2054,41 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 		prf_handle.write('please provide the path to the prepTG database yourself!\n')
 		prf_handle.write('=============================================================\n')
 		prf_handle.write('Lenient / Sensitive Recommendations for Exploratory Analysis:\n')
-		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', 
-			       '--evalue_cutoff', str(max(maximum_of_maximum_evalues, 1e-10)), '--min_prop', str(max(prop_ref_cds_nc-0.25, 0.1)), 
-				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs+3)]
+		fai_cmd = ['fai', '--threads', '4', '--output-dir', 'fai_Search_Results/', '--draft-mode']
+		if maximum_of_maximum_evalues != 'NA':
+			fai_cmd += ['--evalue-cutoff', str(max(maximum_of_maximum_evalues, 1e-10))]
+		else:
+			fai_cmd += ['--evalue-cutoff', '1e-10']
+
+		if prop_ref_cds_nc != 'NA':
+			fai_cmd += ['--min-prop', str(max(prop_ref_cds_nc-0.25, 0.1))]
+		else:
+			fai_cmd += ['--min-prop', '0.1']
+
+		fai_cmd += ['--syntenic-correlation-threshold', '0.0']
+		if max_distance_between_ncs != 'NA':
+			fai_cmd += ['--max-genes-disconnect', str(max_distance_between_ncs+3)]
+		else:
+			fai_cmd += ['--max-genes-disconnect', '10']
 		prf_handle.write(' '.join(fai_cmd) + '\n')
 		prf_handle.write('-------------------------------------------------------------\n')
+	
 		prf_handle.write('Strict / Specific Recommendations:\n')
-		fai_cmd = ['fai', '--threads', '4', '--output_dir', 'fai_Search_Results/', '--draft_mode', '--filter_paralogs',
-			       '--evalue_cutoff', str(maximum_of_maximum_evalues), '--min_prop', str(max(prop_ref_cds_nc, 0.25)), 
-				   '--syntenic_correlation_threshold', '0.0', '--max_genes_disconnect', str(max_distance_between_ncs),
-				   'key_protein_queries', near_core_prots_faa_file, '--key_protein_min_prop', '0.5', 
-				   '--key_protein_evalue_cutoff', str(maximum_of_near_core_ogs_maximum_evalues)]
+		fai_cmd = ['fai', '--threads', '4', '--output-dir', 'fai_Search_Results/', '--draft-mode', '--filter-paralogs']
+	
+		if maximum_of_maximum_evalues != 'NA':
+			fai_cmd += ['--evalue-cutoff', str(maximum_of_maximum_evalues)]
+
+		if prop_ref_cds_nc != 'NA':
+			fai_cmd += ['--min-prop', str(max(prop_ref_cds_nc, 0.25))]
+
+		if max_distance_between_ncs != 'NA':
+			fai_cmd += ['--max-genes-disconnect', str(max_distance_between_ncs)]
+		
+		fai_cmd += ['key-protein-queries', near_core_prots_faa_file, '--key-protein-min-prop', '0.5']
+		if maximum_of_near_core_ogs_maximum_evalues != 'NA':
+			fai_cmd += ['--key-protein-evalue-cutoff', str(maximum_of_near_core_ogs_maximum_evalues)]
+				
 		prf_handle.write(' '.join(fai_cmd) + '\n')
 		prf_handle.write('-------------------------------------------------------------\n')
 		prf_handle.close()
@@ -2576,7 +2613,7 @@ def makeGCvsRiboProtAAIScatterplot(rscript_file, gc_to_ribo_aai_stat_file, gc_ri
 	"""
 	try:
 		generateSaltGCvsRiboAAIPlot(rscript_file, gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file, logObject)
-		plot_cmd = ['Rscript', rscript_path]
+		plot_cmd = ['Rscript', rscript_file]
 		try:
 			subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 							executable='/bin/bash')
@@ -2730,9 +2767,11 @@ def consolidateSaltySpreadsheet(fai_ind_gc_file, genome_gbks, codoff_result_dir,
 		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
 		header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
 
-		numeric_columns = {'total scaffold CDS count', 'GC CDS count', 'codoff empirical p-value', 'GC AAI observed - expectation', 'distance to IS element', 
-         			       'scaffold CDS proportion IS elements', 'scaffold CDS proportion VOGs', 'scaffold CDS proportion plasmid-associated', 
-						   'GC AAI between genome and reference genome', 'ribosomal protein AAI between genome and reference genome'}
+		numeric_columns = {'scaffold length (bp)', 'scaffold CDS count', 'total scaffold CDS count', 'GC CDS count', 
+					       'codoff empirical p-value', 'GC AAI observed - expectation', 'distance to IS element', 
+         			       'scaffold CDS proportion IS elements', 'scaffold CDS proportion VOGs', 
+						   'scaffold CDS proportion plasmid-associated', 'GC AAI between genome and reference genome', 
+						   'ribosomal protein AAI between genome and reference genome'}
 
 		results_df = loadTableInPandaDataFrame(result_tsv_file, numeric_columns)
 		results_df.to_excel(writer, sheet_name='SALT Results', index=False, na_rep="NA")

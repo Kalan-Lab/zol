@@ -104,39 +104,39 @@ def create_parser():
     the specified criteria can be found in the subdirectory named: 
 	Final_Results/Homologous_Gene_Cluster_GenBanks/			  
     """, formatter_class=RawTextRichHelpFormatter)
-	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances in target genomes.\nFiles must end with ".gbk", ".gbff", or ".genbank".', required=False, default=None)
-	parser.add_argument('-r', '--reference-genome', help='Path to reference genome in FASTA or GenBank format.', required=False, default=None)
-	parser.add_argument('-rc', '--reference-contig', help='Scaffold name (up to first space) which features region\nof interest.', required=False, default=None)
-	parser.add_argument('-rs', '--reference-start', type=int, help='Start position of gene-cluster on scaffold.', required=False, default=None)
-	parser.add_argument('-re', '--reference-end', type=int, help='End position of gene-cluster on scaffold.', required=False, default=None)
-	parser.add_argument('-pq', '--protein-queries', help="Path to protein multi-FASTA file containing to use as queries.", required=False, default=None)
-	parser.add_argument('-sq', '--single-query', help="Path to protein FASTA file containing a single protein to use as a query.", required=False, default=None)
-	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes of interest.', required=True)
-	parser.add_argument('-o', '--output-dir', help='Parent output/workspace directory.', required=True)
-	parser.add_argument('-st', '--species-tree', help='Phylogeny in Newick format - with names matching target\ngenomes db [Optional]. Will be used for creating an extra visual.', required=False, default=None)
-	parser.add_argument('-dm', '--draft-mode', action='store_true', help='Run in draft-mode to also report segments on scaffold edges which in\naggregate (with other such segments) they meet criteria\nfor reporting.', required=False, default=False)
-	parser.add_argument('-fp', '--filter-paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified in a\nsingle target genome.', required=False, default=False)
-	parser.add_argument('-rgv', '--use-prodigal-gv-for-reference', action='store_true', help="If the --reference_genome option is used to define some coordinate\nalong a reference genome as the query, use prodigal-gv\ninstead of pyrodigal to call genes in the region.", required=False, default=False)
+	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes\nof interest.', required=True)
+	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple] to use as\nqueries for searching for homologous/orthologous instances\nin target genomes. Files must end with ".gbk", ".gbff",\nor ".genbank".', required=False, default=None)
+	parser.add_argument('-r', '--reference-genome', help='Path to reference genome in FASTA or GenBank format on\nwhich to define query gene cluster coordinates.', required=False, default=None)
+	parser.add_argument('-rc', '--reference-contig', help='Scaffold name (up to first space) in refernece genome\nwhich features the query gene cluster.', required=False, default=None)
+	parser.add_argument('-rs', '--reference-start', type=int, help='Start position of query gene cluster on scaffold in\nreference genome.', required=False, default=None)
+	parser.add_argument('-re', '--reference-end', type=int, help='End position of query gene cluster on scaffold in\nreference genome.', required=False, default=None)
+	parser.add_argument('-pq', '--protein-queries', help="Path to protein multi-FASTA file to use as query.", required=False, default=None)
+	parser.add_argument('-sq', '--single-query', help="Path to protein FASTA file containing a single protein\nto use as a query.", required=False, default=None)
+	parser.add_argument('-o', '--output-dir', help='Output directory.', required=True)
+	parser.add_argument('-dm', '--draft-mode', action='store_true', help='Run in draft-mode to also report segments on scaffold\nedges which in aggregate (with other such segments) they\nmeet criteria for reporting.', required=False, default=False)
+	parser.add_argument('-fp', '--filter-paralogs', action='store_true', help='Filter paralogous instances of gene-cluster identified\nin a single target genome.', required=False, default=False)
+	parser.add_argument('-rgv', '--use-prodigal-gv-for-reference', action='store_true', help="If the --reference-genome option is used to define gene\ncluster coordinates, use prodigal-gv instead of pyrodigal\nto call genes in the region.", required=False, default=False)
 	parser.add_argument('-e', '--evalue-cutoff', type=float, help="E-value cutoff for DIAMOND blastp to consider a gene in a\ntarget genome a hit to a query protein. [Default\nis 1e-10].", required=False, default=1e-10)
 	parser.add_argument('-m', '--min-prop', type=float, help="The minimum proportion of distinct proteins/ortholog groups\nneeded to report discrete segments of the gene-cluster.\nNote, that a minimum of 3 distinct query proteins/homolog\ngroups are needed per segment reported [Default is 0.5].", required=False, default=0.5)
-	parser.add_argument('-kpq', '--key-protein-queries', help="Path to protein multi-FASTA file containing key query sequences\nwhich some proportin of are required to be present in a gene cluster\nat a specific E-value cutoff.", required=False, default=None)
-	parser.add_argument('-kpe', '--key-protein-evalue-cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue cutoff.', required=False, default=1e-20)
-	parser.add_argument('-kpm', '--key-protein-min-prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster. [Default is 0.0].', required=False, default=0.0)
-	parser.add_argument('-sct', '--syntenic-correlation-threshold', type=float, help="The minimum syntenic correlation needed to at least one known\nGCF instance to report segment. [Default is 0.0]", required=False, default=0.0)
-	parser.add_argument('-gdm', '--gc-delineation-mode', help='Method/mode for delineation of gene-cluster boundaries. Options are\n"Gene-Clumper" or "HMM". Default is Gene-Clumper.', required=False, default="Gene-Clumper")
-	parser.add_argument('-f', '--flanking-context', type=int, help='Number of bases to append to the beginning/end of the gene-cluster\nsegments identified. [Default is 1000].', required=False, default=1000)
-	parser.add_argument('-mgd', '--max-genes-disconnect', type=int, help="Maximum number of genes between gene-cluster segments detected by HMM to\nmerge segments together. Alternatively the number of genes separating\nhits if Gene-Clumper mode is used. Allows for more inclusivity of novel\nauxiliary genes. [Default is 5].", required=False, default=5)
-	parser.add_argument('-gt', '--gc-transition', type=float, help="Probability for gene-cluster to gene-cluster transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
-	parser.add_argument('-bt', '--bg-transition', type=float, help="Probability for background to background transition in HMM. Should be between\n0.0 and 1.0. [Default is 0.9].", required=False, default=0.9)
-	parser.add_argument('-ge', '--gc-emission', type=float, help="Emission probability of gene being in gene-cluster state assuming a orthologis\nfound at the e-value cutoff. [Default is 0.95].", required=False, default=0.95)
-	parser.add_argument('-be', '--bg-emission', type=float, help="Emission probability of gene being in gene-cluster state assuming no homolog is\nfound at the e-value cutoff. [Default is 0.2].", required=False, default=0.2)
-	parser.add_argument('-gp', '--generate-plots', action='store_true', help='Generate plots for assessing gene-cluster segments identified.', required=False, default=False)
-	parser.add_argument('-ds', '--diamond-sensitivity', help='DIAMOND alignment sensitivity. Options include: fast, mid-sensitive,\nsensitive, more-sensitive, very-sensitive, and ultra-sensitive.\n[Default is very-sensitive].', required=False, default="very-sensitive")
-	parser.add_argument('-phl', '--phyloheatmap-length', type=int, help='Specify the height/length of the phylo-heatmap plot. Default is 7.', required=False, default=7)
-	parser.add_argument('-phw', '--phyloheatmap-width', type=int, help='Specify the width of the phylo-heatmap plot. Default is 10.', required=False, default=14)
-	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use. [Default is 1].", required=False, default=1)
+	parser.add_argument('-kpq', '--key-protein-queries', help="Path to protein multi-FASTA file containing key query\nsequences which some proportin of are required to be\npresent in a gene cluster at a specific E-value cutoff.", required=False, default=None)
+	parser.add_argument('-kpe', '--key-protein-evalue-cutoff', type=float, help='E-value cutoff for finding key query sequences in putative\ngene cluster homolog segments. [Default\nis 1e-20]. Disregarded if less strict than the\ngeneral --evalue-cutoff.', required=False, default=1e-20)
+	parser.add_argument('-kpm', '--key-protein-min-prop', type=float, help='The minimum proportion of distinct ortholog groups matching\nkey proteins needed to report a homologous gene-cluster.\n[Default is 0.0].', required=False, default=0.0)
+	parser.add_argument('-sct', '--syntenic-correlation-threshold', type=float, help="The minimum syntenic correlation needed to at least\none known GCF instance to report segment. [Default\nis 0.0; no syntenic assessment performed]", required=False, default=0.0)
+	parser.add_argument('-gdm', '--gc-delineation-mode', help='Method/mode for delineation of gene-cluster boundaries.\nOptions are "Gene-Clumper" or "HMM" [Default is\nGene-Clumper].', required=False, default="Gene-Clumper")
+	parser.add_argument('-f', '--flanking-context', type=int, help='Number of bases to append to the beginning/end of the\ngene-cluster segments identified [Default is 1000].', required=False, default=1000)
+	parser.add_argument('-mgd', '--max-genes-disconnect', type=int, help="Maximum number of genes between gene cluster segments\ndetected by HMM to merge segments together. Alternatively\nthe number of genes separating hits if Gene-Clumper mode\nis used. Allows for more inclusivity of novel auxiliary\ngenes. [Default is 5].", required=False, default=5)
+	parser.add_argument('-gt', '--gc-transition', type=float, help="Probability for gene-cluster to gene cluster transition\nin HMM. Should be between 0.0 and 1.0. [Default\nis 0.9].", required=False, default=0.9)
+	parser.add_argument('-bt', '--bg-transition', type=float, help="Probability for background to background transition\nin HMM. Should be between\n0.0 and 1.0. [Default\nis 0.9].", required=False, default=0.9)
+	parser.add_argument('-ge', '--gc-emission', type=float, help="Emission probability of gene being in gene cluster\nstate assuming a orthologis found at the e-value cutoff.\n[Default is 0.95].", required=False, default=0.95)
+	parser.add_argument('-be', '--bg-emission', type=float, help="Emission probability of gene being in gene cluster\nstate assuming no homolog is\nfound at the e-value cutoff.\n[Default is 0.2].", required=False, default=0.2)
+	parser.add_argument('-gp', '--generate-plots', action='store_true', help='Generate red barplots for assessing gene cluster\nsegments identified.', required=False, default=False)
+	parser.add_argument('-ds', '--diamond-sensitivity', help='DIAMOND alignment sensitivity. Options include: fast,\nmid-sensitive, sensitive, more-sensitive, very-sensitive,\nand ultra-sensitive [Default is very-sensitive].', required=False, default="very-sensitive")
+	parser.add_argument('-st', '--species-tree', help='Phylogeny in Newick format - with names matching\ntarget genomes db [Optional]. Will be used for\ncreating an extra visual.', required=False, default=None)
+	parser.add_argument('-phl', '--phyloheatmap-length', type=int, help='Specify the height/length of the phylo-heatmap\nplot [Default is 7].', required=False, default=7)
+	parser.add_argument('-phw', '--phyloheatmap-width', type=int, help='Specify the width of the phylo-heatmap plot\n[Default is 10].', required=False, default=14)
+	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use [Default is 1].", required=False, default=1)
 	parser.add_argument('-cl', '--clean-up', action='store_true', help="Clean up disk-heavy files/folders.", default=False, required=False)
-	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide in Giga-bytes.\nConfigured in the shell environment [experimental; Default is None].', required=False, default=None)
+	parser.add_argument('-mm', '--max-memory', type=int, help="Uses resource module to set soft memory limit. Provide\nin Giga-bytes. Configured in the shell environment\n[Default is None; experimental].", required=False, default=None)
 	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
 
 	args = parser.parse_args()
@@ -214,10 +214,10 @@ def faiMain():
 
 	final_results_dir = outdir + 'Final_Results/'
 	if not os.path.isdir(final_results_dir):
-		util.setupReadyDirectory([final_results_dir])
+		util.setupReadyDirectory([final_results_dir], delete_if_exist=True)
 
 	if not os.path.isdir(check_dir):
-		util.setupReadyDirectory([check_dir])
+		util.setupReadyDirectory([check_dir], delete_if_exist=True)
 
 	try:
 		assert(os.path.isdir(target_genomes) and os.path.isfile(target_genomes + '/Target_Genomes_DB.faa') and os.path.getsize(target_genomes + '/Target_Genomes_DB.faa') > 0)
@@ -319,7 +319,7 @@ def faiMain():
 		sys.stderr.write('Required query gene cluster input(s) not provided!\n')
 		logObject.error('Required query gene cluster input(s) not provided!')
 
-	logObject.info('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).')
+	logObject.info('\n--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).')
 	sys.stdout.write('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).\n')
 
 	query_information = None
@@ -327,7 +327,7 @@ def faiMain():
 	query_info_pickle_file = outdir + 'Query_Information.pkl'
 	step1_check_file = check_dir + 'step1.txt'
 	if not os.path.isfile(step1_check_file):
-		util.setupReadyDirectory([work_dir])
+		util.setupReadyDirectory([work_dir], delete_if_exist=True)
 		query_fasta = None
 		comp_gene_info = None
 		protein_to_hg = None
@@ -469,7 +469,7 @@ def faiMain():
 					target_annotation_information[sample]['genbank'] = gbk
 					valid_tg_samples.add(sample)
 
-	logObject.info('--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
+	logObject.info('\n--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.')
 	sys.stdout.write('--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.\n')
 
 	step2_check_file = check_dir + 'step2.txt'
@@ -477,7 +477,7 @@ def faiMain():
 	diamond_results = None
 	diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
 	if not os.path.isfile(step2_check_file):
-		util.setupReadyDirectory([diamond_work_dir])
+		util.setupReadyDirectory([diamond_work_dir], delete_if_exist=True)
 		diamond_results_file = fai.runDiamondBlastp(target_genome_dmnd_db, query_information['query_fasta'], diamond_work_dir, logObject, diamond_sensitivity=diamond_sensitivity, evalue_cutoff=evalue_cutoff, threads=threads)
 		diamond_results = fai.processDiamondBlastp(target_annotation_information, diamond_results_file, diamond_work_dir, logObject)
 		with open(diamond_results_pickle_file, 'wb') as pickle_file:
@@ -494,7 +494,7 @@ def faiMain():
 			sys.stderr.write(str(e) + '\n')
 			sys.exit(1)
 
-	logObject.info('--------------------\nStep 3\n--------------------\nLoading target genomes database prepared by prepTG.')
+	logObject.info('\n--------------------\nStep 3\n--------------------\nLoading target genomes database prepared by prepTG.')
 	sys.stdout.write('--------------------\nStep 3\n--------------------\nLoading target genomes database prepared by prepTG.\n')
 
 	step3_check_file = check_dir + 'step3.txt'
@@ -548,14 +548,14 @@ def faiMain():
 			sys.exit(1)
 
 
-	logObject.info('--------------------\nStep 4\n--------------------\nIdentifying homologous gene-cluster segments.')
+	logObject.info('\n--------------------\nStep 4\n--------------------\nIdentifying homologous gene-cluster segments.')
 	sys.stdout.write('--------------------\nStep 4\n--------------------\nIdentifying homologous gene-cluster segments.\n')
 
 	step4_check_file = check_dir + 'step4.txt'
 	hmm_work_dir = outdir + 'GC_Segment_Processing/'
 	homologous_gbk_dir = final_results_dir + 'Homologous_Gene_Cluster_GenBanks/'
 	if not os.path.isfile(step4_check_file):
-		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir])
+		util.setupReadyDirectory([hmm_work_dir, homologous_gbk_dir], delete_if_exist=True)
 		min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
 		key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
 		fai.identifyGCInstances(query_information, target_information, diamond_results, hmm_work_dir, logObject,
@@ -575,7 +575,7 @@ def faiMain():
 				shutil.move(hmm_work_dir + 'GeneCluster_Genbanks/' + f, homologous_gbk_dir)
 		os.system('touch %s' % step4_check_file)
 
-	logObject.info('--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.')
+	logObject.info('\n--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.')
 	sys.stdout.write('--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.\n')
 	step5_check_file = check_dir + 'step5.txt'
 	plot_dir = outdir + 'Plotting_Files/'
@@ -583,7 +583,7 @@ def faiMain():
 	spreadsheet_result_file = final_results_dir + 'Candidate_Homologous_Gene_Clusters.xlsx'
 	tiny_aai_plot_file = final_results_dir + 'Candidate_Homologous_Gene_Clusters.Tiny_AAI_Plot.pdf'	
 	if not os.path.isfile(step5_check_file):
-		util.setupReadyDirectory([plot_dir, spreadsheet_result_tsv_dir])
+		util.setupReadyDirectory([plot_dir, spreadsheet_result_tsv_dir], delete_if_exist=True)
 		fai.createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, query_information['protein_to_hg'],  query_information['key_hgs'], spreadsheet_result_file, spreadsheet_result_tsv_dir, homologous_gbk_dir, plot_dir, tiny_aai_plot_file, logObject)
 		os.system('touch %s' % step5_check_file)
 
@@ -592,7 +592,7 @@ def faiMain():
 	plot_result_pdf = final_results_dir + 'Homologous_Gene_Cluster_Segments.pdf'
 	plot_naming_pdf = final_results_dir + 'Name_Mapping_of_Queries_to_Original_LocusTags.pdf'
 	if not os.path.isfile(step6_check_file) and plotting_flag:
-		logObject.info('--------------------\nStep 6\n--------------------\nPlotting overview of gene-cluster segments identified.')
+		logObject.info('\n--------------------\nStep 6\n--------------------\nPlotting overview of gene-cluster segments identified.')
 		sys.stdout.write('--------------------\nStep 6\n--------------------\nPlotting overview of gene-cluster segments identified.\n')
 		util.setupReadyDirectory([plot_dir])
 		fai.plotOverviews(target_information['target_annotation_information'], hmm_work_dir,
@@ -603,9 +603,9 @@ def faiMain():
 	plot_phylo_dir = final_results_dir + 'Phylogeny_Plotting_Files/'
 	plot_result_pdf = final_results_dir + 'Phylogenetic_Perspective.pdf'
 	if not os.path.isfile(step7_check_file) and species_tree != None:
-		logObject.info('--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
+		logObject.info('\n--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.')
 		sys.stdout.write('--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.\n')
-		util.setupReadyDirectory([plot_phylo_dir])
+		util.setupReadyDirectory([plot_phylo_dir], delete_if_exist=True)
 		fai.plotTreeHeatmap(homologous_gbk_dir, hmm_work_dir, species_tree, plot_phylo_dir, plot_result_pdf, logObject, height=phyloheatmap_length, width=phyloheatmap_width)
 		os.system('touch %s' % step7_check_file)
 

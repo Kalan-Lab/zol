@@ -202,7 +202,7 @@ def apos():
 	logObject.info('Found %d plasmid predictions!' % len(sample_plasmids))
 
 	fai_results_dir = outdir + 'fai_or_blast_Results/'
-	util.setupReadyDirectory([fai_results_dir])
+	util.setupReadyDirectory([fai_results_dir], delete_if_exist=True)
 	plasmid_info_file = outdir + 'TemperateplasmidOme_Info.tsv'
 	plasmid_info_handle = open(plasmid_info_file, 'w')
 	plasmid_lengths = []
@@ -220,7 +220,7 @@ def apos():
 		end_coord = str(plasmid_length)
 		if use_simple_blastp_flag:
 			# run simple blastp
-			util.setupReadyDirectory([plasmid_fai_res_dir])
+			util.setupReadyDirectory([plasmid_fai_res_dir], delete_if_exist=True)
 			reference_genome_gbk = plasmid_fai_res_dir + 'reference.gbk'
 			gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_genome, '-s', 'reference', '-l',
 								'OG', '-o', plasmid_fai_res_dir]

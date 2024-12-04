@@ -146,18 +146,19 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 		nucl_coord = 0
 	
 		if direction == '+':	
-			for sc, ec, dc in all_coords:
+			for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
 				for pos in range(sc, ec+1):
 					if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
 						chunk_nucl_seq += nucl_seq[nucl_coord]
 						chunk_coords.append(pos)
 					nucl_coord += 1
 		else:
-			for sc, ec, dc in all_coords[::-1]:
-				for pos in range(sc, ec+1):
+			for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=True):
+				coord_list = list(set(range(sc, ec+1)))
+				for pos in sorted(coord_list, reverse=True):
 					if nucl_coord >= nucl_start_coord and nucl_coord < nucl_end_coord:
 						chunk_nucl_seq += nucl_seq[nucl_coord]
-						chunk_coords.append(end-(pos-start))
+						chunk_coords.append(pos)
 					nucl_coord += 1		
 		translated_prot_seq = str(Seq(chunk_nucl_seq).translate())
 		
@@ -206,8 +207,8 @@ def mapChunkProteinCoordsToFeatureCoords(start_coord, end_coord, tg_seq_chunk, t
 			coord_feat_locs.append(FeatureLocation(rc[0], rc[1], strand=fstrand))
 	
 		summed_coord_feat_locs = sum(coord_feat_locs)
-		#if direction == '-':
-		#	summed_coord_feat_locs = sum(coord_feat_locs[::-1])
+		if direction == '-':
+			summed_coord_feat_locs = sum(coord_feat_locs[::-1])
 		feature = SeqFeature(summed_coord_feat_locs, type='cCDS')
 
 		feature.qualifiers['translation'] = Seq(tg_seq_chunk)

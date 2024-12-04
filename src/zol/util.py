@@ -1338,7 +1338,7 @@ def gatherAnnotationFromDictForHomoloGroup(hg, db, annot_dict):
 		assert(db in annot_dict)
 		annot_set_filt = set([x for x in annot_dict[db][hg][0] if x.strip() != ''])
 		assert(len(annot_set_filt) > 0)
-		return('; '.join(annot_set_filt) + ' (' + str(max(annot_dict[db][hg][1])) + ')')
+		return('; '.join(sorted(annot_set_filt)) + ' (' + str(max(annot_dict[db][hg][1])) + ')')
 	except:
 		return('NA')
 

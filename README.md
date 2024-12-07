@@ -38,8 +38,7 @@ After finding homologous instances of a gene cluster - using fai or other softwa
 
 ### Auxiliary tools within the suite:
 * [abon, atpoc, and apos: Assessing the conservation of a focal sample's BGC-ome, phage-ome, and plasmid-ome](https://github.com/Kalan-Lab/zol/wiki/0.-overview-of-major-result-files#abon-atpoc-and-apos-results)
-* [(***New***) cgc: Summary visualization of 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
-* [(***New***) cgcg: Network visualization of ortholog groups across 1000s of gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc)
+* [(***New***) cgc and cgcg: Scalable visualization of 1000s of homologous gene clusters](https://github.com/Kalan-Lab/zol/wiki/5.3-visualization-of-1000s-of-gene-clusters-using-cgc-or-cgcg)
 
 ## Short Note on Resource Requirements:
 

@@ -1638,7 +1638,7 @@ def createOverviewSpreadsheetAndTinyAAIPlot(hmm_work_dir, protein_to_hg, key_hgs
 			hg_headers.append(hg_name + ' - PID')
 			hg_headers.append(hg_name + ' - SQR')
 
-		gcgbk_to_corr = defaultdict(lambda: float(nan))
+		gcgbk_to_corr = defaultdict(lambda: float('nan'))
 		for f in os.listdir(gbk_info_dir):
 			info_file = gbk_info_dir + f
 			if f.endswith('.corr_info.txt') and os.path.getsize(info_file) > 0:

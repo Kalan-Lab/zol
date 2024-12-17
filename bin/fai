@@ -298,14 +298,8 @@ def faiMain():
 		sys.stdout.write('Beginning fai searches using the following GenBank(s) as queries: %s\n' % ' '.join(query_inputs))
 		logObject.info('Beginning fai searches using the following GenBank(s) as queries: %s' % ' '.join(query_inputs))
 	elif input_type_2_observed and not (input_type_1_observed or input_type_3_observed or input_type_4_observed):
-		sys.stdout.write('Beginning fai searches using coordinates %s:%d-%d in reference genome %s\n' % (reference_contig,
-																									   reference_start,
-																									   reference_end,
-	     																							   reference_genome))
-		logObject.info('Beginning fai searches using coordinates %s:%d-%d in reference genome %s' % (reference_contig,
-																							reference_start,
-																							reference_end,
-																							reference_genome))
+		sys.stdout.write('Beginning fai searches using coordinates %s:%d-%d in reference genome %s\n' % (reference_contig, reference_start, reference_end, reference_genome))
+		logObject.info('Beginning fai searches using coordinates %s:%d-%d in reference genome %s' % (reference_contig, reference_start, reference_end, reference_genome))
 	elif input_type_3_observed and not (input_type_1_observed or input_type_2_observed or input_type_4_observed):
 		sys.stdout.write('Beginning fai searches using protein queries FASTA file at: %s\n' % protein_queries_fasta)
 		logObject.info('Beginning fai searches using protein queries FASTA file at: %s' % protein_queries_fasta)
@@ -316,8 +310,9 @@ def faiMain():
 		sys.stderr.write('Only one type of query gene cluster input mode can currently be accepted!\n')
 		logObject.error('Only one type of query gene cluster input mode can currently be accepted!')
 	elif not (input_type_1_observed or input_type_2_observed or input_type_3_observed or input_type_4_observed):
-		sys.stderr.write('Required query gene cluster input(s) not provided!\n')
-		logObject.error('Required query gene cluster input(s) not provided!')
+		sys.stderr.write('Required query gene cluster input(s) not provided or multiple types of input specified (which is not supported)!\n')
+		logObject.error('Required query gene cluster input(s) not provided or multiple types of input specified (which is not supported)!')
+		sys.exit(1)
 
 	logObject.info('\n--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).')
 	sys.stdout.write('--------------------\nStep 1\n--------------------\nGetting protein sequences of known gene-cluster instance(s).\n')

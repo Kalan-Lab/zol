@@ -69,6 +69,9 @@ setup_annotation_dbs.py [-m]
 > [!NOTE]
 > When you create a conda environment using `-n`, the environment will typically be stored in your home directory. However, because the databases can be large, you might prefer to instead setup the conda environment somewhere else with more space on your system using `-p`. For instance, `conda create -p /path/to/drive_with_more_space/zol_conda_env/ -c conda-forge -c bioconda zol`. Then, next time around you would simply activate this environment by providing the path to it: `conda activate /path/to/drive_with_more_space/zol_conda_env/`
 
+> [!CAUTION]
+> If you choose to manually define a database directory for `setup_annotation_dbs.py` by setting the `ZOL_DATA_PATH` environmental variable, make sure that it is a unique directory to zol. This directory will be deleted and recreated when you run the script. You don't have to worry about this if using bioconda where the default directory is located within the conda environment space.
+
 #### Docker:
 
 ___Requires docker to be installed on your system!___

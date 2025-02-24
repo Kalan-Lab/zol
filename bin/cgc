@@ -63,7 +63,8 @@ def create_parser():
 	---------------------------------------------------------------------------------------------
 	Accepted tracks:
 	---------------------------------------------------------------------------------------------
-    - conservation, tajimas_d, entropy, upstream_entropy, median_beta_rd, max_beta_rd, median_gc
+    - conservation, tajimas_d, entropy, upstream_entropy, median_beta_rd, max_beta_rd, median_gc,
+	  bgc_score, viral_score.
 								  
 	If comparative analysis was performed in zol, then addtional tracks include:
 	- focal_conservation, alternate_conservation, fst
@@ -109,7 +110,7 @@ def create_parser():
 	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot in inches [Default is 7].', required=False, default=7)
 	
 	args = parser.parse_args()
-	return args
+	return args 
 
 INTEROG_DISTANCE = 100
 default_color_schemes = {'white_to_black': ['#ffffff', '#878787', '#000000'], 
@@ -130,7 +131,9 @@ default_color_schemes = {'white_to_black': ['#ffffff', '#878787', '#000000'],
 track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters with OG', 'tajimas_d': 'Tajima\'s D', 'entropy': 'Entropy',
 							'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc',
 							'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index',
-							'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG'}
+							'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG', 'bgc_score': 'BGC score (GECCO weights)', 
+							'viral_score': 'Viral score (V-Score)'}
+
 track_full_label_to_name = dict((v,k) for k,v in track_name_to_full_label.items())
 
 def cgc():

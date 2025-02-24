@@ -639,6 +639,13 @@ def zolMain():
 				logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
 				sys.stderr.write(str(e) + '\n')
 				sys.exit(1)
+	
+	# Step 4: Map Pfam domains to BGC and viral scores (from GECCO and v-Scores, respectively)
+	type_weights = defaultdict(lambda: defaultdict(lambda: 'NA'))
+	if 'pfam' in annotations:
+		gecco_weights, vscores = zol.determineBGCAndViralScores(annotations['pfam'], logObject)
+		type_weights['bgc'] = gecco_weights
+		type_weights['viral'] = vscores
 
 	# Step 5: Determine consensus order, conservation, and median ortholog group lengths
 	logObject.info('\n--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups')
@@ -775,7 +782,7 @@ def zolMain():
 	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
 	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
 	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx, final_report_tsv, full_protein_clusters, logObject, ces=ces_flag, run_hyphy=fubar_selection, domain_mode=domain_mode)
+	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, type_weights, final_report_xlsx, final_report_tsv, full_protein_clusters, logObject, ces=ces_flag, run_hyphy=fubar_selection, domain_mode=domain_mode)
 
 	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
 	logObject.info('\n--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')

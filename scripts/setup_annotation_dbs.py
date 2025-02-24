@@ -21,7 +21,10 @@ def create_parser():
 	Location of where to download databases is controlled by setting the environmental
 	variable ZOL_DATA_PATH e.g.:
 								  							   
-	$ export ZOL_DATA_PATH=/path/to/database_location/
+	$ export ZOL_DATA_PATH=/path/to/database_location/zol_db/
+
+	CAUTION: This directory will be deleted and recreated when this script is run - it 
+	should therefore be unique and specific to zol.
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
@@ -47,8 +50,12 @@ def setup_annot_dbs():
 
 	try:
 		assert(os.path.isdir(download_path))
+		response = input("The directory %s\nalready exists, will delete it and recreate it. (This directory\nshould be specific to zol not a general directory for\ndatabases) Proceed with deleting? (yes/no): " % download_path)
+		if response.lower() != 'yes':
+			os.system('Deletion not requested! Exiting ...')
+			sys.exit(1)
 	except:
-		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist!\n')
+		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist or user did not accept deleting the directory and recreating it!\n')
 
 	if lsabgc_minimal_mode:
 		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG and PGAP databases.\n')
@@ -63,6 +70,25 @@ def setup_annot_dbs():
 		readme_outf.close()
 	except Exception as e:
 		sys.stderr.write('Issues clearing contents of db/ to re-try downloads.\n')
+		sys.stderr.write(str(e) + '\n')
+		sys.exit(1)
+
+	# download vScore information and GECCO scores
+	download_links = ['https://anantharamanlab.github.io/V-Score-Search/dataFixed.csv',
+				      'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt']
+
+
+	# Download
+	print('Starting download of files!')
+	os.chdir(download_path)
+	try:
+		for dl in download_links:
+			axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
+			os.system(' '.join(axel_download_dbs_cmd))
+			basefile = dl.split('/')[-1]
+			assert(os.path.isfile(basefile))
+	except Exception as e:
+		sys.stderr.write('Error occurred during downloading of weight files - please let us know on GitHub issues!\n')
 		sys.stderr.write(str(e) + '\n')
 		sys.exit(1)
 
@@ -301,7 +327,7 @@ def setup_annot_dbs():
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
 						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
-						  'https://card.mcmaster.ca/download/0/broadstreet-v3.2.5.tar.bz2',
+						  'https://card.mcmaster.ca/latest/card-data.tar.bz2',
 						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
 						  'https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
 
@@ -464,7 +490,7 @@ def setup_annot_dbs():
 			sys.stderr.write(str(e) + '\n')
 		
 		# have note in program to recommend folks check out ARTS webserver for more detailed analysis
-		# in finding antibiotic BGCs
+		# in finding BGCs for synthesizing antibiotics.
 		try:
 			print('Setting up CARD database!')
 			os.mkdir(download_path + 'CARD_DB_Files/')

@@ -24,6 +24,7 @@ import shutil
 from scipy import stats
 import pyhmmer
 import itertools
+import csv
 
 def determine_ranges(i):
 	"""
@@ -1353,13 +1354,24 @@ def runPyhmmer(inputs):
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
 				for hits in pyhmmer.hmmsearch(hmm_file, sequences, bit_cutoffs='trusted', Z=int(z), cpus=threads):
 					for hit in hits:
-						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score)]) + '\n')
+						accession = 'NA'
+						try:
+							accession = hits.query.accession.decode()
+						except:
+							accession = 'NA'
+						outf.write('\t'.join([hits.query.name.decode(), accession, 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score)]) + '\n')
 
 		else:
 			with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
 				for hits in pyhmmer.hmmsearch(hmm_file, sequences, Z=int(z), cpus=threads):
 					for hit in hits:
-						outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue),
+						accession = 'NA'
+						try:
+							accession = hits.query.accession.decode()
+						except:
+							accession = 'NA'
+
+						outf.write('\t'.join([hits.query.name.decode(), accession, 'NA', hit.name.decode(), 'NA', str(hit.evalue),
 											  str(hit.score)]) + '\n')
 		outf.close()
 	except:
@@ -1465,6 +1477,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, threads=1
 
 			# or by_score if HMMscan - lets avoid a second variable
 			best_hits_by_bitscore = defaultdict(lambda: [[], [], 0.0])
+			# note second listing here is evalues for most annotation dbs but for Pfam it is accessions (the PF ids)
 			if db_name in hmm_based_annotations:
 				# parse HMM based results from pyhmmer
 				with open(annotation_dir + rf) as oarf:
@@ -1472,10 +1485,11 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, threads=1
 						line = line.rstrip('\n')
 						if line.startswith('#'): continue
 						ls = line.split()
-						query = ls[2]
+						query = ls[3]
+						accession = ls[1]
 						hit = ls[0]
-						evalue = decimal.Decimal(ls[4])
-						score = float(ls[5])
+						evalue = decimal.Decimal(ls[5])
+						score = float(ls[6])
 						if evalue > max_annotation_evalue: continue
 						if db_name != 'pfam':
 							if score > best_hits_by_bitscore[query][2]:
@@ -1486,6 +1500,7 @@ def annotateConsensusSequences(protein_faa, annotation_dir, logObject, threads=1
 						else:
 							if evalue < max_annotation_evalue:
 								best_hits_by_bitscore[query][0].append(hit)
+								best_hits_by_bitscore[query][1].append(accession)
 			else:
 				# parse DIAMOND BLASTp based results
 				with open(annotation_dir + rf) as oarf:
@@ -2460,6 +2475,85 @@ def runTajimasDAnalysisPerHG(inputs):
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
+def determineBGCAndViralScores(pfam_annotations, logObject):
+	"""
+	Description:
+	Maps Pfam annotations per homolog group to BGC and viral scores from GECCO weights and v-Scores, respecitvely.
+	********************************************************************************************************************
+	Parameters:
+	- pfam_annotations: dictionary of pfam annotations for homolog groups.
+	- logObject: a Python logging object.
+	********************************************************************************************************************
+	Returns:
+	- gecco_weights: 
+	- vscores: 
+	********************************************************************************************************************
+	"""
+
+	gecco_weights = defaultdict(lambda: 'NA')
+	vscores = defaultdict(lambda: 'NA')
+	zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
+	gecco_weights_file = None
+	vscore_file = None
+	if zol_data_directory != 'None':
+		try:
+			zol_data_directory = os.path.abspath(zol_data_directory) + '/'
+			gecco_weights_file = zol_data_directory + 'GECCO_Weights.txt'
+			vscore_file = zol_data_directory + 'dataFixed.csv'
+		except:
+			pass
+	if gecco_weights_file == None or not os.path.isfile(gecco_weights_file) or vscore_file == None or not os.path.isfile(vscore_file):
+		sys.stderr.write('Warning: weight/score files do not appear to be setup or setup properly!\n')
+		return([gecco_weights, vscores])
+	else:
+		pf_vscores = {}
+		pf_gecco_weights = {}
+		try:
+			with open(vscore_file) as ovsf:
+				csv_handle = list(csv.reader(ovsf))
+				for i, ls in enumerate(csv_handle):
+					if i == 0: continue
+					if not ls[0].startswith('PF'): continue
+					pf = ls[0].strip().split('.')[0]
+					pf_vscores[pf] = float(ls[2])
+
+			with open(gecco_weights_file) as ogwf:
+				for line in ogwf:
+					line = line.strip() 
+					pf, weight = line.split('\t')
+					pf = pf.strip().split('.')[0]
+					pf_gecco_weights[pf] = float(weight)
+		
+			for hg in pfam_annotations:
+				max_vscore = -1.0
+				max_bgc = -7.0
+				for pf in pfam_annotations[hg][1]:
+					if not pf.startswith('PF'): continue
+					pf = pf.split('.')[0]
+
+					if pf in pf_vscores:
+						if pf_vscores[pf] > max_vscore:
+							max_vscore = pf_vscores[pf]
+					if pf in pf_gecco_weights:
+						if pf_gecco_weights[pf] > max_bgc:
+							max_bgc = pf_gecco_weights[pf]
+								
+				if max_bgc == -7:
+					max_bgc = 'NA'
+				if max_vscore == -1.0:
+					max_vscore = 'NA'
+				
+				gecco_weights[hg] = max_bgc
+				vscores[hg] = max_vscore
+			return([gecco_weights, vscores])
+		
+		except Exception as e:
+			sys.stderr.write('Issues with mapping pfam domain annotations to BGC and viral scores from GECCO and vScore.\n')
+			logObject.error('Issues with calculating Tajima\'s D for ortholog groups.')
+			sys.stderr.write(str(e) + '\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.exit(1)
+
 def runTajimasDAnalysis(codo_algn_trim_dir, evo_dir, logObject, threads=1):
 	"""
 	Description:
@@ -2816,7 +2910,7 @@ def createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_p
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, final_report_xlsx,
+def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, type_weights, final_report_xlsx,
 					  final_report_tsv, full_prot_clusters, logObject, domain_mode=False, run_hyphy=False, ces=False):
 	"""
 	Description:
@@ -2830,6 +2924,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 	- hg_stats: A dictionary with general information/statistics for each ortholog group.
 	- annotations: A dictionary containing annotation information for each ortholog group.
 	- evo_stats: A dictionary containing evolutionary statistics for each ortholog group.
+	- type_weights: A dictionary containing orthogroup specific weights for BGC or viral related.
 	- final_report_xlsx: The path to the final XLSX report spreadsheet.
 	- final_report_tsv: The path to the final TSV report table.
 	- logObject: A logging object.
@@ -2855,7 +2950,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				   'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
 				   'Proportion of sites which are highly ambiguous in codon alignment',
 				   'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC',
-				   'Median GC Skew']
+				   'Median GC Skew', 'BGC score (GECCO weights)', 'Viral score (V-Score)']
 		if run_hyphy:
 			header += ['GARD Partitions Based on Recombination Breakpoints',
 			           'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
@@ -2863,7 +2958,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				       'Proportion of Sites Under Selection which are Positive']
 		header += ['Custom Annotation (E-value)', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
-				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
+				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)', 'VFDB Annotation (E-value)',
 				   'Pfam Domains', 'CDS Locus Tags', 'OG Consensus Sequence']
 
 		seqs = {}
@@ -2937,8 +3032,10 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 					fst = comp_stats[hg]['fst']
 					fst_upst = comp_stats[hg]['fst_upst']
 				row += [fp, cp, fst, fst_upst]
+			hg_gw = type_weights['bgc'][hg]
+			hg_vs = type_weights['viral'][hg]
 			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_full_amb, hg_trim_amb,
-					hg_gc, hg_gcs]
+					hg_gc, hg_gcs, hg_gw, hg_vs]
 			if run_hyphy:
 				row += [hg_gpar, hg_ssit, hg_deba, hg_spro]
 
@@ -2986,7 +3083,8 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites',
 						   'Proportion of sites which are highly ambiguous in codon alignment',
 						   'Proportion of sites which are highly ambiguous in trimmed codon alignment',
-						   'Average delta(Beta, Alpha) by FUBAR across sites', 'Median GC', 'Median GC Skew'}
+						   'Average delta(Beta, Alpha) by FUBAR across sites', 'Median GC', 'Median GC Skew', 
+						   'BGC score (GECCO weights)', 'Viral score (V-Score)'}
 
 		warn_format = workbook.add_format({'bg_color': '#bf241f', 'bold': True, 'font_color': '#FFFFFF'})
 		na_format = workbook.add_format({'font_color': '#a6a6a6', 'bg_color': '#FFFFFF', 'italic': True})
@@ -3006,9 +3104,9 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 		worksheet.conditional_format('D2:D' + str(num_rows), {'type': '2_color_scale', 'min_color': "#a3dee3", 'max_color': "#1ebcc9", "min_value": 100, "max_value": 2500, 'min_type': 'num', 'max_type': 'num'})
 
 		if comp_stats != None:
-			hfo = ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T']
+			hfo = ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V']
 			if domain_mode:
-				hfo = ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']
+				hfo = ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W']
 			# prop focal gene-clusters with hg
 			worksheet.conditional_format(hfo[0] + '2:' + hfo[0] + str(num_rows),
 										 {'type': '2_color_scale', 'min_color': "#f7de99", 'max_color': "#c29006",'min_type': 'num', 'max_type': 'num',
@@ -3074,11 +3172,21 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			worksheet.conditional_format(hfo[13] + '2:' + hfo[13] + str(num_rows),
 										 {'type': '2_color_scale', 'min_color': "#c7afb4", 'min_type': 'num', 'max_type': 'num',
 										  'max_color': "#965663", "min_value": -2.0, "max_value": 2.0})
+			
+			# BGC score
+			worksheet.conditional_format(hfo[14] + '2:' + hfo[14] + str(num_rows),
+									{'type': '2_color_scale', 'min_color': "#f5aca4", 'min_type': 'num', 'max_type': 'num',
+									'max_color': "#c75246", "min_value": -7.0, "max_value": 13.0})
 
+			# viral score
+			worksheet.conditional_format(hfo[15] + '2:' + hfo[15] + str(num_rows),
+									{'type': '2_color_scale', 'min_color': "#dfccff", 'min_type': 'num', 'max_type': 'num',
+									'max_color': "#715a96", "min_value": 0.0, "max_value": 10.0})
+			
 		else:
-			hfo = ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P']
+			hfo = ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']
 			if domain_mode:
-				hfo = ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']
+				hfo = ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S']
 			# taj-d
 			worksheet.conditional_format(hfo[0] + '2:' + hfo[0] + str(num_rows),
 										 {'type': '3_color_scale', 'min_color': "#f7a09c", "mid_color": "#e0e0e0",'min_type': 'num', 'max_type': 'num', 'mid_type': 'num',
@@ -3127,6 +3235,16 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			worksheet.conditional_format(hfo[9] + '2:' + hfo[9] + str(num_rows),
 										 {'type': '2_color_scale', 'min_color': "#c7afb4", 'min_type': 'num', 'max_type': 'num',
 										  'max_color': "#965663", "min_value": -2.0, "max_value": 2.0})
+
+			# BGC score
+			worksheet.conditional_format(hfo[10] + '2:' + hfo[10] + str(num_rows),
+									{'type': '2_color_scale', 'min_color': "#f5aca4", 'min_type': 'num', 'max_type': 'num',
+									'max_color': "#c75246", "min_value": -7.0, "max_value": 13.0})
+
+			# viral score
+			worksheet.conditional_format(hfo[11] + '2:' + hfo[11] + str(num_rows),
+									{'type': '2_color_scale', 'min_color': "#dfccff", 'min_type': 'num', 'max_type': 'num',
+									'max_color': "#715a96", "min_value": 0.0, "max_value": 10.0})
 
 		worksheet.autofilter('A1:BA' + str(num_rows))
 		worksheet.filter_column(2, 'x >= 0.1')

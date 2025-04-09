@@ -2306,7 +2306,7 @@ def runPyHmmerForVOGforSalt(inputs):
 					# solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
 					n_aligned_positions = len(hit.best_domain.alignment.hmm_sequence) - hit.best_domain.alignment.hmm_sequence.count(".")
 					hmm_coverage = (n_aligned_positions / hmm_lengths[hit.best_domain.alignment.hmm_name])
-					outf.write('\t'.join([hits.query_name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score), str(hmm_coverage)]) + '\n')
+					outf.write('\t'.join([hits.query.name.decode(), 'NA', hit.name.decode(), 'NA', str(hit.evalue), str(hit.score), str(hmm_coverage)]) + '\n')
 		outf.close()
 	except:
 		raise RuntimeError('Problem running pyhmmer for annotating MGEs in target genomes!')

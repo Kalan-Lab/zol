@@ -294,7 +294,7 @@ def createChoppedGenbank(inputs):
 			for dom_align_info in sorted(target_dom_hits[tg], key=itemgetter(3), reverse=True):
 				dom_name, start, end, score, i_evalue = dom_align_info
 				overlap_coords = accounted_coords.intersection(set(range(start, end+1)))
-				if len(overlap_coords)/float(end-start+1) >= 0.1: continue
+				if (len(overlap_coords)/float(end-start+1) >= 0.1) or (len(overlap_coords) >= minimal_length): continue
 				accounted_coords = accounted_coords.union(set(range(start, end+1)))
 				breakpoints[tg].append(start)
 				breakpoints[tg].append(end+1)

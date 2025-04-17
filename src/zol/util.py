@@ -401,7 +401,7 @@ def is_genbank(gbk, check_for_cds=False):
 	except:
 		return False
 
-def checkValidGenBank(gbk, quality_assessment=False, draft_assessment=False, use_either_lt_or_pi=False):
+def checkValidGenBank(gbk, quality_assessment=False, draft_assessment=False, use_either_lt_or_pi=False, require_translation=False):
 	"""
 	Description:
 	Function to check whether gene cluster GenBanks provided to zol as input meets the criteria requested by the user.
@@ -446,6 +446,13 @@ def checkValidGenBank(gbk, quality_assessment=False, draft_assessment=False, use
 							lt_is_none = True
 						if ',' in lt:
 							lt_has_comma = True
+
+						if require_translation:
+							try:
+								protein_seq = feature.qualifiers.get('translation')[0]
+							except:
+								return False
+							
 						try:
 							edgy_cds = feature.qualifiers.get('near_scaffold_edge')[0] == 'True'
 							#print(edgy_cds)

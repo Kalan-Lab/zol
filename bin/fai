@@ -335,7 +335,7 @@ def faiMain():
 				for filename in query_inputs:
 					filename = os.path.abspath(filename)
 					if os.path.isfile(filename) and (filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank")):
-						if util.checkValidGenBank(filename, use_either_lt_or_pi=True):
+						if util.checkValidGenBank(filename, use_either_lt_or_pi=True, require_translation=True):
 							genbanks.add(filename)
 						else:
 							sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % filename)

@@ -338,8 +338,8 @@ def faiMain():
 						if util.checkValidGenBank(filename, use_either_lt_or_pi=True, require_translation=True):
 							genbanks.add(filename)
 						else:
-							sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % filename)
-							logObject.warning('Ignoring file %s because it doesn\'t have CDS features or a comma found in a CDS locus tag.' % filename)
+							sys.stderr.write('Ignoring file %s because it doesn\'t have CDS features, translations for all CDS features, or a comma found in a CDS locus tag.\n' % filename)
+							logObject.warning('Ignoring file %s because it doesn\'t have CDS features, translations for all CDS features, or a comma found in a CDS locus tag.' % filename)
 			except Exception as e:
 				sys.stderr.write('Issues with parsing query GenBanks!\n')
 				logObject.error('Issues with parsing query GenBanks!')

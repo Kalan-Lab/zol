@@ -918,7 +918,7 @@ def processGenomesUsingProdigal(sample_genomes, prodigal_outdir, prodigal_proteo
 		
 def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_directory, gene_name_mapping_outdir,
 							 logObject, threads=1, locus_tag_length=3, avoid_locus_tags=set([]),
-							 rename_locus_tags=False, rename_problem_gbks=False):
+							 rename_locus_tags=False, error_no_lt=False, error_no_translation=False):
 	"""
 	Description:
 	This function oversees processing of input genomes as GenBanks with CDS features already available.
@@ -953,11 +953,16 @@ def processGenomesAsGenbanks(sample_genomes, proteomes_directory, genbanks_direc
 			sample_genbank = sample_genomes[sample]
 			process_cmd = ['processNCBIGenBank.py', '-i', sample_genbank, '-s', sample, 
 						   '-g', genbanks_directory, '-p', proteomes_directory, '-n', 
-						   gene_name_mapping_outdir]
-			if rename_problem_gbks:
-				process_cmd += ['-r', '-l', sample_locus_tag]
-			elif rename_locus_tags:
-				process_cmd += ['-l', sample_locus_tag]
+						   gene_name_mapping_outdir, '-l', sample_locus_tag]
+
+			if error_no_translation:
+				process_cmd += ['-ent']
+			if error_no_lt:
+				process_cmd += ['-enl']
+
+			if rename_locus_tags:
+				process_cmd += ['-r']
+
 			process_cmds.append(process_cmd + [logObject])
 				
 		msg = "Attempting to process/re-format %d genomes provided as GenBank files" % len(process_cmds) 

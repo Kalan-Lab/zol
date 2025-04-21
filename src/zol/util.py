@@ -159,6 +159,7 @@ def downloadGTDBGenomes(taxa_name, gtdb_release, gtdb_dir, gtdb_listing_file, ta
 			if sanity_check:
 				try:
 					assert (is_fasta(genome_file))
+					final_genome_count += 1
 				except AssertionError as e:
 					msg = 'Warning: genome %s is not a valid FASTA file. Removing ...' % f
 					try:

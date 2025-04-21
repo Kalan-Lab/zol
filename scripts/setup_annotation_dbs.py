@@ -29,7 +29,7 @@ def create_parser():
 
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download Pfam and PGAP HMMs.", required=False, default=False)
-	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, & MIBiG proteins.", required=False, default=False)	
+	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, CARD proteins, & MIBiG proteins.", required=False, default=False)	
 
 	args = parser.parse_args()
 	return args
@@ -75,7 +75,7 @@ def setup_annot_dbs():
 
 	# download vScore information and GECCO scores
 	download_links = ['https://anantharamanlab.github.io/V-Score-Search/VScoreDataNormalized.csv',
-				      'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt']
+			  'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt']
 
 
 	# Download
@@ -102,11 +102,13 @@ def setup_annot_dbs():
 		pgap_phmm_file = download_path + 'PGAP.hmm'
 		mb_faa_file = download_path + 'mibig.dmnd'
 		pfam_phmm_file = download_path + 'Pfam-A.hmm'
+		card_faa_file = download_path + 'card.dmnd'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
 				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
-				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz']
+				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
+				  'https://card.mcmaster.ca/latest/card-data.tar.bz2']
 
 		# Download
 		print('Starting download of files!')
@@ -204,6 +206,30 @@ def setup_annot_dbs():
 			issues_handle.write('Issues setting up MIBiG database.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
+			
+		try:
+			print('Setting up CARD database!')
+			pritn('Check out the ARTS webserver for more detailed analysis in finding BGCs for synthesizing antibiotics.')
+			os.mkdir(download_path + 'CARD_DB_Files/')
+			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
+			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))
+			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file]))
+			card_descriptions_file = download_path + 'card_descriptions.txt'
+			cdf_handle = open(card_descriptions_file, 'w')
+			with open(download_path + 'protein_fasta_protein_homolog_model.fasta') as ocf:
+				for rec in SeqIO.parse(ocf, 'fasta'):
+					cdf_handle.write(rec.id + '\t' + rec.description + '\n')
+			cdf_handle.close()
+			os.system(' '.join(['rm', '-rf', download_path + 'CARD_DB_Files/', download_path + 'protein_fasta_protein_homolog_model.fasta', download_path + 'card-data.tar.bz2']))
+			assert(os.path.isfile(card_faa_file))
+			listing_handle.write('card\t' + card_descriptions_file + '\t' + card_faa_file + '\tNA\n')
+		except Exception as e:
+			sys.stderr.write('Issues setting up CARD database.\n')
+			issues_handle.write('Issues setting up CARD database.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+
 	
 	elif minimal_mode:
 		# Final annotation files
@@ -486,8 +512,6 @@ def setup_annot_dbs():
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 		
-		# have note in program to recommend folks check out ARTS webserver for more detailed analysis
-		# in finding BGCs for synthesizing antibiotics.
 		try:
 			print('Setting up CARD database!')
 			os.mkdir(download_path + 'CARD_DB_Files/')

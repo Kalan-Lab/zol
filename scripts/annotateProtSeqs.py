@@ -50,7 +50,7 @@ def annotateProtSeqs():
 		
 	header = ['Protein ID', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 			  'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
-			  'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
+			  'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',  'VFDB Annotation (E-value)',
 			  'Pfam Domains', 'Protein Sequence']
 
 	seqs = {}

@@ -74,7 +74,7 @@ def setup_annot_dbs():
 		sys.exit(1)
 
 	# download vScore information and GECCO scores
-	download_links = ['https://anantharamanlab.github.io/V-Score-Search/dataFixed.csv',
+	download_links = ['https://anantharamanlab.github.io/V-Score-Search/VScoreDataNormalized.csv',
 				      'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt']
 
 
@@ -90,7 +90,6 @@ def setup_annot_dbs():
 	except Exception as e:
 		sys.stderr.write('Error occurred during downloading of weight files - please let us know on GitHub issues!\n')
 		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
 
 	listing_file = download_path + 'database_location_paths.txt'
 	issues_file = download_path + 'issues.txt'
@@ -105,7 +104,7 @@ def setup_annot_dbs():
 		pfam_phmm_file = download_path + 'Pfam-A.hmm'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
-				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_3.1.fasta',
+				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
 				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz']
 
@@ -117,9 +116,8 @@ def setup_annot_dbs():
 				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
-			sys.stderr.write('Error occurred during downloading!\n')
+			sys.stderr.write('Error occurred during downloading of databases!\n')
 			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
 
 		try:
 			print('Setting up Pfam database!')
@@ -191,19 +189,19 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up MIBiG database!')
-			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
 			mdf_handle = open(mibig_descriptions_file, 'w')
-			with open(download_path + 'mibig_prot_seqs_3.1.fasta') as omf:
+			with open(download_path + 'mibig_prot_seqs_4.0.fasta') as omf:
 				for rec in SeqIO.parse(omf, 'fasta'):
 					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
 			mdf_handle.close()
 			listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\tNA\n')
-			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_3.1.fasta']))
+			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_4.0.fasta']))
 		except Exception as e:
-			sys.stderr.write('Issues setting up MI-BiG database.\n')
-			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write('Issues setting up MIBiG database.\n')
+			issues_handle.write('Issues setting up MIBiG database.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 	
@@ -225,9 +223,8 @@ def setup_annot_dbs():
 				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
-			sys.stderr.write('Error occurred during downloading!\n')
+			sys.stderr.write('Error occurred during downloading of databases!\n')
 			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
 
 		try:
 			print('Setting up Pfam database!')
@@ -320,7 +317,7 @@ def setup_annot_dbs():
 						  'ftp://ftp.genome.jp/pub/db/kofam/profiles.tar.gz',
 						  'http://papers.genomics.lbl.gov/data/uniq.faa',
 						  'http://www.mgc.ac.cn/VFs/Down/VFDB_setB_pro.fas.gz',
-						  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_3.1.fasta',
+						  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.hmm.tar.gz',
 						  #'http://papers.genomics.lbl.gov/data/litsearch.db'
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
@@ -454,19 +451,19 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up MIBiG database!')
-			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_3.1.fasta', '-d', mb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
 			mdf_handle = open(mibig_descriptions_file, 'w')
-			with open(download_path + 'mibig_prot_seqs_3.1.fasta') as omf:
+			with open(download_path + 'mibig_prot_seqs_4.0.fasta') as omf:
 				for rec in SeqIO.parse(omf, 'fasta'):
 					mdf_handle.write(rec.id + '\t' + rec.description + '\n')
 			mdf_handle.close()
 			listing_handle.write('mibig\t' + mibig_descriptions_file + '\t' + mb_faa_file + '\tNA\n')
-			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_3.1.fasta']))
+			os.system(' '.join(['rm', '-rf', download_path + 'mibig_prot_seqs_4.0.fasta']))
 		except Exception as e:
-			sys.stderr.write('Issues setting up MI-BiG database.\n')
-			issues_handle.write('Issues setting up MI-BiG database.\n')
+			sys.stderr.write('Issues setting up MIBiG database.\n')
+			issues_handle.write('Issues setting up MIBiG database.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 

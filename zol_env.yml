@@ -13,7 +13,7 @@ dependencies:
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
   - "fasttree>=2.0.0"
-  - "bioconda::diamond=2.0.15"
+  - "bioconda::diamond>=2.1.7"
   - prodigal
   - prodigal-gv
   - pyrodigal
@@ -45,3 +45,5 @@ dependencies:
   - colour
   - rich-argparse
   - tqdm
+  - aiofile
+  - aiohttp

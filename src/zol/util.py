@@ -26,11 +26,155 @@ import statistics
 import pyhmmer
 import pandas as pd
 from scipy import stats
+import asyncio
+import aiohttp 
+import aiofile
 
 version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 
+def _download_files(urls, resdir):
+	"""
+	Download files from the given URLs and save them to the specified directory.
+	Note, this function was taken from: 
+	https://gist.github.com/darwing1210/c9ff8e3af8ba832e38e6e6e347d9047a
+	********************************************************************
+	Parameters:
+	- urls: List of URLs to download.	
+	- resdir: Directory to save the downloaded files.
+	********************************************************************
+	"""
+	os.makedirs(resdir, exist_ok=True)
+	sema = asyncio.BoundedSemaphore(5)
+
+	async def fetch_file(session, url):
+		fname = url.split("/")[-1]
+		async with sema:
+			async with session.get(url) as resp:
+				assert resp.status == 200
+				data = await resp.read()
+
+		async with aiofile.async_open(
+			os.path.join(resdir, fname), "wb"
+		) as outfile:
+			await outfile.write(data)
+
+	async def main():
+		async with aiohttp.ClientSession() as session:
+			tasks = [fetch_file(session, url) for url in urls]
+			await asyncio.gather(*tasks)
+
+	loop = asyncio.get_event_loop()
+	loop.run_until_complete(main())
+	loop.close()
+
+def downloadGTDBGenomes(taxa_name, gtdb_release, gtdb_dir, gtdb_listing_file, taxon_listing_file, logObject, sanity_check=False, automated_download=False):
+	"""
+	Download GTDB genomes from NCBI Genbank using ncbi-genome-download.
+	**********************************************************
+	Parameters:
+		- logObject: Logger object for logging messages.
+		- taxa_name: Taxa name to search for in GTDB.
+		:param gtdb_release: GTDB release version.
+		:param genomes: List of genomes to download.
+		:param outdir: Output directory for downloaded genomes.
+		:param ngd_url: URL for ncbi-genome-download.
+		:param sanity_check: Boolean flag for sanity check.	    
+	"""
+	
+	""" 
+	Download GTDB listing file from lsaBGC git repo, parse GTDB information 
+	file, get list of Genbank accessions, and perform dry-run with ncbi-genome-download 
+	if requested.
+	"""
+	msg = "Using axel to download GTDB listing."
+	sys.stdout.write(msg + '\n')
+	logObject.info(msg)
+	axel_cmd = ['axel', 'https://github.com/raufs/gtdb_gca_to_taxa_mappings/raw/main/GTDB_' + gtdb_release + '_Information_with_Genome_URLs.txt.gz', '-o', gtdb_listing_file]
+	runCmdViaSubprocess(axel_cmd, logObject, check_files=[gtdb_listing_file])
+
+	msg = "Beginning by assessing which genomic assemblies are available for the taxa %s in GTDB %s" % (taxa_name, gtdb_release)
+	sys.stdout.write(msg + '\n')
+	logObject.info(msg) 
+	
+	select_genome_listing_handle = open(taxon_listing_file, 'w')
+	genome_url_paths = []
+	url_file_to_polished_name = {}
+	with gzip.open(gtdb_listing_file, 'rt') as ogtdb:
+		for i, line in enumerate(ogtdb):
+			line = line.strip('\n')
+			if i == 0:
+				select_genome_listing_handle.write(line + '\n')
+				continue
+			ls = line.split('\t')
+			gca, gtdb_genus, gtdb_species, genome_url, version_match = line.split('\t')
+			if gca == 'none': continue
+			if genome_url == "NA": continue
+			if len(taxa_name.split()) == 1:
+				if gtdb_genus == taxa_name:
+					select_genome_listing_handle.write(line + '\n')
+					genome_url_paths.append(genome_url)
+					filename = genome_url.split('/')[-1]
+					url_file_to_polished_name[filename] = '_'.join(gtdb_species.split()) + '_' + gca + '.fasta.gz'
+			elif len(taxa_name.split()) == 2:
+				if gtdb_species == taxa_name:
+					select_genome_listing_handle.write(line + '\n')
+					genome_url_paths.append(genome_url)
+					filename = genome_url.split('/')[-1]
+					url_file_to_polished_name[filename] = '_'.join(gtdb_species.split()) + '_' + gca + '.fasta.gz'
+
+	select_genome_listing_handle.close()
+
+	genome_count = len(genome_url_paths)
+	if genome_count == 0:
+		msg = "Error: no genomes found to belong the genus or species specified in GTDB."
+		sys.stderr.write(msg + '\n')
+		logObject.info(msg)
+		sys.exit(1)
+	else:
+		if not automated_download:
+			try:
+				response = input("Will be downloading %d genomes for the taxon %s. Note, each\ngenome in compressed FASTA formatting is approximately 1-2 MB.\nIf downloading thousands of genomes, this can lead to significant disk space being\nused. Do you wish to continue? (yes/no): " % (genome_count, taxa_name))
+				if response.lower() != 'yes':
+					os.system('User does NOT want to download genomes for taxa from NCBI. Exiting ...')
+					sys.exit(1)
+			except:
+				msg = 'Error: user did not respond to download genomes for taxa from NCBI. Exiting ...'
+				sys.stderr.write(msg + '\n')
+				logObject.info(msg)
+				sys.exit(1)
+		try:
+			_download_files(genome_url_paths, gtdb_dir)
+		except Exception as e:
+			msg = 'Error downloading genomes from NCBI. Exiting ...'
+			sys.stderr.write(msg + '\n')
+			logObject.info(msg)
+			sys.exit(1)
+
+		final_genome_count = 0
+		for f in os.listdir(gtdb_dir):
+			genome_file = gtdb_dir + f
+			if not os.path.isfile(genome_file): continue
+			if sanity_check:
+				try:
+					assert (is_fasta(genome_file))
+				except AssertionError as e:
+					msg = 'Warning: genome %s is not a valid FASTA file. Removing ...' % f
+					try:
+						os.remove(genome_file)
+					except:
+						pass
+					sys.stderr.write(msg + '\n')
+					logObject.info(msg)
+			gca = '_'.join(f.split('_')[:2])
+			polished_filename = url_file_to_polished_name[f]
+			renamed_gfile = gtdb_dir + polished_filename
+			os.rename(genome_file, renamed_gfile)
+		
+		msg = 'Was able to download %d of %d genomes belonging to taxa "%s" in GTDB %s.' % (final_genome_count, genome_count, taxa_name, gtdb_release)
+		sys.stdout.write(msg + '\n')
+		logObject.info(msg)
 
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
 	"""

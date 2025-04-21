@@ -2499,7 +2499,7 @@ def determineBGCAndViralScores(pfam_annotations, logObject):
 		try:
 			zol_data_directory = os.path.abspath(zol_data_directory) + '/'
 			gecco_weights_file = zol_data_directory + 'GECCO_Weights.txt'
-			vscore_file = zol_data_directory + 'dataFixed.csv'
+			vscore_file = zol_data_directory + 'VScoreDataNormalized.csv'
 		except:
 			pass
 	if gecco_weights_file == None or not os.path.isfile(gecco_weights_file) or vscore_file == None or not os.path.isfile(vscore_file):
@@ -2958,7 +2958,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				       'Proportion of Sites Under Selection which are Positive']
 		header += ['Custom Annotation (E-value)', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
-				   'MI-BiG Annotation (E-value)', 'VOG Annotation (E-value)', 'VFDB Annotation (E-value)',
+				   'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)', 'VFDB Annotation (E-value)',
 				   'Pfam Domains', 'CDS Locus Tags', 'OG Consensus Sequence']
 
 		seqs = {}

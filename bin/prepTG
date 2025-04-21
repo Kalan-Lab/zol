@@ -49,7 +49,7 @@ import shutil
 import gzip
 import traceback
 
-valid_gtdb_releases = set(['R214', 'R220'])
+valid_gtdb_releases = set(['R220', 'R226'])
 premade_db_set = set(['Acinetobacter', 'Bacillales', 'Corynebacterium', 'Enterobacter', 'Enterococcus', 'Escherichia', 
                       'Klebsiella', 'Lactobacillus', 'Listeria', 'Micromonospora', 'Mycobacterium', 'Pseudomonas', 
 					  'Salmonella', 'Staphylococcus', 'Streptococcus', 'Neisseria', 'Streptomyces', 'Cutibacterium'])
@@ -100,7 +100,7 @@ def create_parser():
 	    $ prepTG -i User_Genomes_Directory/ 
 
 	2. Setup a prepTG database which includes some local genomes and all Cutibacterium granulosum
-	   genomes in GTDB R214: 
+	   genomes in GTDB: 
 	
 	   $ prepTG -i User_Genomes_Directory/ -g "Cutibacterium granulosum" -o prepTG_Database/
 	
@@ -135,7 +135,7 @@ def create_parser():
 
 	parser.add_argument('-i', '--input-dir', help='Directory with target genomes (either featuring GenBanks or FASTAs).', required=False, default=None)
 	parser.add_argument('-g', '--gtdb-taxon', help='Name of a GTDB valid genus or species to incorporate genomes from.\nShould be surrounded by\nquotes (e.g. "Escherichia coli").', required=False, default=None)
-	parser.add_argument('-gr', '--gtdb-release', help='GTDB release to use. [Current default is R220].', default='R220', required=False)
+	parser.add_argument('-gr', '--gtdb-release', help='GTDB release to use. [Current default is R226].', default='R226', required=False)
 	parser.add_argument('-d', '--download-premade', help='Download and setup pre-made databases of representative genomes\nfor specific taxon/genus. Provide name of the taxon,\ne.g. "Escherichia"', required=False, default=None)
 	parser.add_argument('-o', '--output-dir', help='Output directory, which can then be provided as input for the\n"-tg" argument in fai.', required=True)
 	parser.add_argument('-r', '--rename-locus-tags', action='store_true', help='Whether to rename all locus tags for CDS features if provided\nGenBanks as input.', required=False, default=False)
@@ -236,11 +236,13 @@ def prepTG():
 	logObject = util.createLoggerObject(log_file)
 	logObject.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, outdir, reference_proteome, gene_calling_method, 
-					    meta_mode, create_species_tree, threads, max_memory, mge_annotation_flag]
-	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "Output Directory", 
-					   "Reference Proteome Provided", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", 
-					   "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?"]
+	parameter_values = [download_premade, target_genomes_dir, gtdb_taxon, gtdb_release, outdir, reference_proteome, gene_calling_method, 
+					    meta_mode, create_species_tree, threads, max_memory, mge_annotation_flag, rename_locus_tags, error_no_lt, 
+						error_no_translation]
+	parameter_names = ["Download Premade Database", "Target Genomes Directory", "GTDB species/genus", "GTDB Release",
+					   "Output Directory", "Reference Proteome Provided", "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", 
+					   "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?", "Rename Locus Tags in GenBank files?", 
+					   "Error if no Locus Tags in GenBank files?", "Error if no Translation in GenBank files?"]
 	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
 	logObject.info("Done saving parameters!")
 
@@ -248,6 +250,8 @@ def prepTG():
 	sys.stdout.write('Running prepTG version %s\n' % version)
 
 	gtdb_genomes_dir = outdir + 'GTDB_Genomes/'
+	gtdb_listing_file = outdir + "GTDB_" + gtdb_release + "_Information_with_Genome_URLs.txt.gz"
+	taxon_listing_file = outdir + 'GTDB_Genomes_to_Download.txt'
 	if gtdb_taxon != None:
 		# Step 0: Download GTDB listing file from lsaBGC git repo, parse GTDB information 
 		# file, get list of Genbank accessions, and perform dry-run with ncbi-genome-download 
@@ -259,100 +263,11 @@ def prepTG():
 			sys.stderr.write('GTDB release specified is not valid, options include: ' + ', '.join(valid_gtdb_releases))
 			sys.exit(1)
 
-		sys.stdout.write("Using axel to download the GTDB " + gtdb_release + " listing file.\n")
-		gtdb_listing_file = outdir + "GTDB_" + gtdb_release + "_Information.txt.gz"	
-		wget_cmd = ['axel', 'https://github.com/raufs/gtdb_gca_to_taxa_mappings/raw/main/GTDB_' + gtdb_release + '_Information.txt.gz', '-o', gtdb_listing_file]
-
 		try:
-			subprocess.call(' '.join(wget_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-			assert (os.path.isfile(gtdb_listing_file))
+			util.downloadGTDBGenomes(gtdb_taxon, gtdb_release, gtdb_genomes_dir, gtdb_listing_file, taxon_listing_file, logObject, sanity_check=False, automated_download=False)
 		except:
-			sys.stderr.write('Had an issue running: %s\n' % ' '.join(wget_cmd))
-			sys.stderr.write(traceback.format_exc())
-			sys.exit(1)
-	
-		genbank_accession_listing_file = outdir + 'NCBI_Genbank_Accession_Listing.txt'
-		sys.stdout.write("--------------------\nStep 0\n--------------------\nBeginning by assessing which genomic assemblies are available for the taxa %s in GTDB %s and NCBI's Genbank db\n" % (gtdb_taxon, gtdb_release))
-		logObject.info("\n--------------------\nStep 0\n--------------------\nBeginning by assessing which genomic assemblies are available for the taxa %s in GTDB %s and NCBI's Genbank db\n" % (gtdb_taxon, gtdb_release))
-
-		if not os.path.isfile(genbank_accession_listing_file):
-			genbank_accession_listing_handle = open(genbank_accession_listing_file, 'w')
-			with gzip.open(gtdb_listing_file, 'rt') as ogtdb:
-				for line in ogtdb:
-					line = line.strip('\n')
-					ls = line.split('\t')
-					if ls[0] == 'none': continue
-					if len(gtdb_taxon.split()) == 1:
-						if ls[1] == gtdb_taxon:
-							genbank_accession_listing_handle.write(ls[0] + '\n')
-					elif len(gtdb_taxon.split()) == 2:
-						if ls[2] == gtdb_taxon:
-							genbank_accession_listing_handle.write(ls[0] + '\n')
-			genbank_accession_listing_handle.close()
-
-		ogalf = open(genbank_accession_listing_file)
-		accession_count = len(ogalf.readlines())
-		ogalf.close()
-
-		if accession_count == 0:
-			sys.stderr.write('Warning: no genomes found to belong the genus or species specified in GTDB.\n')
-		else:
-			genome_listing_file = outdir + 'GTDB_Genomes_from_NCBIGenbank_for_Taxa.txt'
-			if not os.path.isfile(genome_listing_file):
-				if accession_count != 0:
-					ngd_dry_cmd = ['ncbi-genome-download', '--dry-run', '--section', 'genbank', '-A', genbank_accession_listing_file, 'bacteria', '>', genome_listing_file]
-					try:
-						subprocess.call(' '.join(ngd_dry_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-						assert (os.path.isfile(genome_listing_file))
-					except:
-						sys.stderr.write('Had an issue running: %s\n' % ' '.join(cmd))
-						sys.stderr.write(traceback.format_exc())
-				else:
-					of = open(genome_listing_file, 'w')
-					of.close()
-
-			oglf = open(genome_listing_file)
-			genome_count = len(oglf.readlines())
-			oglf.close()
-			if genome_count == 0:
-				sys.stderr.write('Warning: no genomes could be downloaded with ncbi-genome-download.\n')
-			else:
-				if genome_count != 0:
-					ngd_real_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section',
-							'genbank', '-A', genbank_accession_listing_file, '-o', gtdb_genomes_dir,
-							'--flat-output',  'bacteria']
-					try:
-						subprocess.call(' '.join(ngd_real_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-						assert (os.path.isdir(gtdb_genomes_dir))
-					except:
-						sys.stderr.write('Had an issue running: %s\n' % ' '.join(cmd))
-						sys.stderr.write(traceback.format_exc())
-
-					uncompress_cmds = []
-					for f in os.listdir(gtdb_genomes_dir):
-						uncompress_cmds.append(['gunzip', gtdb_genomes_dir + f, logObject])
-					p = multiprocessing.Pool(threads)
-					p.map(util.multiProcess, uncompress_cmds)
-					p.close()
-
-					gca_to_species_name = {}
-					with gzip.open(gtdb_listing_file, 'rt') as ogtdb:
-						for line in ogtdb:
-							line = line.strip('\n')
-							ls = line.split('\t')
-							if ls[0] == 'none': continue
-							gca = ls[0]
-							sp_name = '_'.join(ls[2].split())
-							gca_to_species_name[gca] = sp_name
-									
-					for gf in os.listdir(gtdb_genomes_dir):
-						gfile = gtdb_genomes_dir + gf  
-						if not gfile.endswith('.fasta') and not gfile.endswith('.fa') and not gfile.endswith('.fna'): continue
-						assert (util.is_fasta(gfile))
-						gca = '_'.join(gf.split('_')[:2])
-						species_name = gca_to_species_name[gca]
-						renamed_gfile = gtdb_genomes_dir + species_name + '_' + gca + '.fasta'
-						os.rename(gfile, renamed_gfile)
+			sys.stderr.write('Had an issue downloading GTDB genomes.\n')
+			sys.exit(1)	
 
 	if target_genomes_dir != None:
 		try:
@@ -405,7 +320,7 @@ def prepTG():
 		uncompress_dir = outdir + 'Uncompressed_Genomes/'
 
 		if target_genomes_dir != None:
-			list_cmd = ['listAllGenomesInDirectory.py', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
+			list_cmd = ['listAllGenomesInDirectory.py', '-z', '-i', target_genomes_dir, '--uncompress_dir', uncompress_dir, '>',
 						target_listing_file]
 			try:
 				subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
@@ -416,7 +331,7 @@ def prepTG():
 				logObject.error(e)
 				sys.exit(1)
 		if gtdb_taxon != None:
-			list_cmd = ['listAllGenomesInDirectory.py', '-i', gtdb_genomes_dir, '--uncompress_dir', uncompress_dir, '>>', target_listing_file]
+			list_cmd = ['listAllGenomesInDirectory.py', '-i', gtdb_genomes_dir, '-z', '--uncompress_dir', uncompress_dir, '>>', target_listing_file]
 			try:
 				subprocess.call(' '.join(list_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 				logObject.info('Successfully ran: %s' % ' '.join(list_cmd))
@@ -463,6 +378,7 @@ def prepTG():
 												threads=threads, locus_tag_length=locus_tag_length, gene_calling_method=gene_calling_method,
 												meta_mode=meta_mode)
 				shutil.rmtree(additional_prodigal_outdir)
+				shutil.rmtree(uncompress_dir)
 			else:
 				additional_miniprot_outdir = outdir + 'Miniprot_Gene_Calling_Additional/'
 				util.setupReadyDirectory([additional_miniprot_outdir], delete_if_exist=True)
@@ -470,6 +386,7 @@ def prepTG():
 												additional_proteomes_directory, additional_genbanks_directory, logObject,
 												threads=threads, locus_tag_length=locus_tag_length)
 				shutil.rmtree(additional_miniprot_outdir)
+				shutil.rmtree(uncompress_dir)
 		else:
 			# genomes are provided as Genbanks with CDS features
 			gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
@@ -478,6 +395,7 @@ def prepTG():
 										additional_genbanks_directory, gene_name_mapping_outdir, logObject,
 										threads=threads, locus_tag_length=locus_tag_length, rename_locus_tags=rename_locus_tags,
 										error_no_lt=error_no_lt, error_no_translation=error_no_translation)
+			shutil.rmtree(uncompress_dir)
 
 		target_genome_annotation_listing_handle = open(target_genome_annotation_listing_file, 'w')
 		target_genomes_concat_db_faa = outdir + 'Target_Genomes_DB.faa'

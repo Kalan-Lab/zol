@@ -79,7 +79,7 @@ def genSynVis():
 	25	PaperBLAST Annotation (E-value)
 	26	CARD Annotation (E-value)
 	27	IS Finder (E-value)
-	28	MI-BiG Annotation (E-value)
+	28	MIBiG Annotation (E-value)
 	29	VOG Annotation (E-value)
 	30	VFDB Annotation (E-value)
 	31	Pfam Domains

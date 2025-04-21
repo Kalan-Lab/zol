@@ -209,7 +209,7 @@ def setup_annot_dbs():
 			
 		try:
 			print('Setting up CARD database!')
-			pritn('Check out the ARTS webserver for more detailed analysis in finding BGCs for synthesizing antibiotics.')
+			print('Check out the ARTS webserver for more detailed analysis in finding BGCs for synthesizing antibiotics.')
 			os.mkdir(download_path + 'CARD_DB_Files/')
 			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
 			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))

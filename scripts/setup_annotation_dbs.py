@@ -108,7 +108,7 @@ def setup_annot_dbs():
 				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
 				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
-				  'https://card.mcmaster.ca/latest/card-data.tar.bz2']
+				  'https://card.mcmaster.ca/latest/data']
 
 		# Download
 		print('Starting download of files!')
@@ -350,7 +350,7 @@ def setup_annot_dbs():
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
 						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
-						  'https://card.mcmaster.ca/latest/card-data.tar.bz2',
+						  'https://card.mcmaster.ca/latest/data',
 						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
 						  'https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
 

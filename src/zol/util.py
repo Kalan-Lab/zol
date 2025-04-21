@@ -168,6 +168,8 @@ def downloadGTDBGenomes(taxa_name, gtdb_release, gtdb_dir, gtdb_listing_file, ta
 						pass
 					sys.stderr.write(msg + '\n')
 					logObject.info(msg)
+			else:
+				final_genome_count += 1
 			gca = '_'.join(f.split('_')[:2])
 			polished_filename = url_file_to_polished_name[f]
 			renamed_gfile = gtdb_dir + polished_filename

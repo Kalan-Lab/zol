@@ -58,7 +58,7 @@ def setup_annot_dbs():
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist or user did not accept deleting the directory and recreating it!\n')
 
 	if lsabgc_minimal_mode:
-		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG and PGAP databases.\n')
+		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG, CARD, and PGAP databases.\n')
 	elif minimal_mode:
 		sys.stdout.write('Minimal mode requested, will only be downloading the Pfam and PGAP databases.\n')
 	

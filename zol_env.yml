@@ -24,7 +24,6 @@ dependencies:
   - "hyphy>=2.5.14"
   - "pomegranate>=1.0.0"
   - bioconda::cd-hit
-  - bioconda::ncbi-genome-download
   - conda-forge::r-base
   - conda-forge::r-ggplot2
   - conda-forge::r-cowplot

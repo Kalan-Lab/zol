@@ -102,7 +102,7 @@ def create_parser():
 				  
     The final set of homologous gene cluster instances within target genomes which meet
     the specified criteria can be found in the subdirectory named: 
-	Final_Results/Homologous_Gene_Cluster_GenBanks/			  
+    Final_Results/Homologous_Gene_Cluster_GenBanks/		
     """, formatter_class=RawTextRichHelpFormatter)
 	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes\nof interest.', required=True)
 	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple but\nshould be highly related instances (e.g. part of the same GCF)] to\nuse as queries for searching for homologous/orthologous\ninstances in target genomes. Files must end with\n".gbk", ".gbff", or ".genbank".', required=False, default=None)

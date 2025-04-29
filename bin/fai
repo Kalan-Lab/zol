@@ -105,7 +105,7 @@ def create_parser():
     Final_Results/Homologous_Gene_Cluster_GenBanks/		
     """, formatter_class=RawTextRichHelpFormatter)
 	parser.add_argument('-tg', '--target-genomes-db', help='Result directory from running prepTG for target genomes\nof interest.', required=True)
-	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) [could be multiple but\nshould be highly related instances (e.g. part of the same GCF)] to\nuse as queries for searching for homologous/orthologous\ninstances in target genomes. Files must end with\n".gbk", ".gbff", or ".genbank".', required=False, default=None)
+	parser.add_argument('-i', '--query-inputs', nargs='+', help='Paths to locus-specific GenBank(s) \[could be multiple but\nshould be highly related instances (e.g. part of the same GCF)\] to\nuse as queries for searching for homologous/orthologous\ninstances in target genomes. Files must end with\n".gbk", ".gbff", or ".genbank".', required=False, default=None)
 	parser.add_argument('-r', '--reference-genome', help='Path to reference genome in FASTA or GenBank format on\nwhich to define query gene cluster coordinates.', required=False, default=None)
 	parser.add_argument('-rc', '--reference-contig', help='Scaffold name (up to first space) in refernece genome\nwhich features the query gene cluster.', required=False, default=None)
 	parser.add_argument('-rs', '--reference-start', type=int, help='Start position of query gene cluster on scaffold in\nreference genome.', required=False, default=None)

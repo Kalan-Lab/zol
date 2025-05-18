@@ -254,7 +254,7 @@ def createChoppedGenbank(inputs):
 						lt = feature.qualifiers.get('locus_tag')[0]
 						seq = feature.qualifiers.get('translation')[0]
 						nucl_seq = None
-						all_coords, start, end, direction, is_multi_part = util.parseFeatureCoord(str(feature.location))
+						all_coords, start, end, direction = util.processLocationString(str(feature.location))
 
 						nucl_seq = ''
 						for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):

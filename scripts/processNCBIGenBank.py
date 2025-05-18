@@ -138,38 +138,9 @@ def processAndReformatNCBIGenbanks():
 			for feature in rec.features:
 				if feature.type == "CDS":
 					tot_cds_features += 1
-					all_starts = []
-					all_ends = []
-					all_directions = []
-					all_coords = []
-					if 'order' in str(feature.location):
-						raise RuntimeError('Currently order is not allowed for CDS features in Genbanks. Please consider removing sample %s from analysis and trying again.' % sample_name)
-					if not 'join' in str(feature.location):
-						start = min([int(x.strip('>').strip('<')) for x in
-									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-						end = max(
-							[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-						direction = str(feature.location).split('(')[1].split(')')[0]
-						all_starts.append(start)
-						all_ends.append(end)
-						all_directions.append(direction)
-						all_coords.append([start, end, direction])
-					else:
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start)
-							all_ends.append(end)
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-					assert (len(set(all_directions)) == 1)
-					start = min(all_starts)
-					end = max(all_ends)
-					direction = all_directions[0]
+					
+					start, end, direction, all_coords = util.processLocationString(str(feature.location))
+
 					old_locus_tag = None
 					prot_seq = None
 					try:

@@ -1392,37 +1392,9 @@ def plotOverviews(target_annotation_info, hmm_work_dir, protein_to_hg, plot_work
 							except:
 								sys.stderr.write('The GenBank %s, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n' % target_annotation_info[sample]['genbank'])
 								sys.exit(1)
-						all_coords = []
-						if not 'join' in str(feature.location):
-							start = min([int(x.strip('>').strip('<')) for x in
-										 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in
-									   str(feature.location)[1:].split(']')[0].split(':')])
-							direction = str(feature.location).split('(')[1].split(')')[0]
-							all_coords.append([start, end, direction])
-						elif 'order' in str(feature.location):
-							for exon_coord in str(feature.location)[6:-1].split(', '):
-								start = min(
-									[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-								end = max(
-									[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-								direction = exon_coord.split('(')[1].split(')')[0]
-								all_coords.append([start, end, direction])
-						else:
-							for exon_coord in str(feature.location)[5:-1].split(', '):
-								start = min([int(x.strip('>').strip('<')) for x in
-											 exon_coord[1:].split(']')[0].split(':')]) + 1
-								end = max([int(x.strip('>').strip('<')) for x in
-										   exon_coord[1:].split(']')[0].split(':')])
-								direction = exon_coord.split('(')[1].split(')')[0]
-								all_coords.append([start, end, direction])
-						start = 1e16
-						end = -1
-						for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
-							if sc < start:
-								start = sc
-							if ec > end:
-								end = ec
+	
+						start, end, direction, all_coords = util.processLocationString(str(feature.location))
+
 						lt_dists_to_scaff_starts[sample][lt] = start
 						lt_dists_to_scaff_ends[sample][lt] = scaff_len - end
 						lt_starts[sample][lt] = start

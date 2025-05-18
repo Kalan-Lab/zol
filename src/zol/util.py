@@ -34,6 +34,68 @@ version = pkg_resources.require("zol")[0].version
 
 valid_alleles = set(['A', 'C', 'G', 'T'])
 
+def processLocationString(location_string):
+	"""
+	Description:
+	Function to process a location string from a GenBank file.
+	********************************************************************************************************************
+	Parameters:
+	- location_string: The location string to process.
+	********************************************************************************************************************
+	Returns:
+	- A list of items: [start, end, direction, all_coords]
+	********************************************************************************************************************
+	"""
+	try:
+		all_starts = []
+		all_ends = []
+		all_coords = []
+		direction = None
+		if 'order' in str(location_string):
+			all_directions = []
+			for exon_coord in location_string[6:-1].split(', '):
+				start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(start)
+				all_ends.append(end)
+				all_directions.append(direction)
+				all_coords.append([start, end, direction])
+			start = min(all_starts)
+			end = max(all_ends)
+			assert(len(set(all_directions)) == 1)
+			direction = all_directions[0]
+		elif 'join' in location_string:
+			all_directions = []
+			for exon_coord in location_string[5:-1].split(', '):
+				start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
+				end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
+				direction = exon_coord.split('(')[1].split(')')[0]
+				all_starts.append(start)
+				all_ends.append(end)
+				all_directions.append(direction)
+				all_coords.append([start, end, direction])
+			start = min(all_starts)
+			end = max(all_ends)
+			assert(len(set(all_directions)) == 1)
+			direction = all_directions[0]
+		elif '{' not in location_string:
+			start = min([int(x.strip('>').strip('<')) for x in location_string[1:].split(']')[0].split(':')]) + 1
+			end = max([int(x.strip('>').strip('<')) for x in location_string[1:].split(']')[0].split(':')])
+			direction = location_string.split('(')[1].split(')')[0]
+			all_starts.append(start)
+			all_ends.append(end)
+			all_coords.append([start, end, direction])
+		else:
+			msg = 'Error: There appears to be a location operator that is neither "join" nor "order". This is currently not supported in zol.'
+			sys.stderr.write(msg + '\n')
+			raise RuntimeError('Error processing location string %s' % location_string)
+		
+		return([start, end, direction, all_coords])
+	except Exception as e:
+		sys.stderr.write(traceback.format_exc())
+		raise RuntimeError('Error processing location string %s' % location_string)
+	
 def _download_files(urls, resdir):
 	"""
 	Download files from the given URLs and save them to the specified directory.
@@ -303,6 +365,8 @@ def readInAnnotationFilesForExpandedSampleSet(expansion_listing_file, full_dir, 
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
+
+
 def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, end_coord):
 	"""
 	Description:
@@ -338,46 +402,7 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 		#print(end_coord)
 		#print('--------')
 		for feature in rec.features:
-			start = None
-			end = None
-			direction = None
-			all_coords = []
-			#print(str(feature.location))
-
-			if not 'join' in str(feature.location) and not 'order' in str(feature.location):
-				start = min([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
-				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-				direction = str(feature.location).split('(')[1].split(')')[0]
-				all_coords.append([start, end, direction])
-			elif 'order' in str(feature.location):
-				all_starts = []
-				all_ends = []
-				all_directions = []
-				for exon_coord in str(feature.location)[6:-1].split(', '):
-					start = min(
-						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-					direction = exon_coord.split('(')[1].split(')')[0]
-					all_starts.append(start)
-					all_ends.append(end)
-					all_directions.append(direction)
-					all_coords.append([start, end, direction])
-				start = min(all_starts)
-				end = max(all_ends)
-			else:
-				all_starts = []
-				all_ends = []
-				all_directions = []
-				for exon_coord in str(feature.location)[5:-1].split(', '):
-					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-					direction = exon_coord.split('(')[1].split(')')[0]
-					all_starts.append(start)
-					all_ends.append(end)
-					all_directions.append(direction)
-					all_coords.append([start, end, direction])
-				start = min(all_starts)
-				end = max(all_ends)
+			start, end, direction, all_coords = processLocationString(str(feature.location))
 
 			feature_coords = set(range(start, end + 1))
 			edgy_feat = 'False'
@@ -687,37 +712,10 @@ def parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=True, featur
 					if feature.type != feature_type: continue
 					lt = feature.qualifiers.get('locus_tag')[0]
 
-					all_coords = []
-					all_starts = []
-					all_ends = []
-					if not 'join' in str(feature.location):
-						start = min([int(x.strip('>').strip('<')) for x in
-									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-						end = max([int(x.strip('>').strip('<')) for x in
-								   str(feature.location)[1:].split(']')[0].split(':')])
-						direction = str(feature.location).split('(')[1].split(')')[0]
-						all_coords.append([start, end, direction])
-						all_starts.append(start)
-						all_ends.append(end)
-					else:
-						all_starts = []
-						all_ends = []
-						all_directions = []
-						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min([int(x.strip('>').strip('<')) for x in
-										 exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in
-									   exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_starts.append(start);
-							all_ends.append(end);
-							all_directions.append(direction)
-							all_coords.append([start, end, direction])
-						assert (len(set(all_directions)) == 1)
+					start, end, direction, all_coords = processLocationString(str(feature.location))
 
-
-					max_ec = max(all_ends)
-					min_sc = min(all_starts)
+					min_sc = start
+					max_ec = end
 					nucl_seq = ''
 					for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
 						if ec >= len(full_sequence):
@@ -1423,38 +1421,8 @@ def parseGbk(gbk, prefix, logObject, use_either_lt_or_pi=False, feature_type='CD
 						if lt == None and pi != None:
 							lt = pi
 
-					all_coords = []
-					if not 'join' in str(feature.location):
-						start = min([int(x.strip('>').strip('<')) for x in
-									 str(feature.location)[1:].split(']')[0].split(':')]) + 1
-						end = max([int(x.strip('>').strip('<')) for x in
-								   str(feature.location)[1:].split(']')[0].split(':')])
-						direction = str(feature.location).split('(')[1].split(')')[0]
-						all_coords.append([start, end, direction])
-					elif 'order' in str(feature.location):
-						for exon_coord in str(feature.location)[6:-1].split(', '):
-							start = min(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max(
-								[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_coords.append([start, end, direction])
-					else:
-						for exon_coord in str(feature.location)[5:-1].split(', '):
-							start = min([int(x.strip('>').strip('<')) for x in
-										 exon_coord[1:].split(']')[0].split(':')]) + 1
-							end = max([int(x.strip('>').strip('<')) for x in
-									   exon_coord[1:].split(']')[0].split(':')])
-							direction = exon_coord.split('(')[1].split(')')[0]
-							all_coords.append([start, end, direction])
-					start = 1e16
-					end = -1
-					dir = all_coords[0][2]
-					for sc, ec, dc in sorted(all_coords, key=itemgetter(0), reverse=False):
-						if sc < start:
-							start = sc
-						if ec > end:
-							end = ec
+					start, end, direction, all_coords = processLocationString(str(feature.location))
+
 					location = {'scaffold': rec.id, 'start': start, 'end': end, 'direction': dir}
 					gc_gene_locations[prefix + '|' + lt] = location
 		return gc_gene_locations
@@ -1648,46 +1616,7 @@ def parseGenbankAndFindBoundaryGenes(inputs):
 			if not feature.type == 'CDS': continue
 			locus_tag = feature.qualifiers.get('locus_tag')[0]
 
-			start = None
-			end = None
-			direction = None
-			if not 'join' in str(feature.location):
-				start = min(
-					[int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')]) + 1
-				end = max([int(x.strip('>').strip('<')) for x in str(feature.location)[1:].split(']')[0].split(':')])
-				direction = str(feature.location).split('(')[1].split(')')[0]
-			elif 'order' in str(feature.location):
-				all_starts = []
-				all_ends = []
-				all_directions = []
-				for exon_coord in str(feature.location)[6:-1].split(', '):
-					ec_start = min(
-						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-					ec_end = max(
-						[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-					ec_direction = exon_coord.split('(')[1].split(')')[0]
-					all_starts.append(ec_start)
-					all_ends.append(ec_end)
-					all_directions.append(ec_direction)
-				assert (len(set(all_directions)) == 1)
-				start = min(all_starts)
-				end = max(all_ends)
-				direction = all_directions[0]
-			else:
-				all_starts = []
-				all_ends = []
-				all_directions = []
-				for exon_coord in str(feature.location)[5:-1].split(', '):
-					start = min([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-					end = max([int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-					direction = exon_coord.split('(')[1].split(')')[0]
-					all_starts.append(start)
-					all_ends.append(end)
-					all_directions.append(direction)
-				assert (len(set(all_directions)) == 1)
-				start = min(all_starts)
-				end = max(all_ends)
-				direction = all_directions[0]
+			start, end, direction, all_coords = processLocationString(str(feature.location))
 
 			gene_location[locus_tag] = {'scaffold': scaffold, 'start': start, 'end': end, 'direction': direction}
 			scaffold_genes[scaffold].add(locus_tag)
@@ -2112,7 +2041,7 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 						if feature.type != 'CDS': continue
 						lt = feature.qualifiers.get('locus_tag')[0]
 						loc_str = str(feature.location)
-						all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+						all_coords, start, end, direction = processLocationString(loc_str)
 						og = lt_to_og[lt]
 						gbk_og_counts[gbk][og] += 1
 						nc = False
@@ -2260,64 +2189,6 @@ def determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, 
 		logObject.error('Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n')
 		logObject.error(traceback.format_exc())
 		sys.exit(1)
-
-
-def parseFeatureCoord(str_gbk_loc):
-	try:
-		str_gbk_loc = str_gbk_loc#.replace(' ', '')
-		start = None
-		end = None
-		direction = None
-		all_coords = []
-		is_multi_part = False
-		if not 'join' in str(str_gbk_loc) and not 'order' in str(str_gbk_loc):
-			start = min([int(x.strip('>').strip('<')) for x in
-						 str(str_gbk_loc)[1:].split(']')[0].split(':')]) + 1
-			end = max([int(x.strip('>').strip('<')) for x in
-					   str(str_gbk_loc)[1:].split(']')[0].split(':')])
-			direction = str(str_gbk_loc).split('(')[1].split(')')[0]
-			all_coords.append([start, end, direction])
-		elif 'order' in str(str_gbk_loc):
-			is_multi_part = True
-			all_starts = []
-			all_ends = []
-			all_directions = []
-			for exon_coord in str(str_gbk_loc)[6:-1].split(', '):
-				ec_start = min(
-					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-				ec_end = max(
-					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-				ec_direction = exon_coord.split('(')[1].split(')')[0]
-				all_starts.append(ec_start)
-				all_ends.append(ec_end)
-				all_directions.append(ec_direction)
-				all_coords.append([ec_start, ec_end, ec_direction])
-			assert (len(set(all_directions)) == 1)
-			start = min(all_starts)
-			end = max(all_ends)
-			direction = all_directions[0]
-		else:
-			is_multi_part = True
-			all_starts = []
-			all_ends = []
-			all_directions = []
-			for exon_coord in str(str_gbk_loc)[5:-1].split(', '):
-				ec_start = min(
-					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')]) + 1
-				ec_end = max(
-					[int(x.strip('>').strip('<')) for x in exon_coord[1:].split(']')[0].split(':')])
-				ec_direction = exon_coord.split('(')[1].split(')')[0]
-				all_starts.append(ec_start)
-				all_ends.append(ec_end)
-				all_directions.append(ec_direction)
-				all_coords.append([ec_start, ec_end, ec_direction])
-			assert (len(set(all_directions)) == 1)
-			start = min(all_starts)
-			end = max(all_ends)
-			direction = all_directions[0]
-		return(all_coords, start, end, direction, is_multi_part)
-	except Exception as e:
-		raise RuntimeError(traceback.format_exc())
 
 def runPyHmmerForRiboProts(best_tg_gbk_file, tg_query_prots_file, ribo_norm_dir, logObject, threads=1):
 	"""
@@ -2871,7 +2742,7 @@ def consolidateSaltySpreadsheet(fai_ind_gc_file, genome_gbks, codoff_result_dir,
 							if feat.type == 'CDS':
 								lt = feat.qualifiers.get('locus_tag')[0]
 								loc_str = str(feat.location)
-								all_coords, start, end, direction, is_multi_part = parseFeatureCoord(loc_str)
+								all_coords, start, end, direction = processLocationString(loc_str)
 								cds_coords[lt] = [start, end]
 				
 				min_gc_coord = 1e100

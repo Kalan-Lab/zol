@@ -510,6 +510,8 @@ def is_fasta(fasta):
 	- True or False statement depending on whether file is in FASTA format.
 	********************************************************************************************************************
 	"""
+	import warnings
+	warnings.filterwarnings("ignore")
 	try:
 		recs = 0
 		if fasta.endswith('.gz'):
@@ -542,6 +544,8 @@ def is_genbank(gbk, check_for_cds=False):
 	- True or False statement depending on whether file is in GenBank format.
 	********************************************************************************************************************
 	"""
+	import warnings
+	warnings.filterwarnings("ignore")
 	try:
 		recs = 0
 		cds_flag = False

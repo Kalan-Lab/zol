@@ -1193,9 +1193,9 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 					hswq_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
 			hswq_handle.close()
 
-			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), , '-perturb', '12345']
+			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), '-perturb', '12345']
 			if use_super5:
-				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), , '-perturb', '12345']
+				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), '-perturb', '12345']
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')

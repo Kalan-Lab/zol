@@ -866,9 +866,9 @@ def partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstr_dir, 
 						min_seq_len = len(str(rec.seq))
 			if min_seq_len < 10: continue
 			upst_algn_file = upst_algn_dir + prefix + '.msa.fna'
-			align_cmd = ['muscle', '-align', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads)]
+			align_cmd = ['muscle', '-align', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads), '-perturb', '12345']
 			if use_super5:
-				align_cmd = ['muscle', '-super5', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads)]
+				align_cmd = ['muscle', '-super5', upst_file, '-output', upst_algn_file, '-nt', '-threads', str(threads), '-perturb', '12345']
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -904,9 +904,9 @@ def createProteinAlignments(prot_dir, prot_algn_dir, logObject, use_super5=False
 			prefix = '.faa'.join(pf.split('.faa')[:-1])
 			prot_file = prot_dir + pf
 			prot_algn_file = prot_algn_dir + prefix + '.msa.faa'
-			align_cmd = ['muscle', '-align', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads)]
+			align_cmd = ['muscle', '-align', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads), '-perturb', '12345']
 			if use_super5:
-				align_cmd = ['muscle', '-super5', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads)]
+				align_cmd = ['muscle', '-super5', prot_file, '-output', prot_algn_file, '-amino', '-threads', str(threads), '-perturb', '12345']
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -1193,9 +1193,9 @@ def refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir, refine_workpace
 					hswq_handle.write('>' + rec.id + '\n' + str(rec.seq) + '\n')
 			hswq_handle.close()
 
-			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads)]
+			align_cmd = ['muscle', '-align', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), '-perturb', '12345']
 			if use_super5:
-				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads)]
+				align_cmd = ['muscle', '-super5', hg_seq_with_que, '-output', hg_aln_with_que, '-amino', '-threads', str(threads), '-perturb', '12345']
 			try:
 				subprocess.call(' '.join(align_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')

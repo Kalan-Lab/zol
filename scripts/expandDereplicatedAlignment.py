@@ -110,7 +110,7 @@ def expandOg():
 	orthogroup_seqs_handle.close()
 
 	orthogroup_seqs_msa = outdir + 'OrthoGroup.msa.faa'
-	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads)]
+	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads), '-perturb', '12345']
 	try:
 		subprocess.call(' '.join(muscle_cmd), shell=True, stdout=subprocess.DEVNULL,
 						stderr=subprocess.DEVNULL, executable='/bin/bash')

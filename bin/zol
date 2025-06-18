@@ -49,6 +49,17 @@ import pickle
 from datetime import datetime
 from collections import defaultdict
 import traceback
+import multiprocessing
+try:
+	multiprocessing.set_start_method('fork')
+except:
+	sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
+	sleep(10)
+	try:
+		multiprocessing.set_start_method('fork', force=True)
+	except:
+		sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
+		sys.exit(1)
 
 def create_parser():
 	""" Parse arguments """
@@ -120,8 +131,9 @@ def create_parser():
 	parser.add_argument('-aec', '--allow-edge-cds', action='store_true', help='Include CDS features within gene-cluster GenBanks with the\nattribute "near_scaffold_edge=True", which is set by fai for\nfeatures within 2kb of contig edges.', required=False, default=False)
 	parser.add_argument('-qa', '--quality-align', action='store_true', help="Use MUSCLE align instead of super5 for alignments - slower\nbut more accurate.", required=False, default=False)
 	parser.add_argument('-b', '--betard-analysis', action='store_true', help="Compute Beta-RD-gc statsitics - off by default because\nit requires a lot of memory for large gene\ncluster sets.", required=False, default=False)
-	parser.add_argument('-s', '--selection-analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\nand FUBAR methods. Warning, can take a while\nto run.", required=False, default=False)
-	parser.add_argument('-sg', '--skip-gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster. Default is False because these are\ncomputationally intensive.", required=False, default=False)
+	parser.add_argument('-s', '--selection-analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\n, BUSTED, and FUBAR methods. Warning, can take a while\nto run.", required=False, default=False)
+	parser.add_argument('-sg', '--skip-gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster.", required=False, default=False)
+	parser.add_argument('-sb', '--skip-busted', action='store_true', help="Skip BUSTED selection analysis.", required=False, default=False)
 	parser.add_argument('-cd', '--custom-database', help='Path to FASTA file of protein sequences corresponding\nto a custom annotation database.', required=False, default=None)
 	parser.add_argument('-rgc', '--refine-gene-calling', action='store_true', help='Perform gene-calling refinement using custom database.\nAll ortholog groups which don\'t match to a protein in\nthe custom database will be ignored (experimental).', required=False, default=False)
 	parser.add_argument('-f', '--focal-genbanks', help='File with focal gene clusters listed by GenBank\nfile name (one per line).', required=False, default=None)
@@ -166,6 +178,7 @@ def zolMain():
 	use_super5 = (not myargs.quality_align)
 	fubar_selection = myargs.selection_analysis
 	skip_gard = myargs.skip_gard
+	skip_busted = myargs.skip_busted
 	betard_analysis = myargs.betard_analysis
 	length = myargs.length
 	width = myargs.width
@@ -256,7 +269,7 @@ def zolMain():
 	parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
 					    select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params, 
 						identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation,
-						(not use_super5), fubar_selection, skip_gard, betard_analysis, 
+						(not use_super5), fubar_selection, skip_gard, skip_busted, betard_analysis, 
 						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
 						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
 						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
@@ -269,8 +282,8 @@ def zolMain():
 					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
 					   "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
 					   "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter",
-						"Use align mode in MUSCLE for alignments?", 
-					   "Run FUBAR selection analyses?", "Skip GARD partitioning by recombination breakpoints?", 
+					   "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
+					   "Skip GARD partitioning by recombination breakpoints?", "Skip BUSTED selection analysis?", 
 					   "Computate Beta-RDgc statistics?", "Focal GenBanks listing", "Comparator GenBanks listing", 
 					   "Filter low quality gene clusters?", "Filter draft/incomplete gene clusters?", 
 					   "Only compute orthologs and stop?", 
@@ -688,6 +701,7 @@ def zolMain():
 	evo_results_dir = outdir + 'Evolutionary_Analyses/'
 	gard_results_dir = evo_results_dir + 'GARD_Results/'
 	fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
+	busted_results_dir = evo_results_dir + 'BUSTED_Results/'
 	if not os.path.isfile(step6_check_file):
 		util.setupReadyDirectory([evo_results_dir], delete_if_exist=True)
 		tajimas_d, segregating_sites_prop = zol.runTajimasDAnalysis(codo_algn_trim_dir, evo_results_dir, logObject, threads=threads)
@@ -696,13 +710,16 @@ def zolMain():
 		fubar_sel_props = {}
 		fubar_sel_sites = {}
 		fubar_dBa = {}
+		busted_pval = {}
 		if fubar_selection:
-			util.setupReadyDirectory([gard_results_dir, fubar_results_dir], delete_if_exist=True)
-			gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa = zol.runHyphyAnalyses(codo_algn_dir, tree_dir,
+			util.setupReadyDirectory([gard_results_dir, fubar_results_dir, busted_results_dir], delete_if_exist=True)
+			gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa, busted_pval = zol.runHyphyAnalyses(codo_algn_dir, tree_dir,
 																					 gard_results_dir,
-																					 fubar_results_dir, logObject,
+																					 fubar_results_dir, busted_results_dir, 
+																					 logObject,
 																				  	 gard_mode='Faster',
-																					 skip_gard=skip_gard, threads=threads)
+																					 skip_gard=skip_gard, skip_busted=skip_busted, 
+																					 threads=threads)
 
 		hg_med_beta_rd = {}
 		hg_max_beta_rd = {}
@@ -710,7 +727,8 @@ def zolMain():
 			hg_med_beta_rd, hg_max_beta_rd = zol.computeBetaRDgc(prot_algn_dir, evo_results_dir, logObject, threads=threads)
 		evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop,
 					 'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
-					 'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'median_beta_rd_gc': hg_med_beta_rd,
+					 'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval, 
+					 'median_beta_rd_gc': hg_med_beta_rd,
 					 'max_beta_rd_gc': hg_max_beta_rd, 'entropy': hg_entropy, 'entropy_upst': hg_upst_entropy}
 		with open(evo_stats_pickle_file, 'wb') as pickle_file:
 			pickle.dump(evo_stats, pickle_file)

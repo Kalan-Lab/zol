@@ -1964,12 +1964,12 @@ def individualHyphyRun(inputs):
 		- best_gard_output: output *.best file from GARD analysis.
 		- fubar_outdir: results directory for FUBAR analysis.
 		- skip_gard: boolean flag for whether to skip GARD analysis.
+		- skip_busted: boolean flag for whether to skip BUSTED analysis.
 		- gard_mode: analysis mode for GARD - either "Faster" or "Normal".
 		- logObject: a logging object.
 	*******************************************************************************************************************
 	"""
-	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, skip_gard, gard_mode, \
-		logObject = inputs
+	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, logObject = inputs
 	try:
 		input_gbks_with_hg = set([])
 		with open(hg_codo_algn_file) as ohcaf:
@@ -2007,6 +2007,20 @@ def individualHyphyRun(inputs):
 				logObject.error(e)
 				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
+			if not skip_busted:
+				busted_cmd = ['hyphy', 'CPU=1', 'busted', '--alignment', hg_codo_algn_file, '--tree', hg_full_codo_tree_file]
+				try:
+					subprocess.call(' '.join(busted_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+									executable='/bin/bash')
+					assert(os.path.isfile(hg_codo_algn_file + '.BUSTED.json'))
+					os.system('mv %s %s' % (hg_codo_algn_file + '.BUSTED.json', busted_outdir))
+					logObject.info('Successfully ran: %s' % ' '.join(busted_cmd))
+				except Exception as e:
+					logObject.error('Had an issue running BUSTED: %s' % ' '.join(busted_cmd))
+					sys.stderr.write('Had an issue running BUSTED: %s\n' % ' '.join(busted_cmd))
+					logObject.error(e)
+					sys.stderr.write(traceback.format_exc())
+					sys.exit(1)
 		else:
 			gard_cmd = ['hyphy', 'CPU=1', 'gard', '--mode', gard_mode, '--alignment', hg_codo_algn_file,
 							  '--output', gard_output, '--output-lf', best_gard_output]
@@ -2024,7 +2038,6 @@ def individualHyphyRun(inputs):
 				sys.exit(1)
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
-			#print(' '.join(fubar_cmd))
 			try:
 				subprocess.call(' '.join(fubar_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -2038,15 +2051,30 @@ def individualHyphyRun(inputs):
 				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
+			if not skip_busted:
+				busted_cmd = ['hyphy', 'CPU=1', 'busted', '--alignment', best_gard_output]
+				try:
+					subprocess.call(' '.join(busted_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+									executable='/bin/bash')
+					assert(os.path.isfile(best_gard_output + '.BUSTED.json'))
+					os.system('mv %s %s' % (best_gard_output + '.BUSTED.json', busted_outdir))
+					logObject.info('Successfully ran: %s' % ' '.join(busted_cmd))
+				except Exception as e:
+					logObject.error('Had an issue running BUSTED: %s' % ' '.join(busted_cmd))
+					sys.stderr.write('Had an issue running BUSTED: %s\n' % ' '.join(busted_cmd))
+					logObject.error(e)
+					sys.stderr.write(traceback.format_exc())
+					sys.exit(1)
+
 	except Exception as e:
 		sys.stderr.write('Issues with running HYPHY based analyses for ortholog group %s\n' % hg)
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, logObject, skip_gard=False,
-					 gard_mode="Faster", threads=1):
-	"""
+def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, busted_results_dir, logObject, 
+					 skip_gard=False, skip_busted=False, gard_mode="Faster", threads=1):
+	"""f
 	Description:
 	This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting
 	statistics from resulting JSON files to include in the consolidated report created at the end of zol.
@@ -2057,8 +2085,10 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			    trimmed codon alignments.
 	- gard_results_dir: The directory where GARD result files should be saved.
 	- fubar_results_dir: The directory where FUBAR result files should be saved.
+	- busted_results_dir: The directory where BUSTED result files should be saved.
 	- logObject: A logging object.
 	- skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
+	- skip_busted: Boolean indicating whether user has requested to skip BUSTED analysis.
 	- gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
 	- threads: The number of threads to use.
 	*******************************************************************************************************************
@@ -2073,9 +2103,9 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			gard_output = gard_results_dir + hg + '.json'
 			best_gard_output = gard_results_dir + hg + '.best'
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
-							skip_gard, gard_mode, logObject])
+							     busted_results_dir, skip_gard, skip_busted, gard_mode, logObject])
 
-		msg = "Running HyPhy selection analyses using FUBAR for %d ortholog groups" % len(hyphy_inputs)
+		msg = "Running HyPhy recombination/selection analyses for %d ortholog groups" % len(hyphy_inputs)
 		logObject.info(msg)
 		sys.stdout.write(msg + '\n')
 
@@ -2135,10 +2165,25 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 					fubar_sel_sites[hg] = 'NA'
 					fubar_deba[hg] = 'NA'
 
-		return([gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_deba])
+		busted_pval = {}
+		for f in os.listdir(busted_results_dir):
+			if f.endswith('.json'):
+				hg = f.split('.msa.fna.BUSTED.json')[0]
+				if f.endswith('.best.BUSTED.json'):
+					hg = f.split('.best.BUSTED.json')[0]
+				busted_json_file = busted_results_dir + f
+				try:
+					with open(busted_json_file) as objr:
+						busted_results = json.load(objr)
+					pval = float(busted_results['test results']['p-value'])
+					busted_pval[hg] = pval
+				except:
+					busted_pval[hg] = 'NA'	
+
+		return([gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_deba, busted_pval])
 	except Exception as e:
-		sys.stderr.write('Issues with running GARD or FUBAR analyses.\n')
-		logObject.error('Issues with running GARD or FUBAR analyses.')
+		sys.stderr.write('Issues with running HyPhy GARD, BUSTED, or FUBAR analyses.\n')
+		logObject.error('Issues with running HyPhy GARD, BUSTED, or FUBAR analyses.')
 		sys.stderr.write(str(e) + '\n')
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
@@ -2955,7 +3000,8 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			header += ['GARD Partitions Based on Recombination Breakpoints',
 			           'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
 				       'Average delta(Beta, Alpha) by FUBAR across sites',
-				       'Proportion of Sites Under Selection which are Positive']
+				       'Proportion of Sites Under Selection which are Positive',
+					   "P-value for gene-wide episodic selection by BUSTED"]
 		header += ['Custom Annotation (E-value)', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)',
 				   'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)', 'IS Finder (E-value)',
 				   'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)', 'VFDB Annotation (E-value)',
@@ -2994,6 +3040,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 				hg_ssit = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_sites'])
 				hg_spro = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_sel_props'])
 				hg_deba = util.gatherValueFromDictForHomologGroup(hg, evo_stats['fubar_dba'])
+				hg_bpva = util.gatherValueFromDictForHomologGroup(hg, evo_stats['busted_pvals'])
 				hg_med_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['median_beta_rd_gc'])
 				hg_max_brdgc = util.gatherValueFromDictForHomologGroup(hg, evo_stats['max_beta_rd_gc'])
 			cust_annot = util.gatherAnnotationFromDictForHomoloGroup(hg, 'custom', annotations)
@@ -3037,7 +3084,7 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 			row += [hg_tajd, hg_segs, hg_entr, hg_upst_entr, hg_med_brdgc, hg_max_brdgc, hg_full_amb, hg_trim_amb,
 					hg_gc, hg_gcs, hg_gw, hg_vs]
 			if run_hyphy:
-				row += [hg_gpar, hg_ssit, hg_deba, hg_spro]
+				row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
 
 			row += [cust_annot, ko_annot, pgap_annot, pb_annot, card_annot, isf_annot, mibig_annot, vog_annot,
 					vfdb_annot, pfam_annots, hg_lts, con_seq]
@@ -3079,7 +3126,8 @@ def consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations
 						   'Tajima\'s D', 'Entropy', 'Upstream Region Entropy',
 						   'GARD Partitions Based on Recombination Breakpoints',
 						   'Number of Sites Identified as Under Positive or Negative Selection by FUBAR',
-						   'Proportion of Sites Under Selection which are Positive', 'Median Beta-RD-gc',
+						   'Proportion of Sites Under Selection which are Positive', 
+						   'P-value for gene-wide episodic selection by BUSTED', 'Median Beta-RD-gc',
 						   'Max Beta-RD-gc', 'Proportion of Filtered Codon Alignment is Segregating Sites',
 						   'Proportion of sites which are highly ambiguous in codon alignment',
 						   'Proportion of sites which are highly ambiguous in trimmed codon alignment',

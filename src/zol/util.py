@@ -450,7 +450,6 @@ def createGenbank(full_genbank_file, new_genbank_file, scaffold, start_coord, en
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-
 def multiProcess(input):
 	"""
 	Description:
@@ -491,7 +490,15 @@ def setupReadyDirectory(directories, delete_if_exist=False):
 		for d in directories:
 			if os.path.isdir(d):
 				if delete_if_exist:
-					os.system('rm -rfi %s' % d)
+					response = input("The directory %s\nalready exists, so it will be deleted it and recreated. Do you wish to proceed? (yes/no): " % d)
+					if response.lower() != 'yes':
+						sys.stderr.write('Deletion of directory %s was not requested!\n' % d)
+						return
+					os.system('rm -rf %s' % d)
+					sys.stderr.write('Warning: directory %s was deleted and recreated!\n' % d)
+					os.system('mkdir %s' % d)
+				else:
+					sys.stderr.write('Warning: directory %s exists! Overwriting\n' % d)
 			else:
 				os.system('mkdir %s' % d)
 	except Exception as e:

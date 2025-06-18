@@ -64,7 +64,7 @@ def create_parser():
 	Accepted tracks:
 	---------------------------------------------------------------------------------------------
     - conservation, tajimas_d, entropy, upstream_entropy, median_beta_rd, max_beta_rd, median_gc,
-	  bgc_score, viral_score.
+	  bgc_score, viral_score, busted_pval.
 								  
 	If comparative analysis was performed in zol, then addtional tracks include:
 	- focal_conservation, alternate_conservation, fst
@@ -132,7 +132,7 @@ track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters w
 							'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc',
 							'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index',
 							'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG', 'bgc_score': 'BGC score (GECCO weights)', 
-							'viral_score': 'Viral score (V-Score)'}
+							'viral_score': 'Viral score (V-Score)', 'busted_pval': 'P-value for gene-wide episodic selection by BUSTED'}
 
 track_full_label_to_name = dict((v,k) for k,v in track_name_to_full_label.items())
 

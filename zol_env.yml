@@ -2,10 +2,10 @@ name: zol
 channels:
   - conda-forge
   - bioconda
-  - defaults
 dependencies:
   - "python=3.10"
-  - pip
+  - "pip<=23.1.1"
+  - "setuptools<=80.0"
   - biopython
   - conda-forge::cxx-compiler
   - "bioconda::muscle=5.1"

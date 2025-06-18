@@ -89,7 +89,7 @@ def create_parser():
 
 	parser.add_argument('-i', '--zol-results-dir', help='Path to zol results directory.', required=True)
 	parser.add_argument('-o', '--outdir', help='Output directory for cgc analysis.', required=True)
-	parser.add_argument('-c', '--color-track', help='The track from the zol spreadsheet to use for coloring.\nOptions include: conservation, tajimas_d, entorpy,\nupstream_entropy, median_beta_rd, max_beta_rd, fst,\nalternative_conservation, bgc_score, viral_score.\n[Default is conservation].', required=False, default="conservation")
+	parser.add_argument('-c', '--color-track', help='The track from the zol spreadsheet to use for coloring.\nOptions include: conservation, tajimas_d, entorpy,\nupstream_entropy, median_beta_rd, max_beta_rd, fst,\nalternative_conservation, bgc_score, viral_score, busrted_pval.\n[Default is conservation].', required=False, default="conservation")
 	parser.add_argument('-vl', '--low-value', type=float, help='Low value [Default is 0.0].', required=False, default=0.0)
 	parser.add_argument('-vh', '--high-value', type=float, help='High value [Default is 1.0].', required=False, default=1.0)
 	parser.add_argument('-cl', '--low-value-color', help='Hex code for color for low-value. Surround by quotes\n[Default is "#a2b7e8"].', required=False, default="#a2b7e8")
@@ -114,7 +114,7 @@ track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters w
 							'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc',
 							'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index',
 							'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG', 'bgc_score': 'BGC score (GECCO weights)', 
-							'viral_score': 'Viral score (V-Score)'}
+							'viral_score': 'Viral score (V-Score)', 'busted_pval': 'P-value for gene-wide episodic selection by BUSTED'}
 
 track_full_label_to_name = dict((v,k) for k,v in track_name_to_full_label.items())
 

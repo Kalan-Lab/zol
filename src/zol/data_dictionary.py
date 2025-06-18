@@ -30,6 +30,7 @@ GARD Partitions Based on Distinct Segments based on Recombination Breakpoints\tN
 Number of Sites Identified as Under Positive or Negative Selection\tThe number of sites inferred as under positive Prob[α<β] or negative selection Prob[α>β] based on FUBAR method: Not run by default due to time requirements. Uses HyPhy's FUBAR method: Murrell et al. 2013: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3670733/\t
 Average delta(Beta, Alpha) by FUBAR across sites\tThe average difference of β-α across sites in the codon alignment as calculated by FUBAR.\tMore negative values imply greater purifying selection whereas more positive values imply greater positive selection.
 Proportion of Sites Under Selection which are Positive\tProportion of the number of sites identified as under either positive or negative selection by FUBAR analysis which are under positive selection.\t
+P-value for gene-wide episodic selection by BUSTED\tP-value indicating if gene-wide episodic selection has occurred. For more information please checkout the manuscript by Murrell et al. 2015: https://pmc.ncbi.nlm.nih.gov/articles/PMC4408417/.\t
 Custom Annotation (E-value)\tCustom annotation based on user providing custom protein database.\t
 KO Annotation (E-value)\tBest KEGG ortholog annotation(s) (the HMMER3 E-value associated with the best score)\t
 PGAP Annotation (E-value)\tBest PGAP annotation(s) (the HMMER3 E-value associated with the best score)\t

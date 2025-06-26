@@ -2077,6 +2077,8 @@ def individualHyphyRun(inputs):
 
 			if not skip_busted:
 				busted_cmd = ['hyphy', 'CPU=1', 'busted', '--alignment', best_gard_output]
+				if add_tree:
+					busted_cmd += ['--tree', hg_full_codo_tree_file]
 				try:
 					subprocess.call(' '.join(busted_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 									executable='/bin/bash')

@@ -1002,7 +1002,7 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
+def createGeneTrees(codo_algn_trim_dir, codo_aln_dir, tree_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates gene trees from trimmed codon alignments using FastTree2 for ortholog groups.
@@ -1020,9 +1020,20 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
 			if not catf.endswith('.msa.fna'): continue
 			prefix = '.msa.faa'.join(catf.split('.msa.fna')[:-1])
 			codo_algn_trim_file = codo_algn_trim_dir + catf
+			codo_algn_file = codo_algn_dir + catf
+			seqlen = 0
+			with open(codo_algn_trim_file) as ocatf:
+				for rec in SeqIO.parse(ocatf, 'fasta'):
+					seqlen = len(str(rec.seq))
 			tree_file = tree_dir + prefix + '.tre'
-			fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
-
+			if seqlen > 0:
+				fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
+			else:
+				fasttree_cmds.append(['fasttree', '-nt', codo_algn_file, '>', tree_file, logObject])
+				msg = 'Trimmed codon alignment was blank so defaulting to untrimmed for constructing ortholog group tree for %s.' % prefix
+				logObject.warning(msg)
+				sys.stderr.write('Warning: ' + msg + '\n')
+				
 		msg = "Running FastTree 2 to generate gene trees (based on trimmed codon alignments) for %d ortholog groups" % len(fasttree_cmds) 
 		logObject.info(msg)
 		sys.stdout.write(msg + '\n')
@@ -1969,7 +1980,7 @@ def individualHyphyRun(inputs):
 		- logObject: a logging object.
 	*******************************************************************************************************************
 	"""
-	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, logObject = inputs
+	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, gard_timout, logObject = inputs
 	try:
 		input_gbks_with_hg = set([])
 		with open(hg_codo_algn_file) as ohcaf:
@@ -2027,15 +2038,21 @@ def individualHyphyRun(inputs):
 
 			try:
 				subprocess.call(' '.join(gard_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-								executable='/bin/bash')
+								executable='/bin/bash', timeout=gard_timeout)
 				assert(os.path.isfile(best_gard_output))
 				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
-			except Exception as e:
-				logObject.error('Had an issue running GARD: %s' % ' '.join(gard_cmd))
-				sys.stderr.write('Had an issue running GARD: %s\n' % ' '.join(gard_cmd))
-				logObject.error(e)
+			except subprocess.TimeoutExpired:
+				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
+				sys.stderr.write('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
+				logObject.error(traceback.format_exc())
 				sys.stderr.write(traceback.format_exc())
-				sys.exit(1)
+				best_gard_output = hg_codo_algn_file
+			except Exception as e:
+				logObject.error('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
+				sys.stderr.write('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
+				sys.stderr.write(traceback.format_exc())
+				logObject.error(traceback.format_exc())
+				best_gard_output = hg_codo_algn_file
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
 			try:

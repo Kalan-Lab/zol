@@ -212,7 +212,7 @@ def zolMain():
 	max_memory = myargs.max_memory
 	skip_cleanup_flag = myargs.skip_cleanup
 	skip_annotations_flag = myargs.skip_annotations
-	gard_timout = myargs.gard_timeout
+	gard_timeout = myargs.gard_timeout
 
 	input_files = []
 	try:

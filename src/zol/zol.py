@@ -2073,7 +2073,7 @@ def individualHyphyRun(inputs):
 		sys.exit(1)
 
 def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, busted_results_dir, logObject, 
-					 skip_gard=False, skip_busted=False, gard_mode="Faster", threads=1):
+					 skip_gard=False, skip_busted=False, gard_mode="Faster", gard_timeout=60, threads=1):
 	"""f
 	Description:
 	This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting
@@ -2103,7 +2103,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			gard_output = gard_results_dir + hg + '.json'
 			best_gard_output = gard_results_dir + hg + '.best'
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
-							     busted_results_dir, skip_gard, skip_busted, gard_mode, logObject])
+							     busted_results_dir, skip_gard, skip_busted, gard_mode, gard_timeout, logObject])
 
 		msg = "Running HyPhy recombination/selection analyses for %d ortholog groups" % len(hyphy_inputs)
 		logObject.info(msg)

@@ -43,8 +43,8 @@ import multiprocessing
 try:
 	multiprocessing.set_start_method('fork')
 except RuntimeError as e:
-	if e == 'context has already been set':
-		sys.stderr.write('fork method for multiprocessing has already been set in the context, continuing ...\n')
+	if str(e).strip() == 'context has already been set':
+		sys.stderr.write('The "fork" method for multiprocessing has already been set in the context, continuing ...\n')
 	else:
 		sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
 		sleep(10)

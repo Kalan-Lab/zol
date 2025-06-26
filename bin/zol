@@ -52,15 +52,17 @@ import traceback
 import multiprocessing
 try:
 	multiprocessing.set_start_method('fork')
-except:
-	sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
-	sleep(10)
-	try:
-		multiprocessing.set_start_method('fork', force=True)
-	except:
-		sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
-		sys.exit(1)
-
+except RuntimeError as e:
+	if e == 'context has already been set':
+		sys.stderr.write('fork method for multiprocessing has already been set in the context, continuing ...\n')
+	else:
+		sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
+		sleep(10)
+		try:
+			multiprocessing.set_start_method('fork', force=True)
+		except Exception as e:
+			sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
+			sys.exit(1)
 def create_parser():
 	""" Parse arguments """
 	parser = argparse.ArgumentParser(description="""

@@ -1002,7 +1002,7 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createGeneTrees(codo_algn_trim_dir, codo_aln_dir, tree_dir, logObject, threads=1):
+def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates gene trees from trimmed codon alignments using FastTree2 for ortholog groups.

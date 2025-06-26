@@ -1016,7 +1016,7 @@ def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, thre
 	"""
 	try:
 		fasttree_cmds = []
-		for catf in os.listdir(codo_algn_trim_dir):
+		for catf in os.listdir(codo_algn_dir):
 			if not catf.endswith('.msa.fna'): continue
 			prefix = '.msa.faa'.join(catf.split('.msa.fna')[:-1])
 			codo_algn_trim_file = codo_algn_trim_dir + catf
@@ -1980,7 +1980,7 @@ def individualHyphyRun(inputs):
 		- logObject: a logging object.
 	*******************************************************************************************************************
 	"""
-	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, gard_timout, logObject = inputs
+	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, gard_timeout, logObject = inputs
 	try:
 		input_gbks_with_hg = set([])
 		with open(hg_codo_algn_file) as ohcaf:

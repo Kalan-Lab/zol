@@ -614,7 +614,7 @@ def zolMain():
 		zol.partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir,
 													 logObject, threads=threads, use_super5=use_super5)
 		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, threads=1)
-		zol.createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1)
+		zol.createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, threads=1)
 		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, threads=1)
 		consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
 		for f in os.listdir(cons_dir):

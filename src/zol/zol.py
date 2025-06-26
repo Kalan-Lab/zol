@@ -1009,6 +1009,7 @@ def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, thre
 	*******************************************************************************************************************
 	Parameters:
 	- codo_algn_trim_dir: The directory containing trimmed codon alignments.
+ 	- codo_algn_trim: The directory containing untrimmed codon alignments to default on.
 	- tree_dir: The directory where trees in Newick format will be saved.
 	- logObject: A logging object.
 	- threads: The number of threads to use.
@@ -1022,10 +1023,13 @@ def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, thre
 			codo_algn_trim_file = codo_algn_trim_dir + catf
 			codo_algn_file = codo_algn_dir + catf
 			seqlen = 0
-			with open(codo_algn_trim_file) as ocatf:
-				for rec in SeqIO.parse(ocatf, 'fasta'):
-					seqlen = len(str(rec.seq))
-			tree_file = tree_dir + prefix + '.tre'
+			try:
+				with open(codo_algn_trim_file) as ocatf:
+					for rec in SeqIO.parse(ocatf, 'fasta'):
+						seqlen = len(str(rec.seq))
+				tree_file = tree_dir + prefix + '.tre'
+			except Exception as e:
+				pass
 			if seqlen > 0:
 				fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
 			else:
@@ -1977,6 +1981,7 @@ def individualHyphyRun(inputs):
 		- skip_gard: boolean flag for whether to skip GARD analysis.
 		- skip_busted: boolean flag for whether to skip BUSTED analysis.
 		- gard_mode: analysis mode for GARD - either "Faster" or "Normal".
+  		- gard_timeout: timeout for running gard (in minutes).
 		- logObject: a logging object.
 	*******************************************************************************************************************
 	"""
@@ -2038,7 +2043,7 @@ def individualHyphyRun(inputs):
 
 			try:
 				subprocess.call(' '.join(gard_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-								executable='/bin/bash', timeout=gard_timeout)
+								executable='/bin/bash', timeout=(60*gard_timeout))
 				assert(os.path.isfile(best_gard_output))
 				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
 			except subprocess.TimeoutExpired:
@@ -2107,6 +2112,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 	- skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
 	- skip_busted: Boolean indicating whether user has requested to skip BUSTED analysis.
 	- gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
+ 	- gard_timeout: timeout for running gard (in minutes).
 	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	"""

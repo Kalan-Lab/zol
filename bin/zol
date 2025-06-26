@@ -134,6 +134,7 @@ def create_parser():
 	parser.add_argument('-s', '--selection-analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\n, BUSTED, and FUBAR methods. Warning, can take a while\nto run.", required=False, default=False)
 	parser.add_argument('-sg', '--skip-gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster.", required=False, default=False)
 	parser.add_argument('-sb', '--skip-busted', action='store_true', help="Skip BUSTED selection analysis.", required=False, default=False)
+	parser.add_argument('-gto', '--gard-timeout', type=int, help="Minutes to allow GARD to run before timing out\nand using the initial alilgnment for downstream\nselection analyses instead [Default is 60].", required=False, default=60)	
 	parser.add_argument('-cd', '--custom-database', help='Path to FASTA file of protein sequences corresponding\nto a custom annotation database.', required=False, default=None)
 	parser.add_argument('-rgc', '--refine-gene-calling', action='store_true', help='Perform gene-calling refinement using custom database.\nAll ortholog groups which don\'t match to a protein in\nthe custom database will be ignored (experimental).', required=False, default=False)
 	parser.add_argument('-f', '--focal-genbanks', help='File with focal gene clusters listed by GenBank\nfile name (one per line).', required=False, default=None)
@@ -211,6 +212,7 @@ def zolMain():
 	max_memory = myargs.max_memory
 	skip_cleanup_flag = myargs.skip_cleanup
 	skip_annotations_flag = myargs.skip_annotations
+	gard_timout = myargs.gard_timeout
 
 	input_files = []
 	try:
@@ -269,7 +271,7 @@ def zolMain():
 	parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
 					    select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params, 
 						identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation,
-						(not use_super5), fubar_selection, skip_gard, skip_busted, betard_analysis, 
+						(not use_super5), fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
 						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
 						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
 						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
@@ -284,9 +286,9 @@ def zolMain():
 					   "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter",
 					   "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
 					   "Skip GARD partitioning by recombination breakpoints?", "Skip BUSTED selection analysis?", 
-					   "Computate Beta-RDgc statistics?", "Focal GenBanks listing", "Comparator GenBanks listing", 
-					   "Filter low quality gene clusters?", "Filter draft/incomplete gene clusters?", 
-					   "Only compute orthologs and stop?", 
+					   "Time allotted to running GARD per ortholog group", "Computate Beta-RDgc statistics?", 
+					   "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?", 
+					   "Filter draft/incomplete gene clusters?", "Only compute orthologs and stop?", 
 					   "Use pre-computed orthogroup designations defined in a provided file",
 					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
 					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
@@ -719,7 +721,7 @@ def zolMain():
 																					 logObject,
 																				  	 gard_mode='Faster',
 																					 skip_gard=skip_gard, skip_busted=skip_busted, 
-																					 threads=threads)
+																					 gard_timeout=gard_timeout, threads=threads)
 
 		hg_med_beta_rd = {}
 		hg_max_beta_rd = {}

@@ -1019,7 +1019,7 @@ def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, thre
 		fasttree_cmds = []
 		for catf in os.listdir(codo_algn_dir):
 			if not catf.endswith('.msa.fna'): continue
-			prefix = '.msa.faa'.join(catf.split('.msa.fna')[:-1])
+			prefix = '.msa.fna'.join(catf.split('.msa.fna')[:-1])
 			codo_algn_trim_file = codo_algn_trim_dir + catf
 			codo_algn_file = codo_algn_dir + catf
 			seqlen = 0

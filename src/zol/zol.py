@@ -1022,12 +1022,13 @@ def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, thre
 			prefix = '.msa.fna'.join(catf.split('.msa.fna')[:-1])
 			codo_algn_trim_file = codo_algn_trim_dir + catf
 			codo_algn_file = codo_algn_dir + catf
+			tree_file = tree_dir + prefix + '.tre'
+
 			seqlen = 0
 			try:
 				with open(codo_algn_trim_file) as ocatf:
 					for rec in SeqIO.parse(ocatf, 'fasta'):
 						seqlen = len(str(rec.seq))
-				tree_file = tree_dir + prefix + '.tre'
 			except Exception as e:
 				pass
 			if seqlen > 0:

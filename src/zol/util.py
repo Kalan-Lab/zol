@@ -789,7 +789,7 @@ def getVersion():
 	Parses the version of the zol suite from the setup.py program.
 	********************************************************************************************************************
 	"""
-	return(str(version))
+	return(package_version)
 
 def default_to_regular(d):
 	"""

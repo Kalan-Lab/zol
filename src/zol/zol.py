@@ -1002,13 +1002,14 @@ def trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_t
 		sys.stderr.write(traceback.format_exc())
 		sys.exit(1)
 
-def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
+def createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, threads=1):
 	"""
 	Description:
 	This function creates gene trees from trimmed codon alignments using FastTree2 for ortholog groups.
 	*******************************************************************************************************************
 	Parameters:
 	- codo_algn_trim_dir: The directory containing trimmed codon alignments.
+ 	- codo_algn_trim: The directory containing untrimmed codon alignments to default on.
 	- tree_dir: The directory where trees in Newick format will be saved.
 	- logObject: A logging object.
 	- threads: The number of threads to use.
@@ -1016,13 +1017,28 @@ def createGeneTrees(codo_algn_trim_dir, tree_dir, logObject, threads=1):
 	"""
 	try:
 		fasttree_cmds = []
-		for catf in os.listdir(codo_algn_trim_dir):
+		for catf in os.listdir(codo_algn_dir):
 			if not catf.endswith('.msa.fna'): continue
-			prefix = '.msa.faa'.join(catf.split('.msa.fna')[:-1])
+			prefix = '.msa.fna'.join(catf.split('.msa.fna')[:-1])
 			codo_algn_trim_file = codo_algn_trim_dir + catf
+			codo_algn_file = codo_algn_dir + catf
 			tree_file = tree_dir + prefix + '.tre'
-			fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
 
+			seqlen = 0
+			try:
+				with open(codo_algn_trim_file) as ocatf:
+					for rec in SeqIO.parse(ocatf, 'fasta'):
+						seqlen = len(str(rec.seq))
+			except Exception as e:
+				pass
+			if seqlen > 0:
+				fasttree_cmds.append(['fasttree', '-nt', codo_algn_trim_file, '>', tree_file, logObject])
+			else:
+				fasttree_cmds.append(['fasttree', '-nt', codo_algn_file, '>', tree_file, logObject])
+				msg = 'Trimmed codon alignment was blank so defaulting to untrimmed for constructing ortholog group tree for %s.' % prefix
+				logObject.warning(msg)
+				sys.stderr.write('Warning: ' + msg + '\n')
+				
 		msg = "Running FastTree 2 to generate gene trees (based on trimmed codon alignments) for %d ortholog groups" % len(fasttree_cmds) 
 		logObject.info(msg)
 		sys.stdout.write(msg + '\n')
@@ -1966,10 +1982,11 @@ def individualHyphyRun(inputs):
 		- skip_gard: boolean flag for whether to skip GARD analysis.
 		- skip_busted: boolean flag for whether to skip BUSTED analysis.
 		- gard_mode: analysis mode for GARD - either "Faster" or "Normal".
+  		- gard_timeout: timeout for running gard (in minutes).
 		- logObject: a logging object.
 	*******************************************************************************************************************
 	"""
-	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, logObject = inputs
+	hg, hg_codo_algn_file, hg_full_codo_tree_file, gard_output, best_gard_output, fubar_outdir, busted_outdir, skip_gard, skip_busted, gard_mode, gard_timeout, logObject = inputs
 	try:
 		input_gbks_with_hg = set([])
 		with open(hg_codo_algn_file) as ohcaf:
@@ -2024,20 +2041,28 @@ def individualHyphyRun(inputs):
 		else:
 			gard_cmd = ['hyphy', 'CPU=1', 'gard', '--mode', gard_mode, '--alignment', hg_codo_algn_file,
 							  '--output', gard_output, '--output-lf', best_gard_output]
-
+			add_tree = False
 			try:
 				subprocess.call(' '.join(gard_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-								executable='/bin/bash')
+								executable='/bin/bash', timeout=(60*gard_timeout))
 				assert(os.path.isfile(best_gard_output))
 				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
+			except subprocess.TimeoutExpired:
+				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
+				sys.stderr.write('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
+				logObject.error(traceback.format_exc())
+				best_gard_output = hg_codo_algn_file
+				add_tree = True
 			except Exception as e:
-				logObject.error('Had an issue running GARD: %s' % ' '.join(gard_cmd))
-				sys.stderr.write('Had an issue running GARD: %s\n' % ' '.join(gard_cmd))
-				logObject.error(e)
-				sys.stderr.write(traceback.format_exc())
-				sys.exit(1)
+				logObject.error('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
+				sys.stderr.write('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
+				logObject.error(traceback.format_exc())
+				best_gard_output = hg_codo_algn_file
+				add_tree = True
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
+			if add_tree:
+				fubar_cmd += ['--tree', hg_full_codo_tree_file]
 			try:
 				subprocess.call(' '.join(fubar_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash')
@@ -2053,6 +2078,8 @@ def individualHyphyRun(inputs):
 
 			if not skip_busted:
 				busted_cmd = ['hyphy', 'CPU=1', 'busted', '--alignment', best_gard_output]
+				if add_tree:
+					busted_cmd += ['--tree', hg_full_codo_tree_file]
 				try:
 					subprocess.call(' '.join(busted_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 									executable='/bin/bash')
@@ -2073,7 +2100,7 @@ def individualHyphyRun(inputs):
 		sys.exit(1)
 
 def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_dir, busted_results_dir, logObject, 
-					 skip_gard=False, skip_busted=False, gard_mode="Faster", threads=1):
+					 skip_gard=False, skip_busted=False, gard_mode="Faster", gard_timeout=60, threads=1):
 	"""f
 	Description:
 	This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting
@@ -2090,6 +2117,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 	- skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
 	- skip_busted: Boolean indicating whether user has requested to skip BUSTED analysis.
 	- gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
+ 	- gard_timeout: timeout for running gard (in minutes).
 	- threads: The number of threads to use.
 	*******************************************************************************************************************
 	"""
@@ -2103,7 +2131,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			gard_output = gard_results_dir + hg + '.json'
 			best_gard_output = gard_results_dir + hg + '.best'
 			hyphy_inputs.append([hg, hg_codo_algn_file, hg_codo_tree_file, gard_output, best_gard_output, fubar_results_dir,
-							     busted_results_dir, skip_gard, skip_busted, gard_mode, logObject])
+							     busted_results_dir, skip_gard, skip_busted, gard_mode, gard_timeout, logObject])
 
 		msg = "Running HyPhy recombination/selection analyses for %d ortholog groups" % len(hyphy_inputs)
 		logObject.info(msg)

@@ -17,7 +17,7 @@ import multiprocessing
 import tqdm
 import pickle
 import resource
-import pkg_resources  # part of setuptools
+import importlib.metadata
 import shutil
 from ete3 import Tree
 import math
@@ -30,8 +30,12 @@ import asyncio
 import aiohttp 
 import aiofile
 
-version = pkg_resources.require("zol")[0].version
-
+try:
+	package_name = "zol"
+	package_version = str(importlib.metadata.version(package_name))
+except importlib.metadata.PackageNotFoundError:
+	package_version = "NA"
+	
 valid_alleles = set(['A', 'C', 'G', 'T'])
 
 def processLocationString(location_string):

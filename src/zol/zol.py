@@ -2045,7 +2045,7 @@ def individualHyphyRun(inputs):
 			try:
 				subprocess.call(' '.join(gard_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash', timeout=(60*gard_timeout))
-				assert(os.path.isfile(best_gard_output) and os.path.getsize(best_gard_output) > 100)
+				assert(os.path.isfile(best_gard_output) and os.path.getsize(best_gard_output) >= 100)
 				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
 			except subprocess.TimeoutExpired as e:
 				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
@@ -2147,6 +2147,7 @@ def runHyphyAnalyses(codo_algn_dir, tree_dir, gard_results_dir, fubar_results_di
 			if f.endswith('.json'):
 				hg = f.split('.json')[0]
 				gard_json_result = gard_results_dir + f
+				if os.path.getsize(gard_json_result) < 100: continue
 				with open(gard_json_result) as ogjr:
 					gard_results = json.load(ogjr)
 				number_of_partitions = len(gard_results['trees'])

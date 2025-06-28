@@ -2045,20 +2045,22 @@ def individualHyphyRun(inputs):
 			try:
 				subprocess.call(' '.join(gard_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
 								executable='/bin/bash', timeout=(60*gard_timeout))
-				assert(os.path.isfile(best_gard_output) and os.path.getsize(best_gard_output) >= 100)
-				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
 			except subprocess.TimeoutExpired as e:
 				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
 				sys.stderr.write('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
 				logObject.error(traceback.format_exc())
 				best_gard_output = hg_codo_algn_file
 				add_tree = True
-			except Exception as e:
-				logObject.error('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
-				sys.stderr.write('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
-				logObject.error(traceback.format_exc())
-				best_gard_output = hg_codo_algn_file
-				add_tree = True
+			if not add_tree:
+				try:
+					assert(os.path.isfile(best_gard_output) and os.path.getsize(best_gard_output) >= 100)
+					logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
+				except Exception as e:
+					logObject.error('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
+					sys.stderr.write('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
+					logObject.error(traceback.format_exc())
+					best_gard_output = hg_codo_algn_file
+					add_tree = True
 
 			fubar_cmd = ['hyphy', 'CPU=1', 'fubar', '--alignment', best_gard_output]
 			if add_tree:

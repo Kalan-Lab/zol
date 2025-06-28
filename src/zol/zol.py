@@ -2022,7 +2022,6 @@ def individualHyphyRun(inputs):
 				logObject.error('Had an issue running FUBAR: %s' % ' '.join(fubar_cmd))
 				sys.stderr.write('Had an issue running FUBAR: %s\n' % ' '.join(fubar_cmd))
 				logObject.error(e)
-				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 			if not skip_busted:
 				busted_cmd = ['hyphy', 'CPU=1', 'busted', '--alignment', hg_codo_algn_file, '--tree', hg_full_codo_tree_file]
@@ -2035,8 +2034,6 @@ def individualHyphyRun(inputs):
 				except Exception as e:
 					logObject.error('Had an issue running BUSTED: %s' % ' '.join(busted_cmd))
 					sys.stderr.write('Had an issue running BUSTED: %s\n' % ' '.join(busted_cmd))
-					logObject.error(e)
-					sys.stderr.write(traceback.format_exc())
 					sys.exit(1)
 		else:
 			gard_cmd = ['hyphy', 'CPU=1', 'gard', '--mode', gard_mode, '--alignment', hg_codo_algn_file,
@@ -2048,7 +2045,6 @@ def individualHyphyRun(inputs):
 			except subprocess.TimeoutExpired as e:
 				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
 				sys.stderr.write('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
-				logObject.error(traceback.format_exc())
 				best_gard_output = hg_codo_algn_file
 				add_tree = True
 			if not add_tree:
@@ -2058,7 +2054,6 @@ def individualHyphyRun(inputs):
 				except Exception as e:
 					logObject.error('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
 					sys.stderr.write('Had an issue running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
-					logObject.error(traceback.format_exc())
 					best_gard_output = hg_codo_algn_file
 					add_tree = True
 
@@ -2074,7 +2069,6 @@ def individualHyphyRun(inputs):
 			except Exception as e:
 				logObject.error('Had an issue running FUBAR: %s' % ' '.join(fubar_cmd))
 				sys.stderr.write('Had an issue running FUBAR: %s\n' % ' '.join(fubar_cmd))
-				logObject.error(e)
 				sys.stderr.write(traceback.format_exc())
 				sys.exit(1)
 
@@ -2091,7 +2085,6 @@ def individualHyphyRun(inputs):
 				except Exception as e:
 					logObject.error('Had an issue running BUSTED: %s' % ' '.join(busted_cmd))
 					sys.stderr.write('Had an issue running BUSTED: %s\n' % ' '.join(busted_cmd))
-					logObject.error(e)
 					sys.stderr.write(traceback.format_exc())
 					sys.exit(1)
 

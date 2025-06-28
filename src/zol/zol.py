@@ -2047,7 +2047,7 @@ def individualHyphyRun(inputs):
 								executable='/bin/bash', timeout=(60*gard_timeout))
 				assert(os.path.isfile(best_gard_output))
 				logObject.info('Successfully ran: %s' % ' '.join(gard_cmd))
-			except subprocess.TimeoutExpired:
+			except subprocess.TimeoutExpired as e:
 				logObject.error('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.' % ' '.join(gard_cmd))
 				sys.stderr.write('Timed out running GARD: %s, defaulting to using original alignment in downstream selection analyses.\n' % ' '.join(gard_cmd))
 				logObject.error(traceback.format_exc())

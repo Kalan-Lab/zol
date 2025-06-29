@@ -83,7 +83,7 @@ def setup_annot_dbs():
 	os.chdir(download_path)
 	try:
 		for dl in download_links:
-			axel_download_dbs_cmd = ['axel', '-a', '-k', '-n', str(threads), dl]
+			axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 			os.system(' '.join(axel_download_dbs_cmd))
 			basefile = dl.split('/')[-1]
 			assert(os.path.isfile(basefile))
@@ -115,7 +115,7 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-k', '-n', str(threads), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
@@ -246,7 +246,7 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-k', '-n', str(threads), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
@@ -359,7 +359,7 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-k', '-n', str(threads), dl]
+				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
 				os.system(' '.join(axel_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')

@@ -1712,7 +1712,7 @@ def determineConsensusOrderOfHGs(genbanks, ortho_matrix_file, markovian_file, co
 					hg_pair_score[tuple([hg, hg_after])] += 1
 
 		markovian_handle = open(markovian_file, 'w')
-		markovian_handle.write('og\tog_after\tog_direction\tog_after_direction\tsupport\n')
+		markovian_handle.write('og\tog_after\tsupport\tog_direction\tog_after_direction\n')
 		for hg in hg_following_score:
 			for hg_after in hg_following_score[hg]:
 				hg_dir = '-'

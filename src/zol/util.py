@@ -1438,7 +1438,7 @@ def parseGbk(gbk, prefix, logObject, use_either_lt_or_pi=False, feature_type='CD
 
 					start, end, direction, all_coords = processLocationString(str(feature.location))
 
-					location = {'scaffold': rec.id, 'start': start, 'end': end, 'direction': dir}
+					location = {'scaffold': rec.id, 'start': start, 'end': end, 'direction': direction}
 					gc_gene_locations[prefix + '|' + lt] = location
 		return gc_gene_locations
 	except Exception as e:

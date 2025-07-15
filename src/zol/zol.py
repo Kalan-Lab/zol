@@ -2768,7 +2768,6 @@ def individual_hyphy_run(inputs) -> None:
             for rec in SeqIO.parse(ohcaf, "fasta"):
                 input_gbks_with_hg.add(rec.id.split("|")[0])
 
-        assert len(input_gbks_with_hg) > 0
         if len(input_gbks_with_hg) < 4:
             return
 
@@ -2869,14 +2868,16 @@ def individual_hyphy_run(inputs) -> None:
                     timeout=(60 * gard_timeout),
                 )
             except subprocess.TimeoutExpired as e:
-                log_object.error(
-                    f"Timed out running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                )
-                sys.stderr.write(
-                    f"Timed out running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses.\n"
-                )
+                msg = f"Timed out running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
+                log_object.error(msg)
+                sys.stderr.write(msg + "\n")
                 best_gard_output = hg_codo_algn_file
-                add_tree = True
+                add_tree = True 
+            except Exception as e:
+                msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
+                log_object.error(msg)
+                sys.stderr.write(msg + "\n")
+
             if not add_tree:
                 try:
                     assert (
@@ -2885,13 +2886,9 @@ def individual_hyphy_run(inputs) -> None:
                     )
                     log_object.info(f"Successfully ran: {' '.join(gard_cmd)}")
                 except Exception as e:
-                    log_object.error(
-                        f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                    )
-                    sys.stderr.write(
-                        f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses.\n"
-                        % " ".join(gard_cmd)
-                    )
+                    msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
+                    log_object.error(msg)
+                    sys.stderr.write(msg + "\n")      
                     best_gard_output = hg_codo_algn_file
                     add_tree = True
 
@@ -2957,9 +2954,9 @@ def individual_hyphy_run(inputs) -> None:
                     sys.exit(1)
 
     except Exception as e:
-        sys.stderr.write(
-            f"Issues with running HYPHY based analyses for ortholog group {hg}\n"
-        )
+        msg = f"Issues with running HYPHY based analyses for ortholog group {hg}"
+        log_object.error(msg)
+        sys.stderr.write(msg + "\n")
         sys.stderr.write(str(e) + "\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)

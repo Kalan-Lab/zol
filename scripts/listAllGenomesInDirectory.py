@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: listAllGenomesInDirectory.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: listAllGenomesInDirectory.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2021, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -108,41 +110,41 @@ def siftAndPrint():
 	if dryrun_naming_file != None:
 		try:
 			assert (os.path.isfile(dryrun_naming_file))
-		except:
+		except Exception as e:
 			raise RuntimeError('Cannot locate the ncbi-genome-download dryrun naming file provided.')
 
 	try:
 		assert (os.path.isdir(input_genomes_dir))
-	except:
+	except Exception as e:
 		raise RuntimeError('Cannot find input directory of genomes directory.')
 
 	try:
 		assert (os.path.isdir(uncompress_dir))
-	except:
-		os.system('mkdir %s' % uncompress_dir)
+	except Exception as e:
+		os.system(f'mkdir {uncompress_dir}')
 		try:
 			assert (os.path.isdir(uncompress_dir))
-		except:
+		except Exception as e:
 			raise RuntimeError('Cannot find/create directory for uncompressing genomes.')
 
 	try:
 		assert (os.path.isdir(bgc_prediction_dir))
-	except:
+	except Exception as e:
 		if list_cmds_flag:
-			os.system('mkdir %s' % bgc_prediction_dir)
+			os.system(f'mkdir {bgc_prediction_dir}')
 			try:
 				assert (os.path.isdir(bgc_prediction_dir))
-			except:
+			except Exception as e:
 				raise RuntimeError('Cannot find/create output directory for BGC prediction commands.')
 
 	try:
 		assert (bgc_prediction_software in set(['ANTISMASH', 'DEEPBGC', 'GECCO']))
-	except:
+	except Exception as e:
 		raise RuntimeError('BGC prediction software option is not a valid option.')
 
 	try:
 		assert (taxon in set(['bacteria', 'fungi']))
-	except:
+	except Exception as e:
 		raise RuntimeError('Taxon is not a valid option.')
 
 	"""
@@ -171,7 +173,7 @@ def siftAndPrint():
 			if not suffix in set(
 					['fasta', 'fna', 'fa', 'gbff', 'fasta.gz', 'fna.gz', 'fa.gz', 'gbff.gz', 'gbk', 'gbk.gz']):
 				sys.stderr.write(
-					'Warning, skipping file: %s, does not appear to have suffix expected of nucleotide FASTA files.\n' % f)
+					f'Warning, skipping file: {f}, does not appear to have suffix expected of nucleotide FASTA files.\n')
 			else:
 				sample = '.'.join(f.split('.')[:-1])
 				if gzip_flag:
@@ -180,7 +182,7 @@ def siftAndPrint():
 					sample = sample.split('_genomic')[0]
 				full_file_name = dirpath + '/' + f
 				if sample in sample_to_genome:
-					sys.stderr.write('Warning, sample %s has more than one genome, skipping second instance' % sample)
+					sys.stderr.write(f'Warning, sample {sample} has more than one genome, skipping second instance')
 				else:
 					sample_to_genome[sample] = full_file_name
 
@@ -189,13 +191,13 @@ def siftAndPrint():
 			genome_file = sample_to_genome[sample]
 			if genome_file.endswith('.gz'):
 				uncompressed_genome_file = uncompress_dir + genome_file.split('/')[-1].split('.gz')[0]
-				os.system('cp %s %s' % (genome_file, uncompress_dir))
-				os.system('gunzip %s' % uncompressed_genome_file + '.gz')
+				os.system(f'cp {genome_file} {uncompress_dir}')
+				os.system(f'gunzip {uncompressed_genome_file}.gz')
 				try:
 					assert (os.path.isfile(uncompressed_genome_file))
-				except:
+				except Exception as e:
 					raise RuntimeError(
-						'Had issues creating uncompressed genome %s for sample %s' % (uncompressed_genome_file, sample))
+						f'Had issues creating uncompressed genome {uncompressed_genome_file} for sample {sample}')
 				sample_to_genome[sample] = uncompressed_genome_file
 
 	for sample in sample_to_genome:
@@ -225,7 +227,7 @@ def siftAndPrint():
 				if taxon == 'fungi':
 					raise RuntimeError("Not recommended to run GECCO with fungal genomes.")
 				bgc_cmd = ['gecco', 'run', '-j', str(threads), '-o', bgc_prediction_dir + sample + '/', '-g', genome_file]
-			print(' '.join(bgc_cmd))
+			print(' '.join(bgc_cmd))	# type: ignore
 		else:
 			print(sample + '\t' + genome_file)
 

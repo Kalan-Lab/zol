@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: runProdigalAndMakeProperGenbank.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: runProdigalAndMakeProperGenbank.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2021, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -34,7 +36,7 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+ 
 import os
 import sys
 import argparse
@@ -86,7 +88,7 @@ def prodigalAndReformat():
 
 	try:
 		assert(os.path.isfile(input_genomic_fasta_file))
-	except:
+	except Exception as e:
 		raise RuntimeError('Issue with input genomic assembly file path.')
 
 	if not os.path.isdir(outdir):
@@ -106,12 +108,12 @@ def prodigalAndReformat():
 	# check if uncompression needed
 	try:
 		if input_genomic_fasta_file.endswith('.gz'):
-			os.system('cp %s %s' % (input_genomic_fasta_file, outdir))
+			os.system(f'cp {input_genomic_fasta_file} {outdir}')
 			updated_genomic_fasta_file = outdir + input_genomic_fasta_file.split('/')[-1].split('.gz')[0]
-			os.system('gunzip %s' % (updated_genomic_fasta_file + '.gz'))
+			os.system(f'gunzip {updated_genomic_fasta_file}.gz')
 			input_genomic_fasta_file = updated_genomic_fasta_file
 		assert(util.is_fasta(input_genomic_fasta_file))
-	except:
+	except Exception as e:
 		raise RuntimeError('Input genomic assembly does not appear to be in FASTA format.')
 
 	# Step 1: Run Prodigal (if needed)
@@ -133,7 +135,7 @@ def prodigalAndReformat():
 	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 	try:
 		assert(os.path.isfile(og_prod_pred_prot_file))
-	except:
+	except Exception as e:
 		raise RuntimeError("Prodigal did not run until the end.")
 
 	# Step 2: Process Prodigal predicted proteome and create polished version with locus tags

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: convertMiniprotGffToGbkAndProt.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: convertMiniprotGffToGbkAndProt.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2021, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -75,7 +77,7 @@ def convertMiniProtGFFtoGenbank():
 
 	try:
 		assert (os.path.isfile(genome_fasta) and os.path.isfile(miniprot_gff3))
-	except:
+	except Exception as e:
 		raise RuntimeError('Issue with validating inputs for miniprot_gff3 and/or genome_fasta are existing files.')
 
 	# Step 1: Parse GFF3 for PAF CIGAR Strings
@@ -150,50 +152,6 @@ def convertMiniProtGFFtoGenbank():
 					redundant.add(mrna2[0])
 				else:
 					redundant.add(mrna1[0])
-
-	"""
-	# legacy for previous handling in versions 1.5.2 and prior.
-
-	# Step 3: Parse GFF3 for CDS coordinates
-	query_cds_coords = defaultdict(list)
-	query_cds_coords_accounted = defaultdict(set)
-	with open(miniprot_gff3) as omg:
-		for line in omg:
-			line = line.strip()
-			if line.startswith('#'): continue
-			ls = line.split('\t')
-			if ls[2] != 'CDS': continue
-			query = line.split('Target=')[1].split(';')[0].split()[0]
-			scaffold = ls[0]
-			start_coord = int(ls[3])
-			end_coord = int(ls[4])
-			dire = 1
-			if ls[6] == '-':
-				dire = -1
-			score = float(ls[5])
-			curr_coord = tuple([scaffold, start_coord, end_coord, dire, score])	
-			if not curr_coord in query_cds_coords_accounted[query]:
-				query_cds_coords[query].append([scaffold, start_coord, end_coord, dire, score])
-				query_cds_coords_accounted[query].add(curr_coord)
-
-	# handle overlapping exons
-	cds_redundant = defaultdict(set)
-	for query in sorted(query_cds_coords):
-		for i, cdsc1 in enumerate(sorted(query_cds_coords[query], key=itemgetter(1))):
-			c1_coords = set(range(cdsc1[1], cdsc1[2]))
-			c1_score = cdsc1[4]
-			for j, cdsc2 in enumerate(sorted(query_cds_coords[query], key=itemgetter(1))):
-				if i >= j: continue
-				# check scaffolds are the same
-				if cdsc1[0] != cdsc2[0]: continue
-				c2_coords = set(range(cdsc2[1], cdsc2[2]))
-				if len(c1_coords.intersection(c2_coords)) > 0:
-					c2_score = cdsc2[4]
-					if c1_score >= c2_score:
-						cds_redundant[query].add(tuple(cdsc2))
-					else:
-						cds_redundant[query].add(tuple(cdsc1))
-	"""
 	
 	# Step 4: Go through FASTA scaffold/contig by scaffold/contig and create output GenBank
 	gbk_handle = open(output_genbank, 'w')
@@ -209,7 +167,7 @@ def convertMiniProtGFFtoGenbank():
 
 	for rec in SeqIO.parse(ogf, 'fasta'):
 		seq = str(rec.seq)
-		gbk_rec = SeqRecord(seq, id=rec.id, name=rec.id, description=rec.description)
+		gbk_rec = SeqRecord(seq, id=rec.id, name=rec.id, description=rec.description) # type: ignore
 		gbk_rec.annotations['molecule_type'] = 'DNA'
 		feature_list = []
 		for mrna in sorted(scaffold_queries[rec.id], key=itemgetter(1)):
@@ -303,24 +261,6 @@ def convertMiniProtGFFtoGenbank():
 			else:
 				paf_prot_seq = str(Seq(paf_nucl_seq).translate())
 				paf_upstream_nucl_seq = seq[paf_start_coord-100:paf_start_coord]
-
-			"""
-			# legacy code for validation
-			
-			cds_nucl_seq = ''
-			cds_prot_seq = None
-			for sc, ec in sorted(all_coords, key=itemgetter(0)):
-				if ec >= len(seq):
-					cds_nucl_seq += seq[sc - 1:]
-				else:
-					cds_nucl_seq += seq[sc - 1:ec]
-			if mrna_info[3] == -1:
-				cds_prot_seq = str(Seq(cds_nucl_seq).reverse_complement().translate())
-			else:
-				cds_prot_seq = str(Seq(cds_nucl_seq).translate())
-
-			assert(paf_prot_seq == cds_prot_seq)
-			"""
 
 			faa_handle.write('>' + locus_tag + '_' + lt + '\n' + paf_prot_seq + '\n')
 			feature.qualifiers['prot_from_ref'] = qid

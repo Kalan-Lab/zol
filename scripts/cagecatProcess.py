@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: cagecatProcess.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: cagecatProcess.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2022, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -87,25 +89,25 @@ def cagecatProcess():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 
 	if not os.path.isdir(outdir):
-		os.system('mkdir %s' % outdir)
+		os.system(f'mkdir {outdir}')
 	else:
 		sys.stderr.write('Note, output directory exists already! Exiting ...\n')
 		sys.exit(1)
 	
 	# create logging object
 	log_file = outdir + 'Progress.log'
-	logObject = util.createLoggerObject(log_file)
+	log_object = util.create_logger_object(log_file)
 
-	version = util.getVersion()
-	sys.stdout.write('Running version: %s\n' % version)
-	logObject.info("Running version: %s" % version)
+	version = util.get_version()
+	sys.stdout.write(f'Running version: {version}\n')
+	log_object.info(f"Running version: {version}")
 
 	parameters_file = outdir + 'Command_Issued.txt'
-	sys.stdout.write("Appending command issued for future records to: %s\n" % parameters_file)
-	sys.stdout.write("Logging more details at: %s\n" % log_file)
-	logObject.info("\nNEW RUN!!!\n**************************************")
-	logObject.info('Running version %s' % version)
-	logObject.info("Appending command issued for future records to: %s" % parameters_file)
+	sys.stdout.write(f"Appending command issued for future records to: {parameters_file}\n")
+	sys.stdout.write(f"Logging more details at: {log_file}\n")
+	log_object.info("\nNEW RUN!!!\n**************************************")
+	log_object.info(f'Running version {version}')
+	log_object.info(f"Appending command issued for future records to: {parameters_file}")
 
 	parameters_handle = open(parameters_file, 'a+')
 	parameters_handle.write(' '.join(sys.argv) + '\n')
@@ -118,7 +120,7 @@ def cagecatProcess():
 	# Step 1: Uncompress zip folder into output directory
 	msg = "--------------------\nStep 1\n--------------------\nUncompressing zipped cluster extraction from CAGECAT."
 	sys.stdout.write(msg + "\n")
-	logObject.info(msg)
+	log_object.info(msg)
 	
 	cagecat_dir = outdir + 'CAGECAT_Results/'
 	cagecat_res_dir = cagecat_dir + 'results/'
@@ -128,14 +130,14 @@ def cagecatProcess():
 		subprocess.call(' '.join(extraction_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
 		assert(os.path.isdir(cagecat_res_dir))
 	except Exception as e:
-		logObject.error("Issue with running: %s" % ' '.join(extraction_cmd))
-		logObject.error(e)
+		log_object.error(f"Issue with running: {' '.join(extraction_cmd)}")
+		log_object.error(e)
 		raise RuntimeError(e)
 	
 	# Step 2: Process GenBank files and produce final versions with locus_tags
 	msg = "--------------------\nStep 1\n--------------------\nProcessing GenBank files and producing final versions."
 	sys.stdout.write(msg + "\n")
-	logObject.info(msg)
+	log_object.info(msg)
 
 	final_genbank_dir = outdir + 'Processed_GenBank_Files/'
 	if not os.path.isdir(final_genbank_dir):
@@ -154,20 +156,22 @@ def cagecatProcess():
 								protein_id = 'CDS_' + str(cds_count)
 								try:
 									protein_id = feat.qualifiers.get('protein_id')[0]
-								except:
+								except Exception as e:
 									pass
 								feat.qualifiers['locus_tag'] = protein_id
 								cds_count += 1
 						SeqIO.write(rec, mod_gbk_handle, 'genbank')
 			except Exception as e:
-				logObject.error("Issue with processing GenBank file: %s" % ' '.join(cagecat_res_dir + f))
-				logObject.error(e)
+				log_object.error(f"Issue with processing GenBank file: {' '.join(cagecat_res_dir + f)}")
+				log_object.error(e)
 				raise RuntimeError(e)
 			mod_gbk_handle.close()
 			
 	# DONE!
-	sys.stdout.write("--------------------\nDONE!\n--------------------\nDirectory of processed GenBank files from CAGECAT can be found at: %s\n" % final_genbank_dir)
-	logObject.info("--------------------\nDONE!\n--------------------\nDirectory of processed GenBank files from CAGECAT can be found at: %s" % final_genbank_dir)
+	msg = f"--------------------\nDONE!\n--------------------\n"
+	msg += f"Directory of processed GenBank files from CAGECAT can be found at: {final_genbank_dir}\n"
+	sys.stdout.write(msg + "\n")
+	log_object.info(msg)
 
 if __name__ == '__main__':
 	cagecatProcess()

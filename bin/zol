@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 
-### Program: zol
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: zol
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
+
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2023, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
+# modification, are permitted provided that the following conditions are met: 
 #
 # 1. Redistributions of source code must retain the above copyright notice, this
 #    list of conditions and the following disclaimer.
 #
-# 2. Redistributions in binary form must reproduce the above copyright notice,
+# 2. Redistributions in binary form must reproduce the above copyright notice, 
 #    this list of conditions and the following disclaimer in the documentation
 #    and/or other materials provided with the distribution.
 #
@@ -31,794 +34,1167 @@
 # FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
 # DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
 # SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-os.environ["OMP_NUM_THREADS"] = "1"
-import sys
-import argparse
-from rich_argparse import RawTextRichHelpFormatter
+
 from Bio import SeqIO
+from collections import defaultdict
+from datetime import datetime
+from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util, zol
+import argparse
+import multiprocessing
+import os
+import pickle
 import shutil
 import subprocess
-import pickle
-from datetime import datetime
-from collections import defaultdict
+import sys
 import traceback
-import multiprocessing
-try:
-	multiprocessing.set_start_method('fork')
-except RuntimeError as e:
-	if str(e).strip() == 'context has already been set':
-		sys.stderr.write('The "fork" method for multiprocessing has already been set in the context, continuing ...\n')
-	else:
-		sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force=True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n') 
-		sleep(10)
-		try:
-			multiprocessing.set_start_method('fork', force=True)
-		except Exception as e:
-			sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n') 
-			sys.exit(1)
-def create_parser():
-	""" Parse arguments """
-	parser = argparse.ArgumentParser(description="""
-	Program: zol
-	Author: Rauf Salamzade
-	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
-		
-	**************************************************************************************							
-		
-                      oooooooooooo           ooooo        
-                     d'''''''d888'           `888'        
-                           .888P    .ooooo.   888         
-                          d888'    d88' `88b  888         
-                        .888P      888   888  888         
-                       d888'    .P 888   888  888       o 
-                     .8888888888P  `Y8bod8P' o888ooooood8 
-				
-	**************************************************************************************
-	
-	zol is a lightweight software that can generate reports on conservation, annotation, 
-	and evolutionary statistics for defined orthologous/homologous gene clusters (e.g. BGCs, 
-	phages, MGEs, or any genomic island / operon!). 
-	
-	CONSIDERATIONS:
-	---------------
-	* It is advised that multiple GenBanks from the same genome/sample be concatenated into 
-	  a multi-record GenBank to account for fragmentation of gene-clusters and properly 
-	  calculate copy count of ortholog groups.
-	* Locus tags cannot contain commas, if they do however, you can use the --rename-lt flag 
-	  to request new locus tags!
-	* Ortholog group and homolog group are/were used inter-changeably in the code/comments. We 
-	  recommend using the term ortholog group which is more commonly used in literature for 
-	  the type of protein clustering we perform in zol. Since v1.28 - result files and logging
-	  messages should largely use "ortholog group" or "OG".
-	* Dereplication uses ANI & AF estimates by skani, which the author recommends should be 
-	  used on contigs (or gene-clusters in this case) greater than 10 kb for accurate 
+
+os.environ["OMP_NUM_THREADS"] = "1"
+try: 
+    util.set_multiprocessing_start_method()
+except RuntimeError as e: 
+    if str(e).strip() == 'context has already been set': 
+        sys.stderr.write('The "fork" method for multiprocessing has already been set in the context, continuing ...\n')
+    else: 
+        sys.stderr.write('Issues attempting to set Python multiprocessing start method to "fork", will try again using the argument "force = True", please manually stop the program Crtl+C if you do not wish to continue in the next 10 seconds.\n')
+        sleep(10)
+        try: 
+            multiprocessing.set_start_method('fork', force = True)
+        except Exception as e: 
+            sys.stderr.write('We apologize, issues persist with setting the Python multiprocessing start method. Unable to run fai - please let us know your computer/server specs and we will try to patch the issue in a future version.\n')
+            sys.exit(1)
+
+def create_parser(): 
+    """ Parse arguments """
+    parser = argparse.ArgumentParser(description = """
+    Program: zol
+    Author: Rauf Salamzade
+    Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and
+        Immunology
+
+    **************************************************************************************
+
+                      oooooooooooo           ooooo
+                     d'''''''d888'           `888'
+                           .888P    .ooooo.   888
+                          d888'    d88' `88b  888
+                        .888P      888   888  888
+                       d888'    .P 888   888  888       o
+                     .8888888888P  `Y8bod8P' o888ooooood8
+
+    **************************************************************************************
+
+    zol is a lightweight software that can generate reports on conservation, annotation, 
+    and evolutionary statistics for defined orthologous/homologous gene clusters (e.g. 
+    BGCs, phages, MGEs, or any genomic island / operon!).
+
+    CONSIDERATIONS: 
+    ---------------
+    * It is advised that multiple GenBanks from the same genome/sample be concatenated into
+      a multi-record GenBank to account for fragmentation of gene-clusters and properly
+      calculate copy count of ortholog groups.
+    * Locus tags cannot contain commas, if they do however, you can use the --rename-lt flag
+      to request new locus tags!
+    * Dereplication uses ANI & AF estimates by skani, which the author recommends should be
+      used on contigs (or gene-clusters in this case) greater than 10 kb for accurate
       calculations.
-	* "Domain mode" chops up CDS features in input GenBank files based on Pfam annotation,
-	  retaining domain and inter-domain regions that are of a certain length (50 aa) by 
-	  default. This mode is not compatible with the options: --reinflate and 
-	  --comprehensive-evo-stats.
-	""", formatter_class=RawTextRichHelpFormatter)
+    * "Domain mode" chops up CDS features in input GenBank files based on Pfam annotation, 
+      retaining domain and inter-domain regions that are of a certain length (50 aa) by
+      default. This mode is not compatible with the options: --reinflate and
+      --comprehensive-evo-stats.
+    """, formatter_class = RawTextRichHelpFormatter)
 
-	parser.add_argument('-i', '--input', nargs='+', help='Either a directory or set of files with orthologous/\nhomologous locus-specific GenBanks. Files must end with\n".gbk", ".gbff", or ".genbank".', required=True, default=[])
-	parser.add_argument('-o', '--output-dir', help='Output directory.', required=True)
-	parser.add_argument('-sfp', '--select-fai-params-mode', action='store_true', help='Mode for determining recommeded parameters for running\nfai to find more instances of the focal gene cluster.', required=False, default=False)
-	parser.add_argument('-it', '--identity-threshold', type=float, help='Minimum identity coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 30].', required=False, default=30.0)
-	parser.add_argument('-ct', '--coverage-threshold', type=float, help='Minimum query coverage for an alignment between protein\npairs from two gene-clusters to consider in search for\northologs. [Default is 50].', required=False, default=50.0)
-	parser.add_argument('-et', '--evalue-threshold', type=float, help='Maximum E-value for an alignment between protein pairs from\ntwo gene-clusters to consider in search for orthologs.\n[Default is 0.001].', required=False, default=0.001)
-	parser.add_argument('-ci', '--clustering-inflation', type=float, help='Inflation parameter for MCL clustering of ortholog groups.\nCan be set to -1 for single-linkage clustering\n[Default is 1.5].', required=False, default=1.5)
-	parser.add_argument('-cdo', '--cdhit-orthogroup', action='store_true', help='Cluster proteins using CD-HIT instead of using the\nstandard InParanoid-like ortholog group prediction approach.\nThis approach is faster and uses less memory, but is less\naccurate.', required=False, default=False)
-	parser.add_argument('-cdp', '--cdhit-params', help='Parameters for performing CD-HIT based ortholog group\nclustering if requested via --cdhit-orthogroup.\n[Default is "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000"]', required=False, default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
-	parser.add_argument('-fl', '--filter-low-quality', action='store_true', help="Filter gene-clusters which feature alot of missing\nbases (>10 percent).", required=False, default=False)
-	parser.add_argument('-fd', '--filter-draft-quality', action='store_true', help="Filter records of gene-clusters which feature CDS\nfeatures on the edge of contigs (those marked with\nattribute near_contig_edge=True by fai) or which are\nmulti-record.", required=False, default=False)
-	parser.add_argument('-r', '--rename-lt', action='store_true', help="Rename locus-tags for CDS features in GenBanks.", required=False, default=False)
-	parser.add_argument('-d', '--dereplicate', action='store_true', help='Perform dereplication of input GenBanks using skani\nand single-linkage clustering or MCL.', required=False, default=False)
-	parser.add_argument('-ri', '--reinflate', action='store_true', help='Perform ortholog group re-inflation to incorporate CDS\nfrom non-representative gene-clusters following\ndereplication.', required=False, default=False)
-	parser.add_argument('-dt', '--derep-identity', type=float, help='skani ANI threshold to use for dereplication. [Default\nis 99.0].', required=False, default=99.0)
-	parser.add_argument('-dc', '--derep-coverage', type=float, help='skani aligned fraction threshold to use for\ndereplication. [Default is 95.0].', required=False, default=95.0)
-	parser.add_argument('-di', '--derep-inflation', type=float, help='Inflation parameter for MCL to use for dereplication of\ngene-clusters. If not specified single-linkage clustering\nwill be used instead.', required=False, default=None)
-	parser.add_argument('-dsg', '--derep-small-genomes', action='store_true', help='Run skani with the --small-genomes preset for\ndereplication - recommended if dealing\nwith lots of gene cluster instances that are < 20 kb\nin length (requires skani version >0.2.2).', required=False, default=False)
-	parser.add_argument('-rp', '--reinflate-params', help='Parameters for running CD-HIT for re-inflation, please\nsurround argument input with double quotes.\n[Default is "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"].', required=False, default="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
-	parser.add_argument('-dom', '--domain-mode', action='store_true', help='Run zol in domain mode instead of standard full\nprotein/CDS mode.', required=False, default=False)
-	parser.add_argument('-cml', '--ccds-min-length', type=int, help='Minimum length of chopped CDS (cCDS) features to keep.\nRelavent to "domain-mode". [Default is 50aa].', required=False, default=50)
-	parser.add_argument('-egc', '--eukaryotic-gene-cluster', action='store_true', help='Specify if input are eukaryotic gene clusters.\nTells zol to avoid converting V or L residues to M when\ntranslating cCDS nucleotides in domain mode.', required=False, default=False)
-	parser.add_argument('-ibc', '--impute-broad-conservation', action='store_true', help='Impute weighted conservation stats based on cluster size\nassociated with dereplicated representatives.')
-	parser.add_argument('-ces', '--comprehensive-evo-stats', action='store_true', help='Compute evolutionary statistics for non-single-copy\northolog groups.', required=False, default=False)
-	parser.add_argument('-aec', '--allow-edge-cds', action='store_true', help='Include CDS features within gene-cluster GenBanks with the\nattribute "near_scaffold_edge=True", which is set by fai for\nfeatures within 2kb of contig edges.', required=False, default=False)
-	parser.add_argument('-qa', '--quality-align', action='store_true', help="Use MUSCLE align instead of super5 for alignments - slower\nbut more accurate.", required=False, default=False)
-	parser.add_argument('-b', '--betard-analysis', action='store_true', help="Compute Beta-RD-gc statsitics - off by default because\nit requires a lot of memory for large gene\ncluster sets.", required=False, default=False)
-	parser.add_argument('-s', '--selection-analysis', action='store_true', help="Run selection analysis using HyPhy's GARD\n, BUSTED, and FUBAR methods. Warning, can take a while\nto run.", required=False, default=False)
-	parser.add_argument('-sg', '--skip-gard', action='store_true', help="Skip GARD detection of recombination breakpoints\nprior to running FUBAR selection analysis. Less\naccurate than running with GARD preliminary analysis,\nbut much faster.", required=False, default=False)
-	parser.add_argument('-sb', '--skip-busted', action='store_true', help="Skip BUSTED selection analysis.", required=False, default=False)
-	parser.add_argument('-gto', '--gard-timeout', type=int, help="Minutes to allow GARD to run before timing out\nand using the initial alilgnment for downstream\nselection analyses instead [Default is 60].", required=False, default=60)	
-	parser.add_argument('-cd', '--custom-database', help='Path to FASTA file of protein sequences corresponding\nto a custom annotation database.', required=False, default=None)
-	parser.add_argument('-rgc', '--refine-gene-calling', action='store_true', help='Perform gene-calling refinement using custom database.\nAll ortholog groups which don\'t match to a protein in\nthe custom database will be ignored (experimental).', required=False, default=False)
-	parser.add_argument('-f', '--focal-genbanks', help='File with focal gene clusters listed by GenBank\nfile name (one per line).', required=False, default=None)
-	parser.add_argument('-fc', '--comparator-genbanks', help='Optional file with comparator gene clusters listed.\nDefault is to use remaining GenBanks as comparators\nto focal listing.', required=False, default=None)
-	parser.add_argument('-oo', '--only-orthogroups', action='store_true', help="Only compute ortholog groups and stop (runs up to step 2).", required=False, default=False)
-	parser.add_argument('-po', '--precomputed-orthogroups', help="Path to two-column tab delimited file where the first\ncolumn corresponds to locus_tags and the second column\nto corresponding orthogroup identifiers. Requires\nlocus tags to be non-overlapping across input gene\ncluster GenBank files and ortholog designations\nfor all CDS locus tags.", required=False, default=None)
-	parser.add_argument('-sc', '--skip-cleanup', action='store_true', help="Whether to skip cleanup of temporary files in the\n'Determine_Orthogroups/' subdirectory.", required=False, default=False)
-	parser.add_argument('-sa', '--skip-annotations', action='store_true', help="Whether to skip performing functional annotations.", required=False, default=False)
-	parser.add_argument('-c', '--threads', type=int, help="The number of threads to use.", required=False, default=1)
-	parser.add_argument('-mm', '--max-memory', type=int, help='Uses resource module to set soft memory limit. Provide in\nGiga-bytes. Configured in the shell environment [Default is None].', required=False, default=None)
-	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the heatmap plot [Default\nis 7; experimental].', required=False, default=7)
-	parser.add_argument('-w', '--width', type=int, help='Specify the width of the heatmap plot [Default is 14].', required=False, default=14)
-	parser.add_argument('-fgl', '--full-genbank-labels', action='store_true', help='Use full GenBank labels instead of just the first 20\ncharacters for heatmap plot.', required=False, default=False)
-	parser.add_argument('-v', '--version', action='store_true', help="Get version and exit.", required=False, default=False)
-	args = parser.parse_args()
-	return args
+    parser.add_argument('-i', 
+        '--input', 
+        nargs = '+', 
+        help = "Either a directory or set of files with orthologous/\n"
+               "homologous locus-specific GenBanks. Files must end with\n"
+               "'.gbk', '.gbff', or '.genbank'.", 
+        required = True, 
+        default = [])
+    parser.add_argument('-o', 
+        '--output-dir', 
+        help = 'Output directory.', 
+        required = True)
+    parser.add_argument('-sfp', 
+        '--select-fai-params-mode', 
+        action = 'store_true', 
+        help = "Mode for determining recommeded parameters for running\n"
+             "fai to find more instances of the focal gene cluster.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-it', 
+        '--identity-threshold', 
+        type = float, 
+        help = "Minimum identity coverage for an alignment between protein\n"
+               "pairs from two gene-clusters to consider in search for\n"
+               "orthologs. [Default is 30].", 
+        required = False, 
+        default = 30.0)
+    parser.add_argument('-ct', 
+        '--coverage-threshold', 
+        type = float, 
+        help = "Minimum query coverage for an alignment between protein\n"
+             "pairs from two gene-clusters to consider in search for\n"
+             "orthologs. [Default is 50].", 
+        required = False, 
+        default = 50.0)
+    parser.add_argument('-et', 
+        '--evalue-threshold', 
+        type = float, 
+        help = "Maximum E-value for an alignment between protein pairs from\n"
+             "two gene-clusters to consider in search for orthologs.\n"
+             "[Default is 0.001].", 
+        required = False, 
+        default = 0.001)
+    parser.add_argument('-ci', 
+        '--clustering-inflation', 
+        type = float, 
+        help = "Inflation parameter for MCL clustering of ortholog groups.\n"
+             "Can be set to -1 for single-linkage clustering\n"
+             "[Default is 1.5].", 
+        required = False, 
+        default = 1.5)
+    parser.add_argument('-cdo', 
+        '--cdhit-orthogroup', 
+        action = 'store_true', 
+        help = "Cluster proteins using CD-HIT instead of using the\n"
+               "standard InParanoid-like ortholog group prediction approach.\n"
+               "This approach is faster and uses less memory, but is less\naccurate.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-cdp', 
+        '--cdhit-params', 
+        help = "Parameters for performing CD-HIT based ortholog group\n"
+               "clustering if requested via --cdhit-orthogroup.\n"
+               "[Default is \"-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000\"].", 
+        required = False, 
+        default = "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
+    parser.add_argument('-fl', 
+        '--filter-low-quality', 
+        action = 'store_true', 
+        help = "Filter gene-clusters which feature alot of missing\n"
+               "bases ( > 10 percent).", 
+        required = False, 
+        default = False)
+    parser.add_argument('-fd', 
+        '--filter-draft-quality', 
+        action = 'store_true', 
+        help = "Filter records of gene-clusters which feature CDS\n"
+               "features on the edge of contigs (those marked with\n"
+               "attribute near_contig_edge = True by fai) or which are\n"
+               "multi-record.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-r', 
+        '--rename-lt', 
+        action = 'store_true', 
+        help = "Rename locus-tags for CDS features in GenBanks.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-d', 
+        '--dereplicate', 
+        action = 'store_true', 
+        help = "Perform dereplication of input GenBanks using skani\n"
+               "and single-linkage clustering or MCL.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-ri', 
+        '--reinflate', 
+        action = 'store_true', 
+        help = "Perform ortholog group re-inflation to incorporate CDS\n"
+               "from non-representative gene-clusters following\n"
+               "dereplication.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-dt', 
+        '--derep-identity', 
+        type = float, 
+        help = "skani ANI threshold to use for dereplication. [Default\n"
+               "is 99.0].", 
+        required = False, 
+        default = 99.0)
+    parser.add_argument('-dc', 
+        '--derep-coverage', 
+        type = float, 
+        help = "skani aligned fraction threshold to use for\n"
+               "dereplication. [Default is 95.0].", 
+        required = False, 
+        default = 95.0)
+    parser.add_argument('-di', 
+        '--derep-inflation', 
+        type = float, 
+        help = "Inflation parameter for MCL to use for dereplication of\n"
+               "gene clusters. If not specified single-linkage clustering\n"
+               "will be used instead.", 
+        required = False, 
+        default = None)
+    parser.add_argument('-dsg', 
+        '--derep-small-genomes', 
+        action = 'store_true', 
+        help = "Run skani with the --small-genomes preset for\n"
+               "dereplication - recommended if dealing\n"
+               "with lots of gene cluster instances that are < 20 kb\n"
+               "in length (requires skani version > 0.2.2).", 
+        required = False, 
+        default = False)
+    parser.add_argument('-rp', 
+        '--reinflate-params', 
+        help = "Parameters for running CD-HIT for re-inflation, please\n"
+               "surround argument input with double quotes.\n"
+               "[Default is \"-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000\"].", 
+        required = False, 
+        default = "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
+    parser.add_argument('-dom', 
+        '--domain-mode', 
+        action = 'store_true', 
+        help = "Run zol in domain mode instead of standard full\n"
+               "protein/CDS mode.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-cml', 
+        '--ccds-min-length', 
+        type = int, 
+        help = "Minimum length of chopped CDS (cCDS) features to keep.\n"
+               "Relavent to 'domain-mode'. [Default is 50aa].", 
+        required = False, 
+        default = 50)
+    parser.add_argument('-egc', 
+        '--eukaryotic-gene-cluster', 
+        action = 'store_true', 
+        help = "Specify if input are eukaryotic gene clusters.\n"
+               "Tells zol to avoid converting V or L residues to M when\n"
+               "translating cCDS nucleotides in domain mode.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-ibc', 
+        '--impute-broad-conservation', 
+        action = 'store_true', 
+        help = "Impute weighted conservation stats based on cluster\n"
+               "size associated with dereplicated representatives.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-ces', 
+        '--comprehensive-evo-stats', 
+        action = 'store_true', 
+        help = "Compute evolutionary statistics for non-single-copy\n"
+               "ortholog groups.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-aec', 
+        '--allow-edge-cds', 
+        action = 'store_true', 
+        help = "Include CDS features within gene-cluster GenBanks with the\n"
+               "attribute \"near_scaffold_edge = True\", which is set by fai\n"
+               "for features within 2kb of contig edges.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-qa', 
+        '--quality-align', 
+        action = 'store_true', 
+        help = "Use MUSCLE align instead of super5 for alignments - slower\n"
+               "but more accurate.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-b', 
+        '--betard-analysis', 
+        action = 'store_true', 
+        help = "Compute Beta-RD-gc statsitics - off by default because\n"
+               "it requires a lot of memory for large gene\n"
+               "cluster sets.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-s', 
+        '--selection-analysis', 
+        action = 'store_true', 
+        help = "Run selection analysis using HyPhy's GARD\n"
+               "BUSTED, and FUBAR methods. Warning, can take a while\n"
+               "to run.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-sg', 
+        '--skip-gard', 
+        action = 'store_true', 
+        help = "Skip GARD detection of recombination breakpoints\n"
+               "prior to running FUBAR selection analysis. Less\n"
+               "accurate than running with GARD preliminary analysis,\n"
+               "but much faster.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-sb', 
+        '--skip-busted', 
+        action = 'store_true', 
+        help = "Skip BUSTED selection analysis.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-gto', 
+        '--gard-timeout', 
+        type = int, 
+        help = "Minutes to allow GARD to run before timing out\n"
+               "and using the initial alilgnment for downstream\n"
+               "selection analyses instead [Default is 60].", 
+        required = False, 
+        default = 60)
+    parser.add_argument('-cd', 
+        '--custom-database', 
+        help = "Path to FASTA file of protein sequences corresponding\n"
+               "to a custom annotation database.", 
+        required = False, 
+        default = None)
+    parser.add_argument('-f', 
+        '--focal-genbanks', 
+        help = "File with focal gene clusters listed by GenBank\n"
+               "file name (one per line).", 
+        required = False, 
+        default = None)
+    parser.add_argument('-fc', 
+        '--comparator-genbanks', 
+        help = "Optional file with comparator gene clusters listed.\n"
+               "Default is to use remaining GenBanks as comparators\n"
+               "to focal listing.", 
+        required = False, 
+        default = None)
+    parser.add_argument('-oo', 
+        '--only-orthogroups', 
+        action = 'store_true', 
+        help = "Only compute ortholog groups and stop (runs up to step 2).", 
+        required = False, 
+        default = False)
+    parser.add_argument('-po', 
+        '--precomputed-orthogroups', 
+        help = "Path to two-column tab delimited file where the first\n"
+               "column corresponds to locus_tags and the second column\n"
+               "to corresponding orthogroup identifiers. Requires\n"
+               "locus tags to be non-overlapping across input gene\n"
+               "cluster GenBank files and ortholog designations\n"
+               "for all CDS locus tags.", 
+        required = False, 
+        default = None)
+    parser.add_argument('-sc', 
+        '--skip-cleanup', 
+        action = 'store_true', 
+        help = "Whether to skip cleanup of temporary files in the\n"
+               "'Determine_Orthogroups/' subdirectory.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-sa', 
+        '--skip-annotations', 
+        action = 'store_true', 
+        help = "Whether to skip performing functional annotations.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-c', 
+        '--threads', 
+        type = int, 
+        help = "The number of threads to use.", 
+        required = False, 
+        default = 1)
+    parser.add_argument('-mm', 
+        '--max-memory', 
+        type = int, 
+        help = "Uses resource module to set soft memory limit. Provide in\n"
+               "Giga-bytes. Configured in the shell environment\n"
+               "[Default is None].", 
+        required = False, 
+        default = None)
+    parser.add_argument('-l', 
+        '--length', 
+        type = int, 
+        help = "Specify the height/length of the heatmap plot [Default\n"
+               "is 7; experimental].", 
+        required = False, 
+        default = 7)
+    parser.add_argument('-w', 
+        '--width', 
+        type = int, 
+        help = 'Specify the width of the heatmap plot [Default is 14].', 
+        required = False, 
+        default = 14)
+    parser.add_argument('-fgl', 
+        '--full-genbank-labels', 
+        action = 'store_true', 
+        help = "Use full GenBank labels instead of just the first 20\n"
+               "characters for heatmap plot.", 
+        required = False, 
+        default = False)
+    parser.add_argument('-v', 
+        '--version', 
+        action = 'store_true', 
+        help = "Get version and exit.", 
+        required = False, 
+        default = False)
+    args = parser.parse_args()
+    return args
 
-def zolMain():
-	"""
-	Void function which runs primary workflow for program.
-	"""
+def zol_main(): 
+    """
+    Void function which runs primary workflow for program.
+    """
 
-	# get version
-	version = util.getVersion()
+    # get version
+    version = util.get_version()
 
-	if len(sys.argv)>1 and ('-v' in set(sys.argv) or '--version' in set(sys.argv)):
-		sys.stdout.write(version + '\n')
-		sys.exit(0)
+    if len(sys.argv) > 1 and ('-v' in set(sys.argv) or '--version' in set(sys.argv)): 
+        sys.stdout.write(f"{version}\n")
+        sys.exit(0)
 
-	"""
-	PARSE INPUTS
-	"""
-	myargs = create_parser()
+    """
+    PARSE INPUTS
+    """
+    myargs = create_parser()
 
-	input = myargs.input
-	outdir = os.path.abspath(myargs.output_dir) + '/'
-	select_fai_params_mode = myargs.select_fai_params_mode
-	domain_mode = myargs.domain_mode 
-	ccds_min_length = myargs.ccds_min_length
-	eukaryotic_gene_cluster_flag = myargs.eukaryotic_gene_cluster
-	threads = myargs.threads
-	use_super5 = (not myargs.quality_align)
-	fubar_selection = myargs.selection_analysis
-	skip_gard = myargs.skip_gard
-	skip_busted = myargs.skip_busted
-	betard_analysis = myargs.betard_analysis
-	length = myargs.length
-	width = myargs.width
-	identity_threshold = myargs.identity_threshold
-	coverage_threshold = myargs.coverage_threshold
-	evalue_threshold = myargs.evalue_threshold
-	clustering_inflation = myargs.clustering_inflation
-	full_genbank_labels = myargs.full_genbank_labels
-	focal_genbanks_listing_file = myargs.focal_genbanks
-	comparator_genbanks_listing_file = myargs.comparator_genbanks
-	rename_lt_flag = myargs.rename_lt
-	ibc_flag = myargs.impute_broad_conservation
-	ces_flag = myargs.comprehensive_evo_stats
-	dereplicate_flag = myargs.dereplicate
-	reinflate_flag = myargs.reinflate
-	reinflate_params = myargs.reinflate_params
-	derep_identity = myargs.derep_identity
-	derep_coverage = myargs.derep_coverage
-	derep_inflation = myargs.derep_inflation
-	derep_small_genomes = myargs.derep_small_genomes
-	filter_lq_flag = myargs.filter_low_quality
-	filter_dq_flag = myargs.filter_draft_quality
-	custom_database = myargs.custom_database
-	allow_edge_cds_flag = myargs.allow_edge_cds
-	refine_gene_calling_flag = myargs.refine_gene_calling
-	only_orthogroups_flag = myargs.only_orthogroups
-	precomputed_orthogroups_file = myargs.precomputed_orthogroups
-	cdhit_orthogroup_flag = myargs.cdhit_orthogroup
-	cdhit_orthogroup_params = myargs.cdhit_params
-	max_memory = myargs.max_memory
-	skip_cleanup_flag = myargs.skip_cleanup
-	skip_annotations_flag = myargs.skip_annotations
-	gard_timeout = myargs.gard_timeout
+    input = myargs.input
+    outdir = os.path.abspath(myargs.output_dir) + '/'
+    select_fai_params_mode = myargs.select_fai_params_mode
+    domain_mode = myargs.domain_mode
+    ccds_min_length = myargs.ccds_min_length
+    eukaryotic_gene_cluster_flag = myargs.eukaryotic_gene_cluster
+    threads = myargs.threads
+    use_super5 = (not myargs.quality_align)
+    fubar_selection = myargs.selection_analysis
+    skip_gard = myargs.skip_gard
+    skip_busted = myargs.skip_busted
+    betard_analysis = myargs.betard_analysis
+    length = myargs.length
+    width = myargs.width
+    identity_threshold = myargs.identity_threshold
+    coverage_threshold = myargs.coverage_threshold
+    evalue_threshold = myargs.evalue_threshold
+    clustering_inflation = myargs.clustering_inflation
+    full_genbank_labels = myargs.full_genbank_labels
+    focal_genbanks_listing_file = myargs.focal_genbanks
+    comparator_genbanks_listing_file = myargs.comparator_genbanks
+    rename_lt_flag = myargs.rename_lt
+    ibc_flag = myargs.impute_broad_conservation
+    ces_flag = myargs.comprehensive_evo_stats
+    dereplicate_flag = myargs.dereplicate
+    reinflate_flag = myargs.reinflate
+    reinflate_params = myargs.reinflate_params
+    derep_identity = myargs.derep_identity
+    derep_coverage = myargs.derep_coverage
+    derep_inflation = myargs.derep_inflation
+    derep_small_genomes = myargs.derep_small_genomes
+    filter_lq_flag = myargs.filter_low_quality
+    filter_dq_flag = myargs.filter_draft_quality
+    custom_database = myargs.custom_database
+    allow_edge_cds_flag = myargs.allow_edge_cds
+    only_orthogroups_flag = myargs.only_orthogroups
+    precomputed_orthogroups_file = myargs.precomputed_orthogroups
+    cdhit_orthogroup_flag = myargs.cdhit_orthogroup
+    cdhit_orthogroup_params = myargs.cdhit_params
+    max_memory = myargs.max_memory
+    skip_cleanup_flag = myargs.skip_cleanup
+    skip_annotations_flag = myargs.skip_annotations
+    gard_timeout = myargs.gard_timeout
 
-	input_files = []
-	try:
-		assert(len(input) > 0)
-		for inp in input:
-			if os.path.isfile(inp):
-				input_files.append(os.path.abspath(inp))
-			elif os.path.isdir(inp):
-				inp_dir = os.path.abspath(inp) + '/'
-				for f in os.listdir(inp_dir):
-					input_files.append(inp_dir + f)
-	except:
-		sys.stderr.write('One or more of the input directories or files do not exist.\n')
-		sys.exit(1)
+    input_files = []
+    try: 
+        assert(len(input) > 0)
+        for inp in input: 
+            if os.path.isfile(inp): 
+                input_files.append(os.path.abspath(inp))
+            elif os.path.isdir(inp): 
+                inp_dir = os.path.abspath(inp) + '/'
+                for f in os.listdir(inp_dir): 
+                    input_files.append(inp_dir + f)
+    except Exception as e: 
+        sys.stderr.write('One or more of the input directories or files do not exist.\n')
+        sys.exit(1)
 
-	if os.path.isdir(outdir):
-		sys.stderr.write("Output directory exists. Overwriting in 5 seconds, but only where needed - will use checkpoints to avoid redoing successfully completed steps ...\n ")
-		sleep(5)
-	else:
-		os.mkdir(outdir)
+    if os.path.isdir(outdir): 
+        sys.stderr.write("Output directory exists. Overwriting in 5 seconds,\n"
+                       "but only where needed - will use checkpoints to avoid\n"
+                       "redoing successfully completed steps ...\n ")
+        sleep(5)
+    else: 
+        os.mkdir(outdir)
 
-	fin_outdir = outdir + 'Final_Results/'
-	check_dir = outdir + 'Checkpoint_Files/'
+    fin_outdir = outdir + 'Final_Results/'
+    check_dir = outdir + 'Checkpoint_Files/'
 
-	if not os.path.isdir(fin_outdir):
-		util.setupReadyDirectory([fin_outdir], delete_if_exist=True)
-	if not os.path.isdir(check_dir):
-		util.setupReadyDirectory([check_dir], delete_if_exist=True)
+    if not os.path.isdir(fin_outdir): 
+        util.setup_ready_directory([fin_outdir], delete_if_exist = True)
+    if not os.path.isdir(check_dir): 
+        util.setup_ready_directory([check_dir], delete_if_exist = True)
 
-	if select_fai_params_mode:
-		allow_edge_cds_flag = True
+    if select_fai_params_mode: 
+        allow_edge_cds_flag = True
 
-	"""
-	START WORKFLOW
-	"""
+    """
+    START WORKFLOW
+    """
 
-	# create logging object
-	log_file = outdir + 'Progress.log'
-	logObject = util.createLoggerObject(log_file)
-	logObject.info('Running zol version %s' % version)
-	sys.stdout.write('Running zol version %s\n' % version)
+    # create logging object
+    log_file = outdir + 'Progress.log'
+    log_object = util.create_logger_object(log_file)
+    log_object.info(f"Running zol version {version}")
+    sys.stdout.write(f"Running zol version {version}\n")
 
-	if ibc_flag and reinflate_flag:
-		sys.stderr.write('Warning: can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.')
-		logObject.warning('can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.\n')
-		ibc_flag = False
+    if ibc_flag and reinflate_flag: 
+        sys.stderr.write('Warning: can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.')
+        log_object.warning('can\'t use reinflation and with --impute_broad_conservation. Setting ibc to False.\n')
+        ibc_flag = False
 
-	if (domain_mode and reinflate_flag) or (domain_mode and ces_flag):
-		sys.sdterr.write('Warning: can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!')
-		logObject.warning('can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode! Setting --reinflate/--comprehensive-evo-stats to false!\n')
-		reinflate_flag = False
-		ces_flag = False
+    if (domain_mode and reinflate_flag) or (domain_mode and ces_flag): 
+        sys.stderr.write('Warning: can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode!Setting --reinflate/--comprehensive-evo-stats to false!')
+        log_object.warning('can\'t currently use --reinflate or --comprehensive-evo-stats with domain-mode!Setting --reinflate/--comprehensive-evo-stats to false!\n')
+        reinflate_flag = False
+        ces_flag = False
 
-	logObject.info("Saving parameters for future records.")
-	parameters_file = outdir + 'Parameter_Inputs.txt'
-	parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
-					    select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params, 
-						identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation,
-						(not use_super5), fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
-						focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
-						only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
-						allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
-						derep_inflation, derep_small_genomes, custom_database, refine_gene_calling_flag, length, width, 
-						full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
-	parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
-					   "Minimum length of chopped CDS features for inclusion", "Eukaryotic Gene Cluster?", 
-					   "Select fai parameters mode?", 
-					   "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?",
-					   "CD-HIT parameters for orthogrouping (assuming approach requested)", 
-					   "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
-					   "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter",
-					   "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
-					   "Skip GARD partitioning by recombination breakpoints?", "Skip BUSTED selection analysis?", 
-					   "Time allotted to running GARD per ortholog group", "Computate Beta-RDgc statistics?", 
-					   "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?", 
-					   "Filter draft/incomplete gene clusters?", "Only compute orthologs and stop?", 
-					   "Use pre-computed orthogroup designations defined in a provided file",
-					   "Perform broad level estimation of ortholog group conservation if dereplication requested?",
-					   "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups",
-					   "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge=True.",
-					   "Perform Dereplication?", "Perform reinflation?", "Reinflation CD-HIT parameters", 
-					   "Dereplication identity threshold", "Dereplication coverage threshold", 
-					   "Dereplication clustering method / MCL inflation", 
-					   "Dereplication using skani with --small-genomes preset", 
-					   "Custom annotation database", "Refine gene calling using the custom annotation database", 
-					   "Plot height", "Plot width", "Use full GenBank labels?", "Number of threads requested", 
-					   "Maximum memory in GB", "Skip Cleanup?", "Skip Annotations?"]
-	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
-	logObject.info("Done saving parameters!")
+    log_object.info("Saving parameters for future records.")
+    parameters_file = outdir + 'Parameter_Inputs.txt'
+    parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
+                        select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params, 
+                        identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
+                        (not use_super5), 
+             fubar_selection, 
+             skip_gard, 
+             skip_busted, 
+             gard_timeout, 
+             betard_analysis, 
 
-	# set max memory limit
-	if max_memory != None:
-		logObject.info("Setting maximum memory usage to: %dGB" % max_memory)
-		sys.stdout.write("Setting maximum memory usage to: %dGB\n" % max_memory)
-		try:
-			util.memory_limit(max_memory)
-		except Exception as e:
-			logObject.info("Error setting memory limit")
-			sys.stdout.write("Error setting memory limit\n")
+                        focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
+                        only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
+                        allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
+                        derep_inflation, derep_small_genomes, custom_database, length, width, 
+                        full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
+    parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
+                       "Minimum length of chopped CDS features for inclusion", "Eukaryotic Gene Cluster?", 
+                       "Select fai parameters mode?", 
+                       "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?", 
+                       "CD-HIT parameters for orthogrouping (assuming approach requested)", 
+                       "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
+                       "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter", 
+                       "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
+                       "Skip GARD partitioning by recombination breakpoints?", "Skip BUSTED selection analysis?", 
+                       "Time allotted to running GARD per ortholog group", "Computate Beta-RDgc statistics?", 
+                       "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?", 
+                       "Filter draft/incomplete gene clusters?", "Only compute orthologs and stop?", 
+                       "Use pre-computed orthogroup designations defined in a provided file", 
+                       "Perform broad level estimation of ortholog group conservation if dereplication requested?", 
+                       "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups", 
+                       "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge = True.", 
+                       "Perform Dereplication?", "Perform reinflation?", "Reinflation CD-HIT parameters", 
+                       "Dereplication identity threshold", "Dereplication coverage threshold", 
+                       "Dereplication clustering method / MCL inflation", 
+                       "Dereplication using skani with --small-genomes preset", 
+                       "Custom annotation database", "Plot height", "Plot width", 
+                       "Use full GenBank labels?", "Number of threads requested", 
+                       "Maximum memory in GB", "Skip Cleanup?", "Skip Annotations?"]
+    util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)
+    log_object.info("Done saving parameters!")
 
-	# Step 1: Gather Genbanks in Input Directory and Perform Dereplication if Specified
-	logObject.info('\n--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory')
-	sys.stdout.write('--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory\n')
+    # set max memory limit
+    if max_memory != None: 
+        log_object.info(f"Setting maximum memory usage to: {max_memory}GB")
+        sys.stdout.write(f"Setting maximum memory usage to: {max_memory}GB\n")
+        try: 
+            util.memory_limit(max_memory)
+        except Exception as e: 
+            print(f"Error: {e}")
+            log_object.info("Error setting memory limit")
+            sys.stdout.write("Error setting memory limit\n")
 
-	genbanks = set([])
-	kept_dir = outdir + 'Dereplicated_GenBanks/'
-	local_gbk_dir = outdir + 'Local_Modified_GenBanks/'
-	if os.path.isdir(kept_dir) and not reinflate_flag:
-		sys.stderr.write('Warning: Will be using previously dereplicated set of GenBanks located at %s\n' % kept_dir)
-		logObject.warning('Will be using previously dereplicated set of GenBanks located at %s' % kept_dir)
-	try:
-		possible_lts = util.determinePossibleLTs()
-		lt_iter = 0
-		if rename_lt_flag or filter_dq_flag:
-			util.setupReadyDirectory([local_gbk_dir], delete_if_exist=True)
+    # Step 1: Gather Genbanks in Input Directory and Perform Dereplication if Specified
+    msg = '\n--------------------\nStep 1\n--------------------\nSearching for GenBanks in the input directory'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
 
-		ignored_files = 0
-		for genbank_file in input_files:
-			filename = genbank_file.split('/')[-1]
-			if filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank"):
-				if not rename_lt_flag and not filter_dq_flag and util.checkValidGenBank(genbank_file, quality_assessment=filter_lq_flag):
-					genbanks.add(genbank_file)
-				elif rename_lt_flag:
-					new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
-					util.renameCDSLocusTag(genbank_file, possible_lts[lt_iter], new_gbk, logObject, quality_assessment=filter_lq_flag, draft_assessment=filter_dq_flag)
-					if os.path.isfile(new_gbk):
-						genbanks.add(new_gbk)
-						lt_iter += 1
-					else:
-						ignored_files += 1
-				elif filter_dq_flag:
-					new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
-					util.filterRecordsNearScaffoldEdge(genbank_file, new_gbk, logObject, quality_assessment=filter_lq_flag)
-					if os.path.isfile(new_gbk):
-						genbanks.add(new_gbk)
-					else:
-						ignored_files += 1
-				else:
-					ignored_files += 1
+    genbanks = set([])
+    kept_dir = outdir + 'Dereplicated_GenBanks/'
+    local_gbk_dir = outdir + 'Local_Modified_GenBanks/'
+    if os.path.isdir(kept_dir) and not reinflate_flag: 
+        sys.stderr.write(f'Warning: Will be using previously dereplicated set of GenBanks located at {kept_dir}\n')
+        log_object.warning(f'Will be using previously dereplicated set of GenBanks located at {kept_dir}')
+    try: 
+        possible_lts = util.determine_possible_lts()
+        lt_iter = 0
+        if rename_lt_flag or filter_dq_flag: 
+            util.setup_ready_directory([local_gbk_dir], delete_if_exist = True)
 
-		sys.stderr.write('Ignoring %d files either because they did not meet requirements or filtering criteria.\n' % ignored_files)
-		logObject.warning('Ignoring %d files either because they did not meet requirements or filtering criteria.' % ignored_files)
-	except Exception as e:
-		sys.stderr.write('Issues with parsing input directory of GenBanks!\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.\n')
-		logObject.error('Issues with parsing input directory of GenBanks!\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.')
-		sys.stderr.write(str(e) + '\n')
-		sys.exit(1)
+        ignored_files = 0
+        for genbank_file in input_files: 
+            filename = genbank_file.split('/')[-1]
+            if filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank"): 
+                if not rename_lt_flag and not filter_dq_flag and util.check_valid_genbank(genbank_file, 
+           quality_assessment = filter_lq_flag): 
+                    genbanks.add(genbank_file)
+                elif rename_lt_flag: 
+                    new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
+                    util.rename_cds_locus_tag(genbank_file, 
+            possible_lts[lt_iter], 
+            new_gbk, 
+            log_object, 
+            quality_assessment = filter_lq_flag, 
+            draft_assessment = filter_dq_flag)
+                    if os.path.isfile(new_gbk): 
+                        genbanks.add(new_gbk)
+                        lt_iter += 1
+                    else: 
+                        ignored_files += 1
+                elif filter_dq_flag: 
+                    new_gbk = local_gbk_dir + genbank_file.split('/')[-1]
+                    util.filter_records_near_scaffold_edge(genbank_file, 
+            new_gbk, 
+            log_object, 
+            quality_assessment = filter_lq_flag)
+                    if os.path.isfile(new_gbk): 
+                        genbanks.add(new_gbk)
+                    else: 
+                        ignored_files += 1
+                else: 
+                    ignored_files += 1
+        msg = f'Ignoring {ignored_files} files either because they did not meet requirements or filtering criteria.'
+        sys.stderr.write(msg + '\n')
+        log_object.warning(msg)
+    except Exception as e: 
+        msg = "Issues with parsing input directory of GenBanks!\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the '--rename-lt' flag.\n"
+        sys.stderr.write(msg + '\n')
+        log_object.error(msg)
+        sys.stderr.write(str(e) + '\n')
+        sys.exit(1)
 
-	num_gbk = len(genbanks)
-	if num_gbk == 0:
-		sys.stderr.write('Issues with parsing input directory of GenBanks! No GenBanks found ...\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.\n')
-		logObject.error('Issues with parsing input directory of GenBanks! No GenBanks found ...\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the "--rename_lt" flag.')
-	else:
-		sys.stdout.write('Found %d GenBanks in the input directory.\n' % num_gbk)
-		logObject.info('Found %d GenBanks in the input directory.' % num_gbk)
+    num_gbk = len(genbanks)
+    if num_gbk == 0: 
+        msg = "Issues with parsing input directory of GenBanks!No GenBanks found ...\nThis could be because locus_tag identifiers are not found for CDS features\n- you could retry zol with the '--rename-lt' flag.\n"
+        sys.stderr.write(msg + '\n')
+        log_object.error(msg)
+        sys.exit(1)
+    else: 
+        sys.stdout.write(f'Found {num_gbk} GenBanks in the input directory.\n')
+        log_object.info(f'Found {num_gbk} GenBanks in the input directory.')
 
-	step1_check_file = check_dir + 'step1.txt'
-	derep_dir = outdir + 'Dereplication_Processing/'
-	representative_associated_members = None
-	drep_genbanks = None
-	drep_genbanks_prefices = None
-	rep_gbk_weights_pickle_file = outdir + 'Dereplication_Rep_Weights.pkl'
-	ref_gbks_pickle_file = outdir + 'Dereplication_GBKs.pkl'
-	if dereplicate_flag:
-		if not os.path.isfile(step1_check_file):
-			util.setupReadyDirectory([derep_dir, kept_dir], delete_if_exist=True)
-			drep_genbanks, representative_associated_members = zol.dereplicateUsingSkani(genbanks, focal_genbanks_listing_file, derep_dir, kept_dir, logObject, skani_small_genomes_preset=derep_small_genomes, skani_identiy_threshold=derep_identity, skani_coverage_threshold=derep_coverage, mcl_inflation=derep_inflation, threads=threads)
-			drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[:-1]) for x in drep_genbanks])
-			with open(ref_gbks_pickle_file, 'wb') as pickle_file:
-				pickle.dump(drep_genbanks, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-			with open(rep_gbk_weights_pickle_file, 'wb') as pickle_file:
-				pickle.dump(representative_associated_members, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-			os.system('touch %s' % step1_check_file)
+    step1_check_file = check_dir + 'step1.txt'
+    derep_dir = outdir + 'Dereplication_Processing/'
+    representative_associated_members = None
+    drep_genbanks = None
+    drep_genbanks_prefices = None
+    rep_gbk_weights_pickle_file = outdir + 'Dereplication_Rep_Weights.pkl'
+    ref_gbks_pickle_file = outdir + 'Dereplication_GBKs.pkl'
+    if dereplicate_flag: 
+        if not os.path.isfile(step1_check_file): 
+            util.setup_ready_directory([derep_dir, kept_dir], delete_if_exist = True)
+            drep_genbanks, representative_associated_members = zol.dereplicate_using_skani(genbanks, 
+                                                                    focal_genbanks_listing_file, 
+                                                                    derep_dir, 
+                                                                    kept_dir, 
+                                                                    log_object, 
+                                                                    skani_small_genomes_preset = derep_small_genomes, 
+                                                                    skani_identiy_threshold = derep_identity, 
+                                                                    skani_coverage_threshold = derep_coverage, 
+                                                                    mcl_inflation = derep_inflation, 
+                                                                    threads = threads)
+            drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[: -1]) for x in drep_genbanks])
+            with open(ref_gbks_pickle_file, 'wb') as pickle_file: 
+                pickle.dump(drep_genbanks, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
+            with open(rep_gbk_weights_pickle_file, 'wb') as pickle_file: 
+                pickle.dump(representative_associated_members, 
+           pickle_file, 
+           protocol = pickle.HIGHEST_PROTOCOL)
+            os.system(f'touch {step1_check_file}')
 
-	if (representative_associated_members == None or drep_genbanks == None) and dereplicate_flag:
-		try:
-			with open(rep_gbk_weights_pickle_file, 'rb') as handle:
-				representative_associated_members = pickle.load(handle)
-			with open(ref_gbks_pickle_file, 'rb') as handle:
-				drep_genbanks = pickle.load(handle)
-				drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[:-1]) for x in drep_genbanks])
+    if (representative_associated_members == None or drep_genbanks == None) and dereplicate_flag: 
+        try: 
+            with open(rep_gbk_weights_pickle_file, 'rb') as handle: 
+                representative_associated_members = pickle.load(handle)
+            with open(ref_gbks_pickle_file, 'rb') as handle: 
+                drep_genbanks = pickle.load(handle)
+                drep_genbanks_prefices = set(['.'.join(x.split('/')[-1].split('.')[: -1]) for x in drep_genbanks])
 
-		except Exception as e:
-			sys.stderr.write('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
-			logObject.error('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
+        except Exception as e: 
+            sys.stderr.write('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
+            log_object.error('Issues with reading in dereplicated gene cluster associated members from pickle file (might not exist). Please just delete the results directory and retry.\n')
+            sys.stderr.write(str(e) + '\n')
+            sys.exit(1)
 
-	# Step 1.5: Switch to Domain Mode if Requested
-	chopped_genbanks = None
-	ccds_to_cds_relation_file = outdir + 'cCDS_to_CDS_Relation.txt'
-	if domain_mode:
-		msg = 'Note, using domain mode - if rerunning on the same output directory, but domain\nmode was not previously requested please just run in a\nnew directory.'
-		sys.stdout.write(msg + '\n')
-		logObject.info(msg)
+    # Step 1.5: Switch to Domain Mode if Requested
+    chopped_genbanks = None
+    ccds_to_cds_relation_file = outdir + 'cCDS_to_CDS_Relation.txt'
+    if domain_mode: 
+        msg = 'Note, using domain mode - if rerunning on the same output directory, but domain\nmode was not previously requested please just run in a\nnew directory.'
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
-		if reinflate_flag:
-			msg = 'WARNING: Reinflate flag not compatible with . Reinflation is being turned and not used!!!'
-			logObject.warning(msg)
-			sys.stderr.write(msg + '\n')
-			reinflate_flag = False
+        if reinflate_flag: 
+            msg = 'WARNING: Reinflate flag not compatible with domain mode. Reinflation is being turned and not used!!!'
+            log_object.warning(msg)
+            sys.stderr.write(msg + '\n')
+            reinflate_flag = False
 
-		msg = '--------------------\nStep 1.5\n--------------------\nRe-creating GenBank files with chopped CDS features.'
-		sys.stdout.write(msg + '\n')
-		logObject.info(msg)
-		
-		dm_scratch_dir = outdir + 'Domain_Mode_Scratch_Space/'
-		chopped_genbanks_pickle_file = dm_scratch_dir + 'Chopped_Genbank_Path_Information.pkl'
-		modified_genbank_dir = outdir + 'Chopped_Up_CDS_GenBanks/'
-		step15_check_file = check_dir + 'step1.5.txt'
-		if not os.path.isfile(step15_check_file):
-			util.setupReadyDirectory([dm_scratch_dir, modified_genbank_dir], delete_if_exist=True)
+        msg = '--------------------\nStep 1.5\n--------------------\nRe-creating GenBank files with chopped CDS features.'
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
-			input_genbanks = genbanks
-			if drep_genbanks:
-				input_genbanks = drep_genbanks
+        dm_scratch_dir = outdir + 'Domain_Mode_Scratch_Space/'
+        chopped_genbanks_pickle_file = dm_scratch_dir + 'Chopped_Genbank_Path_Information.pkl'
+        modified_genbank_dir = outdir + 'Chopped_Up_CDS_GenBanks/'
+        step15_check_file = check_dir + 'step1.5.txt'
+        if not os.path.isfile(step15_check_file): 
+            util.setup_ready_directory([dm_scratch_dir, 
+          modified_genbank_dir], 
+          delete_if_exist = True)
 
-			chopped_genbanks = zol.batchCreateChoppedGenbanks(input_genbanks, ccds_min_length, dm_scratch_dir, modified_genbank_dir, ccds_to_cds_relation_file, logObject, eukaryotic_gene_cluster_flag=eukaryotic_gene_cluster_flag, threads=threads)
-			with open(chopped_genbanks_pickle_file, 'wb') as pickle_file:
-				pickle.dump(chopped_genbanks, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-			os.system('touch %s' % step15_check_file)
+            input_genbanks = genbanks
+            if drep_genbanks: 
+                input_genbanks = drep_genbanks
 
-		if chopped_genbanks == None:
-			try:
-				with open(chopped_genbanks_pickle_file, 'rb') as handle:
-					chopped_genbanks = pickle.load(handle)
-			except Exception as e:
-				sys.stderr.write('Issues with reading in paths to chopped-CDS GenBanks from pickle file (might not exist).\n')
-				logObject.error('Issues with reading in paths to chopped-CDS GenBnaks from pickle file (might not exist).\n')
-				sys.stderr.write(str(e) + '\n')
-				sys.exit(1)
+            chopped_genbanks = zol.batch_create_chopped_genbanks(input_genbanks, 
+          ccds_min_length, 
+          dm_scratch_dir, 
+          modified_genbank_dir, 
+          ccds_to_cds_relation_file, 
+          log_object, 
+          eukaryotic_gene_cluster_flag = eukaryotic_gene_cluster_flag, 
+          threads = threads)
+            with open(chopped_genbanks_pickle_file, 'wb') as pickle_file: 
+                pickle.dump(chopped_genbanks, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
+            os.system(f'touch {step15_check_file}')
 
-	# Step 2: Determine Orthologs
-	logObject.info('\n--------------------\nStep 2\n--------------------\nDetermining orthogroups')
-	sys.stdout.write('--------------------\nStep 2\n--------------------\nDetermining orthogroups\n')
+        if chopped_genbanks == None: 
+            try: 
+                with open(chopped_genbanks_pickle_file, 'rb') as handle: 
+                    chopped_genbanks = pickle.load(handle)
+            except Exception as e: 
+                sys.stderr.write('Issues with reading in paths to chopped-CDS GenBanks from pickle file (might not exist).\n')
+                log_object.error('Issues with reading in paths to chopped-CDS GenBnaks from pickle file (might not exist).\n')
+                sys.stderr.write(str(e) + '\n')
+                sys.exit(1)
 
-	prot_dir = outdir + 'CDS_Protein/'
-	fo_prot_dir = outdir + 'Prots_for_de_novo_Orthology_Finding/'
-	nucl_dir = outdir + 'CDS_Nucleotide/'
-	nucl_upstream_dir = outdir + 'CDS_Upstream_Nucleotide/'
-	og_dir = outdir + 'Determine_Orthogroups/'
-	ortho_matrix_file = og_dir + 'Orthogroups.tsv'
-	core_ortho_matrix_file = og_dir + 'Orthogroups.tsv'
-	step2_check_file = check_dir + 'step2.txt'
-	if not os.path.isfile(step2_check_file):
-		util.setupReadyDirectory([prot_dir, fo_prot_dir, nucl_dir, nucl_upstream_dir], delete_if_exist=True)
-		try:
-			gset = genbanks
-			if chopped_genbanks != None:
-				gset = chopped_genbanks
-			elif drep_genbanks != None and not reinflate_flag:
-				gset = drep_genbanks
-			for gbk in gset:
-				try:
-					prefix = '.'.join(gbk.split('/')[-1].split('.')[:-1])
-					feature_type = 'CDS'
-					if domain_mode:
-						feature_type = 'cCDS'
-					proteins, nucleotides, upstream_regions = util.parseGenbankForCDSProteinsAndDNA(gbk, logObject, allow_edge_cds=allow_edge_cds_flag, feature_type=feature_type)
-					protein_outf = prot_dir + prefix + '.faa'
-					nucleotide_outf = nucl_dir + prefix + '.fna'
-					upstream_outf = nucl_upstream_dir + prefix + '.fna'
-					protein_handle = open(protein_outf, 'w')
-					nucleotide_handle = open(nucleotide_outf, 'w')
-					upstream_handle = open(upstream_outf, 'w')
-					for lt in proteins:
-						protein_handle.write('>' + prefix + '|' + lt + '\n' + proteins[lt] + '\n')
-						nucleotide_handle.write('>' + prefix + '|' + lt + '\n' + nucleotides[lt] + '\n')
-						if lt in upstream_regions:
-							upstream_handle.write('>' + prefix + '|' + lt + '\n' + upstream_regions[lt] + '\n')
-					protein_handle.close()
-					nucleotide_handle.close()
-					upstream_handle.close()
+    # Step 2: Determine Orthologs
+    msg = '--------------------\nStep 2\n--------------------\nDetermining orthogroups'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
 
-					if drep_genbanks_prefices == None or (drep_genbanks_prefices != None and prefix in drep_genbanks_prefices):
-						shutil.copy(protein_outf, fo_prot_dir)
+    prot_dir = outdir + 'CDS_Protein/'
+    fo_prot_dir = outdir + 'Prots_for_de_novo_Orthology_Finding/'
+    nucl_dir = outdir + 'CDS_Nucleotide/'
+    nucl_upstream_dir = outdir + 'CDS_Upstream_Nucleotide/'
+    og_dir = outdir + 'Determine_Orthogroups/'
+    ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+    core_ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+    step2_check_file = check_dir + 'step2.txt'
+    if not os.path.isfile(step2_check_file): 
+        util.setup_ready_directory([prot_dir, fo_prot_dir, nucl_dir, nucl_upstream_dir], delete_if_exist = True)
+        try: 
+            gset = genbanks
+            if chopped_genbanks != None: 
+                gset = chopped_genbanks
+            elif drep_genbanks != None and not reinflate_flag: 
+                gset = drep_genbanks
+            for gbk in gset: 
+                try: 
+                    prefix = '.'.join(gbk.split('/')[-1].split('.')[: -1])
+                    feature_type = 'CDS'
+                    if domain_mode: 
+                        feature_type = 'cCDS'
+                    proteins, nucleotides, upstream_regions = util.parse_genbank_for_cds_proteins_and_dna(gbk, 
+                                                                    log_object, 
+                                                                    allow_edge_cds = allow_edge_cds_flag, 
+                                                                    feature_type = feature_type)
+                    protein_outf = prot_dir + prefix + '.faa'
+                    nucleotide_outf = nucl_dir + prefix + '.fna'
+                    upstream_outf = nucl_upstream_dir + prefix + '.fna'
+                    protein_handle = open(protein_outf, 'w')
+                    nucleotide_handle = open(nucleotide_outf, 'w')
+                    upstream_handle = open(upstream_outf, 'w')
+                    for lt in proteins: 
+                        protein_handle.write('>' + prefix + '|' + lt + '\n' + proteins[lt] + '\n')
+                        nucleotide_handle.write('>' + prefix + '|' + lt + '\n' + nucleotides[lt] + '\n')
+                        if lt in upstream_regions: 
+                            upstream_handle.write('>' + prefix + '|' + lt + '\n' + upstream_regions[lt] + '\n')
+                    protein_handle.close()
+                    nucleotide_handle.close()
+                    upstream_handle.close()
 
-
-				except Exception as e:
-					sys.stderr.write('Issues with parsing the GenBank %s\n' % gbk)
-					logObject.error('Issues with parsing the GenBank %s' % gbk)
-					sys.stderr.write(str(e) + '\n')
-					sys.exit(1)
-			
-			if precomputed_orthogroups_file != None:
-				util.setupReadyDirectory([og_dir], delete_if_exist=True)
-				zol.createOrthoGroupMatrixFromPrecomputedFile(precomputed_orthogroups_file, fo_prot_dir, ortho_matrix_file, logObject)
-			else:
-				fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-e', str(evalue_threshold), '-i',
-						str(identity_threshold), '-q', str(coverage_threshold), '-mi', str(clustering_inflation), '-c', str(threads)]
-				if cdhit_orthogroup_flag:
-					fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', 
-							'-cdp="' + cdhit_orthogroup_params + '"', '-c', str(threads)]
-				try:
-					subprocess.call(' '.join(fo_cmd), shell=True, stdout=subprocess.DEVNULL,
-									stderr=subprocess.DEVNULL, executable='/bin/bash')
-					assert (os.path.isfile(ortho_matrix_file))
-					#assert (util.checkCoreHomologGroupsExist(ortho_matrix_file))
-				except Exception as e:
-					logObject.error("Issue with running: %s" % ' '.join(fo_cmd))
-					logObject.error(e)
-					raise RuntimeError(e)
-				if reinflate_flag:
-					rog_dir = outdir + 'Reinflate_Orthogroups/'
-					util.setupReadyDirectory([rog_dir], delete_if_exist=True)
-					zol.reinflateOrthoGroups(ortho_matrix_file, prot_dir, rog_dir, logObject, threads=threads)
-		except Exception as e:
-			sys.stderr.write('Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n')
-			logObject.error('Issues with determining ortholog/ortholog groups!')
-			sys.stderr.write(traceback.format_exc() + '\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
-		os.system('touch %s' % step2_check_file)
-
-	if not skip_cleanup_flag:
-		# Remove temporary files
-		temp_files_dirs_in_og_dir = ['Proteomes/', 'Original_Naming_of_Proteomes/', 'All_Proteins.faa', 'sample_listing.txt', 
-							         'Proteome_Listing.txt', 'All_Proteins.dmnd', 'All.abc-like', 'All.normalized.abc-like', 
-									 'Tmp_Results.txt']
-		for fd in temp_files_dirs_in_og_dir:
-			path_file_dir = og_dir + fd
-			if os.path.isdir(path_file_dir):
-				shutil.rmtree(path_file_dir)
-			elif os.path.isfile(path_file_dir):
-				os.remove(path_file_dir)
-				
-	if reinflate_flag:
-		og_dir = outdir + 'Reinflate_Orthogroups/'
-		ortho_matrix_file = og_dir + 'Orthogroups.tsv'
-		assert(os.path.isfile(ortho_matrix_file))
-	elif dereplicate_flag:
-		genbanks = drep_genbanks
-		assert(os.path.isfile(ortho_matrix_file))
-	if domain_mode:
-		genbanks = chopped_genbanks
+                    if drep_genbanks_prefices == None or (drep_genbanks_prefices != None and prefix in drep_genbanks_prefices): 
+                        shutil.copy(protein_outf, fo_prot_dir)
 
 
-	# If fai param selection mode, do that and exit:
-	if select_fai_params_mode:
-		logObject.info('\n--------------------\nAssessing parameters to recommend for running fai to detect additional instances.')
-		sys.stdout.write('--------------------\nAssessing parameters to recommend for running fai to detect additional instances.\n')
-		proc_dir = outdir + 'Ortholog_Group_Processing/'
-		hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
-		hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
-		util.setupReadyDirectory([proc_dir, hg_prot_dir, hg_nucl_dir], delete_if_exist=True)
-		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
-		util.determineFaiParamRecommendataions(genbanks, ortho_matrix_file, hg_prot_dir, outdir, logObject, threads=threads)
-		sys.exit(0)
+                except Exception as e: 
+                    sys.stderr.write(f'Issues with parsing the GenBank {gbk}\n')
+                    log_object.error(f'Issues with parsing the GenBank {gbk}')
+                    sys.stderr.write(str(e) + '\n')
+                    sys.exit(1)
 
-	if only_orthogroups_flag:
-		logObject.info('\n--------------------\nRequested mode was to only compute ortholog groups across gene clusters\n.The ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
-		sys.stdout.write('--------------------\nRequested mode was to only compute ortholog groups across gene clusters.\nThe ortholog-group by gene-cluster matrix can be found at: %s\n' % ortho_matrix_file)
-		sys.exit(0)
-	
-	full_prot_clustering_file = outdir + 'Full_Protein_Secondary_SL_Clustering.txt'
-	if domain_mode and not os.path.isfile(full_prot_clustering_file):
-		full_prot_cluster_workspace_dir = outdir + 'Full_Protein_Secondary_Clustering/'
-		util.setupReadyDirectory([full_prot_cluster_workspace_dir], delete_if_exist=True)
-		# perform secondary clustering of full proteins based on domain ortholog groups
-		zol.performSLFullProteinClustering(ortho_matrix_file, full_prot_cluster_workspace_dir, full_prot_clustering_file, logObject)
+            if precomputed_orthogroups_file != None: 
+                util.setup_ready_directory([og_dir], delete_if_exist = True)
+                zol.create_ortho_group_matrix_from_precomputed_file(precomputed_orthogroups_file, 
+           fo_prot_dir, 
+           ortho_matrix_file, 
+           log_object)
+            else: 
+                fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, 
+                          '-o', og_dir, '-e', str(evalue_threshold), 
+                          '-i', str(identity_threshold), 
+                          '-q', str(coverage_threshold), 
+                          '-mi', str(clustering_inflation), 
+                          '-c', str(threads)]
+                if cdhit_orthogroup_flag: 
+                    fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', '-cdp', cdhit_orthogroup_params, '-c', str(threads)]
+                try: 
+                    subprocess.call(' '.join(fo_cmd), shell = True, stdout = subprocess.DEVNULL, 
+                                    stderr = subprocess.DEVNULL, executable = '/bin/bash')
+                    assert (os.path.isfile(ortho_matrix_file))
+                except Exception as e: 
+                    sys.stderr.write(f"Error: {e}\n")
+                    log_object.error(f"Issue with running: {' '.join(fo_cmd)}")
+                    log_object.error(e)
+                    raise RuntimeError(e)
+                if reinflate_flag: 
+                    rog_dir = outdir + 'Reinflate_Orthogroups/'
+                    util.setup_ready_directory([rog_dir], delete_if_exist = True)
+                    zol.reinflate_orthogroups(ortho_matrix_file, prot_dir, rog_dir, log_object, threads = threads)
+        except Exception as e: 
+            msg = 'Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n'
+            sys.stderr.write(msg + "\n")
+            log_object.error(msg)
+            sys.stderr.write(traceback.format_exc() + '\n')
+            sys.stderr.write(str(e) + '\n')
+            sys.exit(1)
+        os.system(f'touch {step2_check_file}')
 
-	full_protein_clusters = {}
-	if domain_mode:
-		with open(full_prot_clustering_file) as ofpcf:
-			for line in ofpcf:
-				line = line.strip()
-				ls = line.split('\t')
-				full_protein_clusters[ls[0]] = ls[1]
+    if not skip_cleanup_flag: 
+        # Remove temporary files
+        temp_files_dirs_in_og_dir = ['Proteomes/', 'Original_Naming_of_Proteomes/', 'All_Proteins.faa', 'sample_listing.txt', 
+                                     'Proteome_Listing.txt', 'All_Proteins.dmnd', 'All.abc-like', 'All.normalized.abc-like', 
+                                     'Tmp_Results.txt']
+        for fd in temp_files_dirs_in_og_dir: 
+            path_file_dir = og_dir + fd
+            if os.path.isdir(path_file_dir): 
+                shutil.rmtree(path_file_dir)
+            elif os.path.isfile(path_file_dir): 
+                os.remove(path_file_dir)
 
-	# Step 3 (normal): Create Alignments, Phylogenies and Consensus Sequences
-	logObject.info('\n--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups')
-	sys.stdout.write('--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups\n')
-	step3_check_file = check_dir + 'step3.txt'
-	proc_dir = outdir + 'Ortholog_Group_Processing/'
-	hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
-	hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
-	hg_upst_dir = proc_dir + 'OG_Upstream_Sequences/'
-	prot_algn_dir = proc_dir + 'OG_Protein_Alignments/'
-	prot_algn_trim_dir = proc_dir + 'OG_Protein_Alignments_Trimmed/'
-	codo_algn_dir = proc_dir + 'OG_Codon_Alignments/'
-	upst_algn_dir = proc_dir + 'OG_Upstream_Alignments/'
-	codo_algn_trim_dir = proc_dir + 'OG_Codon_Alignments_Trimmed/'
-	tree_dir = proc_dir + 'OG_Trees/'
-	phmm_dir = proc_dir + 'OG_Profile_HMMs/'
-	cons_dir = proc_dir + 'OG_Consensus_Sequences/'
-	consensus_prot_seqs_faa = outdir + 'OG_Consensus_Seqs.faa'
-	if not os.path.isfile(step3_check_file):
-		util.setupReadyDirectory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir,
-								  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir, hg_upst_dir, upst_algn_dir], delete_if_exist=True)
-		zol.partitionSequencesByHomologGroups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, logObject)
-		if refine_gene_calling_flag and custom_database:
-			refine_workpace_dir = proc_dir + 'Refine_Gene_Calling_WorkSpace/'
-			util.setupReadyDirectory([refine_workpace_dir], delete_if_exist=True)
-			hg_prot_dir, hg_nucl_dir = zol.refineGeneCalling(custom_database, hg_prot_dir, hg_nucl_dir,
-															 refine_workpace_dir, logObject, threads=threads,
-															 use_super5=use_super5)
-		zol.createProteinAlignments(hg_prot_dir, prot_algn_dir, logObject, use_super5=use_super5, threads=threads)
-		zol.createCodonAlignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, logObject)
-		zol.partitionAndCreateUpstreamNuclAlignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir,
-													 logObject, threads=threads, use_super5=use_super5)
-		zol.trimAlignments(prot_algn_dir, codo_algn_dir, prot_algn_trim_dir, codo_algn_trim_dir, logObject, threads=1)
-		zol.createGeneTrees(codo_algn_trim_dir, codo_algn_dir, tree_dir, logObject, threads=1)
-		zol.createProfileHMMsAndConsensusSeqs(prot_algn_dir, phmm_dir, cons_dir, logObject, threads=1)
-		consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
-		for f in os.listdir(cons_dir):
-			with open(cons_dir + f) as ocf:
-				for rec in SeqIO.parse(ocf, 'fasta'):
-					consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
-		consensus_prot_seqs_handle.close()
-		os.system('touch %s' % step3_check_file)
+    if reinflate_flag: 
+        og_dir = outdir + 'Reinflate_Orthogroups/'
+        ortho_matrix_file = og_dir + 'Orthogroups.tsv'
+        assert(os.path.isfile(ortho_matrix_file))
+    elif dereplicate_flag: 
+        genbanks = drep_genbanks
+        assert(os.path.isfile(ortho_matrix_file))
+    if domain_mode: 
+        genbanks = chopped_genbanks
 
-	# Step 4: Perform annotations
-	logObject.info('\n--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)')
-	sys.stdout.write('--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)\n')
-	step4_check_file = check_dir + 'step4.txt'
-	annotation_dir = outdir + 'Annotation_Results/'
-	annotations = None
-	annotations_pickle_file = outdir + 'Annotations.pkl'
-	if not os.path.isfile(step4_check_file) and not skip_annotations_flag:
-		util.setupReadyDirectory([annotation_dir], delete_if_exist=True)
-		annotations = zol.annotateConsensusSequences(consensus_prot_seqs_faa, annotation_dir, logObject, threads=threads)
-		if custom_database != None:
-			custom_annots = zol.annotateCustomDatabase(consensus_prot_seqs_faa, custom_database, annotation_dir,
-													   logObject, threads=threads)
-			annotations['custom'] = custom_annots
-		with open(annotations_pickle_file, 'wb') as pickle_file:
-			pickle.dump(annotations, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
-		os.system('touch %s' % step4_check_file)
 
-	if annotations == None:
-		if skip_annotations_flag:
-			annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
-		else:
-			try:
-				with open(annotations_pickle_file, 'rb') as handle:
-					annotations = pickle.load(handle)
-			except Exception as e:
-				sys.stderr.write('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
-				logObject.error('Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n')
-				sys.stderr.write(str(e) + '\n')
-				sys.exit(1)
-	
-	# Step 4: Map Pfam domains to BGC and viral scores (from GECCO and v-Scores, respectively)
-	type_weights = defaultdict(lambda: defaultdict(lambda: 'NA'))
-	if 'pfam' in annotations:
-		gecco_weights, vscores = zol.determineBGCAndViralScores(annotations['pfam'], logObject)
-		type_weights['bgc'] = gecco_weights
-		type_weights['viral'] = vscores
+    # If fai param selection mode, do that and exit: 
+    if select_fai_params_mode: 
+        msg = '--------------------\nAssessing parameters to recommend for running fai to detect additional instances.'
+        log_object.info(msg)
+        sys.stdout.write(msg + '\n')
+        proc_dir = outdir + 'Ortholog_Group_Processing/'
+        hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
+        hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
+        util.setup_ready_directory([proc_dir, hg_prot_dir, hg_nucl_dir], delete_if_exist = True)
+        zol.partition_sequences_by_homolog_groups(ortho_matrix_file, prot_dir, nucl_dir, hg_prot_dir, hg_nucl_dir, log_object)
+        util.determine_fai_param_recommendations(genbanks, ortho_matrix_file, hg_prot_dir, outdir, log_object, threads = threads)
+        sys.exit(0)
 
-	# Step 5: Determine consensus order, conservation, and median ortholog group lengths
-	logObject.info('\n--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups')
-	sys.stdout.write('--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups\n')
-	step5_check_file = check_dir + 'step5.txt'
-	hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
-	markovian_file = outdir + 'Markovian_Order_Information.txt'
-	consensus_path_file = outdir + 'Consensus_Path_Information.txt'
-	hg_stats = None
-	if not os.path.isfile(step5_check_file):
-		hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determineHGStats(ortho_matrix_file, hg_nucl_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
-		hg_order_scores = zol.determineConsensusOrderOfHGs(genbanks, core_ortho_matrix_file, markovian_file, 
-													       consensus_path_file, logObject, domain_mode=domain_mode)
-		hg_full_amb, hg_trim_amb = zol.calculateAmbiguity(codo_algn_dir, codo_algn_trim_dir, logObject)
-		hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples,
-					'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc,
-					'hg_median_lengths': hg_median_lengths, 'hg_order_scores': hg_order_scores, 'hg_locus_tags': hg_lts,
-					'hg_full_ambiguity': hg_full_amb, 'hg_trim_ambiguity': hg_trim_amb}
-		with open(hg_stats_pickle_file, 'wb') as pickle_file:
-			pickle.dump(hg_stats, pickle_file)
-		os.system('touch %s' % step5_check_file)
+    if only_orthogroups_flag: 
+        msg = f'--------------------\nRequested mode was to only compute ortholog groups across gene clusters\n'
+        msg += f'The ortholog-group by gene-cluster matrix can be found at: {ortho_matrix_file}\n'
+        log_object.info(msg)
+        sys.stdout.write(msg + '\n')
+        sys.exit(0)
 
-	if hg_stats == None:
-		try:
-			with open(hg_stats_pickle_file, 'rb') as handle:
-				hg_stats = pickle.load(handle)
-		except Exception as e:
-			sys.stderr.write('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
-			logObject.error('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
+    full_prot_clustering_file = outdir + 'Full_Protein_Secondary_SL_Clustering.txt'
+    if domain_mode and not os.path.isfile(full_prot_clustering_file): 
+        full_prot_cluster_workspace_dir = outdir + 'Full_Protein_Secondary_Clustering/'
+        util.setup_ready_directory([full_prot_cluster_workspace_dir], delete_if_exist = True)
+        # perform secondary clustering of full proteins based on domain ortholog groups
+        zol.perform_sl_full_protein_clustering(ortho_matrix_file, full_prot_cluster_workspace_dir, full_prot_clustering_file, log_object)
 
-	#print(hg_stats.keys())
-	# Step 6: Perform genetic/population/evolutionary statistics
-	logObject.info('\n--------------------\nStep 6\n--------------------\nRunning evolutionary analyses')
-	sys.stdout.write('--------------------\nStep 6\n--------------------\nRunning evolutionary analyses\n')
-	step6_check_file = check_dir + 'step6.txt'
-	evo_stats = None
-	evo_stats_pickle_file = outdir + 'Evolutionary_Statistics.pkl'
-	evo_results_dir = outdir + 'Evolutionary_Analyses/'
-	gard_results_dir = evo_results_dir + 'GARD_Results/'
-	fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
-	busted_results_dir = evo_results_dir + 'BUSTED_Results/'
-	if not os.path.isfile(step6_check_file):
-		util.setupReadyDirectory([evo_results_dir], delete_if_exist=True)
-		tajimas_d, segregating_sites_prop = zol.runTajimasDAnalysis(codo_algn_trim_dir, evo_results_dir, logObject, threads=threads)
-		hg_entropy, hg_upst_entropy = zol.runEntropyAnalysis(codo_algn_trim_dir, upst_algn_dir, evo_results_dir, logObject, threads=threads)
-		gard_partitions = {}
-		fubar_sel_props = {}
-		fubar_sel_sites = {}
-		fubar_dBa = {}
-		busted_pval = {}
-		if fubar_selection:
-			util.setupReadyDirectory([gard_results_dir, fubar_results_dir, busted_results_dir], delete_if_exist=True)
-			gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa, busted_pval = zol.runHyphyAnalyses(codo_algn_dir, tree_dir,
-																					 gard_results_dir,
-																					 fubar_results_dir, busted_results_dir, 
-																					 logObject,
-																				  	 gard_mode='Faster',
-																					 skip_gard=skip_gard, skip_busted=skip_busted, 
-																					 gard_timeout=gard_timeout, threads=threads)
+    full_protein_clusters = {}
+    if domain_mode: 
+        with open(full_prot_clustering_file) as ofpcf: 
+            for line in ofpcf: 
+                line = line.strip()
+                ls = line.split('\t')
+                full_protein_clusters[ls[0]] = ls[1]
 
-		hg_med_beta_rd = {}
-		hg_max_beta_rd = {}
-		if betard_analysis:
-			hg_med_beta_rd, hg_max_beta_rd = zol.computeBetaRDgc(prot_algn_dir, evo_results_dir, logObject, threads=threads)
-		evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop,
-					 'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
-					 'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval, 
-					 'median_beta_rd_gc': hg_med_beta_rd,
-					 'max_beta_rd_gc': hg_max_beta_rd, 'entropy': hg_entropy, 'entropy_upst': hg_upst_entropy}
-		with open(evo_stats_pickle_file, 'wb') as pickle_file:
-			pickle.dump(evo_stats, pickle_file)
-		os.system('touch %s' % step6_check_file)
+    # Step 3 (normal): Create Alignments, Phylogenies and Consensus Sequences
+    msg = '--------------------\nStep 3\n--------------------\nCreating alignments, trees and consensus sequences for ortholog groups'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    step3_check_file = check_dir + 'step3.txt'
+    proc_dir = outdir + 'Ortholog_Group_Processing/'
+    hg_prot_dir = proc_dir + 'OG_Protein_Sequences/'
+    hg_nucl_dir = proc_dir + 'OG_Nucleotide_Sequences/'
+    hg_upst_dir = proc_dir + 'OG_Upstream_Sequences/'
+    prot_algn_dir = proc_dir + 'OG_Protein_Alignments/'
+    prot_algn_trim_dir = proc_dir + 'OG_Protein_Alignments_Trimmed/'
+    codo_algn_dir = proc_dir + 'OG_Codon_Alignments/'
+    upst_algn_dir = proc_dir + 'OG_Upstream_Alignments/'
+    codo_algn_trim_dir = proc_dir + 'OG_Codon_Alignments_Trimmed/'
+    tree_dir = proc_dir + 'OG_Trees/'
+    phmm_dir = proc_dir + 'OG_Profile_HMMs/'
+    cons_dir = proc_dir + 'OG_Consensus_Sequences/'
+    consensus_prot_seqs_faa = outdir + 'OG_Consensus_Seqs.faa'
+    if not os.path.isfile(step3_check_file): 
+        util.setup_ready_directory([proc_dir, prot_algn_dir, prot_algn_trim_dir, codo_algn_dir, codo_algn_trim_dir, 
+                                  tree_dir, phmm_dir, cons_dir, hg_prot_dir, hg_nucl_dir, hg_upst_dir, upst_algn_dir], delete_if_exist = True)
+        zol.partition_sequences_by_homolog_groups(ortho_matrix_file, 
+                                                    prot_dir, 
+                                                    nucl_dir, 
+                                                    hg_prot_dir, 
+                                                    hg_nucl_dir, 
+                                                    log_object)
 
-	if evo_stats == None:
-		try:
-			with open(evo_stats_pickle_file, 'rb') as handle:
-				evo_stats = pickle.load(handle)
-		except Exception as e:
-			sys.stderr.write('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
-			logObject.error('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
-			sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
-	#print(evo_stats.keys())
+        zol.create_protein_alignments(hg_prot_dir, prot_algn_dir, log_object, use_super5 = use_super5, threads = threads)
+        zol.create_codon_alignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, log_object)
+        zol.partition_and_create_upstream_nucl_alignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir, 
+                                                     log_object, threads = threads, use_super5 = use_super5)
+        zol.trim_alignments(prot_algn_dir, 
+         codo_algn_dir, 
+         prot_algn_trim_dir, 
+         codo_algn_trim_dir, 
+         log_object, 
+         threads = 1)
+        zol.create_gene_trees(codo_algn_trim_dir, 
+         codo_algn_dir, 
+         tree_dir, 
+         log_object, 
+         threads = 1)
+        zol.create_profile_hmms_and_consensus_seqs(prot_algn_dir, 
+         phmm_dir, 
+         cons_dir, 
+         log_object, 
+         threads = 1)
+        consensus_prot_seqs_handle = open(consensus_prot_seqs_faa, 'w')
+        for f in os.listdir(cons_dir): 
+            with open(cons_dir + f) as ocf: 
+                for rec in SeqIO.parse(ocf, 'fasta'): 
+                    consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
+        consensus_prot_seqs_handle.close()
+        os.system(f'touch {step3_check_file}')
 
-	# Step 7: Perform comparative investigations between provided gene-cluster sets (things are rerun every time after this step)
-	comp_stats = None
-	if focal_genbanks_listing_file != None and os.path.isfile(focal_genbanks_listing_file):
-		all_genbank_ids = set([])
-		focal_genbank_ids = set([])
-		comparator_genbank_ids = set([])
+    # Step 4: Perform annotations
+    msg = '--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    step4_check_file = check_dir + 'step4.txt'
+    annotation_dir = outdir + 'Annotation_Results/'
+    annotations = None
+    annotations_pickle_file = outdir + 'Annotations.pkl'
+    if not os.path.isfile(step4_check_file) and not skip_annotations_flag: 
+        util.setup_ready_directory([annotation_dir], delete_if_exist = True)
+        annotations = zol.annotate_consensus_sequences(consensus_prot_seqs_faa, 
+         annotation_dir, 
+         log_object, 
+         threads = threads)
+        if custom_database != None: 
+            custom_annots = zol.annotate_custom_database(consensus_prot_seqs_faa, custom_database, annotation_dir, log_object, threads = threads)
+            annotations['custom'] = custom_annots # type: ignore
+        with open(annotations_pickle_file, 'wb') as pickle_file: 
+            pickle.dump(annotations, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
+        os.system(f'touch {step4_check_file}')
 
-		for gbk in genbanks:
-			gbk_id = gbk.split('/')[-1]
-			if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'):
-				gbk_id = '.'.join(gbk_id.split('.')[:-1])
-			all_genbank_ids.add(gbk_id)
+    if annotations == None: 
+        if skip_annotations_flag: 
+            annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
+        else: 
+            try: 
+                with open(annotations_pickle_file, 'rb') as handle: 
+                    annotations = pickle.load(handle)
+            except Exception as e: 
+                msg = 'Issues with reading in annotations from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step4.txt.!\n'
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
+                sys.stderr.write(str(e) + '\n')
+                sys.exit(1)
 
-		with open(focal_genbanks_listing_file) as ofglf:
-			for line in ofglf:
-				line = line.strip()
-				gbk_id = line.split('/')[-1]
-				if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'):
-					gbk_id = '.'.join(gbk_id.split('.')[:-1])
-				if gbk_id in all_genbank_ids:
-					focal_genbank_ids.add(gbk_id)
-				else:
-					#sys.stderr.write('Warning: could not match focal gene cluster %s to available GenBanks in analysis - this message might be because of dereplication.\n' % line)
-					logObject.warning('Could not match focal gene cluster %s to available GenBanks in analysis.\n' % line)
+    # Step 4: Map Pfam domains to BGC and viral scores (from GECCO and v-Scores, respectively)
+    type_weights = defaultdict(lambda: defaultdict(lambda: 'NA'))
+    if 'pfam' in annotations: 
+        gecco_weights, vscores = zol.determine_bgc_and_viral_scores(annotations['pfam'], log_object)
+        type_weights['bgc'] = gecco_weights # type: ignore
+        type_weights['viral'] = vscores # type: ignore
 
-		if comparator_genbanks_listing_file != None and os.path.isfile(comparator_genbanks_listing_file):
-			with open(comparator_genbanks_listing_file) as ocglf:
-				for line in ocglf:
-					line = line.strip()
-					gbk_id = line.split('/')[-1]
-					if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'):
-						gbk_id = '.'.join(gbk_id.split('.')[:-1])
-					if gbk_id in all_genbank_ids:
-						comparator_genbank_ids.add(gbk_id)
-					else:
-						#sys.stderr.write('Could not match comparator gene cluster %s to available GenBanks in analysis - this message might be because of dereplication.\n' % line)
-						logObject.warning('Could not match comparator gene cluster %s to available GenBanks in analysis\n' % line)
-		else:
-			comparator_genbank_ids = all_genbank_ids.difference(focal_genbank_ids)
+    # Step 5: Determine consensus order, conservation, and median ortholog group lengths
+    msg = '--------------------\nStep 5\n--------------------\nDetermining consensus order, conservation, and median lengths of ortholog groups'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    step5_check_file = check_dir + 'step5.txt'
+    hg_stats_pickle_file = outdir + 'OG_Statistics.pkl'
+    markovian_file = outdir + 'Markovian_Order_Information.txt'
+    consensus_path_file = outdir + 'Consensus_Path_Information.txt'
+    hg_stats = None
+    if not os.path.isfile(step5_check_file): 
+        hg_single_copy_status, hg_prop_samples, hg_median_lengths, hg_median_gcskew, hg_median_gc, hg_lts = zol.determine_og_stats(ortho_matrix_file, 
+                                                                                                            hg_nucl_dir, 
+                                                                                                            log_object, 
+                                                                                                            representative_associated_members=representative_associated_members,
+                                                                                                            impute_broad_conservation=ibc_flag)
+        hg_order_scores = zol.determine_consensus_order_of_ogs(genbanks, core_ortho_matrix_file, markovian_file, consensus_path_file, log_object, domain_mode=domain_mode)
+        hg_full_amb, hg_trim_amb = zol.calculate_ambiguity(codo_algn_dir, codo_algn_trim_dir, log_object)
 
-		try:
-			assert(len(focal_genbank_ids) > 0 and len(comparator_genbank_ids) > 0)
-		except:
-			sys.stderr.write('Either no focal GenBanks or no comparator GenBanks. If confused, you can always run without the focal GenBank listing argument or this might be because of dereplication if requested.\n')
-			logObject.error('Either no focal GenBanks or no comparator GenBanks.')
-			sys.exit(1)
+        hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples, 
+                    'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc, 
+                    'hg_median_lengths': hg_median_lengths, 'hg_order_scores': hg_order_scores, 'hg_locus_tags': hg_lts, 
+                    'hg_full_ambiguity': hg_full_amb, 'hg_trim_ambiguity': hg_trim_amb}
+        with open(hg_stats_pickle_file, 'wb') as pickle_file: 
+            pickle.dump(hg_stats, pickle_file)
+        os.system(f'touch {step5_check_file}')
 
-		# run comparative analyses
-		comp_stats = zol.compareFocalAndComparatorGeneClusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, logObject, representative_associated_members=representative_associated_members, impute_broad_conservation=ibc_flag)
+    if hg_stats == None: 
+        try: 
+            with open(hg_stats_pickle_file, 'rb') as handle: 
+                hg_stats = pickle.load(handle)
+        except Exception as e: 
+            sys.stderr.write('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+            log_object.error('Issues with reading in ortholog groups stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step5.txt!\n')
+            sys.stderr.write(str(e) + '\n')
+            sys.exit(1)
 
-	# Step 8: Put together report
-	logObject.info('\n--------------------\nStep 8\n--------------------\nPutting together final report')
-	sys.stdout.write('--------------------\nStep 8\n--------------------\nPutting together final report\n')
-	final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
-	final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
-	zol.consolidateReport(consensus_prot_seqs_faa, comp_stats, hg_stats, annotations, evo_stats, type_weights, final_report_xlsx, final_report_tsv, full_protein_clusters, logObject, ces=ces_flag, run_hyphy=fubar_selection, domain_mode=domain_mode)
+    #print(hg_stats.keys())
+    # Step 6: Perform genetic/population/evolutionary statistics
+    msg = '--------------------\nStep 6\n--------------------\nRunning evolutionary analyses'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    step6_check_file = check_dir + 'step6.txt'
+    evo_stats = None
+    evo_stats_pickle_file = outdir + 'Evolutionary_Statistics.pkl'
+    evo_results_dir = outdir + 'Evolutionary_Analyses/'
+    gard_results_dir = evo_results_dir + 'GARD_Results/'
+    fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
+    busted_results_dir = evo_results_dir + 'BUSTED_Results/'
+    if not os.path.isfile(step6_check_file): 
+        util.setup_ready_directory([evo_results_dir], delete_if_exist = True)
+        tajimas_d, segregating_sites_prop = zol.run_tajimas_d_analysis(codo_algn_trim_dir, evo_results_dir, 
+                                                                       log_object, threads = threads)
+        hg_entropy, hg_upst_entropy = zol.run_entropy_analysis(codo_algn_trim_dir, upst_algn_dir, evo_results_dir, 
+                                                               log_object, threads = threads)
+        gard_partitions = {}
+        fubar_sel_props = {}
+        fubar_sel_sites = {}
+        fubar_dBa = {}
+        busted_pval = {}
+        if fubar_selection: 
+            util.setup_ready_directory([gard_results_dir, 
+          fubar_results_dir, 
+          busted_results_dir], 
+          delete_if_exist = True)
+            gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa, busted_pval = zol.run_hyphy_analyses(codo_algn_dir, tree_dir, 
+                                                                                     gard_results_dir, 
+                                                                                     fubar_results_dir, busted_results_dir, 
+                                                                                     log_object, 
+                                                                                     gard_mode = 'Faster', 
+                                                                                     skip_gard = skip_gard, skip_busted = skip_busted, 
+                                                                                     gard_timeout = gard_timeout, threads = threads)
 
-	# Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
-	logObject.info('\n--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances')
-	sys.stdout.write('--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances\n')
-	plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
-	plot_workspace_dir = outdir + 'Plot_Workspace/'
-	util.setupReadyDirectory([plot_workspace_dir], delete_if_exist=True)
-	zol.plotHeatmap(hg_stats, genbanks, plot_result_pdf, plot_workspace_dir, logObject, height=length, width=width, full_genbank_labels=full_genbank_labels)
+        hg_med_beta_rd = {}
+        hg_max_beta_rd = {}
+        if betard_analysis: 
+            hg_med_beta_rd, hg_max_beta_rd = zol.compute_beta_rd_gc(prot_algn_dir, evo_results_dir, log_object, threads = threads)
+        evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop, 
+                     'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props, 
+                     'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval, 
+                     'median_beta_rd_gc': hg_med_beta_rd, 
+                     'max_beta_rd_gc': hg_max_beta_rd, 'entropy': hg_entropy, 'entropy_upst': hg_upst_entropy}
+        with open(evo_stats_pickle_file, 'wb') as pickle_file: 
+            pickle.dump(evo_stats, pickle_file)
+        os.system(f'touch {step6_check_file}')
 
-	# Close logging object and exit
-	logObject.info('\n******************\nzol finished!\n******************\nFinal results can be found at: %s' % fin_outdir)
-	sys.stdout.write('******************\nzol finished!\n******************\nFinal results can be found at: %s\n' % fin_outdir)
-	util.closeLoggerObject(logObject)
-	sys.exit(0)
+    if evo_stats == None: 
+        try: 
+            with open(evo_stats_pickle_file, 'rb') as handle: 
+                evo_stats = pickle.load(handle)
+        except Exception as e: 
+            sys.stderr.write('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+            log_object.error('Issues with reading in ortholog groups evo stats from pickle file (might not exist). Please rerun annotations after deleting checkpoint file step6.txt!\n')
+            sys.stderr.write(str(e) + '\n')
+            sys.exit(1)
+    #print(evo_stats.keys())
 
-if __name__ == '__main__':
-	zolMain()
+    # Step 7: Perform comparative investigations between provided gene-cluster sets (things are rerun every time after this step)
+    comp_stats = None
+    if focal_genbanks_listing_file != None and os.path.isfile(focal_genbanks_listing_file): 
+        msg = '--------------------\nStep 7\n--------------------\nPerforming comparative investigations between provided gene-cluster sets'
+        log_object.info(msg)
+        sys.stdout.write(msg + '\n')
+
+        all_genbank_ids = set([])
+        focal_genbank_ids = set([])
+        comparator_genbank_ids = set([])
+
+        for gbk in genbanks: # type: ignore
+            gbk_id = gbk.split('/')[-1]
+            if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'): 
+                gbk_id = '.'.join(gbk_id.split('.')[: -1])
+            all_genbank_ids.add(gbk_id)
+
+        with open(focal_genbanks_listing_file) as ofglf: 
+            for line in ofglf: 
+                line = line.strip()
+                gbk_id = line.split('/')[-1]
+                if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'): 
+                    gbk_id = '.'.join(gbk_id.split('.')[: -1])
+                if gbk_id in all_genbank_ids: 
+                    focal_genbank_ids.add(gbk_id)
+                else: 
+                    log_object.warning(f'Could not match focal gene cluster {line} to available GenBanks in analysis.\n')
+
+        if comparator_genbanks_listing_file != None and os.path.isfile(comparator_genbanks_listing_file): 
+            with open(comparator_genbanks_listing_file) as ocglf: 
+                for line in ocglf: 
+                    line = line.strip()
+                    gbk_id = line.split('/')[-1]
+                    if gbk_id.endswith('.gbk') or gbk_id.endswith('.genbank') or gbk_id.endswith('.gbff'): 
+                        gbk_id = '.'.join(gbk_id.split('.')[: -1])
+                    if gbk_id in all_genbank_ids: 
+                        comparator_genbank_ids.add(gbk_id)
+                    else: 
+                        log_object.warning(f'Could not match comparator gene cluster {line} to available GenBanks in analysis\n')
+        else: 
+            comparator_genbank_ids = all_genbank_ids.difference(focal_genbank_ids)
+
+        try: 
+            assert(len(focal_genbank_ids) > 0 and len(comparator_genbank_ids) > 0)
+        except Exception as e: 
+            msg = 'Either no focal GenBanks or no comparator GenBanks. If confused, you can always run without the focal GenBank listing argument or this might be because of dereplication if requested.\n'
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
+
+        # run comparative analyses
+        comp_stats = zol.compare_focal_and_comparator_gene_clusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, log_object, representative_associated_members = representative_associated_members, impute_broad_conservation = ibc_flag)
+
+    # Step 8: Put together report
+    msg = '--------------------\nStep 8\n--------------------\nPutting together final report'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    final_report_xlsx = fin_outdir + 'Consolidated_Report.xlsx'
+    final_report_tsv = fin_outdir + 'Consolidated_Report.tsv'
+    zol.consolidate_report(consensus_prot_seqs_faa, comp_stats, hg_stats, 
+                            annotations, evo_stats, type_weights, final_report_xlsx, 
+                            final_report_tsv, full_protein_clusters, log_object, 
+                            ces = ces_flag, run_hyphy = fubar_selection, domain_mode = domain_mode)
+
+    # Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
+    msg = '--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+    plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
+    plot_workspace_dir = outdir + 'Plot_Workspace/'
+    util.setup_ready_directory([plot_workspace_dir], delete_if_exist = True)
+    zol.plot_heatmap(hg_stats, 
+        genbanks, 
+        plot_result_pdf, 
+        plot_workspace_dir, 
+        log_object, 
+        height = length, 
+        width = width, 
+        full_genbank_labels = full_genbank_labels)
+
+    # Close logging object and exit
+    log_object.info(f'\n******************\nzol finished!\n******************\nFinal results can be found at: {fin_outdir}')
+    sys.stdout.write(f'******************\nzol finished!\n******************\nFinal results can be found at: {fin_outdir}\n')
+    util.close_logger_object(log_object)
+    sys.exit(0)
+
+if __name__ == '__main__': 
+    zol_main()

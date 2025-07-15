@@ -1,5 +1,42 @@
 #!/usr/bin/env python3
 
+"""
+Program: setup_annotation_dbs.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023-2025, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
 import os
 import sys
 import argparse
@@ -50,11 +87,11 @@ def setup_annot_dbs():
 
 	try:
 		assert(os.path.isdir(download_path))
-		response = input("The directory %s\nalready exists, will delete it and recreate it. (This directory\nshould be specific to zol not a general directory for\ndatabases) Proceed with deleting? (yes/no): " % download_path)
+		response = input(f"The directory {download_path}\nalready exists, will delete it and recreate it. (This directory\nshould be specific to zol not a general directory for\ndatabases) Proceed with deleting? (yes/no): ")
 		if response.lower() != 'yes':
 			os.system('Deletion not requested! Exiting ...')
 			sys.exit(1)
-	except:
+	except Exception as e:
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist or user did not accept deleting the directory and recreating it!\n')
 
 	if lsabgc_minimal_mode:
@@ -137,7 +174,7 @@ def setup_annot_dbs():
 						name = ' '.join(ls[1:]).strip()
 					elif ls[0].strip() == 'DESC':
 						desc = ' '.join(ls[1:]).strip()
-						pdf_handle.write(name + '\t' + desc + '\n')
+						pdf_handle.write(name + '\t' + desc + '\n') # type: ignore
 			pdf_handle.close()
 			os.system(' '.join(['hmmpress', pfam_phmm_file]))
 			z = 0
@@ -161,7 +198,7 @@ def setup_annot_dbs():
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
 					if filename.endswith('.HMM') or filename.endswith('.hmm'):
-						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						hmm_file_path = os.path.abspath(folder) + '/' + filename
 						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
@@ -191,7 +228,7 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up MIBiG database!')
-			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file, '--threads', str(threads)]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
 			mdf_handle = open(mibig_descriptions_file, 'w')
@@ -213,7 +250,7 @@ def setup_annot_dbs():
 			os.mkdir(download_path + 'CARD_DB_Files/')
 			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
 			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))
-			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file, '--threads', str(threads)]))
 			card_descriptions_file = download_path + 'card_descriptions.txt'
 			cdf_handle = open(card_descriptions_file, 'w')
 			with open(download_path + 'protein_fasta_protein_homolog_model.fasta') as ocf:
@@ -268,7 +305,7 @@ def setup_annot_dbs():
 						name = ' '.join(ls[1:]).strip()
 					elif ls[0].strip() == 'DESC':
 						desc = ' '.join(ls[1:]).strip()
-						pdf_handle.write(name + '\t' + desc + '\n')
+						pdf_handle.write(name + '\t' + desc + '\n') # type: ignore
 			pdf_handle.close()
 			os.system(' '.join(['hmmpress', pfam_phmm_file]))
 			z = 0
@@ -292,7 +329,7 @@ def setup_annot_dbs():
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
 					if filename.endswith('.HMM') or filename.endswith('.hmm'):
-						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						hmm_file_path = os.path.abspath(folder) + '/' + filename
 						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
@@ -336,7 +373,7 @@ def setup_annot_dbs():
 		card_faa_file = download_path + 'card.dmnd'
 		vfdb_faa_file = download_path + 'vfdb.dmnd'
 		mobs_faa_file = download_path + 'mobsuite_mpf_and_mob_proteins.dmnd'
-		unip_hmm_file = download_path + 'Universal_Hug_et_al.hmm'
+		unip_hmm_file = download_path + 'Universal-Hug-et-al.hmm'
 
 		download_links = ['https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
@@ -352,7 +389,8 @@ def setup_annot_dbs():
 						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
 						  'https://card.mcmaster.ca/latest/data',
 						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
-						  'https://zenodo.org/record/7860735/files/Universal_Hug_et_al.hmm?download=1']
+                    	  'https://zenodo.org/records/13858489/files/Universal-Hug-et-al.hmm?download=1'
+						  ]
 
 		# Download
 		print('Starting download of files!')
@@ -383,7 +421,7 @@ def setup_annot_dbs():
 						name = ' '.join(ls[1:]).strip()
 					elif ls[0].strip() == 'DESC':
 						desc = ' '.join(ls[1:]).strip()
-						pdf_handle.write(name + '\t' + desc + '\n')
+						pdf_handle.write(name + '\t' + desc + '\n') # type: ignore
 			pdf_handle.close()
 			os.system(' '.join(['hmmpress', pfam_phmm_file]))
 			z = 0
@@ -408,7 +446,7 @@ def setup_annot_dbs():
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
 					if filename.endswith('.HMM') or filename.endswith('.hmm'):
-						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						hmm_file_path = os.path.abspath(folder) + '/' + filename
 						os.system(' '.join(['cat', hmm_file_path, '>>', ko_phmm_file]))
 
 			assert(os.path.isfile(ko_phmm_file))
@@ -448,7 +486,7 @@ def setup_annot_dbs():
 			for folder, subs, files in os.walk(extract_hmm_dir):
 				for filename in files:
 					if filename.endswith('.HMM') or filename.endswith('.hmm'):
-						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						hmm_file_path = os.path.abspath(folder) + '/' + filename
 						os.system(' '.join(['cat', hmm_file_path, '>>', pgap_phmm_file]))
 			pgap_descriptions_file = download_path + 'pgap_descriptions.txt'
 			pdf_handle = open(pgap_descriptions_file, 'w')
@@ -477,7 +515,7 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up MIBiG database!')
-			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', 'mibig_prot_seqs_4.0.fasta', '-d', mb_faa_file, '--threads', str(threads)]))
 			assert(os.path.isfile(mb_faa_file))
 			mibig_descriptions_file = download_path + 'mibig_descriptions.txt'
 			mdf_handle = open(mibig_descriptions_file, 'w')
@@ -496,7 +534,7 @@ def setup_annot_dbs():
 		try:
 			print('Setting up VFDB database!')
 			os.system(' '.join(['gunzip', 'VFDB_setB_pro.fas.gz']))
-			os.system(' '.join(['diamond', 'makedb', '--in', 'VFDB_setB_pro.fas', '-d', vfdb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', 'VFDB_setB_pro.fas', '-d', vfdb_faa_file, '--threads', str(threads)]))
 			assert(os.path.isfile(mb_faa_file))
 			vfdb_descriptions_file = download_path + 'vfdb_descriptions.txt'
 			vdf_handle = open(vfdb_descriptions_file, 'w')
@@ -517,7 +555,7 @@ def setup_annot_dbs():
 			os.mkdir(download_path + 'CARD_DB_Files/')
 			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
 			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))
-			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file, '--threads', str(threads)]))
 			card_descriptions_file = download_path + 'card_descriptions.txt'
 			cdf_handle = open(card_descriptions_file, 'w')
 			with open(download_path + 'protein_fasta_protein_homolog_model.fasta') as ocf:
@@ -542,7 +580,7 @@ def setup_annot_dbs():
 			for folder, subs, files in os.walk(vog_db_dir):
 				for filename in files:
 					if filename.endswith('.HMM') or filename.endswith('.hmm'):
-						hmm_file_path = os.path.abspath(folder + '/' + filename)
+						hmm_file_path = os.path.abspath(folder) + '/' + filename
 						os.system(' '.join(['cat', hmm_file_path, '>>', vog_phmm_file]))
 			vog_descriptions_file = download_path + 'vog_descriptions.txt'
 			vdf_handle = open(vog_descriptions_file, 'w')
@@ -571,7 +609,7 @@ def setup_annot_dbs():
 		try:
 			print('Setting up PaperBlast database!')
 			pb_faa_path = download_path + 'uniq.faa'
-			os.system(' '.join(['diamond', 'makedb', '--in', pb_faa_path, '-d', pb_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', pb_faa_path, '-d', pb_faa_file, '--threads', str(threads)]))
 			paperblast_descriptions_file = download_path + 'paperblast_descriptions.txt'
 			pbdf_handle = open(paperblast_descriptions_file, 'w')
 			with open(download_path + 'uniq.faa') as opdf:
@@ -591,7 +629,7 @@ def setup_annot_dbs():
 		try:
 			print('Setting up ISFinder database!')
 			is_faa_path = download_path + 'IS.faa'
-			os.system(' '.join(['diamond', 'makedb', '--in', is_faa_path, '-d', is_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', is_faa_path, '-d', is_faa_file, '--threads', str(threads)]))
 			is_descriptions_file = download_path + 'is_descriptions.txt'
 			idf_handle = open(is_descriptions_file, 'w')
 			with open(is_faa_path) as oif:
@@ -616,7 +654,7 @@ def setup_annot_dbs():
 			os.mkdir(download_path + 'MOB-suite_files/')
 			os.system(' '.join(['tar', '-xzf', ms_tar_path, '-C', download_path + 'MOB-suite_files/']))
 			os.system(' '.join(['cat', download_path + 'MOB-suite_files/data/*.faa', '>', ms_faa_path]))
-			os.system(' '.join(['diamond', 'makedb', '--in', ms_faa_path, '-d', mobs_faa_file]))
+			os.system(' '.join(['diamond', 'makedb', '--in', ms_faa_path, '-d', mobs_faa_file, '--threads', str(threads)]))
 			mdf_handle = open(ms_descriptions_file, 'w')
 			with open(ms_faa_path) as oif:
 				for rec in SeqIO.parse(oif, 'fasta'):
@@ -652,6 +690,6 @@ def setup_annot_dbs():
 	issues_handle.close()
 
 	print("Done setting up annotation databases!")
-	print("Information on final files used by zol can be found at:\n%s" % listing_file)
+	print(f"Information on final files used by zol can be found at:\n{listing_file}")
 	sys.exit(0)
 setup_annot_dbs()

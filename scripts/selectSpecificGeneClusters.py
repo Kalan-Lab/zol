@@ -1,5 +1,43 @@
 #!/usr/bin/env python3
 
+"""
+Program: selectSpecificGeneClusters.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023-2025, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
+
 import os
 import sys
 import argparse
@@ -51,18 +89,18 @@ def selectGbks():
 
 	try:
 		assert(os.path.isdir(fai_results_dir) and os.path.isfile(selections_file))
-	except:
+	except Exception as e:
 		sys.stderr.write('Error validating input directory of homologous gene-clusters or the query fasta exists!\n')
 
 	try:
 		assert(type in set(["instance", "sample"]))
-	except:
+	except Exception as e:
 		sys.stderr.write('Error, the type of listing provided is neither "sample" or "instance"\n')
 	
 	if os.path.isdir(outdir):
 		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n")
 		time.sleep(5)
-	util.setupReadyDirectory([outdir])
+	util.setup_ready_directory([outdir])
 	
 	homologous_gbk_dir = fai_results_dir + 'Final_Results/Homologous_Gene_Cluster_GenBanks/'
 	gc_gbk_dir = fai_results_dir + 'GC_Segment_Processing/GeneCluster_Genbanks/'

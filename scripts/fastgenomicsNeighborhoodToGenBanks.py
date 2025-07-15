@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: fastgenomicsNeighborhoodToGenBanks.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: fastgenomicsNeighborhoodToGenBanks.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2022, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -34,6 +36,7 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
 
 import os
 import sys
@@ -80,25 +83,25 @@ def fastgenomicsNeighborhoodToGenBanks():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 
 	if not os.path.isdir(outdir):
-		os.system('mkdir %s' % outdir)
+		os.system(f'mkdir {outdir}')
 	else:
 		sys.stderr.write('Note, output directory exists already! Exiting ...\n')
 		sys.exit(1)
 	
 	# create logging object
 	log_file = outdir + 'Progress.log'
-	logObject = util.createLoggerObject(log_file)
+	log_object = util.create_logger_object(log_file)
 
-	version = util.getVersion()
-	sys.stdout.write('Running version: %s\n' % version)
-	logObject.info("Running version: %s" % version)
+	version = util.get_version()
+	sys.stdout.write(f'Running version: {version}\n')
+	log_object.info(f"Running version: {version}")
 
 	parameters_file = outdir + 'Command_Issued.txt'
-	sys.stdout.write("Appending command issued for future records to: %s\n" % parameters_file)
-	sys.stdout.write("Logging more details at: %s\n" % log_file)
-	logObject.info("\nNEW RUN!!!\n**************************************")
-	logObject.info('Running version %s' % version)
-	logObject.info("Appending command issued for future records to: %s" % parameters_file)
+	sys.stdout.write(f"Appending command issued for future records to: {parameters_file}\n")
+	sys.stdout.write(f"Logging more details at: {log_file}\n")
+	log_object.info("\nNEW RUN!!!\n**************************************")
+	log_object.info(f'Running version {version}')
+	log_object.info(f"Appending command issued for future records to: {parameters_file}")
 
 	parameters_handle = open(parameters_file, 'a+')
 	parameters_handle.write(' '.join(sys.argv) + '\n')
@@ -111,7 +114,7 @@ def fastgenomicsNeighborhoodToGenBanks():
 	# Step 1: Concatenate all proteins into single multi-FASTA file
 	msg = "--------------------\nStep 1\n--------------------\nProcessing fast.genomics table of genes TSV and getting list of genomic accessions."
 	sys.stdout.write(msg + "\n")
-	logObject.info(msg)
+	log_object.info(msg)
 	
 	gcf_accessions = set([])
 	gca_accessions = set([])
@@ -133,7 +136,7 @@ def fastgenomicsNeighborhoodToGenBanks():
 	# Step 2: Download GCAs and GCFs using ncbi-genome-download
 	msg = "--------------------\nStep 2\n--------------------\nDownloading relevant genomes using ncbi-genome-download."
 	sys.stdout.write(msg + "\n")
-	logObject.info(msg)
+	log_object.info(msg)
 	
 	genome_fasta_dir = outdir + 'Downloaded_Genome_FASTAs/'
 	os.mkdir(genome_fasta_dir)
@@ -151,15 +154,15 @@ def fastgenomicsNeighborhoodToGenBanks():
 	ngd_gca_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section', 'genbank', '-A', gca_accessions_file, '-o', genome_fasta_dir, '--flat-output',  'all']	
 	try:
 		subprocess.call(' '.join(ngd_gca_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-	except:
-		sys.stderr.write('Had an issue running: %s\n' % ' '.join(ngd_gca_cmd))
+	except Exception as e:
+		sys.stderr.write(f'Had an issue running: {" ".join(ngd_gca_cmd)}\n')
 		sys.stderr.write(traceback.format_exc())
 	
 	ngd_gcf_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section', 'refseq', '-A', gcf_accessions_file, '-o', genome_fasta_dir, '--flat-output',  'all']	
 	try:
 		subprocess.call(' '.join(ngd_gcf_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-	except:
-		sys.stderr.write('Had an issue running: %s\n' % ' '.join(ngd_gcf_cmd))
+	except Exception as e:
+		sys.stderr.write(f'Had an issue running: {" ".join(ngd_gcf_cmd)}\n')
 		sys.stderr.write(traceback.format_exc())
 
 	os.system('gunzip ' + genome_fasta_dir + '*.gz')
@@ -167,7 +170,7 @@ def fastgenomicsNeighborhoodToGenBanks():
 	# Step 3: Create GenBank files
 	msg = "--------------------\nStep 3\n--------------------\nCreating GenBank files for neighborhoods."
 	sys.stdout.write(msg + "\n")
-	logObject.info(msg)
+	log_object.info(msg)
 
 	acc_to_genome_fasta = {}
 	for f in os.listdir(genome_fasta_dir): 
@@ -182,9 +185,9 @@ def fastgenomicsNeighborhoodToGenBanks():
 		try:
 			acc_fasta_file = acc_to_genome_fasta[acc]
 			assert(acc_fasta_file)
-		except:
-			msg = 'Could not download genome for accession: %s, skipping it!' % acc
-			logObject.warning(msg)
+		except Exception as e:
+			msg = f'Could not download genome for accession: {acc}, skipping it!'
+			log_object.warning(msg)
 			sys.stderr.write(msg + '\n')
 			continue
 
@@ -193,9 +196,9 @@ def fastgenomicsNeighborhoodToGenBanks():
 			with open(acc_fasta_file) as oaff:
 				for rec in SeqIO.parse(oaff, 'fasta'):
 					scaff_seqs[rec.id] = str(rec.seq)
-		except:
-			msg = 'Issues with reading genome file: %s' % acc_fasta_file
-			logObject.warning(msg)
+		except Exception as e:
+			msg = f'Issues with reading genome file: {acc_fasta_file}'
+			log_object.warning(msg)
 			sys.stderr.write(msg + '\n')
 
 		for scaff in acc_scaff_cds_info[acc]:
@@ -236,8 +239,9 @@ def fastgenomicsNeighborhoodToGenBanks():
 			gbk_handle.close()
 
 	# DONE!
-	sys.stdout.write("--------------------\nDONE!\n--------------------\nDirectory of GenBank files for gene neighborhood can be found at: %s\n" % final_genbank_dir)
-	logObject.info("--------------------\nDONE!\n--------------------\nDirectory of GenBank files for gene neighborhood can be found at: %s" % final_genbank_dir)
+	msg = f"--------------------\nDONE!\n--------------------\nDirectory of GenBank files for gene neighborhood can be found at: {final_genbank_dir}\n"
+	sys.stdout.write(msg + "\n")
+	log_object.info(msg)
 
 if __name__ == '__main__':
 	fastgenomicsNeighborhoodToGenBanks()

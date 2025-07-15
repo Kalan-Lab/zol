@@ -26,6 +26,9 @@ After finding homologous instances of a gene cluster - using fai or other softwa
 > [!CAUTION]
 > Please avoid using versions 1.5.1 to 1.5.3 in which zol has the possibility to get stuck in a while loop and write a large file. This issue is resolved in v1.5.4. 
 
+> [!IMPORTANT]
+> We recently updated zol to v1.6.0 - which introduces several key updates, including a unified interface that can be issued as `zol-suite`, improved PEP8 compliance for backend code, and lighter databases constructed using prepTG.
+
 ## Main Contents:
 
 1. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
@@ -64,6 +67,9 @@ conda activate zol_env
 # (which will only download Pfam & PGAP HMM models ~8.5 GB)
 # using the -m argument. 
 setup_annotation_dbs.py [-m]
+
+# 3. run interface program
+zol-suite [-h]
 ```
 
 > [!TIP]
@@ -73,7 +79,7 @@ setup_annotation_dbs.py [-m]
 > If you choose to manually define a database directory for `setup_annotation_dbs.py` by setting the `ZOL_DATA_PATH` environmental variable, make sure that it is a unique directory to zol. This directory will be deleted and recreated when you run the script. You don't have to worry about this if using bioconda where the default directory is located within the conda environment space.
 
 > [!NOTE]
-> 🍎 For Mac users with Apple Silicon chips, you might need to specify `CONDA_SUBDIR=osx-64` prior to `conda create` as described [here](https://github.com/bioconda/bioconda-recipes/issues/41702#issuecomment-1614173361). So you would issue: `CONDA_SUBDIR=osx-64 conda create -n zol_env -c conda-forge -c bioconda zol`.
+> 🍎 For Mac users with Apple Silicon chips, you might need to specify `CONDA_SUBDIR=osx-64` prior to `conda create` as described [here](https://github.com/bioconda/bioconda-recipes/issues/41702#issuecomment-1614173361). So you would issue: `CONDA_SUBDIR=osx-64 conda create -n zol_env -c conda-forge -c bioconda zol`. You might get warnings still related to some Intel related messages - but these should be ok to ignore mostly - if you have concerns - please feel free to just reach out. 
 
 #### Docker:
 
@@ -121,6 +127,32 @@ chmod a+x ./test_docker.sh
 ```
 
 Note, the script `test_docker.sh` must be run in the same folder as run_ZOL.sh!
+
+### Developer Installation
+
+A YAML file is included which can be used to setup a local environment.
+
+```bash
+# clone git repo (from your own fork!)
+git clone https://github.com/Kalan-Lab/zol
+cd zol
+
+# create conda from yaml file and activate it
+conda env create -f zol_env.yaml -p ../conda_env/
+conda activate ../conda_env/
+
+# within cloned git repo, run pip install
+pip install .
+```
+
+Note, this will be using bleeding-edge code that might not yet be released.
+
+You can now make changes, test them, and upload.
+
+Please also consider downloading the full testing dataset and running more comprehensive testing:
+
+```bash
+```
 
 ## License:
 

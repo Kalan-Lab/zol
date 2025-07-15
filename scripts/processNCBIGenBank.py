@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
+"""
 ### Program: processNCBIGenBank.py
 ### Author: Rauf Salamzade
 ### Kalan Lab
 ### UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2021, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -34,7 +36,7 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+ 
 import os
 import sys
 import argparse
@@ -91,13 +93,13 @@ def processAndReformatNCBIGenbanks():
 
 	try:
 		assert (util.is_genbank(input_genbank_file))
-	except:
+	except Exception as e:
 		raise RuntimeError('Issue with input Genbank file from NCBI.')
 
 	outdirs = [gbk_outdir, pro_outdir, map_outdir]
 	for outdir in outdirs:
 		if not os.path.isdir(outdir):
-			sys.stderr.write("Output directory %s does not exist! Please create and retry program." % outdir)
+			sys.stderr.write(f"Output directory {outdir} does not exist! Please create and retry program.")
 
 	"""
 	PARSE OPTIONAL INPUTS
@@ -139,13 +141,13 @@ def processAndReformatNCBIGenbanks():
 				if feature.type == "CDS":
 					tot_cds_features += 1
 					
-					start, end, direction, all_coords = util.processLocationString(str(feature.location))
+					start, end, direction, all_coords = util.process_location_string(str(feature.location))	# type: ignore
 
 					old_locus_tag = None
 					prot_seq = None
 					try:
 						old_locus_tag = feature.qualifiers.get('locus_tag')[0]
-					except:
+					except Exception as e:
 						if error_no_lt:
 							msg = 'Error: A CDS does not have a locus tag. Please check the Genbank file.'
 							raise RuntimeError(msg)
@@ -156,7 +158,7 @@ def processAndReformatNCBIGenbanks():
 
 					try:
 						prot_seq = str(feature.qualifiers.get('translation')[0]).replace('*', '')
-					except:
+					except Exception as e:
 						if error_no_translation:
 							msg = 'Error: A CDS does not have a translation. Please check the Genbank file.'
 							raise RuntimeError(msg)
@@ -186,7 +188,7 @@ def processAndReformatNCBIGenbanks():
 						feature.qualifiers['locus_tag'] = new_locus_tag
 					
 					if new_locus_tag in previously_accounted_lts:
-						msg = 'Error: Locus tag %s already exists in the Genbank file. Please check the Genbank file.' % new_locus_tag
+						msg = f'Error: Locus tag {new_locus_tag} already exists in the Genbank file. Please check the Genbank file.'
 						raise RuntimeError(msg)
 					
 					pro_outfile_handle.write('>' + str(new_locus_tag) + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
@@ -209,15 +211,15 @@ def processAndReformatNCBIGenbanks():
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 		try:
 			os.remove(pro_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 		try:
 			os.remove(map_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 
 		msg = "Issue processing NCBI Genbank file."
 		sys.stderr.write(traceback.format_exc() + '\n')
@@ -225,21 +227,19 @@ def processAndReformatNCBIGenbanks():
 		sys.exit(1)
 
 	if accounted_features/tot_cds_features < 0.9:
-		sys.stderr.write('Processed only %s features of %s total features - so removing this file from database inclusion.\n' % (accounted_features, tot_cds_features))
+		sys.stderr.write(f'Processed only {accounted_features} features of {tot_cds_features} total features - so removing this file from database inclusion.\n')
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 		try:
 			os.remove(pro_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 		try:
 			os.remove(map_outfile)
 		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
-		except OSError as error: 
-			sys.stderr.write("Error removing files: %s" % error)
+			sys.stderr.write(f"Error removing files: {error}")
 
 if __name__ == '__main__':
 	processAndReformatNCBIGenbanks()

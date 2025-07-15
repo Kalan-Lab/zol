@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-### Program: extractBiG-SCAPEclusters.py
-### Author: Rauf Salamzade
-### Kalan Lab
-### UW Madison, Department of Medical Microbiology and Immunology
+"""
+Program: extractBiG-SCAPEclusters.py
+Author: Rauf Salamzade
+Kalan Lab
+UW Madison, Department of Medical Microbiology and Immunology
+"""
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2023, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -47,8 +49,6 @@ def create_parser():
 	Program: extractBiG-SCAPEclusters.py
 	Author: Rauf Salamzade
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
-
-	
 	""", formatter_class=argparse.RawTextHelpFormatter)
 
 	parser.add_argument('-i', '--antismash_dir',
@@ -87,13 +87,13 @@ def extractBiGSCAPEclusters():
 
 	try:
 		assert (os.path.isdir(antismash_dir) and os.path.isdir(bigscape_dir))
-	except:
+	except Exception as e:
 		sys.stderr.write('Issue with validating that the antismash and bigscape directories provided are valid.\n')
 		sys.exit(1)
 
 	try:
 		assert (util.is_integer(gcf_id))
-	except:
+	except Exception as e:
 		raise RuntimeError('Issue with path to BGC predictions Genbanks listing file.')
 
 	if os.path.isdir(outdir):
@@ -101,7 +101,7 @@ def extractBiGSCAPEclusters():
 		sleep(5)
 
 	gbk_dir = outdir + "GeneCluster_GenBanks/"
-	util.setupReadyDirectory([outdir, gbk_dir])
+	util.setup_ready_directory([outdir, gbk_dir])
 
 	"""
 	START WORKFLOW
@@ -109,18 +109,18 @@ def extractBiGSCAPEclusters():
 
 	# create logging object
 	log_file = outdir + 'Progress.log'
-	logObject = util.createLoggerObject(log_file)
-	version_string = util.parseVersionFromSetupPy()
-	logObject.info('Running zol version %s' % version_string)
-	sys.stderr.write('Running zol version %s' % version_string)
+	log_object = util.create_logger_object(log_file)
+	version_string = util.get_version()
+	log_object.info(f'Running zol version {version_string}')
+	sys.stderr.write(f'Running zol version {version_string}')
 
-	logObject.info("Saving parameters for future records.")
+	log_object.info("Saving parameters for future records.")
 	parameters_file = outdir + 'Parameter_Inputs.txt'
 	parameter_values = [antismash_dir, bigscape_dir, outdir, gcf_id, type, use_symlink]
 	parameter_names = ["AntiSMASH Results Directory", "BiG-SCAPE Results Directory", "Output Directory of Extracted GenBanks",
 					   "GCF_ID", "Type of BGC for Focal GCF ID", "Use Symlink instead of Copy"]
-	util.logParametersToFile(parameters_file, parameter_names, parameter_values)
-	logObject.info("Done saving parameters!")
+	util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)
+	log_object.info("Done saving parameters!")
 
 	# Step 1: Parse BiG-SCAPE Results - Get Relevant BGCs and Samples
 	gcf_bgcs = set([])
@@ -140,8 +140,8 @@ def extractBiGSCAPEclusters():
 
 	try:
 		assert (len(gcf_bgcs) >= 1)
-	except:
-		logObject.error('Less than one BGC found to belong to the GCF.')
+	except Exception as e:
+		log_object.error('Less than one BGC found to belong to the GCF.')
 		sys.stderr.write('Error: Less than one BGC found to belong to the GCF.\n')
 		sys.exit(1)
 
@@ -154,7 +154,7 @@ def extractBiGSCAPEclusters():
 					bgc = filename.split('.gbk')[0]
 					if bgc in gcf_bgcs:
 						if use_symlink:
-							os.system('ln -s %s %s' % (gbk_file, gbk_dir))
+							os.system(f'ln -s {gbk_file} {gbk_dir}')
 						else:
 							shutil.copyfile(gbk_file, gbk_dir)
 

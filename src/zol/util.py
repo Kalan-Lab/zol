@@ -3154,7 +3154,7 @@ def run_pyhmmer_for_ribo_prots(
                         if len(line.split("\t")) != 4:
                             continue
                         name, _, db_file, _ = line.split("\t")
-                        if name == "Universal-Hug-et-al":
+                        if name == "riboprots":
                             rp_db_file = db_file
 
             assert rp_db_file != None and os.path.exists(rp_db_file)

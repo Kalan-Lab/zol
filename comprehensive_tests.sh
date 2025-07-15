@@ -7,8 +7,7 @@ Testing for developers of zol to make sure new code doesn't break anything
 and periodically check proper functioning.
 """
 
-# Step 0: Download and uncompress test_case.tar.gz and cd into it.
-wget 
+# Step 0: Uncompress test_case.tar.gz and cd into it.
 rm -rf testing_cases/
 tar -zxvf testing_cases.tar.gz
 cd testing_cases/

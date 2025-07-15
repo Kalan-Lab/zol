@@ -103,6 +103,9 @@ The zol suite - a comprehensive bioinformatics toolkit for gene cluster analysis
 ||                 \\|_________| ||
 \\================================/
 
+Author: Rauf Salamzade
+Lab: Kalan Lab; University of Wisconsin - Madison; McMaster University
+
 This interface provides access to all ZOL tools through a single command-line interface.
 Each tool has its own specific arguments and functionality.
 

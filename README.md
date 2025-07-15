@@ -147,11 +147,16 @@ pip install .
 
 Note, this will be using bleeding-edge code that might not yet be released.
 
-You can now make changes, test them, and upload.
+You can now make changes, test them, commit, and finally make a pull request.
 
 Please also consider downloading the full testing dataset and running more comprehensive testing:
 
 ```bash
+wget https://zenodo.org/records/15934591/files/testing_cases.tar.gz?download=1
+mv testing_cases* testing_cases.tar.gz 
+
+# run comprehensive_tests.sh shell script found in zol's git repo:
+bash comprehensive_tests.sh
 ```
 
 ## License:
@@ -159,7 +164,7 @@ Please also consider downloading the full testing dataset and running more compr
 ```
 BSD 3-Clause License
 
-Copyright (c) 2023, Kalan-Lab
+Copyright (c) 2023-2025, Kalan-Lab
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

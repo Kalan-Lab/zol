@@ -128,7 +128,7 @@ chmod a+x ./test_docker.sh
 
 Note, the script `test_docker.sh` must be run in the same folder as run_ZOL.sh!
 
-### Developer Installation
+## Developer Installation
 
 A YAML file is included which can be used to setup a local environment.
 

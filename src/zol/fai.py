@@ -694,7 +694,7 @@ def parse_cdhit_cluster_file(cdhit_cluster_file, log_object):
                 for line in occf:
                     line = line.strip()
                     if line.startswith(">"):
-                        if len(tmp) > 0 and cluster_rep != None:
+                        if len(tmp) > 1 and cluster_rep != None:
                             rep_prot_to_nonreps[cluster_rep] = copy.copy(tmp) # type: ignore
                         tmp = set([])
                         cluster_rep = None
@@ -705,7 +705,7 @@ def parse_cdhit_cluster_file(cdhit_cluster_file, log_object):
                         cluster_rep = lt
                     tmp.add(lt) # type: ignore
 
-                if len(tmp) > 0 and cluster_rep != None:
+                if len(tmp) > 1 and cluster_rep != None:
                     rep_prot_to_nonreps[cluster_rep] = copy.copy(tmp) # type: ignore
         
         elif cdhit_cluster_file.endswith(".faa"):
@@ -810,7 +810,12 @@ def process_diamond_blastp(
                         qlen = int(ls[12])
                         slen = int(ls[13])
                         sql_ratio = float(slen) / float(qlen)
-                        for lt in rep_prot_to_nonreps[rep_lt]:
+                        all_hits = rep_prot_to_nonreps[rep_lt]
+                        if rep_lt not in rep_prot_to_nonreps:
+                            all_hits = [rep_lt]
+                        else:
+                            all_hits = rep_prot_to_nonreps[rep_lt]
+                        for lt in all_hits:
                             lt_sample = lt.split('|')[0]
                             # Type assertion to ensure we're working with the correct types
                             current_best = best_hit_per_lt[lt.split('|')[1]]

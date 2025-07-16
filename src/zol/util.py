@@ -3710,7 +3710,10 @@ def process_diamond_for_gc_to_ribo_ratio(
                 rep_hit_id = ls[1]
                 all_hits = rep_hit_id
                 if rep_prot_to_nonreps != None:
-                    all_hits = rep_prot_to_nonreps[rep_hit_id]
+                    if rep_hit_id in rep_prot_to_nonreps:
+                        all_hits = rep_prot_to_nonreps[rep_hit_id]
+                    else:
+                        all_hits = [rep_hit_id]
 
                 for hit in all_hits:
                     genome, lt = hit.split("|")

@@ -7,7 +7,7 @@ and genomic features in bacterial and fungal genomes.
 
 __author__ = "Rauf Salamzade"
 __email__ = "salamzader@gmail.com"
-__license__ = "MIT"
+__license__ = "BSD-3-Clause"
 
 # Package metadata
 PACKAGE_NAME = "zol"

@@ -4665,3 +4665,49 @@ def generate_nj_tree(rscript_path, input_dist_file, output_tree_file, log_object
         sys.stderr.write(traceback.format_exc())
         log_object.error(traceback.format_exc())
         sys.exit(1)
+
+def create_fake_cdhit_cluster_file(fasta_file: str, cdhit_cluster_file: str, log_object) -> None:
+    """
+    Description:
+    Creates a fake CD-HIT cluster file where each protein is its own representative.
+    This is used when CD-HIT clustering is skipped but downstream analysis expects
+    a cluster file format.
+    ********************************************************************************************************************
+    Parameters:
+    - cdhit_cluster_file: The path to the CD-HIT cluster file to create.
+    - log_object: A logging object.
+    ********************************************************************************************************************
+    Returns:
+    - None
+    ********************************************************************************************************************
+    """
+    try:
+
+        # Check if the FASTA file exists
+        if not os.path.isfile(fasta_file):
+            msg = f"FASTA file not found: {fasta_file}"
+            log_object.error(msg)
+            sys.stderr.write(msg + '\n')
+            sys.exit(1)
+        
+        msg = f"Creating fake CD-HIT cluster file from: {fasta_file}"
+        log_object.info(msg)
+        sys.stdout.write(msg + '\n')
+        
+        # Create the fake cluster file
+        with open(cdhit_cluster_file, 'w') as cluster_handle:
+            cluster_id = 0
+            with open(fasta_file) as fasta_handle:
+                for rec in SeqIO.parse(fasta_handle, 'fasta'):
+                    cluster_id += 1
+                    # Write cluster header
+                    cluster_handle.write(f">Cluster {cluster_id}\n")
+                    # Write protein entry with * to indicate it's the representative
+                    cluster_handle.write(f"0\t{len(str(rec.seq))}aa, >{rec.id}... *\n")
+        
+        log_object.info(f"Successfully created fake CD-HIT cluster file: {cdhit_cluster_file}")
+        
+    except Exception as e:
+        log_object.error(f"Error creating fake CD-HIT cluster file: {e}")
+        sys.stderr.write(f"Error creating fake CD-HIT cluster file: {e}\n")
+        sys.exit(1)

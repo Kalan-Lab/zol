@@ -680,7 +680,7 @@ def fai_main():
         target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
         target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
         target_genome_faa_file = preptg_dir + 'Target_Genomes_DB.faa'
-        target_cdhit_cluster_file = preptg_dir + 'CD-HIT_Results/Target_Genomes_DB_clustered.faa.clstr'
+        target_cdhit_cluster_file = preptg_dir + 'Target_Genomes_DB_clustered.faa.clstr'
         try: 
             assert(os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
         except Exception as e: 

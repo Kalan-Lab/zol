@@ -94,37 +94,15 @@ Prepares a directory of target genomes for being searched for query gene cluster
 
 Premade databases of representative genomes are available for the following genera: 
 
-Acinetobacter (n = 1, 
-    643), 
-    Bacillales (n = 3, 
-    150), 
-    Corynebacterium (n = 726), 
-    Enterobacter (n = 878), 
-
-Enterococcus (n = 937), 
-    Escherichia (n = 2, 
-    436), 
-    Klebsiella (n = 1, 
-    022), 
-    Listeria (n = 353), 
-
-Mycobacterium (n = 744), 
-    Pseudomonas (n = 2, 
-    666), 
-    Salmonella (n = 308), 
-    Staphylococus (n = 496), 
-
-Streptomyces (n = 1, 
-    555), 
-    Streptococcus (n = 2, 
-    452), 
-    Cutibacterium (n = 27), 
-    Neisseria (n = 414), 
-
-Lactobacillus (n = 541), and Micromonospora (n = 211).
+Acinetobacter (n = 1, 643), Bacillales (n = 3, 150), Corynebacterium (n = 726), 
+Enterobacter (n = 878), Enterococcus (n = 937), Escherichia (n = 2, 436), 
+Klebsiella (n = 1, 022), Listeria (n = 353), Mycobacterium (n = 744), 
+Pseudomonas (n = 2, 666), Salmonella (n = 308), Staphylococcus (n = 496), 
+Streptomyces (n = 1, 555), Streptococcus (n = 2, 452), Cutibacterium (n = 27), 
+Neisseria (n = 414), Lactobacillus (n = 541), and Micromonospora (n = 211).
 
 In addition, users can simply request all genomes belonging to a specific species/genus
-in GTDB R214 to be downloaded.
+in GTDB to be downloaded.
 
 ---------------------------------------------------------------------------------------
 > Example commands: 
@@ -133,9 +111,8 @@ in GTDB R214 to be downloaded.
 
     $ prepTG -i User_Genomes_Directory/
 
-2. Setup a prepTG database which includes some local genomes and
-    all Cutibacterium granulosum
-   genomes in GTDB: 
+2. Setup a prepTG database which includes some local genomes and all Cutibacterium 
+   granulosum genomes in GTDB: 
 
    $ prepTG -i User_Genomes_Directory/ -g "Cutibacterium granulosum" -o prepTG_Database/
 
@@ -267,8 +244,14 @@ will be skipped.
         '-cp', '--collapsing-params', 
         help = "CD-HIT parameters used for collapsing proteins for creating\n"
                "DIAMOND database. [Default is \"-c 1.0 -aS 1.0 -aL 1.0\"].", 
-    	required = False, default = "-c 1.0 -aS 1.0 -aL 1.0"
+    	required = False, default = "-c 0.95 -aS 0.9 -aL 0.9"
     )
+    parser.add_argument(
+        '-sc', '--skip-cd-hit', 
+        action = 'store_true', 
+        help = "Skip CD-HIT clustering of proteins.", 
+        required = False, default = False
+    )  
     parser.add_argument(
         '-c', '--threads', 
         type = int, 
@@ -322,7 +305,7 @@ def prep_tg():
     create_species_tree = args.create_species_tree
     reference_proteome = args.reference_proteome
     collapsing_params = args.collapsing_params
-
+    skip_cd_hit = args.skip_cd_hit
     if reference_proteome is not None: 
         gene_calling_method = 'miniprot reference proteome mapping'
         reference_proteome = os.path.abspath(args.reference_proteome)
@@ -376,7 +359,7 @@ def prep_tg():
         download_premade, target_genomes_dir, gtdb_taxon, gtdb_release, outdir, 
         reference_proteome, gene_calling_method, meta_mode, create_species_tree, 
         threads, max_memory, mge_annotation_flag, rename_locus_tags, error_no_lt, 
-        error_no_translation, collapsing_params
+        error_no_translation, collapsing_params, skip_cd_hit
     ]
     parameter_names = [
         "Download Premade Database", "Target Genomes Directory", "GTDB species/genus", 
@@ -384,7 +367,8 @@ def prep_tg():
         "Gene Calling Method", "Use Meta Mode?", "Create Species Tree?", 
         "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?", 
         "Rename Locus Tags in GenBank files?", "Error if no Locus Tags in GenBank files?", 
-        "Error if no Translation in GenBank files?", "CD-HITCollapsing Parameters"
+        "Error if no Translation in GenBank files?", 
+        "CD-HIT Collapsing Parameters", "Skip CD-HIT Clustering?"
     ]
     util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)
     log_object.info("Done saving parameters!")
@@ -604,38 +588,44 @@ def prep_tg():
         target_genome_annotation_listing_handle.close()
         target_genomes_concat_db_handle.close()
 
+        cdhit_cluster_file = outdir + 'Target_Genomes_DB_clustered.faa.clstr'
+        if not skip_cd_hit:
+            msg = '--------------------\nStep 3\n--------------------\n'
+            msg += 'Clustering proteins using CD-HIT to avoid redundancy in downstream DIAMOND database.'
+            sys.stdout.write(msg + '\n')
+            log_object.info(msg)
 
-        msg = '--------------------\nStep 3\n--------------------\n'
-        msg += 'Clustering proteins using CD-HIT to avoid redundancy in downstream DIAMOND database.'
-        sys.stdout.write(msg + '\n')
-        log_object.info(msg)
-
-        cdhit_results = outdir + 'CD-HIT_Results/'
-        util.setup_ready_directory([cdhit_results], delete_if_exist=True)
-        
-
-        # Run CD-HIT to cluster proteins at 98% identity and 95% coverage
-        cdhit_output_faa = cdhit_results + 'Target_Genomes_DB_clustered.faa'
-        cdhit_cluster_file = cdhit_results + 'Target_Genomes_DB_clustered.faa.clstr'
-        cdhit_cmd = [
-            'cd-hit', '-i', target_genomes_concat_db_faa, '-o', cdhit_output_faa,
-            collapsing_params, '-G', '0', '-T', str(threads), '-M', '0', '-d', '0'
-        ]
-        
-        try:
-            util.run_cmd_via_subprocess(cdhit_cmd, log_object, check_files=[cdhit_output_faa, cdhit_cluster_file])
-            subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-            log_object.info('Successfully ran: %s' % ' '.join(cdhit_cmd))
+            cdhit_results = outdir + 'CD-HIT_Results/'
+            util.setup_ready_directory([cdhit_results], delete_if_exist=True)
             
-            os.system(f'rm -f {target_genomes_concat_db_faa}')
+            if max_memory is not None:
+                cdhit_maxmem = max_memory * 1000
+            else:
+                cdhit_maxmem = 0
 
-            # Use the clustered FASTA file for DIAMOND database creation
-            target_genomes_concat_db_faa = cdhit_output_faa
-        except Exception as e:
-            log_object.error('Had an issue running: %s' % ' '.join(cdhit_cmd))
-            sys.stderr.write('Had an issue running: %s\n' % ' '.join(cdhit_cmd))
-            log_object.error(e)
-            sys.exit(1)
+            # Run CD-HIT to cluster proteins
+            cdhit_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
+            cdhit_cmd = [
+                'cd-hit', '-i', target_genomes_concat_db_faa, '-o', cdhit_output_faa,
+                collapsing_params, '-T', str(threads), '-M', str(cdhit_maxmem), '-d', '0'
+            ]
+            
+            try:
+                util.run_cmd_via_subprocess(cdhit_cmd, log_object, check_files=[cdhit_output_faa, cdhit_cluster_file])
+                subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+                log_object.info('Successfully ran: %s' % ' '.join(cdhit_cmd))
+                
+                os.system(f'rm -f {target_genomes_concat_db_faa}')
+
+                # Use the clustered FASTA file for DIAMOND database creation
+                target_genomes_concat_db_faa = cdhit_output_faa
+            except Exception as e:
+                log_object.error('Had an issue running: %s' % ' '.join(cdhit_cmd))
+                sys.stderr.write('Had an issue running: %s\n' % ' '.join(cdhit_cmd))
+                log_object.error(e)
+                sys.exit(1)
+        else:
+            util.create_fake_cdhit_cluster_file(target_genomes_concat_db_faa, cdhit_cluster_file, log_object)
 
         # If requested, run MGE annotations
         if mge_annotation_flag: 

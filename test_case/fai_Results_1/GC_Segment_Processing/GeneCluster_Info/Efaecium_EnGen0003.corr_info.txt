@@ -1,1 +1,0 @@
-Efaecium_EnGen0003	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0003_fai-gene-cluster-1.gbk	irrelevant

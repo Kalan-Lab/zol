@@ -1,6 +1,0 @@
-Efaecium_EnGen0013	fasta
-Efaecium_EnGen0003	fasta
-Efaecium_EnGen0018	fasta
-Efaecalis_V583	fasta
-Efaecalis_OG1RF	fasta
-Efaecalis_B594	fasta

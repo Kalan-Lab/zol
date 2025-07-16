@@ -1,0 +1,6 @@
+Efaecalis_V583	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecalis_V583.txt
+Efaecalis_OG1RF	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecalis_OG1RF.txt
+Efaecalis_B594	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecalis_B594.txt
+Efaecium_EnGen0018	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecium_EnGen0018.txt
+Efaecium_EnGen0003	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecium_EnGen0003.txt
+Efaecium_EnGen0013	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_1/DIAMOND_Analysis/Alignment_Results/Efaecium_EnGen0013.txt

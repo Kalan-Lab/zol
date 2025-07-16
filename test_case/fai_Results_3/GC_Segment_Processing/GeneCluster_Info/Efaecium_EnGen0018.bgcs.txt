@@ -1,0 +1,1 @@
+Efaecium_EnGen0018	/Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/fai_Results_3/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0018_fai-gene-cluster-1.gbk

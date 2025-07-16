@@ -1,0 +1,17 @@
+Download Premade Database: None
+Target Genomes Directory: /Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/Target_Genomes/
+GTDB species/genus: None
+GTDB Release: R226
+Output Directory: /Users/raufs/Coding/zol/develop_v1.6.0/commit/zol/test_case/prepTG_Database/
+Reference Proteome Provided: None
+Gene Calling Method: pyrodigal
+Use Meta Mode?: False
+Create Species Tree?: True
+Number of threads: 4
+Maximum Memory in GB: None
+MGE Annotation Requested?: False
+Rename Locus Tags in GenBank files?: False
+Error if no Locus Tags in GenBank files?: False
+Error if no Translation in GenBank files?: False
+CD-HIT Collapsing Parameters: -c 1.0 -aS 1.0 -aL 1.0
+Skip CD-HIT Clustering?: False

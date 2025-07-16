@@ -716,7 +716,7 @@ def fai_main():
             sys.stderr.write(msg + "\n")
             log_object.info(msg)
             try:
-                rep_prot_to_nonreps = fai.parse_tg_faa_file(target_genome_faa_file, log_object)
+                rep_prot_to_nonreps = None # fai.parse_tg_faa_file(target_genome_faa_file, log_object)
             except Exception as e:
                 msg = 'Issues also attempting to process the prepTG database assuming it was created prior to v1.6.0'
                 sys.stderr.write(msg + "\n")

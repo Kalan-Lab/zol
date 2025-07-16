@@ -810,11 +810,12 @@ def process_diamond_blastp(
                         qlen = int(ls[12])
                         slen = int(ls[13])
                         sql_ratio = float(slen) / float(qlen)
-                        all_hits = rep_prot_to_nonreps[rep_lt]
-                        if rep_lt not in rep_prot_to_nonreps:
-                            all_hits = [rep_lt]
-                        else:
-                            all_hits = rep_prot_to_nonreps[rep_lt]
+                        all_hits = [rep_lt]
+                        if rep_prot_to_nonreps is not None:
+                            if rep_lt not in rep_prot_to_nonreps:
+                                all_hits = [rep_lt]
+                            else:
+                                all_hits = rep_prot_to_nonreps[rep_lt]
                         for lt in all_hits:
                             lt_sample = lt.split('|')[0]
                             # Type assertion to ensure we're working with the correct types

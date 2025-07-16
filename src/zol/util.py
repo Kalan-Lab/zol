@@ -3708,7 +3708,7 @@ def process_diamond_for_gc_to_ribo_ratio(
                 query = ls[0]
                 query_class = query.split("|")[0]
                 rep_hit_id = ls[1]
-                all_hits = rep_hit_id
+                all_hits = [rep_hit_id]
                 if rep_prot_to_nonreps != None:
                     if rep_hit_id in rep_prot_to_nonreps:
                         all_hits = rep_prot_to_nonreps[rep_hit_id]

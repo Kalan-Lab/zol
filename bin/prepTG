@@ -595,9 +595,6 @@ def prep_tg():
             sys.stdout.write(msg + '\n')
             log_object.info(msg)
 
-            cdhit_results = outdir + 'CD-HIT_Results/'
-            util.setup_ready_directory([cdhit_results], delete_if_exist=True)
-            
             if max_memory is not None:
                 cdhit_maxmem = max_memory * 1000
             else:

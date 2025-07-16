@@ -670,13 +670,13 @@ def parse_tg_faa_file(tg_faa_file, log_object):
         log_object.info(msg)
         sys.exit(1)
 
-def parse_cdhit_cluster_file(cdhit_cluster_file, log_object):
+def parse_diamond_linclust_cluster_file(diamond_linclust_cluster_file, log_object):
     """
     Description:
-    This function parses the CD-HIT cluster file and returns a dictionary of cluster information.
+    This function parses the DIAMOND linclust cluster file and returns a dictionary of cluster information.
     ********************************************************************************************************************
     Parameters:
-    - cdhit_cluster_file: The path to the CD-HIT cluster file (or the FASTA file used to create the cluster file - to 
+    - diamond_linclust_cluster_file: The path to the DIAMOND linclust cluster file (or the FASTA file used to create the cluster file - to 
                           accomodate for databases created prior to v1.6.0).
     - log_object: A logging object.
     ********************************************************************************************************************
@@ -685,39 +685,31 @@ def parse_cdhit_cluster_file(cdhit_cluster_file, log_object):
     ********************************************************************************************************************
     """
     try:
-        rep_prot_to_nonreps = None
-        if cdhit_cluster_file.endswith(".clstr"):
-            rep_prot_to_nonreps = defaultdict(set)
-            cluster_rep = None
-            tmp = set([])
-            with open(cdhit_cluster_file) as occf:
-                for line in occf:
-                    line = line.strip()
-                    if line.startswith(">"):
-                        if len(tmp) > 1 and cluster_rep != None:
-                            rep_prot_to_nonreps[cluster_rep] = copy.copy(tmp) # type: ignore
-                        tmp = set([])
-                        cluster_rep = None
-                        continue
-                    ls = line.split()
-                    lt = ls[2][1:-3]
-                    if line.endswith(" *"):
-                        cluster_rep = lt
-                    tmp.add(lt) # type: ignore
+        rep_prot_to_nonreps = defaultdict(set)
+        cluster_counts = defaultdict(int)
+        multi_prot_cluster_reps = set([])
 
-                if len(tmp) > 1 and cluster_rep != None:
-                    rep_prot_to_nonreps[cluster_rep] = copy.copy(tmp) # type: ignore
+        with open(diamond_linclust_cluster_file) as occf:
+            for line in occf:
+                cluster_id, _ = line.strip().split('\t')
+                cluster_counts[cluster_id] += 1
+
+        for cluster_id, count in cluster_counts.items():
+            if count > 1:
+                multi_prot_cluster_reps.add(cluster_id)
+
+        if len(multi_prot_cluster_reps) == 0:
+            return None
         
-        elif cdhit_cluster_file.endswith(".faa"):
-            rep_prot_to_nonreps = defaultdict(set)
-            with open(cdhit_cluster_file) as occf:
-                for rec in SeqIO.parse(occf, "fasta"):
-                    cluster_rep = rec.id
-                    rep_prot_to_nonreps[cluster_rep] = set([cluster_rep])
-        assert rep_prot_to_nonreps is not None
+        with open(diamond_linclust_cluster_file) as occf:
+            for line in occf:
+                cluster_id, cluster_member = line.strip().split('\t')
+                if cluster_id in multi_prot_cluster_reps:
+                    rep_prot_to_nonreps[cluster_id].add(cluster_member)
+
         return rep_prot_to_nonreps
     except Exception as e:
-        msg = f"Issues parsing CD-HIT cluster file:\n{cdhit_cluster_file}.\n"
+        msg = f"Issues parsing DIAMOND linclust cluster file:\n{diamond_linclust_cluster_file}.\n"
         sys.stderr.write(msg + "\n")
         log_object.info(msg)
         sys.exit(1)

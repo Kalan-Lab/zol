@@ -680,7 +680,7 @@ def fai_main():
         target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
         target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
         target_genome_faa_file = preptg_dir + 'Target_Genomes_DB.faa'
-        target_cdhit_cluster_file = preptg_dir + 'Target_Genomes_DB_clustered.faa.clstr'
+        target_diamond_linclust_cluster_file = preptg_dir + 'Target_Genomes_DB_clustered.tsv'
         try: 
             assert(os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
         except Exception as e: 
@@ -701,14 +701,14 @@ def fai_main():
                     target_annotation_information[sample]['genbank'] = gbk
                     valid_tg_samples.add(sample)
 
-        if os.path.isfile(target_cdhit_cluster_file):
+        if os.path.isfile(target_diamond_linclust_cluster_file):
             msg = 'You are using a database created after v1.6.0, attempting to process assuming this is the case...'
             sys.stderr.write(msg + "\n")
             log_object.info(msg)
             try:
-                rep_prot_to_nonreps = fai.parse_cdhit_cluster_file(target_cdhit_cluster_file, log_object)
+                rep_prot_to_nonreps = fai.parse_diamond_linclust_cluster_file(target_diamond_linclust_cluster_file, log_object)
             except Exception as e: 
-                msg = f'Issues parsing CD-HIT cluster file:\n{target_cdhit_cluster_file}.\n'
+                msg = f'Issues parsing DIAMOND linclust cluster file:\n{target_diamond_linclust_cluster_file}.\n'
                 sys.stderr.write(msg + "\n")
                 sys.exit(1)
         elif os.path.isfile(target_genome_faa_file):
@@ -716,14 +716,14 @@ def fai_main():
             sys.stderr.write(msg + "\n")
             log_object.info(msg)
             try:
-                rep_prot_to_nonreps = None # fai.parse_tg_faa_file(target_genome_faa_file, log_object)
+                rep_prot_to_nonreps = None
             except Exception as e:
                 msg = 'Issues also attempting to process the prepTG database assuming it was created prior to v1.6.0'
                 sys.stderr.write(msg + "\n")
                 log_object.error(msg)
                 sys.exit(1)
         else:
-            msg = 'No target genome FASTA file or CD-HIT cluster file found in prepTG output directory provided to --target-genomes argument.'
+            msg = 'No target genome FASTA file or DIAMOND linclust cluster file found in prepTG output directory provided to --target-genomes argument.'
             sys.stderr.write(msg + "\n")
             log_object.error(msg)
             sys.exit(1) 

@@ -242,14 +242,15 @@ will be skipped.
     )
     parser.add_argument(
         '-cp', '--collapsing-params', 
-        help = "CD-HIT parameters used for collapsing proteins for creating\n"
-               "DIAMOND database. [Default is \"-c 1.0 -aS 1.0 -aL 1.0\"].", 
-    	required = False, default = "-c 1.0 -aS 1.0 -aL 1.0"
+        help = "DIAMOND linclust parameters used for collapsing proteins for\n"
+               "creating DIAMOND database. [Default is \"--approx-id 90\n"
+               "--mutual-cover 90\"].", 
+    	required = False, default = "--approx-id 90 --mutual-cover 90"
     )
     parser.add_argument(
-        '-sc', '--skip-cd-hit', 
+        '-sd', '--skip-diamond-linclust', 
         action = 'store_true', 
-        help = "Skip CD-HIT clustering of proteins.", 
+        help = "Skip DIAMOND linclust clustering of proteins.", 
         required = False, default = False
     )  
     parser.add_argument(
@@ -263,8 +264,8 @@ will be skipped.
         type = int, 
         help = "Uses resource module to set soft memory limit. Provide\n"
                "in Giga-bytes. Configured in the shell environment\n"
-               "[Default is None; experimental].", 
-        required = False, default = None
+               "[Default is 16].", 
+        required = False, default = 16
     )
     parser.add_argument(
         '-v', '--version', 
@@ -305,7 +306,7 @@ def prep_tg():
     create_species_tree = args.create_species_tree
     reference_proteome = args.reference_proteome
     collapsing_params = args.collapsing_params
-    skip_cd_hit = args.skip_cd_hit
+    skip_diamond_linclust = args.skip_diamond_linclust
     if reference_proteome is not None: 
         gene_calling_method = 'miniprot reference proteome mapping'
         reference_proteome = os.path.abspath(args.reference_proteome)
@@ -359,7 +360,7 @@ def prep_tg():
         download_premade, target_genomes_dir, gtdb_taxon, gtdb_release, outdir, 
         reference_proteome, gene_calling_method, meta_mode, create_species_tree, 
         threads, max_memory, mge_annotation_flag, rename_locus_tags, error_no_lt, 
-        error_no_translation, collapsing_params, skip_cd_hit
+        error_no_translation, collapsing_params, skip_diamond_linclust
     ]
     parameter_names = [
         "Download Premade Database", "Target Genomes Directory", "GTDB species/genus", 
@@ -368,7 +369,7 @@ def prep_tg():
         "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?", 
         "Rename Locus Tags in GenBank files?", "Error if no Locus Tags in GenBank files?", 
         "Error if no Translation in GenBank files?", 
-        "CD-HIT Collapsing Parameters", "Skip CD-HIT Clustering?"
+        "DIAMOND linclust Collapsing Parameters", "Skip DIAMOND linclust Clustering?"
     ]
     util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)
     log_object.info("Done saving parameters!")
@@ -588,41 +589,54 @@ def prep_tg():
         target_genome_annotation_listing_handle.close()
         target_genomes_concat_db_handle.close()
 
-        cdhit_cluster_file = outdir + 'Target_Genomes_DB_clustered.faa.clstr'
-        if not skip_cd_hit:
+        diamond_cluster_file = outdir + 'Target_Genomes_DB_clustered.tsv'
+        if not skip_diamond_linclust:
             msg = '--------------------\nStep 3\n--------------------\n'
-            msg += 'Clustering proteins using CD-HIT to avoid redundancy in downstream DIAMOND database.'
+            msg += 'Clustering proteins using DIAMOND linclust to avoid redundancy in downstream DIAMOND database.'
             sys.stdout.write(msg + '\n')
             log_object.info(msg)
 
-            if max_memory is not None:
-                cdhit_maxmem = max_memory * 1000
-            else:
-                cdhit_maxmem = 0
-
-            # Run CD-HIT to cluster proteins
-            cdhit_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
-            cdhit_cmd = [
-                'cd-hit', '-i', target_genomes_concat_db_faa, '-o', cdhit_output_faa,
-                collapsing_params, '-T', str(threads), '-M', str(cdhit_maxmem), '-d', '0'
+            # Run DIAMOND linclust to cluster proteins
+            diamond_linclust_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
+            diamond_linclust_cmd = [
+                'diamond', 'linclust', '-d', target_genomes_concat_db_faa, '-o', diamond_cluster_file,
+                collapsing_params, '--threads', str(threads)
             ]
             
-            try:
-                util.run_cmd_via_subprocess(cdhit_cmd, log_object, check_files=[cdhit_output_faa, cdhit_cluster_file])
-                subprocess.call(' '.join(cdhit_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-                log_object.info('Successfully ran: %s' % ' '.join(cdhit_cmd))
+            if max_memory is not None:
+                diamond_linclust_cmd += ['-M', str(max_memory) + 'G']
                 
+            try:
+                util.run_cmd_via_subprocess(diamond_linclust_cmd, log_object, check_files=[diamond_cluster_file])
+                subprocess.call(' '.join(diamond_linclust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
+                log_object.info('Successfully ran: %s' % ' '.join(diamond_linclust_cmd))
+
+                # Recreate FASTA database for clustered proteins
+                diamond_linclust_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
+
+                diamond_linclust_reps = set([])
+                with open(diamond_cluster_file) as dcf:
+                    for line in dcf:
+                        cluster_id, _ = line.strip().split('\t')
+                        diamond_linclust_reps.add(cluster_id)
+
+                with open(diamond_linclust_output_faa, 'w') as dcf:
+                    with open(target_genomes_concat_db_faa) as otgcf:
+                        for rec in SeqIO.parse(otgcf, 'fasta'):
+                            if rec.id in diamond_linclust_reps:
+                                dcf.write('>' + rec.id + '\n' + str(rec.seq).rstrip('*') + '\n')
+
                 os.system(f'rm -f {target_genomes_concat_db_faa}')
 
                 # Use the clustered FASTA file for DIAMOND database creation
-                target_genomes_concat_db_faa = cdhit_output_faa
+                target_genomes_concat_db_faa = diamond_linclust_output_faa
             except Exception as e:
-                log_object.error('Had an issue running: %s' % ' '.join(cdhit_cmd))
-                sys.stderr.write('Had an issue running: %s\n' % ' '.join(cdhit_cmd))
+                log_object.error('Had an issue running or processing DIAMOND linclust: %s' % ' '.join(diamond_linclust_cmd))
+                sys.stderr.write('Had an issue running or processing DIAMOND linclust: %s\n' % ' '.join(diamond_linclust_cmd))
                 log_object.error(e)
                 sys.exit(1)
         else:
-            util.create_fake_cdhit_cluster_file(target_genomes_concat_db_faa, cdhit_cluster_file, log_object)
+            util.create_fake_diamond_linclust_file(target_genomes_concat_db_faa, diamond_cluster_file, log_object)
 
         # If requested, run MGE annotations
         if mge_annotation_flag: 

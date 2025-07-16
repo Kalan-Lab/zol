@@ -150,7 +150,7 @@ def salt():
 
     tg_gbk_dir = target_genomes_db + 'Genomic_Genbanks_Additional/'
     tg_concat_dmnd_db = target_genomes_db + 'Target_Genomes_DB.dmnd'
-    tg_cdhit_clstr_file = target_genomes_db + 'Target_Genomes_DB_clustered.faa.clstr'
+    tg_diamond_linclust_cluster_file = target_genomes_db + 'Target_Genomes_DB_clustered.tsv'
     tg_genome_list_file = target_genomes_db + 'Target_Genome_Annotation_Files.txt'
     tg_mge_annot_dir = target_genomes_db + 'MGE_Annotations/Summary_Results/'
     fai_indiv_spreadsheet_tsv = fai_results_dir + 'Spreadsheet_TSVs/individual_gcs.tsv'
@@ -349,8 +349,8 @@ def salt():
          compute_query_coverage = True)
 
         rep_prot_to_nonreps = None
-        if os.path.isfile(tg_cdhit_clstr_file):
-            rep_prot_to_nonreps = fai.parse_cdhit_cluster_file(tg_cdhit_clstr_file, log_object)
+        if os.path.isfile(tg_diamond_linclust_cluster_file):
+            rep_prot_to_nonreps = fai.parse_diamond_linclust_cluster_file(tg_diamond_linclust_cluster_file, log_object)
 
         
         util.process_diamond_for_gc_to_ribo_ratio(diamond_results_file, 

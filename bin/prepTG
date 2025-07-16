@@ -263,9 +263,10 @@ will be skipped.
         '-mm', '--max-memory', 
         type = int, 
         help = "Uses resource module to set soft memory limit. Provide\n"
-               "in Giga-bytes. Configured in the shell environment\n"
-               "[Default is 16].", 
-        required = False, default = 16
+               "in Giga-bytes. Configured in the shell environment. For\n"
+               "DIAMOND linclust if this parameter is not set it will default\n" 
+               "to using a memory of 16GB. [Default is None].", 
+        required = False, default = None
     )
     parser.add_argument(
         '-v', '--version', 

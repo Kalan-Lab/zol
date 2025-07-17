@@ -22,6 +22,8 @@ import pandas as pd
 import tqdm
 import time 
 import copy
+from pympler import asizeof
+
 
 from zol import data_dictionary, util, zol
 
@@ -43,6 +45,20 @@ if split_diamond_results_prog == None or not os.path.isfile(split_diamond_result
     )
     sys.exit(1)
 
+
+def print_largest_objects_deep(locals_dict, top_n=10):
+    sizes = []
+    for name, obj in locals_dict.items():
+        try:
+            size = asizeof.asizeof(obj)
+        except Exception:
+            size = 0
+        sizes.append((size, name, type(obj)))
+    for size, name, typ in sorted(sizes, reverse=True)[:top_n]:
+        print(f"{name:30} {typ} {size/1024/1024:.2f} MB")
+
+# Usage at line 830:
+print_largest_objects_deep(locals())
 
 def subset_genbank_for_query_locus(
     full_gw_genbank,
@@ -982,9 +998,7 @@ def map_key_proteins_to_homolog_groups(
     return key_hgs
 
 # Global variables with proper type annotations
-gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info, boundary_genes = [None]*8
-sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore = [None]*4
-lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id = [None]*5
+gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels = [None]*6
 
 def identify_gc_instances(
     query_information,
@@ -1061,9 +1075,8 @@ def identify_gc_instances(
     try:
         work_dir = os.path.abspath(work_dir) + '/'
 
-        global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info, boundary_genes
+        global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info
         global single_query_mode, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore
-        global lts_ordered_dict, hgs_ordered_dict, gene_locations, gene_id_to_order, gene_order_to_id
         
         # Log multiprocessing information for debugging
         util.log_multiprocessing_info(log_object)
@@ -1094,9 +1107,6 @@ def identify_gc_instances(
 
         gene_locations = target_genome_gene_info["gene_locations"]
         scaffold_genes = target_genome_gene_info["scaffold_genes"]
-        boundary_genes = target_genome_gene_info["boundary_genes"]
-        gene_id_to_order = target_genome_gene_info["gene_id_to_order"]
-        gene_order_to_id = target_genome_gene_info["gene_order_to_id"]
 
         # Create DenseHMM - using the pomegrenate library
         gc_hg_probs = [gc_emission_prob_without_hit]
@@ -1167,10 +1177,10 @@ def identify_gc_instances(
                         sample_lt_to_sqlratio[hits[3]][lt] = float(hits[5])
             
             identify_gc_segments_input = []
-            hgs_ordered_dict = defaultdict(dict)
-            lts_ordered_dict = defaultdict(dict)
             for sample in sample_hgs:
                 # if len(sample_hgs[sample]) < 3: continue
+                hgs_ordered_dict = {}
+                lts_ordered_dict = {}
                 for scaffold in scaffold_genes[sample]:
                     # Type assertion to help the type checker
                     assert gene_locations[sample] is not None # type: ignore
@@ -1197,8 +1207,8 @@ def identify_gc_instances(
                             hgs_ordered.append(sample_lt_to_hg[sample][lt])
                         else:
                             hgs_ordered.append("background")
-                    hgs_ordered_dict[sample][scaffold] = hgs_ordered
-                    lts_ordered_dict[sample][scaffold] = lts_ordered
+                    hgs_ordered_dict[scaffold] = hgs_ordered
+                    lts_ordered_dict[scaffold] = lts_ordered
 
                 identify_gc_segments_input.append(
                     [
@@ -1212,6 +1222,15 @@ def identify_gc_instances(
                         flanking_context,
                         draft_mode,
                         gc_delineation_mode,
+                        target_genome_gene_info["boundary_genes"][sample],
+                        target_genome_gene_info["gene_locations"][sample],
+                        hgs_ordered_dict,
+                        lts_ordered_dict,
+                        target_annotation_info[sample]["genbank"],
+                        sample_lt_to_bitscore[sample],
+                        sample_lt_to_evalue[sample],
+                        sample_lt_to_identity[sample],
+                        sample_lt_to_sqlratio[sample],
                     ]
                 )
 
@@ -1285,6 +1304,15 @@ def _identify_gc_instances_worker(input_args):
         flanking_context,
         draft_mode,
         gc_delineation_mode,
+        boundary_genes,
+        gene_locations,
+        hgs_ordered_dict,
+        lts_ordered_dict,
+        target_annotation_info,
+        sample_lt_to_bitscore,
+        sample_lt_to_evalue,
+        sample_lt_to_identity,
+        sample_lt_to_sqlratio,
     ) = input_args
     bg_set = set(["background"])
 
@@ -1296,8 +1324,8 @@ def _identify_gc_instances_worker(input_args):
     assert sample_lt_to_identity is not None
     assert sample_lt_to_sqlratio is not None
     assert sample_lt_to_bitscore is not None
-    assert boundary_genes is not None
     assert sample_lt_to_evalue is not None
+    assert boundary_genes is not None
     assert lt_to_hg is not None
     assert model_labels is not None
     assert model is not None
@@ -1306,9 +1334,9 @@ def _identify_gc_instances_worker(input_args):
         with open(gc_info_dir + sample + ".bgcs.txt", "w") as gc_sample_listing_handle:
             with open(gc_info_dir + sample + ".hg_evalues.txt", "w") as gc_hg_evalue_handle:
                 sample_gc_id = 1
-                for scaffold in hgs_ordered_dict[sample]:
-                    hgs_ordered = hgs_ordered_dict[sample][scaffold]
-                    lts_ordered = lts_ordered_dict[sample][scaffold]
+                for scaffold in hgs_ordered_dict:
+                    hgs_ordered = hgs_ordered_dict[scaffold]
+                    lts_ordered = lts_ordered_dict[scaffold]
                     for i, hg in enumerate(hgs_ordered):
                         if hg != "background":
                             lt = lts_ordered[i]
@@ -1322,14 +1350,14 @@ def _identify_gc_instances_worker(input_args):
                             sample_gc_id += 1
 
                             min_gc_pos = (
-                                gene_locations[sample][lt]["start"] - flanking_context
+                                gene_locations[lt]["start"] - flanking_context
                             )
                             max_gc_pos = (
-                                gene_locations[sample][lt]["end"] + flanking_context
+                                gene_locations[lt]["end"] + flanking_context
                             )
 
                             util.create_genbank(
-                                target_annotation_info[sample]["genbank"],
+                                target_annotation_info,
                                 gc_genbank_file,
                                 scaffold,
                                 min_gc_pos,
@@ -1342,12 +1370,12 @@ def _identify_gc_instances_worker(input_args):
                             identity = 0.0
                             sqlratio = 0.0
                             bitscore = 0.0
-                            if lt in sample_lt_to_identity[sample]:
-                                identity = sample_lt_to_identity[sample][lt]
-                            if lt in sample_lt_to_sqlratio[sample]:
-                                sqlratio = sample_lt_to_sqlratio[sample][lt]
-                            if lt in sample_lt_to_bitscore[sample]:
-                                bitscore = sample_lt_to_bitscore[sample][lt]
+                            if lt in sample_lt_to_identity:
+                                identity = sample_lt_to_identity[lt]
+                            if lt in sample_lt_to_sqlratio:
+                                sqlratio = sample_lt_to_sqlratio[lt]
+                            if lt in sample_lt_to_bitscore:
+                                bitscore = sample_lt_to_bitscore[lt]
                             gc_hg_evalue_handle.write(
                                 "\t".join(
                                     [
@@ -1369,9 +1397,9 @@ def _identify_gc_instances_worker(input_args):
     sample_gc_predictions = []
     if gc_delineation_mode == "GENE-CLUMPER":
         gcs_id = 1
-        for scaffold in hgs_ordered_dict[sample]:
-            hgs_ordered = hgs_ordered_dict[sample][scaffold]
-            lts_ordered = lts_ordered_dict[sample][scaffold]
+        for scaffold in hgs_ordered_dict:
+            hgs_ordered = hgs_ordered_dict[scaffold]
+            lts_ordered = lts_ordered_dict[scaffold]
             tmp = [] # type: ignore
             dist_counter = 0
             hg_counter = 0
@@ -1421,15 +1449,15 @@ def _identify_gc_instances_worker(input_args):
                                 curr_hg = gc_state_hgs[j]
                                 if (
                                     curr_hg in key_hgs
-                                    and lt in sample_lt_to_evalue[sample]
-                                    and sample_lt_to_evalue[sample][lt]
+                                    and lt in sample_lt_to_evalue
+                                    and sample_lt_to_evalue[lt]
                                     <= kq_evalue_threshold
                                 ):
                                     key_hgs_detected.add(curr_hg)
                                     features_key_hg = True
                         if (
                             len(
-                                boundary_genes[sample].intersection(
+                                boundary_genes.intersection(
                                     set(gc_state_lts).difference(bg_set)
                                 )
                             )
@@ -1480,15 +1508,15 @@ def _identify_gc_instances_worker(input_args):
                         curr_hg = gc_state_hgs[j]
                         if (
                             curr_hg in key_hgs
-                            and lt in sample_lt_to_evalue[sample]
-                            and sample_lt_to_evalue[sample][lt]
+                            and lt in sample_lt_to_evalue
+                            and sample_lt_to_evalue[lt]
                             <= kq_evalue_threshold
                         ):
                             features_key_hg = True
                             key_hgs_detected.add(curr_hg)
                 if (
                     len(
-                        boundary_genes[sample].intersection(
+                        boundary_genes.intersection(
                             set(gc_state_lts).difference(bg_set)
                         )
                     )
@@ -1512,9 +1540,9 @@ def _identify_gc_instances_worker(input_args):
                 gcs_id += 1
     else:
         gcs_id = 1
-        for scaffold in hgs_ordered_dict[sample]:
-            hgs_ordered = hgs_ordered_dict[sample][scaffold]
-            lts_ordered = lts_ordered_dict[sample][scaffold]
+        for scaffold in hgs_ordered_dict:
+            hgs_ordered = hgs_ordered_dict[scaffold]
+            lts_ordered = lts_ordered_dict[scaffold]
 
             hg_seq = numpy.array(
                 [[[model_labels.index(hg)] for hg in list(hgs_ordered)]]
@@ -1562,15 +1590,15 @@ def _identify_gc_instances_worker(input_args):
                                 curr_hg = gc_state_hgs[j]
                                 if (
                                     curr_hg in key_hgs
-                                    and lt in sample_lt_to_evalue[sample]
-                                    and sample_lt_to_evalue[sample][lt]
+                                    and lt in sample_lt_to_evalue
+                                    and sample_lt_to_evalue[lt]
                                     <= kq_evalue_threshold
                                 ):
                                     features_key_hg = True
                                     key_hgs_detected.add(curr_hg)
                         if (
                             len(
-                                boundary_genes[sample].intersection(
+                                boundary_genes.intersection(
                                     set(gc_state_lts).difference(bg_set)
                                 )
                             )
@@ -1627,15 +1655,15 @@ def _identify_gc_instances_worker(input_args):
                                 curr_hg = gc_state_hgs[j]
                                 if (
                                     curr_hg in key_hgs
-                                    and lt in sample_lt_to_evalue[sample]
-                                    and sample_lt_to_evalue[sample][lt]
+                                    and lt in sample_lt_to_evalue
+                                    and sample_lt_to_evalue[lt]
                                     <= kq_evalue_threshold
                                 ):
                                     features_key_hg = True
                                     key_hgs_detected.add(curr_hg)
                         if (
                             len(
-                                boundary_genes[sample].intersection(
+                                boundary_genes.intersection(
                                     set(gc_state_lts).difference(bg_set)
                                 )
                             )
@@ -1682,15 +1710,15 @@ def _identify_gc_instances_worker(input_args):
                                 curr_hg = gc_state_hgs[j]
                                 if (
                                     curr_hg in key_hgs
-                                    and lt in sample_lt_to_evalue[sample]
-                                    and sample_lt_to_evalue[sample][lt]
+                                    and lt in sample_lt_to_evalue
+                                    and sample_lt_to_evalue[lt]
                                     <= kq_evalue_threshold
                                 ):
                                     features_key_hg = True
                                     key_hgs_detected.add(curr_hg)
                         if (
                             len(
-                                boundary_genes[sample].intersection(
+                                boundary_genes.intersection(
                                     set(gc_state_lts).difference(bg_set)
                                 )
                             )
@@ -1759,12 +1787,12 @@ def _identify_gc_instances_worker(input_args):
                     if copy_count_of_hgs_in_segment[hg] != 1:
                         continue
                     gene_midpoint = (
-                        gene_locations[sample][g]["start"]
-                        + gene_locations[sample][g]["end"]
+                        gene_locations[g]["start"]
+                        + gene_locations[g]["end"]
                     ) / 2.0
                     segment_hg_order.append(gene_midpoint)
                     segment_hg_direction.append(
-                        gene_locations[sample][g]["direction"]
+                        gene_locations[g]["direction"]
                     )
 
                     for gc in query_gene_info: # type: ignore
@@ -1909,16 +1937,16 @@ def _identify_gc_instances_worker(input_args):
 
             gc_segment_scaff = gc_segment[5]
             min_gc_pos = (
-                min([gene_locations[sample][g]["start"] for g in gc_segment[0]])
+                min([gene_locations[g]["start"] for g in gc_segment[0]])
                 - flanking_context
             )
             max_gc_pos = (
-                max([gene_locations[sample][g]["end"] for g in gc_segment[0]])
+                max([gene_locations[g]["end"] for g in gc_segment[0]])
                 + flanking_context
             )
 
             util.create_genbank(
-                target_annotation_info[sample]["genbank"],
+                target_annotation_info,
                 gc_genbank_file,
                 gc_segment_scaff,
                 min_gc_pos,
@@ -1936,12 +1964,12 @@ def _identify_gc_instances_worker(input_args):
                 identity = 0.0
                 sqlratio = 0.0
                 bitscore = 0.0
-                if lt in sample_lt_to_identity[sample]:
-                    identity = sample_lt_to_identity[sample][lt]
-                if lt in sample_lt_to_sqlratio[sample]:
-                    sqlratio = sample_lt_to_sqlratio[sample][lt]
-                if lt in sample_lt_to_bitscore[sample]:
-                    bitscore = sample_lt_to_bitscore[sample][lt]
+                if lt in sample_lt_to_identity:
+                    identity = sample_lt_to_identity[lt]
+                if lt in sample_lt_to_sqlratio:
+                    sqlratio = sample_lt_to_sqlratio[lt]
+                if lt in sample_lt_to_bitscore:
+                    bitscore = sample_lt_to_bitscore[lt]
                 gc_hg_evalue_handle.write(
                     "\t".join(
                         [

@@ -67,6 +67,7 @@ def create_parser():
 	parser.add_argument('-n', '--name_mapping_outdir',
 						help='Path to output directory where gene old-to-new mapping text files should be written. Should already be created!',
 						required=True)
+	parser.add_argument('-e', '--error_outdir', help='Path to output directory where error files should be written. Should already be created!', required=False, default=None)
 	parser.add_argument('-s', '--sample_name', help='Sample name', default='Sample', required=False)
 	parser.add_argument('-l', '--locus_tag', help='Locus tag', default="AAAA", required=False)
 	parser.add_argument('-r', '--rename_all_lts', action='store_true', help='Only rename locus_tags when needed - e.g. they are missing.', default=False, required=False)
@@ -110,7 +111,13 @@ def processAndReformatNCBIGenbanks():
 	rename_all_flag = myargs.rename_all_lts
 	error_no_translation = myargs.error_no_translation
 	error_no_lt = myargs.error_no_lt
-	
+	error_outdir = myargs.error_outdir
+
+	error_outfile_handle = None
+	if error_outdir is not None:
+		error_outfile = error_outdir + sample_name + '.txt'
+		error_outfile_handle = open(error_outfile, 'w')
+
 	"""
 	START WORKFLOW
 	"""
@@ -149,7 +156,9 @@ def processAndReformatNCBIGenbanks():
 						old_locus_tag = feature.qualifiers.get('locus_tag')[0]
 					except Exception as e:
 						if error_no_lt:
-							msg = 'Error: A CDS does not have a locus tag. Please check the Genbank file.'
+							msg = f'Error: A CDS does not have a locus tag. Please check the Genbank file for sample {sample_name}.'
+							if error_outfile_handle is not None:
+								error_outfile_handle.write(msg + '\n') # type: ignore
 							raise RuntimeError(msg)
 						else:
 							if not rename_all_flag:
@@ -160,7 +169,9 @@ def processAndReformatNCBIGenbanks():
 						prot_seq = str(feature.qualifiers.get('translation')[0]).replace('*', '')
 					except Exception as e:
 						if error_no_translation:
-							msg = 'Error: A CDS does not have a translation. Please check the Genbank file.'
+							msg = f'Error: A CDS does not have a translation. Please check the Genbank file for sample {sample_name}.'
+							if error_outfile_handle is not None:
+								error_outfile_handle.write(msg + '\n') # type: ignore
 							raise RuntimeError(msg)
 						else:
 							msg = "Warning: A CDS does not have a translation. Skipping it."
@@ -188,7 +199,9 @@ def processAndReformatNCBIGenbanks():
 						feature.qualifiers['locus_tag'] = new_locus_tag
 					
 					if new_locus_tag in previously_accounted_lts:
-						msg = f'Error: Locus tag {new_locus_tag} already exists in the Genbank file. Please check the Genbank file.'
+						msg = f'Error: Locus tag {new_locus_tag} exists multiple times in the Genbank file for sample {sample_name}.'
+						if error_outfile_handle is not None:
+							error_outfile_handle.write(msg + '\n') # type: ignore
 						raise RuntimeError(msg)
 					
 					pro_outfile_handle.write('>' + str(new_locus_tag) + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
@@ -208,6 +221,7 @@ def processAndReformatNCBIGenbanks():
 		map_outfile_handle.close()
 
 	except Exception as e:
+
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
@@ -221,13 +235,16 @@ def processAndReformatNCBIGenbanks():
 		except OSError as error: 
 			sys.stderr.write(f"Error removing files: {error}")
 
-		msg = "Issue processing NCBI Genbank file."
-		sys.stderr.write(traceback.format_exc() + '\n')
-		sys.stderr.write(msg + '\n')
-		sys.exit(1)
+		msg = f"Issue processing NCBI Genbank file for sample {sample_name} for some non-evident reason -\n"
+		msg += f"please consider reporting and sharing your GenBank file with us on GitHub issues so we can\n"
+		msg += f"improve.\n"
+		if error_outfile_handle is not None:
+			error_outfile_handle.write(msg + '\n') # type: ignore
+		else:
+			sys.stderr.write(traceback.format_exc() + '\n')
+		raise RuntimeError(msg + '\n')
 
 	if accounted_features/tot_cds_features < 0.9:
-		sys.stderr.write(f'Processed only {accounted_features} features of {tot_cds_features} total features - so removing this file from database inclusion.\n')
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
@@ -240,6 +257,16 @@ def processAndReformatNCBIGenbanks():
 			os.remove(map_outfile)
 		except OSError as error: 
 			sys.stderr.write(f"Error removing files: {error}")
+
+		msg = f'Processed only {accounted_features} features of {tot_cds_features} total features for sample\n'
+		msg += f'{sample_name} - so removing this file from database inclusion.\n'
+		if error_outfile_handle is not None:
+			error_outfile_handle.write(msg + '\n') # type: ignore
+
+		raise RuntimeError(msg)
+
+	if error_outfile_handle is not None:
+		error_outfile_handle.close()
 
 if __name__ == '__main__':
 	processAndReformatNCBIGenbanks()

@@ -558,13 +558,15 @@ def prep_tg():
         else: 
             # Genomes are provided as Genbanks with CDS features
             gene_name_mapping_outdir = outdir + 'Mapping_of_New_Gene_Names_to_Original/'
-            util.setup_ready_directory([gene_name_mapping_outdir], delete_if_exist = True)
+            error_outdir = outdir + 'GenBank_Processing_Error_Files/'
+            error_summary_file = outdir + 'Errors_from_GenBank_Processing.txt'
+            util.setup_ready_directory([gene_name_mapping_outdir, error_outdir], delete_if_exist = True)
             util.process_genomes_as_genbanks(
                 additional_sample_genomes, additional_proteomes_directory, 
-                additional_genbanks_directory, gene_name_mapping_outdir, 
-                log_object, threads = threads, locus_tag_length = locus_tag_length, 
-                rename_locus_tags = rename_locus_tags, error_no_lt = error_no_lt, 
-                error_no_translation = error_no_translation
+                additional_genbanks_directory, gene_name_mapping_outdir, error_outdir,
+                error_summary_file, log_object, threads = threads, 
+                locus_tag_length = locus_tag_length, rename_locus_tags = rename_locus_tags, 
+                error_no_lt = error_no_lt, error_no_translation = error_no_translation
             )
             shutil.rmtree(uncompress_dir)
 

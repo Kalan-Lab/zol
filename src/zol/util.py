@@ -1569,6 +1569,8 @@ def process_genomes_as_genbanks(
     proteomes_directory,
     genbanks_directory,
     gene_name_mapping_outdir,
+    error_directory,
+    error_summary_file,
     log_object,
     threads=1,
     locus_tag_length=3,
@@ -1587,6 +1589,8 @@ def process_genomes_as_genbanks(
     - proteomes_directory: Directory where final proteome files (in FASTA format) for target genomes will be saved. \
     - genbanks_directory: Directory where final GenBank files for target genomes will be saved.
     - gene_name_mapping_outdir: Directory where mapping files for original locus tags to new locus tags will be saved.
+    - error_directory: Directory where error files should be written. Should already be created!
+    - error_summary_file: File where summary of errors should be written.
     - log_object: A logging object.
     - threads: The number of threads to use.
     - locus_tag_length: The length of the locus tags to generate.
@@ -1632,6 +1636,8 @@ def process_genomes_as_genbanks(
                 proteomes_directory,
                 "-n",
                 gene_name_mapping_outdir,
+                "-e",
+                error_directory,
                 "-l",
                 sample_locus_tag,
             ]
@@ -1659,6 +1665,22 @@ def process_genomes_as_genbanks(
         ):
             pass
         p.close()
+
+        error_summary_file_handle = open(error_summary_file, 'w')
+        samples_with_noted_errors = set([])
+        for f in os.listdir(error_directory):
+            if f.endswith('.txt'):
+                sample = '.'.join(f.split('.')[:-1])
+                sample_err_msg = f'{sample}\t'
+                error_found = False
+                with open(error_directory + f, 'r') as error_file_handle:
+                    for line in error_file_handle:
+                        sample_err_msg += line.strip() + ' '
+                        error_found = True
+                if error_found:
+                    samples_with_noted_errors.add(sample)
+                    sample_err_msg += '\n'
+                    error_summary_file_handle.write(sample_err_msg) # type: ignore
 
         successfully_processed = 0
         gzip_cmds = []
@@ -1689,11 +1711,21 @@ def process_genomes_as_genbanks(
                     os.system("rm -f " + gbk_file)
                 if os.path.isfile(map_file):
                     os.system("rm -f " + map_file)
-                sys.stderr.write(
-                    f"Unable to validate successful genbank reformatting / predicted - proteome creation for sample {sample}\n"
-                )
-                pass
+                msg = f"Unable to validate successful genbank reformatting / predicted - proteome creation for sample {sample}\n"
+                sys.stderr.write(msg)
+                if not sample in samples_with_noted_errors:
+                    error_summary_file_handle.write(sample + '\t' + msg) 
                 
+        error_summary_file_handle.close()
+
+        msg = f"Successfully processed {successfully_processed} genomes of {len(process_cmds)} genomes attempted to be processed!\n"
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+
+        msg = f"Genomes with errors are reported in the following file:\n{error_summary_file}"
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+
         p = multiprocessing.Pool(threads)
         msg = f"Gzipping {len(gzip_cmds)} genome-wide GenBank files"
         log_object.info(msg)

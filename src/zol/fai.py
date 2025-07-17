@@ -433,9 +433,13 @@ def load_target_genome_info(
     gene_order_to_id: Dict[str, Any] = {}
 
     genes_hit_in_diamond_search = set(diamond_reuslts.keys())
+    hit_samples = set([])
+    for lt in diamond_reuslts:
+        hit_samples.add(diamond_reuslts[lt]['sample'])
+
     try:
         for sample in target_annotation_information:
-            if not sample in valid_tg_samples:
+            if not sample in valid_tg_samples or not sample in hit_samples:
                 continue
             sample_info_pkl_file = target_genomes_pkl_dir + sample + ".pkl"
             genbank_info = None
@@ -999,6 +1003,7 @@ def map_key_proteins_to_homolog_groups(
 
 # Global variables with proper type annotations
 gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels = [None]*6
+sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore = [None]*4
 
 def identify_gc_instances(
     query_information,

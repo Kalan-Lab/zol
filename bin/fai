@@ -676,8 +676,8 @@ def fai_main():
             query_fasta = work_dir + 'NR_Reference_Query.faa'
             shutil.copy(single_query_fasta, query_fasta)
             if rec_count > 1: 
-                log_object.error('Multi-record FASTA not allowed as input for -sq/--single_query.')
-                sys.stderr.write('Multi-record FASTA not allowed as input for -sq/--single_query.\n')
+                log_object.error('Multi-record FASTA not allowed as input for -sq/--single-query.')
+                sys.stderr.write('Multi-record FASTA not allowed as input for -sq/--single-query.\n')
                 sys.exit(1)
 
         key_hgs = set([])
@@ -724,7 +724,6 @@ def fai_main():
             sys.exit(1)
 
         target_annotation_information = {}
-        valid_tg_samples = set([])
         with open(target_annot_listing_file) as otalf: 
             for line in otalf: 
                 line = line.strip()
@@ -732,7 +731,6 @@ def fai_main():
                 gbk = preptg_dir + gbk
                 if os.path.isfile(gbk) and os.path.getsize(gbk) > 0: 
                     target_annotation_information[sample] = gbk
-                    valid_tg_samples.add(sample)
 
         if os.path.isfile(target_diamond_linclust_cluster_file):
             msg = 'You are using a database created after v1.6.0, attempting to process assuming this is the case...'
@@ -761,6 +759,7 @@ def fai_main():
             log_object.error(msg)
             sys.exit(1) 
 
+    
     msg = '--------------------\nStep 2\n--------------------\nRunning DIAMOND BLASTp and Processing Results.'
     log_object.info(msg)
     sys.stdout.write(msg + "\n")
@@ -780,7 +779,8 @@ def fai_main():
                                                     diamond_block_size = diamond_block_size,
                                                     evalue_cutoff = evalue_cutoff, 
                                                     threads = threads)
-                                                    
+
+                                
         diamond_results = fai.process_diamond_blastp(target_annotation_information, 
                                                         rep_prot_to_nonreps,
                                                         diamond_results_file, 

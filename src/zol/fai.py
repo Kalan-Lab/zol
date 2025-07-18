@@ -168,6 +168,7 @@ def collapse_proteins_using_cdhit(protein_fasta, nr_protein_fasta, log_object) -
             "0.90",
             "-d",
             "0",
+            "-M", "3000"
         ]
 
         try:

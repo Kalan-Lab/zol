@@ -2927,10 +2927,21 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
             0,
             "https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai#explanation-of-report",
         )
+
+        warn_format = workbook.add_format(
+            {
+                "text_wrap": False,
+                "border": 1,
+                'font_color': '#FF0000',
+                'bold': True
+            }
+        )
+
         dd_sheet.write(
             2,
             0,
-            "WARNING: DIAMOND linclust was used to collapse redundancy in the database used for DIAMOND searching of gene clusters. This means that the stats reported are proxies for some of the hits based on representative proteins in the same cluster.\n'",
+            "WARNING: If DIAMOND linclust was used to collapse redundancy in the prepTG database (default behavior since v1.6.1) used for DIAMOND searching of gene clusters. This means that the stats reported are proxies for some of the hits based on representative proteins in the same cluster.",
+            warn_format
         )
 
 
@@ -2960,11 +2971,11 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
         worksheet_dd.set_column(1, 3, 50)
 
         for col_num, value in enumerate(data_dict_fai_df.columns.values): # type: ignore
-            worksheet_dd.write(3, col_num + 1, value, header_format)
+            worksheet_dd.write(4, col_num + 1, value, header_format)
 
         colnames = ["Column", "Description", "Notes"]
         for index, row in data_dict_fai_df.iterrows(): # type: ignore
-            row_ind = int(index) + 4 # type: ignore
+            row_ind = int(index) + 5 # type: ignore
             format = wrap_format
             for col_ind in range(0, 3):
                 col_name = colnames[col_ind]

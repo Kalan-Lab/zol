@@ -724,6 +724,7 @@ def fai_main():
             sys.exit(1)
 
         target_annotation_information = {}
+        valid_tg_samples = set([])
         with open(target_annot_listing_file) as otalf: 
             for line in otalf: 
                 line = line.strip()
@@ -731,6 +732,7 @@ def fai_main():
                 gbk = preptg_dir + gbk
                 if os.path.isfile(gbk) and os.path.getsize(gbk) > 0: 
                     target_annotation_information[sample] = gbk
+                    valid_tg_samples.add(sample)
 
         if os.path.isfile(target_diamond_linclust_cluster_file):
             msg = 'You are using a database created after v1.6.0, attempting to process assuming this is the case...'
@@ -739,9 +741,11 @@ def fai_main():
             try:
                 rep_prot_to_nonreps = fai.parse_diamond_linclust_cluster_file(target_diamond_linclust_cluster_file, log_object)
                 if rep_prot_to_nonreps != None:
-                    msg = 'WARNING: DIAMOND linclust was used to collapse redundancy in the database used\n'
+                    msg = '**********************************************************************\n'
+                    msg += 'WARNING: DIAMOND linclust was used to collapse redundancy in the database used\n'
                     msg += 'for DIAMOND searching of gene clusters. This means that the stats reported are\n'
                     msg += 'proxies for some of the hits based on representative proteins in the same cluster.\n'
+                    msg += '**********************************************************************'
                     
                     sys.stderr.write(msg + "\n")
                     log_object.warning(msg)

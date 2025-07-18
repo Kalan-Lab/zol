@@ -2927,6 +2927,12 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
             0,
             "https://github.com/Kalan-Lab/zol/wiki/2.-more-info-on-fai#explanation-of-report",
         )
+        dd_sheet.write(
+            2,
+            0,
+            "WARNING: DIAMOND linclust was used to collapse redundancy in the database used for DIAMOND searching of gene clusters. This means that the stats reported are proxies for some of the hits based on representative proteins in the same cluster.\n'",
+        )
+
 
         wrap_format = workbook.add_format(
             {

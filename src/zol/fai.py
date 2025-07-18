@@ -1,7 +1,7 @@
 from collections import defaultdict
 from ete3 import Tree
 from operator import itemgetter
-from typing import Dict, List, Union, Any, TypedDict, Optional, Set
+from typing import Dict, List, Union, Any, TypedDict, Optional, Set, Tuple
 import decimal
 import gzip
 import multiprocessing
@@ -45,20 +45,6 @@ if split_diamond_results_prog == None or not os.path.isfile(split_diamond_result
     )
     sys.exit(1)
 
-
-def print_largest_objects_deep(locals_dict, top_n=10):
-    sizes = []
-    for name, obj in locals_dict.items():
-        try:
-            size = asizeof.asizeof(obj)
-        except Exception:
-            size = 0
-        sizes.append((size, name, type(obj)))
-    for size, name, typ in sorted(sizes, reverse=True)[:top_n]:
-        print(f"{name:30} {typ} {size/1024/1024:.2f} MB")
-
-# Usage at line 830:
-print_largest_objects_deep(locals())
 
 def subset_genbank_for_query_locus(
     full_gw_genbank,
@@ -395,11 +381,11 @@ def gen_consensus_sequences(
 def load_target_genome_info(
     target_annotation_information,
     target_genomes_pkl_dir,
-    diamond_reuslts,
+    diamond_results,
     valid_tg_samples,
     log_object,
-    lowmem_mode=True,
     min_genes_per_scaffold=1,
+    min_distinct_genes_per_scaffold=1,
 ) -> Dict[str, Any]:
     """
     Description:
@@ -414,6 +400,8 @@ def load_target_genome_info(
     - lowmem_mode: Whether to only regard CDS found on scaffolds with hits from the gene cluster queries.
     - min_genes_per_scaffold: The minimum number of ORFs hit by query proteins for the scaffold to be considered and
                               CDS information for it stored.
+    - min_distinct_genes_per_scaffold: The minimum number of distinct genes per scaffold to be considered for a 
+                                       gene-cluster segment.
     ********************************************************************************************************************
     Return:
     - target_genome_info: A dictionary of dictionaries:
@@ -422,8 +410,8 @@ def load_target_genome_info(
                               values to CDS features found on them.
             - boundary_genes: A dictionary with keys corresponding to samples and values to sets of CDS features nearby
                               scaffold edges.
-            - gene_id_to_order: A multi - tiered dictionary mapping CDS identifiers to their order along scaffolds.
-            - gene_order_to_id: A multi - tiered dictionary mapping gene order indices along scaffolds to CDS identifiers.
+            - gene_id_to_order: A multi-tiered dictionary mapping CDS identifiers to their order along scaffolds.
+            - gene_order_to_id: A multi-tiered dictionary mapping gene order indices along scaffolds to CDS identifiers.
     ********************************************************************************************************************
     """
     gene_locations: Dict[str, Any] = {}
@@ -432,15 +420,13 @@ def load_target_genome_info(
     gene_id_to_order: Dict[str, Any] = {}
     gene_order_to_id: Dict[str, Any] = {}
 
-    genes_hit_in_diamond_search = set(diamond_reuslts.keys())
-    hit_samples = set([])
-    for lt in diamond_reuslts:
-        hit_samples.add(diamond_reuslts[lt]['sample'])
-
     try:
         for sample in target_annotation_information:
-            if not sample in valid_tg_samples or not sample in hit_samples:
+            if not sample in valid_tg_samples or not sample in diamond_results or \
+                len(diamond_results[sample]['lts']) < min_genes_per_scaffold or \
+                len(diamond_results[sample]['hgs']) < min_distinct_genes_per_scaffold:
                 continue
+
             sample_info_pkl_file = target_genomes_pkl_dir + sample + ".pkl"
             genbank_info = None
             try:
@@ -463,42 +449,35 @@ def load_target_genome_info(
             gito = genbank_info[3]
             goti = genbank_info[4]
 
-            if lowmem_mode:
-                valid_scaffolds = set([])
-                gene_locs_filt: Dict[str, Any] = {}
-                scaff_genes_filt = defaultdict(set)
-                bound_genes_filt = set([])
-                gito_filt = defaultdict(dict)
-                goti_filt = defaultdict(dict)
-                for scaffold in scaff_genes:
-                    if (
-                        len(
-                            scaff_genes[scaffold].intersection(
-                                genes_hit_in_diamond_search
-                            )
+            valid_scaffolds = set([])
+            gene_locs_filt: Dict[str, Any] = {}
+            scaff_genes_filt = defaultdict(set)
+            bound_genes_filt = set([])
+            gito_filt = defaultdict(dict)
+            goti_filt = defaultdict(dict)
+            for scaffold in scaff_genes:
+                if (
+                    len(
+                        scaff_genes[scaffold].intersection(
+                            diamond_results[sample]
                         )
-                        >= min_genes_per_scaffold
-                    ):
-                        valid_scaffolds.add(scaffold)
-                        scaff_genes_filt[scaffold] = scaff_genes[scaffold]
-                        gito_filt = gito[scaffold]
-                        goti_filt = goti[scaffold]
-                        for lt in scaff_genes[scaffold]:
-                            gene_locs_filt[lt] = gene_locs[lt]
-                        bound_genes_filt = bound_genes_filt.union(
-                            scaff_genes[scaffold].intersection(bound_genes)
-                        )
-                gene_locations[sample] = gene_locs_filt
-                scaffold_genes[sample] = scaff_genes_filt
-                boundary_genes[sample] = bound_genes_filt
-                gene_id_to_order[sample] = gito_filt
-                gene_order_to_id[sample] = goti_filt
-            else:
-                gene_locations[sample] = gene_locs
-                scaffold_genes[sample] = scaff_genes
-                boundary_genes[sample] = bound_genes
-                gene_id_to_order[sample] = gito
-                gene_order_to_id[sample] = goti
+                    )
+                    >= min_genes_per_scaffold
+                ):
+                    valid_scaffolds.add(scaffold)
+                    scaff_genes_filt[scaffold] = scaff_genes[scaffold]
+                    gito_filt = gito[scaffold]
+                    goti_filt = goti[scaffold]
+                    for lt in scaff_genes[scaffold]:
+                        gene_locs_filt[lt] = gene_locs[lt]
+                    bound_genes_filt = bound_genes_filt.union(
+                        scaff_genes[scaffold].intersection(bound_genes)
+                    )
+            gene_locations[sample] = gene_locs_filt
+            scaffold_genes[sample] = scaff_genes_filt
+            boundary_genes[sample] = bound_genes_filt
+            gene_id_to_order[sample] = gito_filt
+            gene_order_to_id[sample] = goti_filt
 
     except Exception as e:
         log_object.error(
@@ -527,6 +506,7 @@ def run_diamond_blastp(
     diamond_work_dir,
     log_object,
     diamond_sensitivity="very-sensitive",
+    diamond_block_size=None,
     evalue_cutoff=1e-3,
     threads=1,
     compute_query_coverage=False,
@@ -561,7 +541,6 @@ def run_diamond_blastp(
             "--ignore-warnings",
             "--threads",
             str(threads),
-            "--" + diamond_sensitivity,
             "--query",
             query_fasta,
             "--db",
@@ -595,7 +574,6 @@ def run_diamond_blastp(
                 "--ignore-warnings",
                 "--threads",
                 str(threads),
-                "--" + diamond_sensitivity,
                 "--query",
                 query_fasta,
                 "--db",
@@ -616,6 +594,14 @@ def run_diamond_blastp(
                 "--evalue",
                 str(evalue_cutoff),
             ]
+
+        if diamond_sensitivity != "default":
+            diamond_blastp_cmd.append("--" + diamond_sensitivity)
+
+        if diamond_block_size is not None:
+            diamond_blastp_cmd.append("--block-size")
+            diamond_blastp_cmd.append(str(diamond_block_size))
+
         try:
             subprocess.call(
                 " ".join(diamond_blastp_cmd),
@@ -735,8 +721,8 @@ def parse_diamond_linclust_cluster_file(diamond_linclust_cluster_file, log_objec
         sys.exit(1)
 
 def process_diamond_blastp(
-    target_annot_information, rep_prot_to_nonreps, diamond_results_file, work_dir, log_object
-) -> Dict[str, List[List[Union[str, float, decimal.Decimal]]]]:
+    target_annot_information, rep_prot_to_nonreps, diamond_results_file, diamond_results_summary_file, work_dir, log_object
+) -> Dict[str, Dict[str, Set[str]]]:
     """
     Description:
     This functions processes DIAMOND blastp results.
@@ -749,16 +735,12 @@ def process_diamond_blastp(
     - log_object: A logging object.
     ********************************************************************************************************************
     Return:
-    - diamond_results: A dictionary with locus tags as keys and values as a list of 5 items:
-            - hg: The best matching query / reference ortholog group.
-            - best_hit_per_lt_bitscore: The bitscore of the best hit for the CDS.
-            - best_hit_per_lt_eval: The E-value of the best hit for the CDS.
-            - sample: The sample identifier.
-            - best_hit_per_lt_identity: The identity of the best hit for the CDS.
-            - best_hit_per_lt_sqlratio: The identity of the subject to query length ratio for the best hit for the CDS.
+    - diamond_results: A dictionary with sample identifiers as keys and values as a dictionary with the following keys:
+            - lts: A set of locus tags.
+            - hgs: A set of homolog groups.
     ********************************************************************************************************************
     """
-    diamond_results: Dict[str, List[List[Union[str, float, decimal.Decimal]]]] = defaultdict(list)
+    diamond_results: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: {'lts': set(), 'hgs': set()})
     try:
         work_dir = os.path.abspath(work_dir) + '/'
         search_res_dir = work_dir + "Alignment_Results/"
@@ -795,6 +777,8 @@ def process_diamond_blastp(
             sys.stderr.write(traceback.format_exc())
             sys.exit(1)
 
+        diamond_results_summary_file_handle = open(diamond_results_summary_file, "w")
+        diamond_results_summary_file_handle.write(f"Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tSubject to Query Length Ratio\n") 
         for sample in target_annot_information:
             result_file = search_res_dir + (sample + ".txt")
             try:
@@ -848,17 +832,12 @@ def process_diamond_blastp(
 
                 for lt in best_hit_per_lt:
                     current_best = best_hit_per_lt[lt]
+                    sample = current_best["sample"]
+                    diamond_results[sample]['lts'].add(lt)
                     for i, hg in enumerate(current_best["hg_list"]):
-                        diamond_results[lt].append(
-                            [
-                                hg,
-                                current_best["best_bitscore"],
-                                current_best["eval_list"][i],
-                                current_best["sample"], # type: ignore
-                                current_best["identity_list"][i],
-                                current_best["sql_ratio_list"][i],
-                            ]
-                        )
+                        diamond_results[sample]['hgs'].add(hg)
+                        diamond_results_summary_file_handle.write(f"{lt}\t{hg}\t{current_best['sample']}\t{current_best['best_bitscore']}\t{current_best['eval_list'][i]}\t{current_best['identity_list'][i]}\t{current_best['sql_ratio_list'][i]}\n") 
+                   
             except Exception as e:
                 # raise RuntimeError(traceback.format_exc())
                 sys.stderr.write(
@@ -867,7 +846,7 @@ def process_diamond_blastp(
                 log_object.warning(
                     f"Did not detect homology whatsoever at requested E-value for sample {sample}'s proteome."
                 )
-
+        diamond_results_summary_file_handle.close()
     except Exception as e:
         log_object.error(
             "Issues with running DIAMOND blastp or processing of results."
@@ -1001,14 +980,91 @@ def map_key_proteins_to_homolog_groups(
         sys.exit(1)
     return key_hgs
 
+
+def load_target_genome_info_from_pkl(
+    target_genomes_pkl_dir,
+    sample, 
+    diamond_results,
+    min_distinct_genes,
+    log_object,
+) -> Tuple[Dict[str, Any], Dict[str, Any], Set[str]]:
+    """
+    Description:
+    This function loads target genome information from a pickle file.
+    ********************************************************************************************************************
+    Parameters:
+    - sample: The target genome sample identifier.
+    - target_genomes_pkl_dir: The directory where pickle files on target genome CDS location information are stored.
+    - diamond_results: A dictionary of diamond results.
+    - min_distinct_genes: The minimum number of distinct genes per scaffold to be considered for a gene cluster 
+                          segment.
+    - log_object: A logging object.
+    ********************************************************************************************************************
+    Return:
+    - target_genome_info: A dictionary of dictionaries:
+            - gene_locations: A multi - tiered dictionary with location information for CDS features.
+            - scaffold_genes: A double dictionary with keys corresponding to samples and secondary keys to scaffolds and
+                              values to CDS features found on them.
+            - boundary_genes: A dictionary with keys corresponding to samples and values to sets of CDS features nearby
+                              scaffold edges.
+    ********************************************************************************************************************
+    """
+    target_genome_info: Tuple[Dict[str, Any], Dict[str, Any], Set[str]] = (defaultdict(dict), defaultdict(set), set())
+    try:
+        sample_info_pkl_file = target_genomes_pkl_dir + sample + ".pkl"
+        genbank_info = None
+        try:
+            assert os.path.isfile(sample_info_pkl_file)
+            with open(sample_info_pkl_file, "rb") as handle:
+                genbank_info = pickle.load(handle)
+        except Exception as e:
+            msg = f"Could not find pickle file with CDS coordinate information for sample {sample}"
+            sys.stderr.write(msg + "\n")
+            log_object.error(msg)
+            sys.stderr.write(traceback.format_exc())
+            sys.exit(1)
+
+        gene_locs = genbank_info[0]
+        scaff_genes = genbank_info[1]
+        bound_genes = genbank_info[2]
+
+        gene_locs_filt: Dict[str, Any] = {}
+        scaff_genes_filt: Dict[str, Any] = defaultdict(set)
+        bound_genes_filt: Set[str] = set([])
+        for scaffold in scaff_genes:
+            if (
+                len(
+                    scaff_genes[scaffold].intersection(
+                        diamond_results[sample]['lts']
+                    )
+                )
+                >= min_distinct_genes
+            ):
+                scaff_genes_filt[scaffold] = scaff_genes[scaffold]
+                for lt in scaff_genes[scaffold]:
+                    gene_locs_filt[lt] = gene_locs[lt]
+                bound_genes_filt = bound_genes_filt.union(
+                    scaff_genes[scaffold].intersection(bound_genes)
+                )
+        
+        target_genome_info = (gene_locs_filt, scaff_genes_filt, bound_genes_filt)
+
+    except Exception as e:
+        log_object.error(f"Issues with loading target genome information for sample {sample} file.")
+        sys.stderr.write(str(e) + "\n")
+        sys.exit(1)
+
+    return target_genome_info
+
 # Global variables with proper type annotations
-gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels = [None]*6
-sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore = [None]*4
+gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, single_query_mode = [None]*7
 
 def identify_gc_instances(
     query_information,
     target_information,
+    diamond_results_summary_file,
     diamond_results,
+    target_genomes_pkl_dir,
     work_dir,
     log_object,
     min_hits=5,
@@ -1025,6 +1081,7 @@ def identify_gc_instances(
     threads=1,
     block_size=3000,
     gc_delineation_mode="GENE-CLUMPER",
+    min_distinct_genes=3,
 ) -> None:
     """
     Description:
@@ -1039,14 +1096,8 @@ def identify_gc_instances(
             - protein_to_hg: Dictionary mapping individual query sequences to ortholog groups.
             - query_fasta: The path to a FASTA of query sequences.
         - comp_gene_info: Dictionary linking to query CDS location / syntenic information.
-    - target_information: A multi-tiered dictionary with information on CDS feature locations across target genomes.
-    - diamond_results: A dictionary with locus tags as keys and values as a list of 5 items:
-            - hg: The best matching query / reference ortholog group.
-            - best_hit_per_lt_bitscore: The bitscore of the best hit for the CDS.
-            - best_hit_per_lt_eval: The E-value of the best hit for the CDS.
-            - sample: The sample identifier.
-            - best_hit_per_lt_identity: The identity of the best hit for the CDS.
-            - best_hit_per_lt_sqlratio: The identity of the subject to query length ratio for the best hit for the CDS.
+    - target_information: A dictionary where keys are target genome sample identifiers and values are paths to GenBank files.
+    - diamond_results_summary_file: A file path to a TSV with summary information on the DIAMOND blastp results.
     - work_dir: The workspace where to write files to for the analysis / function.
     - log_object: A logging object.
     - min_hits: The minimum number of non-redundant or ortholog group query sequences needed to be hit for gene cluster
@@ -1075,13 +1126,14 @@ def identify_gc_instances(
                   for those interested in applying fai to metagenomes, where setting it to a much lower value likely
                   makes sense.
     - gc_delineation_mode: The method to use for gene-cluster delineation, can either be "GENE-CLUMPER" or "HMM"
+    - min_distinct_genes: The minimum number of distinct genes per scaffold to be considered for a gene-cluster 
+                          segment.
     ********************************************************************************************************************
     """
     try:
         work_dir = os.path.abspath(work_dir) + '/'
 
-        global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, target_annotation_info
-        global single_query_mode, sample_lt_to_evalue, sample_lt_to_identity, sample_lt_to_sqlratio, sample_lt_to_bitscore
+        global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, single_query_mode
         
         # Log multiprocessing information for debugging
         util.log_multiprocessing_info(log_object)
@@ -1104,14 +1156,6 @@ def identify_gc_instances(
         lt_to_hg = query_information["protein_to_hg"]
         all_hgs = set(lt_to_hg.values()) if lt_to_hg else set()
         key_hgs = query_information["key_hgs"]
-
-        target_annotation_info = target_information[
-            "target_annotation_information"
-        ]
-        target_genome_gene_info = target_information["target_genome_gene_info"]
-
-        gene_locations = target_genome_gene_info["gene_locations"]
-        scaffold_genes = target_genome_gene_info["scaffold_genes"]
 
         # Create DenseHMM - using the pomegrenate library
         gc_hg_probs = [gc_emission_prob_without_hit]
@@ -1153,9 +1197,9 @@ def identify_gc_instances(
         gc_list_file = work_dir + "GeneCluster_Homolog_Listings.txt"
 
         # open handle to file where expanded GCF listings will be written
-        assert target_annotation_info is not None
-        total_samples = sorted(target_annotation_info.keys())
-        for block_samp_list in util.chunks(total_samples, block_size): # type: ignore
+        assert target_information is not None
+        considered_samples = sorted(list(target_information.keys()))    
+        for block_samp_list in util.chunks(considered_samples, block_size): # type: ignore
             block_samp_set = set(block_samp_list)
             
             # start process of finding new BGCs
@@ -1165,35 +1209,49 @@ def identify_gc_instances(
             sample_lt_to_identity = defaultdict(dict)
             sample_lt_to_sqlratio = defaultdict(dict)
             sample_lt_to_bitscore = defaultdict(dict)
-            for lt in diamond_results:
-                for i, hits in enumerate(
-                    sorted(diamond_results[lt], key=itemgetter(1))
-                ):
-                    if (
-                        i == 0 and hits[3] in block_samp_set
-                    ):  # for now just selecting one - but really it should never be the case that this array is greater than one
-                        sample_lt_to_hg[hits[3]][lt] = hits[0]
-                        sample_hgs[hits[3]].add(hits[0])
-                        sample_lt_to_bitscore[hits[3]][lt] = hits[1]
-                        sample_lt_to_evalue[hits[3]][lt] = decimal.Decimal(
-                            hits[2]
-                        )
-                        sample_lt_to_identity[hits[3]][lt] = float(hits[4])
-                        sample_lt_to_sqlratio[hits[3]][lt] = float(hits[5])
+
+            sample_data = []
+            with open(diamond_results_summary_file) as drsf:
+                # Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tSubject to Query Length Ratio
+                for line in drsf:
+                    line = line.strip()
+                    lt, hg, sample, bitscore, evalue, identity, sqlratio = line.split("\t")
+                    if sample in block_samp_set:
+                        
+                        sample_data.append([lt, hg, sample, float(bitscore), float(evalue), float(identity), float(sqlratio)])
+
+            # previously was just selecting one at random since we already had selected hits based 
+            # on best bitscore in process_diamond_results() - this is just if there is a tie - 
+            # then use E-value to try to distinguish            
+            already_accounted_lts = set([])
+            for sdr in sorted(sample_data, key=itemgetter(4)):
+                lt, hg, sample, bitscore, evalue, identity, sqlratio = sdr
+                if lt in already_accounted_lts: continue
+                sample_lt_to_hg[sample][lt] = hg
+                sample_hgs[sample].add(hg)
+                sample_lt_to_bitscore[sample][lt] = bitscore
+                sample_lt_to_evalue[sample][lt] = evalue
+                sample_lt_to_identity[sample][lt] = identity
+                sample_lt_to_sqlratio[sample][lt] = sqlratio
+                already_accounted_lts.add(lt)
             
             identify_gc_segments_input = []
             for sample in sample_hgs:
+                
+                # load sample gene 
+                sample_gene_location, sample_scaffold_genes, sample_boundary_genes = load_target_genome_info_from_pkl(target_genomes_pkl_dir, sample, diamond_results, min_distinct_genes, log_object)
+                
                 # if len(sample_hgs[sample]) < 3: continue
                 hgs_ordered_dict = {}
                 lts_ordered_dict = {}
-                for scaffold in scaffold_genes[sample]:
+                for scaffold in sample_scaffold_genes:
                     # Type assertion to help the type checker
-                    assert gene_locations[sample] is not None # type: ignore
+                    assert sample_gene_location is not None 
                     lts_with_start = []
-                    for lt in scaffold_genes[sample][scaffold]:
+                    for lt in sample_scaffold_genes[scaffold]:
                         try:
                             lts_with_start.append(
-                                [lt, gene_locations[sample][lt]["start"]]  # type: ignore
+                                [lt, sample_gene_location[lt]["start"]]  # type: ignore
                             )
                         except KeyError:
                             log_object.error(f"KeyError: {lt} not found in {sample}")
@@ -1227,11 +1285,11 @@ def identify_gc_instances(
                         flanking_context,
                         draft_mode,
                         gc_delineation_mode,
-                        target_genome_gene_info["boundary_genes"][sample],
-                        target_genome_gene_info["gene_locations"][sample],
+                        sample_gene_location,
+                        sample_boundary_genes,
                         hgs_ordered_dict,
                         lts_ordered_dict,
-                        target_annotation_info[sample]["genbank"],
+                        target_information[sample],
                         sample_lt_to_bitscore[sample],
                         sample_lt_to_evalue[sample],
                         sample_lt_to_identity[sample],
@@ -1240,7 +1298,7 @@ def identify_gc_instances(
                 )
 
             msg = (
-                f"Determining gene cluster homologous hits for {len(identify_gc_segments_input)} genomes"
+                f"Delineating gene clusters for {len(identify_gc_segments_input)} genomes determined as candidates for potential carriage."
             )
             log_object.info(msg)
             sys.stdout.write(msg + '\n')
@@ -1274,28 +1332,8 @@ def identify_gc_instances(
 def _identify_gc_instances_worker(input_args):
     """
     Description:
-    This function is the actual one which identifies gene clusters and is separated from identifyGCInstances() to allow \
-    multiple processing. It is sample specific. It uses global variable set by identifyGCInstances(). \
-    ********************************************************************************************************************
-    Parameters:
-    - sample: The sample identifier.
-    - min_hits: The minimum number of non-redundant or ortholog group query sequences needed to be hit for gene cluster
-                detection.
-    - min_key_hits: The minimum number of key non-redundant or ortholog group query sequences needed to be hit for gene
-                    cluster detection.
-    - key_hgs: The set of key query ortholog group identifiers.
-    - kq_evalue_threshold: The E-value threshold for "key" designated ortholog groups to be regarded as actually being
-                           hit.
-    - syntenic_correlation_threshold: The threshold for the absolute syntenic correlation between the candidate gene
-                                                                      cluster homologous instance and the query gene cluster.
-    - max_int_genes_for_merge: The maximum number of intermediate genes between those aligning to the query proteins to
-                               be regarded as colocated enough to correspond to a potential single instance of the
-                               gene cluster.
-    - flanking_context: The number of basepairs to take around identified gene clusters when extracting the gene cluster
-                        specific GenBank from the full target genome GenBank.
-    - draft_mode: Whether to use draft mode and regard cutoffs in aggregate across candidate gene cluster instances
-                  found near scaffold edges.
-    - gc_delineation_mode: The method to use for gene cluster delineation, can either be "GENE-CLUMPER" or "HMM"
+    This function is the actual one which identifies gene clusters and is separated from identifyGCInstances() to allow 
+    multiple processing. It is sample specific. It uses global variable set by identifyGCInstances(). 
     ********************************************************************************************************************
     """
     (
@@ -1309,8 +1347,8 @@ def _identify_gc_instances_worker(input_args):
         flanking_context,
         draft_mode,
         gc_delineation_mode,
-        boundary_genes,
         gene_locations,
+        boundary_genes,
         hgs_ordered_dict,
         lts_ordered_dict,
         target_annotation_info,
@@ -2009,6 +2047,7 @@ def filter_paralogous_segments_and_concatenate_into_multi_record_genbanks(
     - hmm_work_dir: The workspace where identifyGCInstances() saved extracted GenBanks for gene cluster instances from \
                     target genomes along with homology information to the query gene cluster.
     - homologous_gbk_dir: The directory where to save the final extracted gene cluster files.
+    - single_query_mode: Whether the query is a single protein.
     - log_object: A logging object.
     ********************************************************************************************************************
     """
@@ -2168,8 +2207,8 @@ def plot_overviews(
             if not sample in relevant_samples:
                 continue
     
-            if target_annotation_info[sample]["genbank"].endswith(".gz"):
-                with gzip.open(target_annotation_info[sample]["genbank"], 'rt') as osgbk:
+            if target_annotation_info[sample].endswith(".gz"):
+                with gzip.open(target_annotation_info[sample], 'rt') as osgbk:
                     for rec in SeqIO.parse(osgbk, "genbank"):
                         scaff_len = len(str(rec.seq))
                         scaff_is_relevant = False
@@ -2184,7 +2223,7 @@ def plot_overviews(
                                     lt = feature.qualifiers.get("protein_id")[0]
                                 except Exception as e:
                                     sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]['genbank']}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
                                     )
                                     sys.exit(1)
                             if lt in relevant_lts:
@@ -2203,7 +2242,7 @@ def plot_overviews(
                                     lt = feature.qualifiers.get("protein_id")[0]
                                 except Exception as e:
                                     sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]['genbank']}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
                                     )
                                     sys.exit(1)
 
@@ -2215,7 +2254,7 @@ def plot_overviews(
                             lt_dists_to_scaff_ends[sample][lt] = scaff_len - end
                             lt_starts[sample][lt] = start
             else:
-                with open(target_annotation_info[sample]["genbank"]) as osgbk:
+                with open(target_annotation_info[sample]) as osgbk:
                     for rec in SeqIO.parse(osgbk, "genbank"):
                         scaff_len = len(str(rec.seq))
                         scaff_is_relevant = False
@@ -2230,7 +2269,7 @@ def plot_overviews(
                                     lt = feature.qualifiers.get("protein_id")[0]
                                 except Exception as e:
                                     sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]['genbank']}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
                                     )
                                     sys.exit(1)
                             if lt in relevant_lts:
@@ -2249,7 +2288,7 @@ def plot_overviews(
                                     lt = feature.qualifiers.get("protein_id")[0]
                                 except Exception as e:
                                     sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]['genbank']}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
                                     )
                                     sys.exit(1)
 

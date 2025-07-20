@@ -714,7 +714,7 @@ def fai_main():
         target_annot_listing_file = preptg_dir + 'Target_Genome_Annotation_Files.txt'
         target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
         target_genome_faa_file = preptg_dir + 'Target_Genomes_DB.faa'
-        target_diamond_linclust_cluster_file = preptg_dir + 'Target_Genomes_DB_clustered.tsv'
+        tg_diamond_linclust_cluster_pickle_file = preptg_dir + 'Target_Genomes_DB_clustered.pkl'
         try: 
             assert(os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
         except Exception as e: 
@@ -734,24 +734,26 @@ def fai_main():
                     target_annotation_information[sample] = gbk
                     valid_tg_samples.add(sample)
 
-        if os.path.isfile(target_diamond_linclust_cluster_file):
+        if os.path.isfile(tg_diamond_linclust_cluster_pickle_file):
             msg = 'You are using a database created after v1.6.0, attempting to process assuming this is the case...'
             sys.stderr.write(msg + "\n")
             log_object.info(msg)
             try:
-                rep_prot_to_nonreps = fai.parse_diamond_linclust_cluster_file(target_diamond_linclust_cluster_file, log_object)
-                if rep_prot_to_nonreps != None:
-                    msg = '**********************************************************************\n'
-                    msg += 'WARNING: DIAMOND linclust was used to collapse redundancy in the database used\n'
-                    msg += 'for DIAMOND searching of gene clusters. This means that the stats reported are\n'
-                    msg += 'proxies for some of the hits based on representative proteins in the same cluster.\n'
-                    msg += '**********************************************************************'
-                    
+                with open(tg_diamond_linclust_cluster_pickle_file, 'rb') as handle:
+                    rep_prot_to_nonreps = pickle.load(handle)
+                if rep_prot_to_nonreps is not None and len(rep_prot_to_nonreps) > 0:
+                    msg = '********************************************************************************************\n'
+                    msg += 'WARNING: DIAMOND linclust was used in prepTG to collapse redundancy in the protein database\n'
+                    msg += 'used for DIAMOND blastp-based searching of gene clusters in fai. This means that stats on\n'
+                    msg += 'sequence similarity reported for some hits are proxied from their representative proteins.\n'
+                    msg += '********************************************************************************************'
                     sys.stderr.write(msg + "\n")
-                    log_object.warning(msg)
-            except Exception as e: 
-                msg = f'Issues parsing DIAMOND linclust cluster file:\n{target_diamond_linclust_cluster_file}.\n'
-                sys.stderr.write(msg + "\n")
+                else:
+                    rep_prot_to_nonreps = None
+            except Exception as e:
+                msg = 'The "Target_Genomes_DB_clustered.pkl" pickle file does not exist within the prepTG db directory specified.'
+                log_object.error(msg)
+                sys.stdout.write(msg + '\n')
                 sys.exit(1)
         elif os.path.isfile(target_genome_faa_file):
             msg = 'You are using a database created prior to v1.6.0, attempting to process assuming this is the case...'
@@ -891,6 +893,8 @@ def fai_main():
          delete_if_exist = True)
         min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
         key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
+        if query_information['single_query_mode']:
+            min_distinct_genes = 1
         fai.identify_gc_instances(query_information, target_annotation_information, diamond_results_summary_file,
                                  diamond_results, target_genomes_pkl_dir, hmm_work_dir, log_object, 
                                  min_hits = min_hits, 

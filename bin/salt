@@ -17,6 +17,7 @@ import os
 import sys
 import gzip
 import traceback
+import pickle
 
 # BSD 3-Clause License
 #
@@ -150,7 +151,18 @@ def salt():
 
     tg_gbk_dir = target_genomes_db + 'Genomic_Genbanks_Additional/'
     tg_concat_dmnd_db = target_genomes_db + 'Target_Genomes_DB.dmnd'
-    tg_diamond_linclust_cluster_file = target_genomes_db + 'Target_Genomes_DB_clustered.tsv'
+    tg_diamond_linclust_cluster_pickle_file = target_genomes_db + 'Target_Genomes_DB_clustered.pkl'
+
+    rep_to_nonreps = None
+    try:
+        with open(tg_diamond_linclust_cluster_pickle_file, 'rb') as handle:
+            rep_to_nonreps = pickle.load(handle)
+    except Exception as e:
+        msg = 'The "Target_Genomes_DB_clustered.pkl" pickle file does not exist within the prepTG db directory specified.'
+        log_object.error(msg)
+        sys.stdout.write(msg + '\n')
+        sys.exit(1)
+
     tg_genome_list_file = target_genomes_db + 'Target_Genome_Annotation_Files.txt'
     tg_mge_annot_dir = target_genomes_db + 'MGE_Annotations/Summary_Results/'
     fai_indiv_spreadsheet_tsv = fai_results_dir + 'Spreadsheet_TSVs/individual_gcs.tsv'

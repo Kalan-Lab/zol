@@ -31,6 +31,7 @@ import aiofile
 import aiohttp
 import copy
 import importlib.metadata
+os.environ['KMP_WARNINGS'] = 'off'
 import numpy as np
 import pandas as pd
 import pyhmmer
@@ -467,6 +468,65 @@ def print_progress_bar(
     # Print New Line on Complete
     if iteration == total:
         sys.stderr.write("\n")
+
+
+def process_diamond_linclust_cluster_file(diamond_linclust_cluster_file, pickle_file, log_object) -> None:
+    """
+    Description:
+    This function parses the DIAMOND linclust cluster file and pickles the dictionary of cluster information.
+    ********************************************************************************************************************
+    Parameters:
+    - diamond_linclust_cluster_file: The path to the DIAMOND linclust cluster file (or the FASTA file used to create the cluster file - to 
+                          accomodate for databases created prior to v1.6.0).
+    - pickle_file: The path to the pickle file to store the dictionary of cluster information.
+    - log_object: A logging object.
+    ********************************************************************************************************************
+    """
+    try:
+        rep_prot_to_nonreps = {}
+        cluster_counts = {}
+        multi_prot_cluster_reps = set([])
+
+        with open(diamond_linclust_cluster_file) as occf:
+            for line in occf:
+                cluster_id, _ = line.strip().split('\t')
+                if cluster_id not in cluster_counts:
+                    cluster_counts[cluster_id] = 0
+                cluster_counts[cluster_id] += 1
+
+        for cluster_id, count in cluster_counts.items():
+            if count > 1:
+                multi_prot_cluster_reps.add(cluster_id)
+
+        del cluster_counts
+
+        if len(multi_prot_cluster_reps) == 0:
+            with open(pickle_file, "wb") as handle:
+                pickle.dump(rep_prot_to_nonreps, handle)
+        else:
+            rep_prot_to_nonreps_list = {}
+            with open(diamond_linclust_cluster_file) as occf:
+                for line in occf:
+                    cluster_id, cluster_member = line.strip().split('\t')
+                    if cluster_id in multi_prot_cluster_reps:
+                        if cluster_id not in rep_prot_to_nonreps_list:
+                            rep_prot_to_nonreps_list[cluster_id] = [cluster_member]
+                        else:
+                            rep_prot_to_nonreps_list[cluster_id].append(cluster_member)
+
+            for cluster_id in rep_prot_to_nonreps_list:
+                rep_prot_to_nonreps[cluster_id] = tuple(rep_prot_to_nonreps_list[cluster_id])
+
+            with open(pickle_file, "wb") as handle:
+                pickle.dump(rep_prot_to_nonreps, handle)
+
+    except Exception as e:
+        msg = f"Issues parsing DIAMOND linclust cluster file:\n{diamond_linclust_cluster_file}.\n"
+        sys.stderr.write(msg + "\n")
+        log_object.info(msg)
+        sys.exit(1)
+
+
 
 def memory_limit(mem) -> None:
     """

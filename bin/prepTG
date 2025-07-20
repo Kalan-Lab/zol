@@ -20,7 +20,7 @@ import traceback
 
 # BSD 3-Clause License
 #
-# Copyright (c) 2021, Kalan-Lab
+# Copyright (c) 2023-2025, Kalan-Lab
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -640,6 +640,16 @@ def prep_tg():
                 sys.exit(1)
         else:
             util.create_fake_diamond_linclust_file(target_genomes_concat_db_faa, diamond_cluster_file, log_object)
+
+        try:
+            diamond_linclust_cluster_pickle_file = outdir + 'Target_Genomes_DB_clustered.pkl'
+            util.process_diamond_linclust_cluster_file(diamond_cluster_file, diamond_linclust_cluster_pickle_file, log_object)
+        except Exception as e:
+            msg = f'Had an issue processing DIAMOND linclust cluster file: {diamond_cluster_file}'
+            sys.stderr.write(msg + '\n')
+            log_object.info(msg)
+            log_object.error(e)
+            sys.exit(1)
 
         # If requested, run MGE annotations
         if mge_annotation_flag: 

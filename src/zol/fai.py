@@ -17,12 +17,12 @@ from Bio import SeqIO
 from pomegranate.distributions import Categorical
 from pomegranate.hmm import DenseHMM
 from scipy.stats import pearsonr
+os.environ['KMP_WARNINGS'] = 'off'
 import numpy
 import pandas as pd
 import tqdm
 import time 
 import copy
-from pympler import asizeof
 
 
 from zol import data_dictionary, util, zol
@@ -677,50 +677,6 @@ def parse_tg_faa_file(tg_faa_file, log_object):
         log_object.info(msg)
         sys.exit(1)
 
-def parse_diamond_linclust_cluster_file(diamond_linclust_cluster_file, log_object):
-    """
-    Description:
-    This function parses the DIAMOND linclust cluster file and returns a dictionary of cluster information.
-    ********************************************************************************************************************
-    Parameters:
-    - diamond_linclust_cluster_file: The path to the DIAMOND linclust cluster file (or the FASTA file used to create the cluster file - to 
-                          accomodate for databases created prior to v1.6.0).
-    - log_object: A logging object.
-    ********************************************************************************************************************
-    Return:
-    - rep_prot_to_nonreps: A dictionary of members in cluster with key corresponding to the representative protein.
-    ********************************************************************************************************************
-    """
-    try:
-        rep_prot_to_nonreps = defaultdict(set)
-        cluster_counts = defaultdict(int)
-        multi_prot_cluster_reps = set([])
-
-        with open(diamond_linclust_cluster_file) as occf:
-            for line in occf:
-                cluster_id, _ = line.strip().split('\t')
-                cluster_counts[cluster_id] += 1
-
-        for cluster_id, count in cluster_counts.items():
-            if count > 1:
-                multi_prot_cluster_reps.add(cluster_id)
-
-        if len(multi_prot_cluster_reps) == 0:
-            return None
-        
-        with open(diamond_linclust_cluster_file) as occf:
-            for line in occf:
-                cluster_id, cluster_member = line.strip().split('\t')
-                if cluster_id in multi_prot_cluster_reps:
-                    rep_prot_to_nonreps[cluster_id].add(cluster_member)
-
-        return rep_prot_to_nonreps
-    except Exception as e:
-        msg = f"Issues parsing DIAMOND linclust cluster file:\n{diamond_linclust_cluster_file}.\n"
-        sys.stderr.write(msg + "\n")
-        log_object.info(msg)
-        sys.exit(1)
-
 def process_diamond_blastp(
     target_annot_information, rep_prot_to_nonreps, diamond_results_file, diamond_results_summary_file, work_dir, log_object
 ) -> Dict[str, Dict[str, Set[str]]]:
@@ -1238,7 +1194,6 @@ def identify_gc_instances(
             
             identify_gc_segments_input = []
             for sample in sample_hgs:
-                
                 # load sample gene 
                 sample_gene_location, sample_scaffold_genes, sample_boundary_genes = load_target_genome_info_from_pkl(target_genomes_pkl_dir, sample, diamond_results, min_distinct_genes, log_object)
                 
@@ -2940,7 +2895,7 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
         dd_sheet.write(
             2,
             0,
-            "WARNING: If DIAMOND linclust was used to collapse redundancy in the prepTG database (default behavior since v1.6.1) used for DIAMOND searching of gene clusters. This means that the stats reported are proxies for some of the hits based on representative proteins in the same cluster.",
+            "WARNING: If DIAMOND linclust was used to collapse redundancy in the prepTG database (default behavior since v1.6.1), sequence similarity stats reported for some hits are proxied based on their representative proteins.",
             warn_format
         )
 

@@ -153,10 +153,10 @@ def salt():
     tg_concat_dmnd_db = target_genomes_db + 'Target_Genomes_DB.dmnd'
     tg_diamond_linclust_cluster_pickle_file = target_genomes_db + 'Target_Genomes_DB_clustered.pkl'
 
-    rep_to_nonreps = None
+    rep_prot_to_nonreps = None
     try:
         with open(tg_diamond_linclust_cluster_pickle_file, 'rb') as handle:
-            rep_to_nonreps = pickle.load(handle)
+            rep_prot_to_nonreps = pickle.load(handle)
     except Exception as e:
         msg = 'The "Target_Genomes_DB_clustered.pkl" pickle file does not exist within the prepTG db directory specified.'
         log_object.error(msg)
@@ -359,11 +359,6 @@ def salt():
          evalue_cutoff = 1e-3, 
          threads = threads, 
          compute_query_coverage = True)
-
-        rep_prot_to_nonreps = None
-        if os.path.isfile(tg_diamond_linclust_cluster_file):
-            rep_prot_to_nonreps = fai.parse_diamond_linclust_cluster_file(tg_diamond_linclust_cluster_file, log_object)
-
         
         util.process_diamond_for_gc_to_ribo_ratio(diamond_results_file, 
                                                 rep_prot_to_nonreps,

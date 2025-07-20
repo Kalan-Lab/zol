@@ -938,7 +938,7 @@ def dereplicate_using_skani(
                 f"Had an issue running skani: {' '.join(skani_sketch_cmd)}"
             )
             sys.stderr.write(
-                f"Had an issue running skani: {' '.join(skani_sketch_cmd)}\n"
+                f"Had an issue running skani: {' '.join(skani_sketch_cmd)}\nThis might be due to unix default limits - you can try setting \"ulimit -S -s unlimited\" prior to rerunning zol\n."
             )
             log_object.error(e)
             sys.exit(1)

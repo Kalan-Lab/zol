@@ -81,7 +81,7 @@ def setup_annot_dbs():
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
 	else:
-		download_path = os.path.abspath(zol_data_directory) + "/"
+		download_path = os.path.abspath(download_path) + "/"
 	
 	threads = myargs.threads
 	minimal_mode = myargs.minimal

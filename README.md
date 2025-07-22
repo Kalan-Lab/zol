@@ -59,7 +59,13 @@ Note, (for some setups at least) ***it is critical to specify the conda-forge ch
 
 ```bash
 # 1. install and activate zol
+
+# On Linux:
 conda create -n zol_env -c conda-forge -c bioconda zol
+conda activate zol_env
+
+# On macOS:
+CONDA_SUBDIR=osx-64 conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol_env
 
 # 2. depending on internet speed, this can take 20-30 minutes

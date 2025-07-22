@@ -76,11 +76,13 @@ def setup_annot_dbs():
 
 	download_path = None
 	if str(os.getenv("ZOL_DATA_PATH")) != 'None':
-		download_path = str(os.getenv("ZOL_DATA_PATH"))
+		download_path = str(os.getenv("ZOL_DATA_PATH")) + '/'
 	if download_path == None or not os.path.isdir(download_path):
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
-
+	else:
+		download_path = os.path.abspath(zol_data_directory) + "/"
+	
 	threads = myargs.threads
 	minimal_mode = myargs.minimal
 	lsabgc_minimal_mode = myargs.lsabgc_minimal

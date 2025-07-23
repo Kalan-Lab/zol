@@ -149,6 +149,11 @@ conda activate ../conda_env/
 
 # within cloned git repo, run pip install
 pip install .
+
+# deactivate and re-activate to ensure proper
+# setting of environment variables
+conda deactivate
+conda activate ../conda_env/
 ```
 
 Note, this will be using bleeding-edge code that might not yet be released.

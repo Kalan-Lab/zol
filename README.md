@@ -64,10 +64,6 @@ Note, (for some setups at least) ***it is critical to specify the conda-forge ch
 conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol_env
 
-# On macOS:
-CONDA_SUBDIR=osx-64 conda create -n zol_env -c conda-forge -c bioconda zol
-conda activate zol_env
-
 # 2. depending on internet speed, this can take 20-30 minutes
 # end product will be ~40 GB! You can also run in minimal mode
 # (which will only download Pfam & PGAP HMM models ~8.5 GB)

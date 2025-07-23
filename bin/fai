@@ -709,11 +709,7 @@ def fai_main():
             sys.stderr.write('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
             log_object.error('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
             sys.stderr.write(str(e) + '\n')
-            sys.exit(1)
-
-
-    print(query_information['key_hgs'])
-    
+            sys.exit(1)    
 
     # Quickly read target genomes information (don't load the database yet!)
     target_genome_dmnd_db = None

@@ -1228,9 +1228,8 @@ def identify_gc_instances(
                             hgs_ordered.append(sample_lt_to_hg[sample][lt])
                         else:
                             hgs_ordered.append("background")
-                    if len(set(hgs_ordered)) >= min_distinct_genes:
-                        hgs_ordered_dict[scaffold] = hgs_ordered
-                        lts_ordered_dict[scaffold] = lts_ordered
+                    hgs_ordered_dict[scaffold] = hgs_ordered
+                    lts_ordered_dict[scaffold] = lts_ordered
 
                 identify_gc_segments_input.append(
                     [

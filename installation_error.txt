@@ -1,0 +1,3 @@
+conda dir is: /Users/raufs/Coding/zol/develop_v1.6.3/conda_env_new/
+C++ compilation or setup of executables failed or had issues setting up space in conda environment for databases!
+traceback.format_exc()

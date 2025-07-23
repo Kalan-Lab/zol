@@ -211,8 +211,10 @@ def create_parser():
     parser.add_argument('-kpq', 
         '--key-protein-queries', 
         help = "Path to protein multi-FASTA file containing key query\n"
-               "sequences which some proportin of are required to be\n"
-               "present in a gene cluster at a specific E-value cutoff.", 
+               "sequences which some proportion of are required to be\n"
+               "present in a gene cluster at a specific E-value cutoff.\n"
+               "Note, these genes must be sub-contained in the set of total\n"
+               "query proteins. Otherwise, they will be ignored.", 
         required = False, 
         default = None)
     parser.add_argument('-kpe', 
@@ -434,6 +436,18 @@ def fai_main():
         sys.stderr.write("Delineation mode is not valid. Must be either 'Gene-Clumper' or 'HMM'.\n")
         sys.exit(1)
 
+    try:
+        assert(min_prop >= 0.0 and min_prop <= 1.0)
+    except Exception as e:
+        sys.stderr.write("Minimum proportion must be between 0.0 and 1.0.\n")
+        sys.exit(1)
+
+    try:
+        assert(key_protein_min_prop >= 0.0 and key_protein_min_prop <= 1.0)
+    except Exception as e:
+        sys.stderr.write("Minimum proportion of key proteins must be between 0.0 and 1.0.\n")
+        sys.exit(1)
+
     check_dir = outdir + 'Checkpoint_Files/'
     clean_up_checkpoint_file = check_dir + 'cleaned_up.txt'
     # create output directory if needed, or warn of over-writing
@@ -477,14 +491,6 @@ def fai_main():
     version_string = util.get_version()
     log_object.info(f'Running fai version {version_string}')
     sys.stdout.write(f'Running fai version {version_string}\n')
-
-    try:
-        assert(min_distinct_genes >= 3)
-    except Exception as e: 
-        msg = 'Minimum number of genes per scaffold/genome must be at least 3, using 3 instead.'
-        sys.stderr.write(msg + '\n')
-        log_object.warning(msg)
-        min_distinct_genes = 3
 
     log_object.info("Saving parameters for future records.")
     parameters_file = outdir + 'Parameter_Inputs.txt'
@@ -595,8 +601,8 @@ def fai_main():
                     filename = os.path.abspath(filename)
                     if os.path.isfile(filename) and (filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank")): 
                         if util.check_valid_genbank(filename, 
-             use_either_lt_or_pi = True, 
-             require_translation = True): 
+                                                    use_either_lt_or_pi = True, 
+                                                    require_translation = True): 
                             genbanks.add(filename)
                         else: 
                             msg = f'Ignoring file {filename} because it doesn\'t have CDS features, translations for all CDS features, or a comma was found in a CDS locus tag.'
@@ -683,10 +689,10 @@ def fai_main():
         key_hgs = set([])
         if key_protein_queries_fasta != None: 
             key_hgs = fai.map_key_proteins_to_homolog_groups(query_fasta, 
-          key_protein_queries_fasta, 
-          work_dir, 
-          log_object, 
-          threads = threads)
+                                                            key_protein_queries_fasta, 
+                                                            work_dir, 
+                                                            log_object, 
+                                                            threads = threads)
         query_information = {'protein_to_hg': protein_to_hg, 'query_fasta': query_fasta, 
                              'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs, 
                              'single_query_mode': single_query_mode}
@@ -704,6 +710,10 @@ def fai_main():
             log_object.error('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
             sys.stderr.write(str(e) + '\n')
             sys.exit(1)
+
+
+    print(query_information['key_hgs'])
+    
 
     # Quickly read target genomes information (don't load the database yet!)
     target_genome_dmnd_db = None
@@ -817,9 +827,23 @@ def fai_main():
             sys.stderr.write(str(e) + "\n")
             sys.exit(1)
 
-    msg = '--------------------\nStep 3\n--------------------\nCursory filtering of target genomes for candidates potentially\nharboring a gene cluster of interest.'
+    msg = '--------------------\nStep 3\n--------------------\nPreliminary filtering of target genomes for candidates potentially\nharboring a gene cluster of interest.'
     log_object.info(msg)
     sys.stdout.write(msg + "\n")
+
+    min_key_distinct_genes_per_genome = 0
+    if query_information['single_query_mode']:
+        min_distinct_genes = 1
+        min_key_distinct_genes_per_genome = 0
+    else:  
+        try:
+            assert(min_distinct_genes >= 3)
+        except Exception as e: 
+            msg = 'Minimum number of genes per scaffold/genome must be at least 3, using 3 instead.'
+            sys.stderr.write(msg + '\n')
+            log_object.warning(msg)
+            min_distinct_genes = 3
+        min_key_distinct_genes_per_genome = key_protein_min_prop*len(query_information['key_hgs'])
 
     step3_check_file = check_dir + 'step3.txt'
     preptg_dir = os.path.abspath(target_genomes) + '/'
@@ -844,6 +868,7 @@ def fai_main():
 
             if query_information['single_query_mode']: 
                 min_distinct_genes_per_genome = 1
+                min_key_distinct_genes_per_genome = 0
 
             target_annotation_information = {}
             with open(target_annot_listing_file) as otalf: 
@@ -853,7 +878,8 @@ def fai_main():
                     gbk = preptg_dir + gbk
                     if os.path.isfile(gbk) and os.path.getsize(gbk) > 0 and sample in diamond_results and \
                         len(diamond_results[sample]['hgs']) >= min_distinct_genes_per_genome: 
-                        target_annotation_information[sample] = gbk
+                        if len(diamond_results[sample]['hgs'].intersection(query_information['key_hgs'])) >= min_key_distinct_genes_per_genome:
+                            target_annotation_information[sample] = gbk
 
             if len(target_annotation_information) == 0:
                 msg = 'No target genomes found that meet the minimum criteria for harboring a gene cluster of interest.'
@@ -893,8 +919,7 @@ def fai_main():
          delete_if_exist = True)
         min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
         key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
-        if query_information['single_query_mode']:
-            min_distinct_genes = 1
+
         fai.identify_gc_instances(query_information, target_annotation_information, diamond_results_summary_file,
                                  diamond_results, target_genomes_pkl_dir, hmm_work_dir, log_object, 
                                  min_hits = min_hits, 

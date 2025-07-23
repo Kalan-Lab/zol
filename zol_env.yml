@@ -5,6 +5,7 @@ channels:
 dependencies:
   - "python=3.10"
   - pip
+  - curl
   - setuptools
   - biopython
   - conda-forge::cxx-compiler
@@ -13,14 +14,13 @@ dependencies:
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
   - "fasttree>=2.0.0"
-  - "bioconda::diamond>=2.1.7"
+  - "bioconda::diamond=2.1.11"
   - prodigal
   - prodigal-gv
   - pyrodigal
   - "pandas>=2.0"
   - "xlsxwriter>=3.0.3"
   - scikit-learn
-  - axel
   - "hyphy>=2.5.14"
   - "pomegranate>=1.0.0"
   - bioconda::cd-hit

@@ -426,13 +426,13 @@ def prep_tg():
         curr_workspace_dir = os.getcwd()
         dl = PREMADE_DOWNLOAD_LINKS[download_premade]
         dl_base = dl.split('/')[-1].split('?')[0]
-        axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
+        curl_download_dbs_cmd = ['curl', '-L', dl, '-o', dl_base]
         extract_cmd = ['tar', '-zxvf', dl_base]
         reorganize_cmd = ['mv', download_premade + '/*', '.']
         rm_cmd = ['rm', '-f', dl_base]
         try: 
             os.chdir(outdir)
-            os.system(' '.join(axel_download_dbs_cmd))
+            os.system(' '.join(curl_download_dbs_cmd))
             os.system(' '.join(extract_cmd))
             assert os.path.isdir(download_premade)
             os.system(' '.join(reorganize_cmd))

@@ -40,7 +40,6 @@ requirements:
     - pandas >=2.0
     - xlsxwriter >=3.0.3
     - scikit-learn
-    - axel
     - hyphy >=2.5.14
     - pomegranate >=1.0.0
     - cd-hit

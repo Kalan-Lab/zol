@@ -871,7 +871,7 @@ def map_key_proteins_to_homolog_groups(
             "--db",
             query_dmnd_db,
             "--outfmt",
-            "6",
+            "6 qseqid sseqid pident bitscore qcovhsp scovhsp",
             "--out",
             align_result_file,
             "--evalue",
@@ -900,8 +900,14 @@ def map_key_proteins_to_homolog_groups(
             for line in oarf:
                 line = line.strip()
                 ls = line.split("\t")
-                kq, hg = ls[:2]
-                bs = float(ls[11])
+                kq, hg, pident, bs, qcovhsp, scovhsp = ls
+                bs = float(bs)
+                pident = float(pident)
+                qcovhsp = float(qcovhsp)
+                scovhsp = float(scovhsp)  
+                if pident <= 99.0: continue # identity
+                if qcovhsp <= 99.0: continue # query coverage
+                if scovhsp <= 99.0: continue # subject coverage
                 if bs > kq_top_hits[kq]["best_bitscore"]:
                     kq_top_hits[kq] = {"hg_list": [hg], "best_bitscore": bs}
                 elif bs == kq_top_hits[kq]["best_bitscore"]:
@@ -914,14 +920,10 @@ def map_key_proteins_to_homolog_groups(
                     for hg in kq_top_hits[rec.id]["hg_list"]:
                         key_hgs.add(hg)
                 except Exception as e2:
-                    log_object.error(
-                        f"Found no mapping for key query protein {rec.id} to general proteins."
-                    )
-                    sys.stderr.write(
-                        f"Found no mapping for key query protein {rec.id} to general proteins.\n"
-                    )
-                    sys.stderr.write(str(e2) + "\n")
-                    sys.stderr.write(traceback.format_exc())
+                    msg = f"Found no mapping for key query protein {rec.id} to general proteins."
+                    log_object.error(msg)
+                    sys.stderr.write(msg + "\n")
+                    log_object.error(traceback.format_exc())
                     sys.exit(1)
 
     except Exception as e:
@@ -1226,8 +1228,9 @@ def identify_gc_instances(
                             hgs_ordered.append(sample_lt_to_hg[sample][lt])
                         else:
                             hgs_ordered.append("background")
-                    hgs_ordered_dict[scaffold] = hgs_ordered
-                    lts_ordered_dict[scaffold] = lts_ordered
+                    if len(set(hgs_ordered)) >= min_distinct_genes:
+                        hgs_ordered_dict[scaffold] = hgs_ordered
+                        lts_ordered_dict[scaffold] = lts_ordered
 
                 identify_gc_segments_input.append(
                     [

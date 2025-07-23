@@ -306,16 +306,17 @@ def download_gtdb_genomes(
             :param sanity_check: Boolean flag for sanity check.
     """
 
-    msg = "Using axel to download GTDB listing."
+    msg = "Using curl to download GTDB listing."
     sys.stdout.write(msg + "\n")
     log_object.info(msg)
-    axel_cmd = [
-        "axel",
+    curl_cmd = [
+        "curl",
+        "-L",
         f"https://github.com/raufs/gtdb_gca_to_taxa_mappings/raw/main/GTDB_{gtdb_release}_Information_with_Genome_URLs.txt.gz",
         "-o",
         gtdb_listing_file,
     ]
-    run_cmd_via_subprocess(axel_cmd, log_object, check_files=[gtdb_listing_file])
+    run_cmd_via_subprocess(curl_cmd, log_object, check_files=[gtdb_listing_file])
 
     msg = (
         f"Beginning by assessing which genomic assemblies are available for the taxa {taxa_name} in GTDB {gtdb_release}"
@@ -3273,20 +3274,20 @@ def run_pyhmmer_for_ribo_prots(
             rp_db_file = download_path + "Universal-Hug-et-al.hmm"
             try:
                 for dl in download_links:
-                    axel_download_dbs_cmd = [
-                        "axel",
-                        "-a",
-                        "-n",
-                        str(threads),
+                    curl_download_dbs_cmd = [
+                        "curl",
+                        "-L",
                         dl,
+                        "-o",
+                        rp_db_file,
                     ]
-                    os.system(" ".join(axel_download_dbs_cmd))
+                    os.system(" ".join(curl_download_dbs_cmd))
                     assert os.path.exists(rp_db_file)
                     os.system(" ".join(["hmmpress", rp_db_file]))
             except Exception as e:
                 sys.stderr.write("Error occurred during downloading!\n")
                 log_object.error(
-                    "Error occurred during downloading with axel.\n"
+                    "Error occurred during downloading with curl.\n"
                 )
                 sys.exit(1)
             os.chdir(curr_path)

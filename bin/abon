@@ -184,14 +184,8 @@ def abon():
     # Download GECCO weights pickle file from lsaBGC: 
     gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
     gecco_weights_pkl_file = outdir + 'GECCO_PF_Weights.pkl'
-    axel_download_cmd = ['axel', 
-        '-a', 
-        '-n', 
-        str(threads), 
-        gecco_weights_pkl_link, 
-        '-o', 
-        gecco_weights_pkl_file]
-    util.run_cmd_via_subprocess(axel_download_cmd, 
+    curl_download_cmd = ['curl', '-L', gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
+    util.run_cmd_via_subprocess(curl_download_cmd, 
         log_object, 
         check_files = [gecco_weights_pkl_file])
 

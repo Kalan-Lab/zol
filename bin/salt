@@ -352,14 +352,14 @@ def salt():
          threads = threads)
 
         diamond_results_file = fai.run_diamond_blastp(tg_concat_dmnd_db, 
-         tg_query_prots_file, 
-         ribo_norm_dir, 
-         log_object, 
-         diamond_sensitivity = 'very-sensitive', 
-         evalue_cutoff = 1e-3, 
-         threads = threads, 
-         compute_query_coverage = True)
-        
+                                                        tg_query_prots_file, 
+                                                        ribo_norm_dir, 
+                                                        log_object, 
+                                                        diamond_sensitivity = 'very-sensitive', 
+                                                        evalue_cutoff = 1e-3, 
+                                                        threads = threads, 
+                                                        compute_query_coverage = True)
+                                                        
         util.process_diamond_for_gc_to_ribo_ratio(diamond_results_file, 
                                                 rep_prot_to_nonreps,
                                                 tg_query_prots_file, 

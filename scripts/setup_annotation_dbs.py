@@ -76,7 +76,7 @@ def setup_annot_dbs():
 
 	download_path = None
 	if str(os.getenv("ZOL_DATA_PATH")) != 'None':
-		download_path = str(os.getenv("ZOL_DATA_PATH")) + '/'
+		download_path = str(os.getenv("ZOL_DATA_PATH"))
 	if download_path == None or not os.path.isdir(download_path):
 		sys.stderr.write('Issues validing database download directory exists.\n')
 		sys.exit(1)
@@ -113,19 +113,23 @@ def setup_annot_dbs():
 		sys.exit(1)
 
 	# download vScore information and GECCO scores
-	download_links = ['https://anantharamanlab.github.io/V-Score-Search/VScoreDataNormalized.csv',
-			  'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt']
 
+	sys.stdout.write('Downloading vScore information and GECCO weights ...\n')
+	download_links = [
+		'https://anantharamanlab.github.io/V-Score-Search/VScoreDataNormalized.csv',
+		'https://raw.githubusercontent.com/raufs/gtdb_gca_to_taxa_mappings/refs/heads/main/GECCO_Weights.txt'
+	]
 
 	# Download
 	print('Starting download of files!')
 	os.chdir(download_path)
 	try:
 		for dl in download_links:
-			axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
-			os.system(' '.join(axel_download_dbs_cmd))
-			basefile = dl.split('/')[-1]
-			assert(os.path.isfile(basefile))
+			bf = dl.split('/')[-1].split('?')[0]
+			download_output = download_path + bf
+			curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+			os.system(' '.join(curl_download_dbs_cmd))
+			assert(os.path.isfile(download_output))
 	except Exception as e:
 		sys.stderr.write('Error occurred during downloading of weight files - please let us know on GitHub issues!\n')
 		sys.stderr.write(str(e) + '\n')
@@ -154,8 +158,13 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
-				os.system(' '.join(axel_download_dbs_cmd))
+				bf = dl.split('/')[-1].split('?')[0]
+				download_output = download_path + bf
+				if bf == 'data':
+					bf = 'card-data.tar.bz2'
+					download_output = download_path + bf
+				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
 			sys.stderr.write(str(e) + '\n')
@@ -285,8 +294,10 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
-				os.system(' '.join(axel_download_dbs_cmd))
+				bf = dl.split('/')[-1].split('?')[0]
+				download_output = download_path + bf
+				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
 			sys.stderr.write(str(e) + '\n')
@@ -367,7 +378,6 @@ def setup_annot_dbs():
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
 		pgap_phmm_file = download_path + 'PGAP.hmm'
 		pb_faa_file = download_path + 'paperblast.dmnd'
-		#pb_sql_file = download_path + 'litsearch.db'
 		vog_phmm_file = download_path + 'vog.hmm'
 		vog_info_file = download_path + 'vog.annotations.tsv'
 		is_faa_file = download_path + 'isfinder.dmnd'
@@ -384,7 +394,6 @@ def setup_annot_dbs():
 						  'http://www.mgc.ac.cn/VFs/Down/VFDB_setB_pro.fas.gz',
 						  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.hmm.tar.gz',
-						  #'http://papers.genomics.lbl.gov/data/litsearch.db'
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
@@ -399,11 +408,16 @@ def setup_annot_dbs():
 		os.chdir(download_path)
 		try:
 			for dl in download_links:
-				axel_download_dbs_cmd = ['axel', '-a', '-n', str(threads), dl]
-				os.system(' '.join(axel_download_dbs_cmd))
+				bf = dl.split('/')[-1].split('?')[0]
+				download_output = download_path + bf
+				if bf == 'data':
+					bf = 'card-data.tar.bz2'
+					download_output = download_path + bf
+				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
-			issues_handle.write('Error occurred during downloading with axel.\n')
+			issues_handle.write('Error occurred during downloading with curl.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 

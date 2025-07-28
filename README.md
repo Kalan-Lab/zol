@@ -23,6 +23,58 @@ After finding homologous instances of a gene cluster - using fai or other softwa
 
 *In addition, please cite important [dependency software or databases](https://github.com/Kalan-Lab/zol/wiki/6.-dependencies) for your specific analysis accordingly.*
 
+```
+Usage: zol-suite [-h] [--list-programs] [--version] <program> ...
+
+The zol suite - a comprehensive bioinformatics toolkit for gene cluster analysis.
+
+/================================\
+|| ________      ________       ||
+|||\_____  \    |\   ____\      ||
+|| \|___/  /|   \ \  \___|_     ||
+||     /  / /    \ \_____  \    ||
+||    /  /_/__    \|____|\  \   ||
+||   |\________\    ____\_\  \  ||
+||    \|_______|   |\_________\ ||
+||                 \|_________| ||
+\================================/
+
+Author: Rauf Salamzade
+Lab: Kalan Lab; University of Wisconsin - Madison; McMaster University
+
+This interface provides access to all ZOL tools through a single command-line interface.
+Each tool has its own specific arguments and functionality.
+
+Typical order of operations:
+
+1.) Run prepTG to prepare a database of target genomes for searches using fai.
+2.) Run fai to find additional instances of a gene cluster of interest in the prepTG database.
+3.) Run zol to perform comparative gene cluster analysis on the results from fai.
+4.) Run cgc and cgcg to visualize the results from zol.
+
+For help with a specific program, use: zol-suite <program> --help
+
+Positional Arguments:
+  <program>        ZOL program to run
+    abon           Automated analysis of conservation/novelty for a sample's biosynthetic
+                   gene clusters.
+    apos           Automated analysis of conservation/novelty for a sample's plasmids.
+    atpoc          Automated analysis of conservation/novelty for a sample's prophages.
+    cgc            Visualization of zol results along a consensus gene cluster sequence.
+    cgcg           Visualization of zol results as a graphical network.
+    fai            Find additional instances of gene clusters in a genome database using
+                   flexible alignment and synteny criteria.
+    prepTG         Prepare a database of target genomes for searches using fai.
+    salt           Support assessment for lateral transfer of gene clusters (experimental).
+    zol            Perform comparative gene cluster analysis.
+    zol-scape      Run zol analysis on BiG-SCAPE results.
+
+Options:
+  -h, --help       show this help message and exit
+  --list-programs  List all available programs and exit
+  --version        show program's version number and exit
+  ```
+
 > [!CAUTION]
 > Please avoid using versions 1.5.1 to 1.5.3 in which zol has the possibility to get stuck in a while loop and write a large file. This issue is resolved in v1.5.4. 
 

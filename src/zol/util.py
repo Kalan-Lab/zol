@@ -38,65 +38,6 @@ import pyhmmer
 import tqdm
 from zol import fai, zol
 
-
-def assess_multiprocessing_mode() -> str:
-    """
-    Assess the current multiprocessing start method.
-    
-    Returns:
-        str: The current multiprocessing start method ('spawn', 'fork', 'forkserver', or 'unknown')
-    """
-    try:
-        import multiprocessing
-        start_method = multiprocessing.get_start_method()
-        return start_method
-    except Exception as e:
-        # Fallback method to infer from the platform
-        try:
-            import platform
-            if platform.system() == 'Windows':
-                return 'spawn'
-            elif platform.system() == 'Darwin':  # macOS
-                return 'fork'
-            else:  # Linux and others
-                return 'fork'
-        except:
-            return "unknown"
-
-
-def set_multiprocessing_start_method(method: str = "fork") -> bool:
-    """
-    Set the multiprocessing start method.
-    
-    Args:
-        method: The start method to use ('spawn', 'fork', 'forkserver')
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    try:
-        import multiprocessing
-        multiprocessing.set_start_method(method, force=True)
-        return True
-    except Exception as e:
-        return False
-
-
-def log_multiprocessing_info(log_object) -> None:
-    """
-    Log multiprocessing information for debugging purposes.
-    
-    Args:
-        log_object: A logging object
-    """
-    current_method = assess_multiprocessing_mode()
-    log_object.info(f"Current multiprocessing start method: {current_method}")
-    
-    import platform
-    log_object.info(f"Platform: {platform.system()}")
-    log_object.info(f"Python version: {platform.python_version()}")
-
-
 # TypedDict definitions for better type safety
 class BestHitInfo(TypedDict):
     hg_list: List[str]
@@ -528,20 +469,71 @@ def process_diamond_linclust_cluster_file(diamond_linclust_cluster_file, pickle_
         sys.exit(1)
 
 
+def memory_limit(mem: int) -> None:
+    """
+    Set memory limit for the process.
 
-def memory_limit(mem) -> None:
-    """
-    Description:
-    Experimental function to limit memory.
-    ********************************************************************************************************************
     Parameters:
-    - mem: The memory limit in GB.
-    ********************************************************************************************************************
+    -----------
+    mem : int
+        Memory limit in gigabytes
+
+    Returns:
+    --------
+    None
+        Sets the memory limit for the current process
     """
-    max_virtual_memory = mem * 1000000000
-    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
-    print(resource.getrlimit(resource.RLIMIT_AS))
+    try:
+        MIN_MEMORY_LIMIT = 4
+        MAX_MEMORY_LIMIT = 1024
+        
+        # Validate memory limit is within reasonable bounds
+        if mem < MIN_MEMORY_LIMIT:
+            print(f"Warning: Requested memory limit ({mem}GB) is below minimum ({MIN_MEMORY_LIMIT}GB)")
+            print(f"Using minimum limit of {MIN_MEMORY_LIMIT}GB")
+            mem = MIN_MEMORY_LIMIT
+        elif mem > MAX_MEMORY_LIMIT:
+            print(f"Warning: Requested memory limit ({mem}GB) is above maximum ({MAX_MEMORY_LIMIT}GB)")
+            print(f"Using maximum limit of {MAX_MEMORY_LIMIT}GB")
+            mem = MAX_MEMORY_LIMIT
+        
+        max_virtual_memory: int = mem * 1000000000
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        
+        # Handle RLIM_INFINITY (unlimited) values
+        soft_gb = "unlimited" if soft == resource.RLIM_INFINITY else f"{soft // 1000000000}GB"
+        hard_gb = "unlimited" if hard == resource.RLIM_INFINITY else f"{hard // 1000000000}GB"
+        
+        # Check if the requested limit exceeds the system's hard limit
+        if hard != resource.RLIM_INFINITY and max_virtual_memory > hard:
+            print(f"Warning: Requested memory limit ({mem}GB) exceeds system maximum ({hard_gb})")
+            print(f"Using system maximum instead")
+            max_virtual_memory = hard
+        
+        # Check if the requested limit is lower than the current soft limit
+        if soft != resource.RLIM_INFINITY and max_virtual_memory < soft:
+            print(f"Reducing memory limit from {soft_gb} to {mem}GB")
+        elif soft == resource.RLIM_INFINITY:
+            print(f"Setting memory limit from unlimited to {mem}GB")
+        
+        # When setting a lower limit, we need to set both soft and hard limits
+        # to the same value to ensure the limit is enforced
+        try:
+            if soft == resource.RLIM_INFINITY or max_virtual_memory < soft:
+                resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, max_virtual_memory))
+            else:
+                resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
+            
+            print(f"Memory limit set to: {mem}GB")
+        except ValueError as e:
+            if "current limit exceeds maximum limit" in str(e):
+                print(f"Warning: Unable to set memory limit to {mem}GB on this system")
+                print("This may be due to system restrictions (common on macOS)")
+                print("Memory usage will not be limited by this process")
+            else:
+                raise
+    except Exception as e:
+        sys.stderr.write(f"Error setting memory limit: {str(e)}\n")
 
 
 def run_cmd_via_subprocess(

@@ -9,7 +9,6 @@ dependencies:
   - setuptools
   - biopython
   - conda-forge::cxx-compiler
-  - "bioconda::muscle=5.1"
   - bioconda::mcl
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
@@ -46,3 +45,4 @@ dependencies:
   - tqdm
   - aiofile
   - aiohttp
+  - "bioconda::muscle=5.1"

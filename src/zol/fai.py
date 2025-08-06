@@ -270,7 +270,7 @@ def gen_consensus_sequences(
     - outdir: The output directory / workspace where to write intermediate files / analyses.
     - log_object: A logging object.
     - threads: The number of threads to use.
-    - use_super5: Whether to use the SUPER5 algorithm for MUSCLE based alignment.
+    - use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
     ********************************************************************************************************************
     Return:
     - orthogroup_matrix_file: An ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
@@ -1015,9 +1015,6 @@ def load_target_genome_info_from_pkl(
 
     return target_genome_info
 
-# Global variables with proper type annotations
-gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, single_query_mode = [None]*7
-
 def identify_gc_instances(
     query_information,
     target_information,
@@ -1092,19 +1089,27 @@ def identify_gc_instances(
     try:
         work_dir = os.path.abspath(work_dir) + '/'
 
-        global gc_genbanks_dir, gc_info_dir, query_gene_info, lt_to_hg, model, model_labels, single_query_mode
+        # Check platform
+        import platform
+        system_platform = platform.system()
+        if system_platform == 'Linux':
+            platform_type = 'linux'
+        elif system_platform == 'Darwin':
+            platform_type = 'macos'
+            # Set environment variables to limit threading for macOS multiprocessing compatibility
+            os.environ['OMP_NUM_THREADS'] = '1'  # Limit OpenMP threads
+            os.environ['MKL_NUM_THREADS'] = '1'  # Limit MKL threads
+            os.environ['OPENBLAS_NUM_THREADS'] = '1'  # Limit OpenBLAS threads
+            os.environ['VECLIB_MAXIMUM_THREADS'] = '1'  # Limit Accelerate framework threads
+            # Ensure multiprocessing uses spawn method on macOS
+            multiprocessing.set_start_method('spawn', force=True)
+        else:
+            platform_type = 'other'
         
-        # Log multiprocessing information for debugging
-        util.log_multiprocessing_info(log_object)
-        
-        # Ensure we're using 'fork' method for global variable sharing
-        current_method = util.assess_multiprocessing_mode()
-        if current_method != "fork":
-            log_object.warning(f"Multiprocessing start method is {current_method}, attempting to set to 'fork' for global variable sharing")
-            if util.set_multiprocessing_start_method("fork"):
-                log_object.info("Successfully set multiprocessing start method to 'fork'")
-            else:
-                log_object.warning("Failed to set multiprocessing start method to 'fork', global variables may not be accessible")
+        msg = f"Detected platform: {system_platform} ({platform_type})\nWill use {'multiprocessing (fork)' if platform_type == 'linux' else 'multiprocessing (spawn)' if platform_type == 'macos' else 'single-threaded'} processing" 
+        log_object.info(msg)
+        sys.stdout.write(msg + '\n')
+
         gc_genbanks_dir = work_dir + "GeneCluster_Genbanks/"
         gc_info_dir = work_dir + "GeneCluster_Info/"
         util.setup_ready_directory([gc_genbanks_dir, gc_info_dir])
@@ -1149,6 +1154,37 @@ def identify_gc_instances(
         model.add_edge(gc_cat, bg_cat, gc_to_bg)
         model.add_edge(bg_cat, gc_cat, bg_to_gc)
         model.add_edge(bg_cat, bg_cat, bg_to_bg)
+
+        # Test HMM model for multiprocessing safety
+        hmm_model_safe = True
+        if platform_type in ['linux', 'macos']:
+            try:
+                import pickle
+                log_object.info("Testing HMM model for multiprocessing safety...")
+                
+                # Test 1: Check if model can be pickled/unpickled
+                test_model = pickle.dumps(model)
+                test_model = pickle.loads(test_model)
+                
+                # Test 2: Check if model can perform predictions after pickling
+                test_seq = numpy.array([[[0]]])  # Simple test sequence
+                test_prediction = test_model.predict(test_seq)
+                
+                # Test 3: Check if model works with actual data structure
+                if len(model_labels) > 1:
+                    test_hg_seq = numpy.array([[[model_labels.index("background")]]])
+                    test_hmm_pred = test_model.predict(test_hg_seq)
+                
+                log_object.info("HMM model passed multiprocessing safety tests")
+                hmm_model_safe = True
+                
+            except Exception as e:
+                log_object.warning(f"HMM model failed multiprocessing safety test: {e}")
+                log_object.warning("Falling back to single-threaded processing for HMM operations")
+                hmm_model_safe = False
+        else:
+            # For other platforms, assume safe (will use single-threaded anyway)
+            hmm_model_safe = True
 
         gc_hmm_evalues_file = (
             work_dir + "GeneCluster_NewInstances_HMMEvalues.txt"
@@ -1252,6 +1288,13 @@ def identify_gc_instances(
                         sample_lt_to_evalue[sample],
                         sample_lt_to_identity[sample],
                         sample_lt_to_sqlratio[sample],
+                        gc_genbanks_dir,
+                        gc_info_dir,
+                        query_gene_info,
+                        lt_to_hg,
+                        model,
+                        model_labels,
+                        single_query_mode
                     ]
                 )
 
@@ -1261,15 +1304,29 @@ def identify_gc_instances(
             log_object.info(msg)
             sys.stdout.write(msg + '\n')
 
-            p = multiprocessing.Pool(threads)
-            for _ in tqdm.tqdm(
-                p.imap_unordered(
-                    _identify_gc_instances_worker, identify_gc_segments_input
-                ),
-                total=len(identify_gc_segments_input),
-            ):
-                pass
-            p.close()
+            # Use multiprocessing for Linux/macOS with safe HMM model, otherwise use single-threaded processing
+            if platform_type in ['linux', 'macos'] and hmm_model_safe:
+                try:
+                    p = multiprocessing.Pool(threads)
+                    for _ in tqdm.tqdm(
+                        p.imap_unordered(
+                            _identify_gc_instances_worker, identify_gc_segments_input
+                        ),
+                        total=len(identify_gc_segments_input),
+                    ):
+                        pass
+                    p.close()
+                    log_object.info("Successfully completed multiprocessing gene cluster identification")
+                except Exception as e:
+                    log_object.error(f"Multiprocessing failed: {e}")
+                    log_object.info("Falling back to single-threaded processing")
+                    # Fall back to single-threaded processing
+                    for input_args in tqdm.tqdm(identify_gc_segments_input, total=len(identify_gc_segments_input)):
+                        _identify_gc_instances_worker(input_args)
+            else:
+                # Single-threaded processing
+                for input_args in tqdm.tqdm(identify_gc_segments_input, total=len(identify_gc_segments_input)):
+                    _identify_gc_instances_worker(input_args)
 
         os.system(
             f'find {gc_info_dir} -type f -name "*.bgcs.txt" -exec cat {{}} + >> {gc_list_file}'
@@ -1314,6 +1371,13 @@ def _identify_gc_instances_worker(input_args):
         sample_lt_to_evalue,
         sample_lt_to_identity,
         sample_lt_to_sqlratio,
+        gc_genbanks_dir, 
+        gc_info_dir, 
+        query_gene_info, 
+        lt_to_hg, 
+        model, 
+        model_labels, 
+        single_query_mode
     ) = input_args
     bg_set = set(["background"])
 

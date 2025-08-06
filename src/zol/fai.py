@@ -1183,8 +1183,8 @@ def identify_gc_instances(
                 log_object.warning("Falling back to single-threaded processing for HMM operations")
                 hmm_model_safe = False
         else:
-            # For other platforms, assume safe (will use single-threaded anyway)
-            hmm_model_safe = True
+            # For other platforms, assume not safe
+            hmm_model_safe = False
 
         gc_hmm_evalues_file = (
             work_dir + "GeneCluster_NewInstances_HMMEvalues.txt"

@@ -1121,70 +1121,79 @@ def identify_gc_instances(
         all_hgs = set(lt_to_hg.values()) if lt_to_hg else set()
         key_hgs = query_information["key_hgs"]
 
-        # Create DenseHMM - using the pomegrenate library
-        gc_hg_probs = [gc_emission_prob_without_hit]
-        bg_hg_probs = [1.0 - gc_emission_prob_without_hit]
-        model_labels = ["background"]
-        for hg in all_hgs:
-            model_labels.append(hg)
-            gc_hg_probs.append(gc_emission_prob_with_hit)
-            bg_hg_probs.append(1.0 - gc_emission_prob_with_hit)
+        hmm_model_safe_or_doesnt_matter = True
+        model = None
+        model_labels = None
+        if gc_delineation_mode == "HMM":
+            # Create DenseHMM - using the pomegrenate library
+            gc_hg_probs = [gc_emission_prob_without_hit]
+            bg_hg_probs = [1.0 - gc_emission_prob_without_hit]
+            model_labels = ["background"]
+            for hg in all_hgs:
+                model_labels.append(hg)
+                gc_hg_probs.append(gc_emission_prob_with_hit)
+                bg_hg_probs.append(1.0 - gc_emission_prob_with_hit)
 
-        gc_cat = Categorical([gc_hg_probs])
-        bg_cat = Categorical([bg_hg_probs])
+            gc_cat = Categorical([gc_hg_probs])
+            bg_cat = Categorical([bg_hg_probs])
 
-        model = DenseHMM()
-        model.add_distributions([gc_cat, bg_cat])
+            model = DenseHMM()
+            model.add_distributions([gc_cat, bg_cat])
 
-        gc_to_gc = gc_to_gc_transition_prob
-        gc_to_bg = 1.0 - gc_to_gc_transition_prob
-        bg_to_bg = bg_to_bg_transition_prob
-        bg_to_gc = 1.0 - bg_to_bg_transition_prob
+            gc_to_gc = gc_to_gc_transition_prob
+            gc_to_bg = 1.0 - gc_to_gc_transition_prob
+            bg_to_bg = bg_to_bg_transition_prob
+            bg_to_gc = 1.0 - bg_to_bg_transition_prob
 
-        start_to_gc = 0.5
-        start_to_bg = 0.5
-        gc_to_end = 0.5
-        bg_to_end = 0.5
+            start_to_gc = 0.5
+            start_to_bg = 0.5
+            gc_to_end = 0.5
+            bg_to_end = 0.5
 
-        model.add_edge(model.start, gc_cat, start_to_gc)
-        model.add_edge(model.start, bg_cat, start_to_bg)
-        model.add_edge(gc_cat, model.end, gc_to_end)
-        model.add_edge(bg_cat, model.end, bg_to_end)
-        model.add_edge(gc_cat, gc_cat, gc_to_gc)
-        model.add_edge(gc_cat, bg_cat, gc_to_bg)
-        model.add_edge(bg_cat, gc_cat, bg_to_gc)
-        model.add_edge(bg_cat, bg_cat, bg_to_bg)
+            model.add_edge(model.start, gc_cat, start_to_gc)
+            model.add_edge(model.start, bg_cat, start_to_bg)
+            model.add_edge(gc_cat, model.end, gc_to_end)
+            model.add_edge(bg_cat, model.end, bg_to_end)
+            model.add_edge(gc_cat, gc_cat, gc_to_gc)
+            model.add_edge(gc_cat, bg_cat, gc_to_bg)
+            model.add_edge(bg_cat, gc_cat, bg_to_gc)
+            model.add_edge(bg_cat, bg_cat, bg_to_bg)
 
-        # Test HMM model for multiprocessing safety
-        hmm_model_safe = True
-        if platform_type in ['linux', 'macos']:
-            try:
-                import pickle
-                log_object.info("Testing HMM model for multiprocessing safety...")
-                
-                # Test 1: Check if model can be pickled/unpickled
-                test_model = pickle.dumps(model)
-                test_model = pickle.loads(test_model)
-                
-                # Test 2: Check if model can perform predictions after pickling
-                test_seq = numpy.array([[[0]]])  # Simple test sequence
-                test_prediction = test_model.predict(test_seq)
-                
-                # Test 3: Check if model works with actual data structure
-                if len(model_labels) > 1:
-                    test_hg_seq = numpy.array([[[model_labels.index("background")]]])
-                    test_hmm_pred = test_model.predict(test_hg_seq)
-                
-                log_object.info("HMM model passed multiprocessing safety tests")
-                hmm_model_safe = True
-                
-            except Exception as e:
-                log_object.warning(f"HMM model failed multiprocessing safety test: {e}")
-                log_object.warning("Falling back to single-threaded processing for HMM operations")
-                hmm_model_safe = False
-        else:
-            # For other platforms, assume not safe
-            hmm_model_safe = False
+            # Test HMM model for multiprocessing safety
+            if platform_type in ['linux', 'macos']:
+                try:
+                    import pickle
+                    log_object.info("Testing HMM model for multiprocessing safety...")
+                    
+                    # Test 1: Check if model can be pickled/unpickled
+                    test_model = pickle.dumps(model)
+                    test_model = pickle.loads(test_model)
+                    
+                    # Test 2: Check if model can perform predictions after pickling
+                    test_seq = numpy.array([[[0]]])  # Simple test sequence
+                    test_prediction = test_model.predict(test_seq)
+                    
+                    # Test 3: Check if model works with actual data structure
+                    if len(model_labels) > 1:
+                        test_hg_seq = numpy.array([[[model_labels.index("background")]]])
+                        test_hmm_pred = test_model.predict(test_hg_seq)
+                    
+                    msg = "HMM model passed multiprocessing safety tests"
+                    log_object.info(msg)
+                    sys.stdout.write(msg + '\n')
+                    
+                except Exception as e:
+                    msg = f"HMM model failed multiprocessing safety test: {e}"
+                    log_object.warning(msg)
+                    sys.stdout.write(msg + '\n')
+                    msg = "Falling back to single-threaded processing for HMM operations"
+                    log_object.warning(msg)
+                    sys.stdout.write(msg + '\n')
+                    hmm_model_safe_or_doesnt_matter = False
+            else:
+                # For other platforms, assume not safe
+                hmm_model_safe_or_doesnt_matter = False
+        
 
         gc_hmm_evalues_file = (
             work_dir + "GeneCluster_NewInstances_HMMEvalues.txt"
@@ -1305,7 +1314,7 @@ def identify_gc_instances(
             sys.stdout.write(msg + '\n')
 
             # Use multiprocessing for Linux/macOS with safe HMM model, otherwise use single-threaded processing
-            if platform_type in ['linux', 'macos'] and hmm_model_safe:
+            if platform_type in ['linux', 'macos'] and hmm_model_safe_or_doesnt_matter:
                 try:
                     p = multiprocessing.Pool(threads)
                     for _ in tqdm.tqdm(
@@ -1392,8 +1401,9 @@ def _identify_gc_instances_worker(input_args):
     assert sample_lt_to_evalue is not None
     assert boundary_genes is not None
     assert lt_to_hg is not None
-    assert model_labels is not None
-    assert model is not None
+    if gc_delineation_mode == "HMM":
+        assert model_labels is not None
+        assert model is not None
 
     if single_query_mode:
         with open(gc_info_dir + sample + ".bgcs.txt", "w") as gc_sample_listing_handle:

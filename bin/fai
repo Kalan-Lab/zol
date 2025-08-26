@@ -204,6 +204,14 @@ def create_parser():
                "query proteins. Otherwise, they will be ignored.", 
         required = False, 
         default = None)
+    parser.add_argument('-skpv',
+        '--skip-key-protein-validation',
+        action = 'store_true',
+        help = "Skip validation of key protein queries against query proteins.\n"
+               "This is useful if the key protein queries are already validated\n"
+               "against the query proteins.",
+        required = False,
+        default = False)
     parser.add_argument('-kpe', 
         '--key-protein-evalue-cutoff', 
         type = float, 
@@ -404,6 +412,7 @@ def fai_main():
     key_protein_queries_fasta = myargs.key_protein_queries
     key_protein_evalue_cutoff = myargs.key_protein_evalue_cutoff
     key_protein_min_prop = myargs.key_protein_min_prop
+    skip_key_protein_validation = myargs.skip_key_protein_validation
     draft_mode = myargs.draft_mode
     filter_paralogs = myargs.filter_paralogs
     use_prodigal_gv_for_reference_flag = myargs.use_prodigal_gv_for_reference
@@ -484,8 +493,9 @@ def fai_main():
     parameter_values = [query_inputs, reference_genome, reference_contig, reference_start, reference_end, 
                         protein_queries_fasta, single_query_fasta, target_genomes, outdir, species_tree, 
                         draft_mode, filter_paralogs, use_prodigal_gv_for_reference_flag, evalue_cutoff, 
-                        min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, key_protein_min_prop, 
-                        syntenic_correlation_threshold, max_genes_disconnect, flanking_context, ge_emission, 
+                        min_prop, key_protein_queries_fasta, key_protein_evalue_cutoff, 
+                        key_protein_min_prop, skip_key_protein_validation, syntenic_correlation_threshold, 
+                        max_genes_disconnect, flanking_context, ge_emission, 
                         be_emission, gc_transition, bg_transition, 
                         min_distinct_genes, plotting_flag, diamond_sensitivity, 
                         diamond_block_size, delineation_mode, phyloheatmap_length, 
@@ -499,6 +509,7 @@ def fai_main():
                        "Use prodigal-gv instead of pyrodigal to perform gene calling for query region in reference genome", 
                        "General E-value cutoff for detection of protein homologs in genome", 
                        "Minimum proportion of distinct query proteins needed", "FASTA file with key proteins to consider", 
+                       "Skip validation of key protein queries against query proteins",
                        "E-values for key proteins to be considered as high-supporting evidence for gene cluster presence", 
                        "Minimum proportion of distinct key protein queries needed", 
                        "Syntenic correlation to known instance threshold needed", 
@@ -679,7 +690,8 @@ def fai_main():
                                                             key_protein_queries_fasta, 
                                                             work_dir, 
                                                             log_object, 
-                                                            threads = threads)
+                                                            threads = threads,
+                                                            skip_key_protein_validation = skip_key_protein_validation)
         query_information = {'protein_to_hg': protein_to_hg, 'query_fasta': query_fasta, 
                              'comp_gene_info': comp_gene_info, 'key_hgs': key_hgs, 
                              'single_query_mode': single_query_mode}

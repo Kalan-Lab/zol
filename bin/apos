@@ -88,9 +88,9 @@ def create_parser():
     parser.add_argument('-fo', 
         '--fai-options', 
         help = "Provide fai options to run. Should be surrounded by quotes. [Default is\n"
-               "\"-e 1e-10 -m 0.5 -dm -sct 0.0\"].", 
+               "\"-skpv -e 1e-10 -m 0.5 -dm -sct 0.0\"].", 
         required = False, 
-        default = "-e 1e-10 -m 0.5 -dm -sct 0.0")
+        default = "-skpv -e 1e-10 -m 0.5 -dm -sct 0.0")
     parser.add_argument('-s', 
         '--use-simple-blastp', 
         action = 'store_true', 

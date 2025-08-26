@@ -2643,6 +2643,7 @@ def diamond_blast_and_get_best_hits(
     try:
         genome_wide_tsv_result_file = workspace_dir + "total_gcs.tsv"
         target_genome_dmnd_db = target_genomes_db + "Target_Genomes_DB.dmnd"
+        tg_diamond_linclust_cluster_pickle_file = target_genomes_db + 'Target_Genomes_DB_clustered.pkl'
 
         # run diamond (use's fai function: runDiamondBlastp)
         diamond_results_file = workspace_dir + "DIAMOND_Results.txt"
@@ -2680,13 +2681,26 @@ def diamond_blast_and_get_best_hits(
                 }
             )
         )
+
+        rep_prot_to_nonreps = None
+        if os.path.isfile(tg_diamond_linclust_cluster_pickle_file):
+            with open(tg_diamond_linclust_cluster_pickle_file, 'rb') as handle:
+                rep_prot_to_nonreps = pickle.load(handle)
+        if rep_prot_to_nonreps is not None and len(rep_prot_to_nonreps) > 0:
+            msg = '********************************************************************************************\n'
+            msg += 'WARNING: DIAMOND linclust was used in prepTG to collapse redundancy in the protein database\n'
+            msg += 'used for DIAMOND blastp-based searching of gene clusters in fai. This means that stats on\n'
+            msg += 'sequence similarity reported for some hits are proxied from their representative proteins.\n'
+            msg += '********************************************************************************************'
+            sys.stderr.write(msg + "\n")
+
         with open(diamond_results_file) as orf:
             for line in orf:
                 line = line.strip()
                 ls = line.split()
                 hg = ls[0]
                 sample = ls[1].split("|")[0]
-                lt = ls[1].split("|")[1]
+                rep_lt = ls[1].split("|")[1]
                 identity = float(ls[2])
                 qcovhsp = float(ls[7])
                 if qcovhsp < coverage_cutoff or identity < identity_cutoff:
@@ -2695,18 +2709,24 @@ def diamond_blast_and_get_best_hits(
                 qlen = float(ls[5])
                 slen = float(ls[6])
                 sql_ratio = float(slen) / float(qlen)
-                
-                # Type assertion to ensure we're working with the correct types
-                current_best = best_hit_per_lt[sample][lt]
-                if bitscore > current_best["best_bitscore"]:
-                    current_best["best_bitscore"] = bitscore
-                    current_best["hg_list"] = [hg]
-                    current_best["identity_list"] = [identity]
-                    current_best["sql_ratio_list"] = [sql_ratio]
-                elif bitscore == current_best["best_bitscore"]:
-                    current_best["hg_list"].append(hg)
-                    current_best["identity_list"].append(identity)
-                    current_best["sql_ratio_list"].append(sql_ratio)
+                all_hits = [rep_lt]
+                if rep_prot_to_nonreps is not None:
+                    if rep_lt not in rep_prot_to_nonreps:
+                        all_hits = [rep_lt]
+                    else:
+                        all_hits = rep_prot_to_nonreps[rep_lt]
+                for lt in all_hits:
+                    # Type assertion to ensure we're working with the correct types
+                    current_best = best_hit_per_lt[sample][lt]
+                    if bitscore > current_best["best_bitscore"]:
+                        current_best["best_bitscore"] = bitscore
+                        current_best["hg_list"] = [hg]
+                        current_best["identity_list"] = [identity]
+                        current_best["sql_ratio_list"] = [sql_ratio]
+                    elif bitscore == current_best["best_bitscore"]:
+                        current_best["hg_list"].append(hg)
+                        current_best["identity_list"].append(identity)
+                        current_best["sql_ratio_list"].append(sql_ratio)
 
         sample_best_hit_per_hg: Dict[str, Dict[str, List[SampleBestHitInfo]]] = defaultdict(lambda: defaultdict(list))
         for sample in best_hit_per_lt:

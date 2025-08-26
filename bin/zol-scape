@@ -210,20 +210,21 @@ def zolscape():
                         msg = f'Warning: unable to find GenBank for BGC {bgc}'
                         sys.stderr.write(msg + '\n')
                         log_object.warning(msg)
-                msg = f'For clustering results {cluster} for GCF {gcf},\n'
-                msg += f'{bgc_ids_in_gcf} BGCs were reported and {bgc_gbks_found} BGC GenBank files were found.\n'
-                msg += 'Missing BGC GenBank files could be because they are MIBiG reference\n'
-                msg += 'BGCs if BiG-SCAPE was run using the --mibig arugment.'
-                sys.stderr.write(msg + '\n')
-                log_object.warning(msg)
+                if bgc_gbks_found != bgc_ids_in_gcf:                     
+                    msg = f'For clustering results {cluster} for GCF {gcf},\n'
+                    msg += f'{bgc_ids_in_gcf} BGCs were reported and {bgc_gbks_found} BGC GenBank files were found.\n'
+                    msg += 'Missing BGC GenBank files could be because they are MIBiG reference\n'
+                    msg += 'BGCs if BiG-SCAPE was run using the --mibig arugment or --include-singletons.'
+                    sys.stderr.write(msg + '\n')
+                    log_object.warning(msg)
                 if len(input_gbks) > 0: 
                     zol_cmd = ['zol', 
-            '-c', 
-            str(threads), 
-            zol_parameters, 
-            '-o', 
-            output_dir, 
-            '-i'] + input_gbks + [log_object]
+                                '-c', 
+                                str(threads), 
+                                zol_parameters, 
+                                '-o', 
+                                output_dir, 
+                                '-i'] + input_gbks + [log_object]
                     zol_cmds.append(zol_cmd)
                 else: 
                     msg = f'Warning: no BGC GenBanks found for GCF {gcf} in clustering results file {cluster}'
@@ -302,8 +303,8 @@ def zolscape():
             gcf_result_file = zol_res_dir + '/Final_Results/Consolidated_Report.tsv'
             if not os.path.isfile(gcf_result_file): continue
             with open(gcf_result_file) as ogrf: 
-                for i, line in enumerate(ogrf): 
-                    if i == 0: continue
+                for j, line in enumerate(ogrf): 
+                    if j == 0: continue
                     line = line.strip()
                     ls = line.split('\t')
                     row = [cluster, gcf] + ls[:18] + ls[19: ]

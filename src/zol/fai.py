@@ -21,8 +21,6 @@ os.environ['KMP_WARNINGS'] = 'off'
 import numpy
 import pandas as pd
 import tqdm
-import time 
-import copy
 
 
 from zol import data_dictionary, util, zol
@@ -819,7 +817,7 @@ def process_diamond_blastp(
 
 
 def map_key_proteins_to_homolog_groups(
-    query_fasta, key_protein_queries_fasta, work_dir, log_object, threads=1
+    query_fasta, key_protein_queries_fasta, work_dir, log_object, threads=1, skip_key_protein_validation=False
 ) -> Set[str]:
     """
     Description:
@@ -834,6 +832,7 @@ def map_key_proteins_to_homolog_groups(
     - work_dir: The workspace directory where to perform mapping alignment and write intermediate files.
     - log_object: A logging object.
     - threads: The number of threads to use.
+    - skip_key_protein_validation: Whether to skip validation of key protein queries against query proteins.
     ********************************************************************************************************************
     Return:
     - key_hgs: A set of "key" designated query ortholog groups.
@@ -905,9 +904,10 @@ def map_key_proteins_to_homolog_groups(
                 pident = float(pident)
                 qcovhsp = float(qcovhsp)
                 scovhsp = float(scovhsp)  
-                if pident <= 99.0: continue # identity
-                if qcovhsp <= 99.0: continue # query coverage
-                if scovhsp <= 99.0: continue # subject coverage
+                if not skip_key_protein_validation:
+                    if pident <= 99.0: continue # identity
+                    if qcovhsp <= 99.0: continue # query coverage
+                    if scovhsp <= 99.0: continue # subject coverage
                 if bs > kq_top_hits[kq]["best_bitscore"]:
                     kq_top_hits[kq] = {"hg_list": [hg], "best_bitscore": bs}
                 elif bs == kq_top_hits[kq]["best_bitscore"]:

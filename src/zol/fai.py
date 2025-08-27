@@ -601,13 +601,35 @@ def run_diamond_blastp(
             diamond_blastp_cmd.append(str(diamond_block_size))
 
         try:
-            subprocess.call(
+            result = subprocess.run(
                 " ".join(diamond_blastp_cmd),
                 shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 executable="/bin/bash",
+                text=True,
             )
+            
+            # Check if there's an error keyword in stderr
+            if result.stderr and "error" in result.stderr.lower():
+                log_object.error(
+                    f"DIAMOND blastp encountered an error: {result.stderr}"
+                )
+                sys.stderr.write(
+                    f"DIAMOND blastp encountered an error: {result.stderr}\n"
+                )
+                sys.exit(1)
+            
+            # Check return code
+            if result.returncode != 0:
+                log_object.error(
+                    f"DIAMOND blastp failed with return code {result.returncode}: {result.stderr}"
+                )
+                sys.stderr.write(
+                    f"DIAMOND blastp failed with return code {result.returncode}: {result.stderr}\n"
+                )
+                sys.exit(1)
+                
             log_object.info(
                 f"Successfully ran: {' '.join(diamond_blastp_cmd)}"
             )
@@ -621,10 +643,7 @@ def run_diamond_blastp(
             log_object.error(e)
             sys.stderr.write(traceback.format_exc())
             sys.exit(1)
-        assert (
-            os.path.isfile(diamond_results_file)
-            and os.path.getsize(diamond_results_file) > 0
-        )
+        assert os.path.isfile(diamond_results_file)
 
     except Exception as e:
         log_object.error("Issues with running DIAMOND blastp.")

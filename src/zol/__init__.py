@@ -1,8 +1,8 @@
 """
 ZOL: A comprehensive bioinformatics toolkit for gene cluster analysis.
 
-This package provides tools for analyzing gene clusters, orthologs,
-and genomic features in bacterial and fungal genomes.
+This package provides tools for detecting and analyzing gene clusters, 
+co-located sets of genes, e.g. operons, BGCs, etc.
 """
 
 __author__ = "Rauf Salamzade"

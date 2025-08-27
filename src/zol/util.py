@@ -2699,8 +2699,7 @@ def diamond_blast_and_get_best_hits(
                 line = line.strip()
                 ls = line.split()
                 hg = ls[0]
-                sample = ls[1].split("|")[0]
-                rep_lt = ls[1].split("|")[1]
+                rep_lt = ls[1]
                 identity = float(ls[2])
                 qcovhsp = float(ls[7])
                 if qcovhsp < coverage_cutoff or identity < identity_cutoff:
@@ -2715,8 +2714,8 @@ def diamond_blast_and_get_best_hits(
                         all_hits = [rep_lt]
                     else:
                         all_hits = rep_prot_to_nonreps[rep_lt]
-                for lt in all_hits:
-                    # Type assertion to ensure we're working with the correct types
+                for sample_lt in all_hits:
+                    sample, lt = sample_lt.split("|")
                     current_best = best_hit_per_lt[sample][lt]
                     if bitscore > current_best["best_bitscore"]:
                         current_best["best_bitscore"] = bitscore

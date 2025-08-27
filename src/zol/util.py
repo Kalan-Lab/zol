@@ -18,10 +18,7 @@ import statistics
 import subprocess
 import sys
 import traceback
-
 import pandas as pd
-import pandas as pd
-import warnings
 import warnings
 from Bio import SeqIO
 from Bio.Seq import Seq

@@ -447,12 +447,12 @@ def apos():
 
     t1_worksheet.conditional_format('A1:F1', 
         {'type': 'cell', 
-        'criteria': '!= ', 
+        'criteria': '!=', 
         'value': 'NA', 
         'format': header_format})
     t2_worksheet.conditional_format('A1:HA1', 
         {'type': 'cell', 
-        'criteria': '!= ', 
+        'criteria': '!=', 
         'value': 'NA', 
         'format': header_format})
 

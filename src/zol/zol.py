@@ -16,7 +16,6 @@ import statistics
 import subprocess
 import sys
 import traceback
-
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -25,12 +24,8 @@ import pandas as pd
 import pyhmmer
 import tqdm
 import xlsxwriter
-
 from zol import data_dictionary, util
 
-THOUSAND = 1000
-TEN_THOUSAND = 10000
-HIGH_IDENTITY = 0.98
 AMBIGUOUS_AMINO_ACIDS = set(["B", "J", "Z", "X"])
 
 def determine_ranges(i) -> Generator[Tuple[int, int], None, None]:

@@ -356,10 +356,8 @@ def atpoc():
                      str(threads)]
             if not use_pyrodigal_flag: 
                 fai_cmd += ['-rgv']
-            genome_wide_tsv_result_file = phage_fai_res_dir + 'Spreadsheet_TSVs/total_gcs.tsv'
             util.run_cmd_via_subprocess(fai_cmd, 
-          log_object, 
-          check_files = [genome_wide_tsv_result_file])
+          log_object)
     phage_info_handle.close()
 
     tg_phage_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))
@@ -372,9 +370,29 @@ def atpoc():
         genome_wide_tsv_result_file = fai_results_dir + phage_id + '/Spreadsheet_TSVs/total_gcs.tsv'
         if use_simple_blastp_flag: 
             genome_wide_tsv_result_file = fai_results_dir + phage_id + '/total_gcs.tsv'
+        if not os.path.isfile(genome_wide_tsv_result_file): 
+            fai_progress_file = phage_fai_res_dir + 'Progress.log'
+            no_hits_found = False
+            with open(fai_progress_file) as opf: 
+                for line in opf: 
+                    line = line.strip()
+                    if "ERROR - No target genomes found that meet the minimum criteria for harboring a gene cluster of interest." in line: 
+                        no_hits_found = True
+                        break
+            
+            if no_hits_found: 
+                msg = f'{genome_wide_tsv_result_file} not found because there were no hits meeting the search criteria for {phage_id}!\n'
+                sys.stdout.write(msg)
+                log_object.info(msg)
+                continue
+            else: 
+                msg = f'Final results file not found for {phage_id}, and the expected error message was not found in fai\'s progress log:\n{fai_progress_file}\n'
+                sys.stdout.write(msg)
+                log_object.info(msg)
+                sys.exit(1)
 
         with open(genome_wide_tsv_result_file) as ogwtrf: 
-            for i, line in enumerate(ogwtrf): 
+            for i, line in enumerate(ogwtrf):
                 line = line.strip()
                 ls = line.split('\t')
                 if i == 0: continue
@@ -394,6 +412,7 @@ def atpoc():
         'aggregate_score'] + [x + ' - AAI' + '\t' + x + ' - Proportion Shared Genes' for x in sorted(phages)]) + '\n')
     numeric_columns_t2 = ['shared_phages', 
         'aggregate_score'] + [x + ' - AAI' for x in sorted(phages)] + [x + ' - Proportion Shared Genes' for x in sorted(phages)]
+    
     tgs = set([])
     all_scores = []
     with open(target_genome_listing_file) as otglf: 

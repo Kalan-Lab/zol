@@ -12,7 +12,6 @@ import statistics
 import subprocess
 import sys
 import traceback
-
 from Bio import SeqIO
 from pomegranate.distributions import Categorical
 from pomegranate.hmm import DenseHMM

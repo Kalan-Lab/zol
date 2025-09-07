@@ -160,9 +160,9 @@ def create_parser():
         '--dl-params', 
         help = "Parameters for performing diamond linclust based ortholog group\n"
                "clustering if requested via --dl-orthogroup.\n"
-               "[Default is \"--approx-id 50 --mutual-cover 20\"].", 
+               "[Default is \"--approx-id 50 --mutual-cover 25\"].", 
         required = False, 
-        default = "--approx-id 50 --mutual-cover 20")
+        default = "--approx-id 50 --mutual-cover 25")
     parser.add_argument('-fl', 
         '--filter-low-quality', 
         action = 'store_true', 

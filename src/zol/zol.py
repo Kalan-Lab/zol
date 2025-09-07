@@ -1711,6 +1711,7 @@ class BestHitInfo(TypedDict):
 class CustomAnnotationResult(TypedDict):
     descriptions: List[str]
     evalues: List[float]
+    hits: List[str]
 
 def annotate_custom_database(
     protein_faa,
@@ -1739,6 +1740,7 @@ def annotate_custom_database(
     A dictionary where the key is the ortholog group identifier and the value is a TypedDict containing:
     - descriptions: List of identifiers/descriptions of the custom/reference proteins
     - evalues: List of the respective E-values
+    - hits: List of the protein hits/identifiers
     *******************************************************************************************************************
     """
     custom_annotations: Dict[str, CustomAnnotationResult] = {}
@@ -1759,7 +1761,6 @@ def annotate_custom_database(
             dmnd_db,
             "--threads",
             str(threads),
-            log_object,
         ]
         search_cmd = [
             "diamond",
@@ -1853,7 +1854,8 @@ def annotate_custom_database(
             current_best = best_hits_by_bitscore[que]
             custom_annotations[que] = {
                 "descriptions": [id_to_description[x] for x in current_best["hits"]],
-                "evalues": current_best["evalues"]
+                "evalues": current_best["evalues"],
+                "hits": current_best["hits"]
             }
 
     except Exception as e:
@@ -1943,14 +1945,13 @@ def run_pyhmmer(inputs) -> None:
 class BestHitInfoConsensus(TypedDict):
     hits: List[str]
     evalues: List[Union[decimal.Decimal, str]]
-    accessions: List[str]
     score: float
 
 # TypedDict for consensus annotation results
 class ConsensusAnnotationResult(TypedDict):
     descriptions: List[str]
     evalues: List[Union[decimal.Decimal, str]]
-    accessions: List[str]
+    hits: List[str]
 
 def annotate_consensus_sequences(
     protein_faa,
@@ -2173,7 +2174,7 @@ def annotate_consensus_sequences(
                                 for x in best_hits_by_bitscore[rec.id]["hits"]
                             ],
                             "evalues": best_hits_by_bitscore[rec.id]["evalues"],
-                            "accessions": best_hits_by_bitscore[rec.id]["accessions"],
+                            "hits": best_hits_by_bitscore[rec.id]["accessions"],
                         }
         return annotations
     except Exception as e:
@@ -3595,7 +3596,7 @@ def determine_bgc_and_viral_scores(pfam_annotations, log_object) -> Tuple[Dict[s
             for hg in pfam_annotations:
                 max_vscore = -1.0
                 max_bgc = -7.0
-                for pf in pfam_annotations[hg]["accessions"]:
+                for pf in pfam_annotations[hg]["hits"]:
                     if not pf.startswith("PF"):
                         continue
                     pf = pf.split(".")[0]
@@ -4270,31 +4271,31 @@ def consolidate_report(
                 hg_max_brdgc = util.gather_value_from_dict_for_homolog_group(
                     hg, evo_stats["max_beta_rd_gc"]
                 )
-            cust_annot = util.gather_annotation_from_dict_for_homolo_group(
+            cust_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "custom", annotations
             )
-            ko_annot = util.gather_annotation_from_dict_for_homolo_group(
+            ko_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "ko", annotations
             )
-            pgap_annot = util.gather_annotation_from_dict_for_homolo_group(
+            pgap_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "pgap", annotations
             )
-            pb_annot = util.gather_annotation_from_dict_for_homolo_group(
+            pb_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "paperblast", annotations
             )
-            card_annot = util.gather_annotation_from_dict_for_homolo_group(
+            card_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "card", annotations
             )
-            isf_annot = util.gather_annotation_from_dict_for_homolo_group(
+            isf_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "isfinder", annotations
             )
-            mibig_annot = util.gather_annotation_from_dict_for_homolo_group(
+            mibig_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "mibig", annotations
             )
-            vog_annot = util.gather_annotation_from_dict_for_homolo_group(
+            vog_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "vog", annotations
             )
-            vfdb_annot = util.gather_annotation_from_dict_for_homolo_group(
+            vfdb_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "vfdb", annotations
             )
             pfam_annots = "NA"

@@ -2194,7 +2194,7 @@ def determine_possible_lts() -> List:
     return possible_locustags
 
 
-def gather_annotation_from_dict_for_homolo_group(hg, db, annot_dict) -> str:
+def gather_annotation_from_dict_for_homolog_group(hg, db, annot_dict) -> str:
     """
     Description:
     This function formats the annotation information for the final zol TSV and XLSX for an ortholog group for a
@@ -2211,13 +2211,21 @@ def gather_annotation_from_dict_for_homolo_group(hg, db, annot_dict) -> str:
     """
     try:
         assert db in annot_dict
-        annot_set_filt = set(
-            [x for x in annot_dict[db][hg][0] if x.strip() != ""]
-        )
-        assert len(annot_set_filt) > 0
-        return (
-            f"{'; '.join(sorted(annot_set_filt))} ({max(annot_dict[db][hg][1])})"
-        )
+        assert hg in annot_dict[db]
+        
+        # Handle new data structure with "descriptions", "evalues", and "hits" keys
+        if "descriptions" in annot_dict[db][hg] and "evalues" in annot_dict[db][hg]:
+            annot_set_filt = set(
+                [x for x in annot_dict[db][hg]["descriptions"] if x.strip() != ""]
+            )
+            if len(annot_set_filt) > 0:
+                return (
+                    # max E-value used to be conservative (usually shouldn't matter 
+                    # since bitscore based selection of top hit should typically yield one result)
+                    f"{'; '.join(sorted(annot_set_filt))} ({max(annot_dict[db][hg]['evalues'])})"
+                )
+
+        return "NA"
     except Exception as e:
         return "NA"
 

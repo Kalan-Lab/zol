@@ -41,7 +41,7 @@ ls -lht fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ | awk '{pr
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Comparative_Results/ -c 10 --full-genbank-labels -f Efaecalis_GCs.txt
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_DLC_Results/ -c 10 -dlo -dlp "--approx-id 50 --mutual-cover 25"
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_InDepth_Results/ -c 10 -s -b -ces -aec
-zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_Results/ -c 10 -d -ri
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_Reinflate_Results/ -c 10 -d -ri
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_IBC_Results/ -c 10 -d -ibc
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Dom_Results/ -c 10 -dom
 

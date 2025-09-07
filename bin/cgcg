@@ -453,7 +453,7 @@ def cgcg():
                             tajimas_d = val
                         elif col_name == 'Pfam Domains': 
                             pfam_domains = val
-                        elif col_name == 'GAP Annotation (E-value)': 
+                        elif col_name == 'PGAP Annotation (E-value)': 
                             pgap_annotation = val
                         elif col_name == 'OG Consensus Direction': 
                             og_con_dir = val.replace('"', '') # type: ignore

@@ -905,10 +905,10 @@ def dereplicate_using_skani(
             "-o",
             skani_sketch_db,
         ]
-        # For skani >= 0.3.0, list inputs require --separate-files
+        # For skani >= 0.3.0, list inputs require --separate-sketches
         try:
             if util.is_skani_version_at_least_0_3_0():
-                skani_sketch_cmd.append("--separate-files")
+                skani_sketch_cmd.append("--separate-sketches")
         except Exception:
             pass
         try:

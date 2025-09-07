@@ -142,9 +142,9 @@ def create_parser() -> argparse.Namespace:
         "--dl-params",
         help= "Parameters for performing diamond linclust based ortholog group\n"
               "clustering if requested via --dl-orthogroup.\n"
-              "[Default is \"--approx-id 50 --mutual-cover 20 -M 4G\"].",
+              "[Default is \"--approx-id 50 --mutual-cover 25 -M 4G\"].",
         required=False,
-        default="--approx-id 50 --mutual-cover 20 -M 4G"
+        default="--approx-id 50 --mutual-cover 25 -M 4G"
     )
     parser.add_argument(
         "-c",

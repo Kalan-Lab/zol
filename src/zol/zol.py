@@ -916,6 +916,12 @@ def dereplicate_using_skani(
             "-o",
             skani_sketch_db,
         ]
+        # For skani >= 0.3.0, list inputs require --separate-files
+        try:
+            if util.is_skani_version_at_least_0_3_0():
+                skani_sketch_cmd.append("--separate-files")
+        except Exception:
+            pass
         try:
             subprocess.call(
                 " ".join(skani_sketch_cmd),

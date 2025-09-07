@@ -673,8 +673,8 @@ def reinflate_orthogroups(
     Description:
     This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
     The function first reads the ortholog group matrix and creates a set of protein IDs that are representatives of
-    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses diamond linclust \
-    program to cluster all proteins in the prot_dir directory and reads the diamond linclust clustering output to create a
+    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses diamond linclust
+    to cluster all proteins in the prot_dir directory and reads the diamond linclust clustering output to create a
     dictionary that maps non - representative protein IDs to ortholog groups.
 
     *******************************************************************************************************************

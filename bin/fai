@@ -79,13 +79,13 @@ def create_parser():
     $ fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
 
     Type 2: Reference Genome with Gene-Cluster/Locus Coordinates
-    (proteins are collapsed for high-similarity using cd-hit)
+    (proteins are collapsed for high-similarity using diamond linclust)
     -----------------------------------------------------
     $ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 \\
           -tg prepTG_Database/ -o fai_Results/
 
     Type 3: Set of Query Proteins (not compatible with the syntenic similarity cutoff)
-    (proteins are collapsed for high-similarity using cd-hit)
+    (proteins are collapsed for high-similarity using diamond linclust)
     Similar to input for cblaster
     -----------------------------------------------------
     $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
@@ -625,13 +625,13 @@ def fai_main():
                 query_fasta = work_dir + 'NR_Reference_Query.faa'
                 protein_queries_fasta = work_dir + '.'.join(list(genbanks)[0].split('/')[-1].split('.')[: -1]) + '.faa'
                 util.convert_genbank_to_cds_prots_fasta(list(genbanks)[0], protein_queries_fasta, log_object, use_either_lt_or_pi = True)
-                protein_to_hg = fai.collapse_proteins_using_cdhit(protein_queries_fasta, query_fasta, log_object)
+                protein_to_hg = fai.collapse_proteins_using_diamond_linclust(protein_queries_fasta, query_fasta, log_object)
             else: 
                 ortho_matrix_file, query_fasta = fai.gen_consensus_sequences(genbanks, work_dir, log_object, threads = threads)
                 protein_to_hg = fai.parse_homolog_group_matrix(ortho_matrix_file, log_object)
             comp_gene_info = fai.parse_coords_from_genbank(genbanks, log_object)
 
-        elif input_type_2_observed: 
+        elif input_type_2_observed:
             reference_genome = os.path.abspath(reference_genome)
 
             reference_genome_gbk = reference_genome
@@ -659,15 +659,13 @@ def fai_main():
                                            reference_start, reference_end, log_object)
             comp_gene_info = fai.parse_coords_from_genbank([locus_genbank], log_object)
             query_fasta = work_dir + 'NR_Reference_Query.faa'
-            protein_to_hg = fai.collapse_proteins_using_cdhit(locus_proteome, query_fasta, log_object)
+            protein_to_hg = fai.collapse_proteins_using_diamond_linclust(locus_proteome, query_fasta, log_object)
         elif input_type_3_observed: 
             # simple case - just take the protein queries provided by the user. Unfortunately, syntenic information is
             # not present for such inputs.
             protein_queries_fasta = os.path.abspath(protein_queries_fasta)
             query_fasta = work_dir + 'NR_Reference_Query.faa'
-            protein_to_hg = fai.collapse_proteins_using_cdhit(protein_queries_fasta, 
-          query_fasta, 
-          log_object)
+            protein_to_hg = fai.collapse_proteins_using_diamond_linclust(protein_queries_fasta, query_fasta, log_object)
         elif input_type_4_observed: 
             # simplest case - just take the single query protein.
             single_query_mode = True

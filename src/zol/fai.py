@@ -133,15 +133,15 @@ def parse_homolog_group_matrix(orthogroup_matrix_file, log_object) -> Dict[str, 
     return protein_to_hg
 
 
-def collapse_proteins_using_cdhit(protein_fasta, nr_protein_fasta, log_object) -> Dict[str, Any]:
+def collapse_proteins_using_diamond_linclust(protein_fasta, nr_protein_fasta, log_object) -> Dict[str, Any]:
     """
     Description:
-    This function collapses query proteins using CD-HIT.
+    This function collapses query proteins using diamond linclust.
     ********************************************************************************************************************
     Parameters:
     - protein_fasta: A file with the original set of protein queries in FASTA form.
-    - nr_protein_fasta: The path to the non-redudnant (nr) protein queries after CD-HIT representative selection in \
-                        FASTA format.
+    - nr_protein_fasta: The path to the non-redundant (nr) protein queries after diamond linclust representative selection 
+                        in FASTA format.
     - log_object: A logging object.
     ********************************************************************************************************************
     Return:
@@ -150,64 +150,68 @@ def collapse_proteins_using_cdhit(protein_fasta, nr_protein_fasta, log_object) -
     """
     protein_to_hg: Dict[str, Any] = {}
     try:
-        cdhit_cluster_file = nr_protein_fasta + ".clstr"
-        cdhit_cmd = [
-            "cd-hit",
-            "-i",
+        diamond_cluster_file = nr_protein_fasta + "_clusters.tsv"
+        diamond_cmd = [
+            "diamond",
+            "linclust",
+            "-d",
             protein_fasta,
             "-o",
-            nr_protein_fasta,
-            "-c",
-            "0.95",
-            "-aL",
-            "0.90",
-            "-aS",
-            "0.90",
-            "-d",
-            "0",
-            "-M", "3000"
+            diamond_cluster_file,
+            "--approx-id",
+            "95",
+            "--mutual-cover", 
+            "90"
         ]
 
         try:
             subprocess.call(
-                " ".join(cdhit_cmd),
+                " ".join(diamond_cmd),
                 shell=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 executable="/bin/bash",
             )
-            assert os.path.isfile(protein_fasta)
-            assert os.path.isfile(cdhit_cluster_file)
+            assert os.path.isfile(diamond_cluster_file)
         except Exception as e:
-            log_object.error(f"Issue with running: {' '.join(cdhit_cmd)}")
+            log_object.error(f"Issue with running: {' '.join(diamond_cmd)}")
             log_object.error(e)
             sys.stderr.write(traceback.format_exc())
             sys.exit(1)
 
         prefix = ".".join(protein_fasta.split("/")[-1].split(".")[:-1])
-        cluster_rep = None
-        tmp = []
-        with open(cdhit_cluster_file) as occf:
+        
+        # Parse diamond linclust output
+        reps = set([])
+        with open(diamond_cluster_file) as occf:
             for line in occf:
                 line = line.strip()
-                if line.startswith(">"):
-                    if len(tmp) > 0 and cluster_rep != None:
-                        for plt in tmp:
-                            protein_to_hg[plt] = cluster_rep
-                    tmp = []
-                    cluster_rep = None
+                if not line:
                     continue
-                ls = line.split()
-                lt = ls[2][1:-3]
-                if line.endswith(" *"):
-                    cluster_rep = lt
-                tmp.append(prefix + "|" + lt)
-        if len(tmp) > 0 and cluster_rep != None:
-            for plt in tmp:
-                protein_to_hg[plt] = cluster_rep
+                parts = line.split('\t')
+                if len(parts) < 2:
+                    continue
+                rep_id = parts[0]
+                mem_id = parts[1]
+                
+                protein_to_hg[prefix + "|" + mem_id] = rep_id
+                reps.add(rep_id)
+
+        # Create representative fasta file to use as query
+        # and add self-mappings for cluster representatives
+        with open(nr_protein_fasta, "w") as outf_handle:
+            with open(protein_fasta) as fasta_handle:
+                for record in SeqIO.parse(fasta_handle, "fasta"):
+                    protein_id = record.id
+                    if protein_id not in reps:
+                        protein_to_hg[prefix + "|" + protein_id] = protein_id                
+                        outf_handle.write(f">{protein_id}\n{str(record.seq)}\n")
+                    else:
+                        outf_handle.write(f">{protein_id}\n{str(record.seq)}\n")
+
     except Exception as e:
-        sys.stderr.write("Issues running CD-HIT.\n")
-        log_object.error("Issues running CD-HIT.\n")
+        sys.stderr.write("Issues running diamond linclust.\n")
+        log_object.error("Issues running diamond linclust.")
         sys.stderr.write(str(e) + "\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)

@@ -22,7 +22,6 @@ dependencies:
   - scikit-learn
   - "hyphy>=2.5.14"
   - "pomegranate>=1.0.0"
-  - bioconda::cd-hit
   - conda-forge::r-base
   - conda-forge::r-ggplot2
   - conda-forge::r-cowplot

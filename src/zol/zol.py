@@ -666,15 +666,15 @@ def reinflate_orthogroups(
     prot_dir,
     rog_dir,
     log_object,
-    cdhit_params="-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000",
+    diamond_params="--approx-id 98 --mutual-cover 95 -M 4G",
     threads=1,
 ) -> None:
     """
     Description:
     This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
     The function first reads the ortholog group matrix and creates a set of protein IDs that are representatives of
-    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses the CD-HIT \
-    program to cluster all proteins in the prot_dir directory and reads the CD-HIT clustering output to create a
+    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses diamond linclust \
+    program to cluster all proteins in the prot_dir directory and reads the diamond linclust clustering output to create a
     dictionary that maps non - representative protein IDs to ortholog groups.
 
     *******************************************************************************************************************
@@ -683,8 +683,8 @@ def reinflate_orthogroups(
     - prot_dir: A directory containing protein FASTA files.
     - rog_dir: A directory to write temporary + result files pertaining to reinflation to.
     - log_object: An object for logging messages.
-    - cdhit_params: CD-HIT parameters. Default is: "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000"
-    - threads: The number of threads to use for the CD-HIT clustering step.
+    - diamond_params: Diamond linclust parameters. Default is: "--approx-id 98 --mutual-cover 95 -M 4G"
+    - threads: The number of threads to use for the diamond linclust clustering step.
     *******************************************************************************************************************
     """
     try:
@@ -704,64 +704,53 @@ def reinflate_orthogroups(
                         rep_to_hg[pid] = hg
 
         comp_prot_file = rog_dir + "All_Proteins.faa"
-        os.system(
-            f"find {prot_dir} -type f -name \"*.faa\" -exec cat {{}} >> {comp_prot_file}"
-        )
+        with open(comp_prot_file, "w") as cf_handle:
+            for f in os.listdir(prot_dir):
+                with open(prot_dir + f) as olf:
+                    for rec in SeqIO.parse(olf, "fasta"):
+                        cf_handle.write(f">{rec.id}\n{rec.seq}\n")
 
-        cdhit_nr_prefix = rog_dir + "CD - HIT_Results"
-        cdhit_cluster_file = cdhit_nr_prefix + ".clstr"
-        cdhit_cmd = [
-            "cd - hit",
-            "-i",
+        diamond_cluster_file = rog_dir + "diamond_linclust_clusters.tsv"
+        diamond_cmd = [
+            "diamond",
+            "linclust",
+            "-d",
             comp_prot_file,
             "-o",
-            cdhit_nr_prefix,
-            cdhit_params,
-            "-d",
-            "0",
-            "-T",
+            diamond_cluster_file,
+            diamond_params,
+            "--threads",
             str(threads),
-        ]
+        ] + diamond_params.split()
 
         try:
             subprocess.call(
-                " ".join(cdhit_cmd),
+                " ".join(diamond_cmd),
                 shell=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 executable="/bin/bash",
             )
-            assert os.path.isfile(cdhit_nr_prefix)
-            assert os.path.isfile(cdhit_cluster_file)
+            assert os.path.isfile(diamond_cluster_file)
         except Exception as e:
-            log_object.error(f"Issue with running: {' '.join(cdhit_cmd)}")
+            log_object.error(f"Issue with running: {' '.join(diamond_cmd)}")
             log_object.error(e)
             raise RuntimeError(e)
 
-        cluster_rep = None
         clust_proteins = defaultdict(set)
-        protein_to_clust: Dict[str, Any] = {}
-        tmp = [] # type: ignore
-        with open(cdhit_cluster_file) as occf:
+        protein_to_clust: Dict[str, str] = {}
+        with open(diamond_cluster_file) as occf:
             for line in occf:
                 line = line.strip()
-                if line.startswith(">"):
-                    if len(tmp) > 0 and cluster_rep != None:
-                        for lt in tmp:
-                            protein_to_clust[lt] = cluster_rep
-                            clust_proteins[cluster_rep].add(lt)
-                    tmp = [] # type: ignore
-                    cluster_rep = None
+                if not line:
                     continue
-                ls = line.split()
-                lt = ls[2][1:-3]
-                if line.endswith(" *"):
-                    cluster_rep = lt
-                tmp.append(lt)
-        if len(tmp) > 0 and cluster_rep != None:
-            for lt in tmp:
-                protein_to_clust[lt] = cluster_rep
-                clust_proteins[cluster_rep].add(lt)
+                parts = line.split('\t')
+                if len(parts) < 2:
+                    continue
+                rep_id = parts[0]
+                member_id = parts[1]
+                protein_to_clust[member_id] = rep_id
+                clust_proteins[rep_id].add(member_id)
 
         all_samples = set([])
         for f in os.listdir(prot_dir):

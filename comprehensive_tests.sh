@@ -38,11 +38,16 @@ fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_
 
 # Step 3: run zol to perform comparative investigations of gene-clusters
 ls -lht fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ | awk '{print $9}' | grep 'faecalis' > Efaecalis_GCs.txt 
-zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 10 --full-genbank-labels -f Efaecalis_GCs.txt  -d -ri
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Comparative_Results/ -c 10 --full-genbank-labels -f Efaecalis_GCs.txt
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_DLC_Results/ -c 10 -dlo -dlp "--approx-id 50 --mutual-cover 20"
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_InDepth_Results/ -c 10 -s -b -ces -aec
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_Results/ -c 10 -d -ri
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_IBC_Results/ -c 10 -d -ri -ibc
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Dom_Results/ -c 10 -d -ri -ibc -dlo -dlp "--approx-id 50 --mutual-cover 20"
 
 # Step 4: test out cgc and cgcg for collapsed gene cluster visualization generation
-cgc -i zol_Results/ -o cgc_Results/
-cgcg -i zol_Results/ -o cgcg_Results/
+cgc -i zol_Comparative_Results/ -o cgc_Results/
+cgcg -i zol_Comparative_Results/ -o cgcg_Results/
 
 # Step 5: test out abon, atpoc, apos, and salt
 abon -tg prepTG_Database/ -a antiSMASH_Results/Efaecalis_V583/ -g GECCO_Results/Efaecalis_V583/ -o abon_Results/ -c 10

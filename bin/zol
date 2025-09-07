@@ -147,21 +147,22 @@ def create_parser():
              "[Default is 1.5].", 
         required = False, 
         default = 1.5)
-    parser.add_argument('-cdo', 
-        '--cdhit-orthogroup', 
+    parser.add_argument('-dlo', 
+        '--dl-orthogroup', 
         action = 'store_true', 
-        help = "Cluster proteins using CD-HIT instead of using the\n"
+        help = "Cluster proteins using diamond linclust instead of using the\n"
                "standard InParanoid-like ortholog group prediction approach.\n"
-               "This approach is faster and uses less memory, but is less\naccurate.", 
+               "This approach is faster and can use less memory, but is less\n"
+               "accurate. Memory can be controlled via the --max-memory option.", 
         required = False, 
         default = False)
-    parser.add_argument('-cdp', 
-        '--cdhit-params', 
-        help = "Parameters for performing CD-HIT based ortholog group\n"
-               "clustering if requested via --cdhit-orthogroup.\n"
-               "[Default is \"-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000\"].", 
+    parser.add_argument('-dlp', 
+        '--dl-params', 
+        help = "Parameters for performing diamond linclust based ortholog group\n"
+               "clustering if requested via --dl-orthogroup.\n"
+               "[Default is \"--approx-id 50 --mutual-cover 20\"].", 
         required = False, 
-        default = "-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000")
+        default = "--approx-id 50 --mutual-cover 20")
     parser.add_argument('-fl', 
         '--filter-low-quality', 
         action = 'store_true', 
@@ -232,11 +233,11 @@ def create_parser():
         default = False)
     parser.add_argument('-rp', 
         '--reinflate-params', 
-        help = "Parameters for running CD-HIT for re-inflation, please\n"
+        help = "Parameters for running DIAMOND linclust for re-inflation, please\n"
                "surround argument input with double quotes.\n"
-               "[Default is \"-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000\"].", 
+               "[Default is \"--approx-id 98 --mutual-cover 95\"].", 
         required = False, 
-        default = "-c 0.98 -aL 0.95 -aS 0.95 -n 5 -M 4000")
+        default = "--approx-id 98 --mutual-cover 95")
     parser.add_argument('-dom', 
         '--domain-mode', 
         action = 'store_true', 
@@ -472,8 +473,8 @@ def zol_main():
     allow_edge_cds_flag = myargs.allow_edge_cds
     only_orthogroups_flag = myargs.only_orthogroups
     precomputed_orthogroups_file = myargs.precomputed_orthogroups
-    cdhit_orthogroup_flag = myargs.cdhit_orthogroup
-    cdhit_orthogroup_params = myargs.cdhit_params
+    dl_orthogroup_flag = myargs.dl_orthogroup
+    dl_orthogroup_params = myargs.dl_params
     max_memory = myargs.max_memory
     skip_cleanup_flag = myargs.skip_cleanup
     skip_annotations_flag = myargs.skip_annotations
@@ -512,6 +513,10 @@ def zol_main():
     if select_fai_params_mode: 
         allow_edge_cds_flag = True
 
+    if max_memory != None:
+        dl_orthogroup_params = dl_orthogroup_params + f" -M {max_memory}G"
+        reinflate_params = reinflate_params + f" -M {max_memory}G"
+
     """
     START WORKFLOW
     """
@@ -536,7 +541,7 @@ def zol_main():
     log_object.info("Saving parameters for future records.")
     parameters_file = outdir + 'Parameter_Inputs.txt'
     parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
-                        select_fai_params_mode, cdhit_orthogroup_flag, cdhit_orthogroup_params, 
+                        select_fai_params_mode, dl_orthogroup_flag, dl_orthogroup_params, 
                         identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
                         (not use_super5), 
              fubar_selection, 
@@ -553,8 +558,8 @@ def zol_main():
     parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
                        "Minimum length of chopped CDS features for inclusion", "Eukaryotic Gene Cluster?", 
                        "Select fai parameters mode?", 
-                       "Perform iterative CD-HIT based orthogrouping instead of default InParanoid-based approach?", 
-                       "CD-HIT parameters for orthogrouping (assuming approach requested)", 
+                       "Perform iterative DIAMOND linclust based orthogrouping instead of default InParanoid-based approach?", 
+                       "DIAMOND linclust parameters for orthogrouping (assuming approach requested)", 
                        "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
                        "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter", 
                        "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
@@ -566,7 +571,7 @@ def zol_main():
                        "Perform broad level estimation of ortholog group conservation if dereplication requested?", 
                        "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups", 
                        "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge = True.", 
-                       "Perform Dereplication?", "Perform reinflation?", "Reinflation CD-HIT parameters", 
+                       "Perform Dereplication?", "Perform reinflation?", "Reinflation DIAMOND linclust parameters", 
                        "Dereplication identity threshold", "Dereplication coverage threshold", 
                        "Dereplication clustering method / MCL inflation", 
                        "Dereplication using skani with --small-genomes preset", 
@@ -821,8 +826,9 @@ def zol_main():
                           '-q', str(coverage_threshold), 
                           '-mi', str(clustering_inflation), 
                           '-c', str(threads)]
-                if cdhit_orthogroup_flag: 
-                    fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-cd', '-cdp', cdhit_orthogroup_params, '-c', str(threads)]
+                if dl_orthogroup_flag: 
+                    fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-dlo', 
+                              '-dlp', '"' + dl_orthogroup_params + '"', '-c', str(threads)]
                 try: 
                     subprocess.call(' '.join(fo_cmd), shell = True, stdout = subprocess.DEVNULL, 
                                     stderr = subprocess.DEVNULL, executable = '/bin/bash')
@@ -837,7 +843,7 @@ def zol_main():
                     util.setup_ready_directory([rog_dir], delete_if_exist = True)
                     zol.reinflate_orthogroups(ortho_matrix_file, prot_dir, rog_dir, log_object, threads = threads)
         except Exception as e: 
-            msg = 'Issues with determining ortholog/ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n'
+            msg = 'Issues with determining ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n'
             sys.stderr.write(msg + "\n")
             log_object.error(msg)
             sys.stderr.write(traceback.format_exc() + '\n')

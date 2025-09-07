@@ -130,21 +130,21 @@ def create_parser() -> argparse.Namespace:
         default=1.5,
     )
     parser.add_argument(
-        "-cd",
-        "--cdhit_orthogroup",
+        "-dlo",
+        "--dl-orthogroup",
         action="store_true",
-        help="Infer ortholog groups using CD-HIT.",
+        help="Infer ortholog groups using diamond linclust.",
         required=False,
         default=False,
     )
     parser.add_argument(
-        "-cdp",
-        "--cdhit_params",
-        help= "Parameters for performing CD-HIT based ortholog group\n"
-              "clustering if requested via --cdhit_orthogroup.\n"
-              "[Default is \"-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000\"].",
+        "-dlp",
+        "--dl-params",
+        help= "Parameters for performing diamond linclust based ortholog group\n"
+              "clustering if requested via --dl-orthogroup.\n"
+              "[Default is \"--approx-id 50 --mutual-cover 20 -M 4G\"].",
         required=False,
-        default="-c 0.5 -aL 0.25 -aS 0.5 -n 3 -M 4000",
+        default="--approx-id 50 --mutual-cover 20 -M 4G"
     )
     parser.add_argument(
         "-c",
@@ -307,8 +307,8 @@ def create_final_results(
         sys.exit(1)
 
 
-def create_final_results_cdhit(
-    cdhit_cluster_file, result_tab_file, result_mat_file, log_object
+def create_final_results_diamond_linclust(
+    diamond_cluster_file, result_tab_file, result_mat_file, log_object
 ) -> None:
     try:
         cluster_id = None
@@ -316,19 +316,31 @@ def create_final_results_cdhit(
         clust_protein_counts = defaultdict(int)
         protein_to_clust: Dict[str, Any] = {}
         samples = set([])
-        with open(cdhit_cluster_file) as occf:
+        # Parse diamond linclust output
+        cluster_representatives = {}  # Maps cluster rep to cluster members
+        with open(diamond_cluster_file) as occf:
             for line in occf:
                 line = line.strip()
-                if line.startswith(">"):
-                    cluster_id = line[1:]
-                else:
-                    ls = line.split()
-                    lt = ls[2][1:-3]
-                    sample = lt.split("|")[0]
-                    samples.add(sample)
-                    protein_to_clust[lt] = cluster_id
-                    clust_proteins[cluster_id][sample].add(lt)
-                    clust_protein_counts[cluster_id] += 1
+                if not line:
+                    continue
+                parts = line.split('\t')
+                if len(parts) < 2:
+                    continue
+                rep_id = parts[0]
+                mem_id = parts[1]
+                
+                if rep_id not in cluster_representatives:
+                    cluster_representatives[rep_id] = set()
+                cluster_representatives[rep_id].add(mem_id)
+        
+        # Process clusters
+        for cluster_id, members in cluster_representatives.items():
+            for lt in members:
+                sample = lt.split("|")[0]
+                samples.add(sample)
+                protein_to_clust[lt] = cluster_id
+                clust_proteins[cluster_id][sample].add(lt)
+                clust_protein_counts[cluster_id] += 1
 
         sorted_samples = sorted(list(samples))
 
@@ -377,8 +389,8 @@ def find_orthologs() -> None:
     identity_cutoff = myargs.identity
     evalue_cutoff = myargs.evalue
     mcl_inflation = myargs.mcl_inflation
-    cdhit_orthogroup_flag = myargs.cdhit_orthogroup
-    cdhit_params = myargs.cdhit_params
+    diamond_linclust_orthogroup_flag = myargs.dl_orthogroup
+    diamond_params = myargs.dl_params
 
     if not os.path.isdir(outdir):
         os.system(f"mkdir {outdir}")
@@ -416,7 +428,7 @@ def find_orthologs() -> None:
     if not os.path.isdir(checkpoint_dir):
         os.system(f"mkdir {checkpoint_dir}")
 
-    if not cdhit_orthogroup_flag:
+    if not diamond_linclust_orthogroup_flag:
         local_proteome_dir = outdir + "Proteomes/"
         if not os.path.isdir(local_proteome_dir):
             os.system(f"mkdir {local_proteome_dir}")
@@ -813,43 +825,39 @@ def find_orthologs() -> None:
                         for rec in SeqIO.parse(olf, "fasta"):
                             cf_handle.write(f">{rec.id}\n{rec.seq}\n")
                 
-        ########### Perform protein clustering using CD-HIT
+        ########### Perform protein clustering using DIAMOND LINCLUST
 
-        # Step 2: Run CD-HIT
-        msg = "--------------------\nStep 2\n--------------------\nRunning CD-HIT to determine protein clusters\n"
+        # Step 2: Run DIAMOND LINCLUST
+        msg = "--------------------\nStep 2\n--------------------\nRunning DIAMOND LINCLUST to determine protein clusters\n"
         sys.stdout.write(msg + "\n")
         log_object.info(msg)
 
-        step2_checkpoint_file = checkpoint_dir + "CDHIT_Step2_Checkpoint.txt"
+        step2_checkpoint_file = checkpoint_dir + "DIAMOND_LINCLUST_Step2_Checkpoint.txt"
 
         if not os.path.isfile(step2_checkpoint_file):
-            cdhit_nr_prefix = outdir + "CD-HIT_Results"
-            cdhit_cluster_file = cdhit_nr_prefix + ".clstr"
-            cdhit_cmd = [
-                "cd-hit",
-                "-i",
+            diamond_cluster_file = outdir + "diamond_linclust_clusters.tsv"
+            diamond_cmd = [
+                "diamond",
+                "linclust",
+                "-d",
                 concat_faa,
                 "-o",
-                cdhit_nr_prefix,
-                cdhit_params,
-                "-d",
-                "0",
-                "-T",
+                diamond_cluster_file,
+                "--threads",
                 str(threads),
-            ]
+            ] + diamond_params.split()
 
             try:
                 subprocess.call(
-                    " ".join(cdhit_cmd),
+                    " ".join(diamond_cmd),
                     shell=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     executable="/bin/bash",
                 )
-                assert os.path.isfile(cdhit_nr_prefix)
-                assert os.path.isfile(cdhit_cluster_file)
+                assert os.path.isfile(diamond_cluster_file)
             except Exception as e:
-                log_object.error(f"Issue with running: {' '.join(cdhit_cmd)}")
+                log_object.error(f"Issue with running: {' '.join(diamond_cmd)}")
                 log_object.error(e)
                 raise RuntimeError(e)
 
@@ -858,11 +866,11 @@ def find_orthologs() -> None:
         msg = "--------------------\nStep 3\n--------------------\nCreate final result files!\n"
         sys.stdout.write(msg + "\n")
         log_object.info(msg)
-        step3_checkpoint_file = checkpoint_dir + "CDHIT_Step3_Checkpoint.txt"
+        step3_checkpoint_file = checkpoint_dir + "DIAMOND_LINCLUST_Step3_Checkpoint.txt"
 
         if not os.path.isfile(step3_checkpoint_file):
-            create_final_results_cdhit(
-                cdhit_cluster_file, result_tab_file, result_mat_file, log_object
+            create_final_results_diamond_linclust(
+                diamond_cluster_file, result_tab_file, result_mat_file, log_object
             )
             os.system(f"touch {step3_checkpoint_file}")
 

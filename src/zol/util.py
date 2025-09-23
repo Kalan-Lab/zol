@@ -982,6 +982,9 @@ def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strat
                     if error_strategy == "collect_errors":
                         errors.append(error_info)
                     elif error_strategy == "report_and_stop":
+                        # Ensure the pool is terminated to avoid hanging workers
+                        p.terminate()
+                        p.join()
                         raise RuntimeError(f"Stopping due to worker error: {error_info}")
                 else:
                     success_count += 1
@@ -994,8 +997,14 @@ def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strat
         if error_strategy in ["report_and_stop"]:
             raise
     finally:
-        p.close()
-        p.join()
+        try:
+            p.close()
+        except Exception:
+            pass
+        try:
+            p.join()
+        except Exception:
+            pass
     
     result_summary = {
         'success_count': success_count,
@@ -3063,9 +3072,13 @@ def diamond_blast(inputs) -> Tuple[str, Optional[str]]:
             og_blast_file,
         ]
 
-        run_cmd_via_subprocess(makedb_cmd, check_files=[og_prot_dmnd_db], verbose=False)
+        # Do not exit from inside worker; propagate failure via return value
+        run_cmd_via_subprocess(makedb_cmd, check_files=[og_prot_dmnd_db], verbose=False, exit_on_error=False)
             
-        run_cmd_via_subprocess(search_cmd, check_files=[og_blast_file], verbose=False)
+        run_cmd_via_subprocess(search_cmd, check_files=[og_blast_file], verbose=False, exit_on_error=False)
+        # Check outputs; if missing, treat as error
+        if not os.path.isfile(og_prot_dmnd_db) or not os.path.isfile(og_blast_file):
+            return ('error', f"Missing expected output files for {og_prot_file}")
         return ('success', None)
     except Exception as e:
         error_msg = f"Error in diamond_blast for {inputs[0]}: {str(e)}"
@@ -4237,7 +4250,7 @@ def consolidate_salty_spreadsheet(
             "distance to IS-associated element",
             "scaffold CDS proportion IS-associated elements",
             "scaffold CDS proportion VOGs",
-            "scaffold CDS proportion plasmid - associated",
+            "scaffold CDS proportion plasmid-associated",
         ]
 
         gc_codoff_pvals = defaultdict(lambda: "NA")

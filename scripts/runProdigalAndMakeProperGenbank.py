@@ -190,5 +190,7 @@ def prodigalAndReformat():
 			SeqIO.write(record, pc_prod_genbank_handle, 'genbank')
 	pc_prod_genbank_handle.close()
 
+	sys.exit(0)
+	
 if __name__ == '__main__':
 	prodigalAndReformat()

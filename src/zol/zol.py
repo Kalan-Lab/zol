@@ -5109,14 +5109,16 @@ def compute_peptides_stats(
                     for rec in SeqIO.parse(pf, "fasta"):
                         seq = str(rec.seq)
                         
-                        # Skip sequences with ambiguous amino acids or too short
-                        if len(seq) < 10 or any(aa in AMBIGUOUS_AMINO_ACIDS for aa in seq):
-                            continue
-                        
                         try:
-                            # Create Peptide object and compute properties
+                            # Create Peptide object
                             peptide = peptides.Peptide(seq)
-                            
+
+                            # Detect outliers
+                            outlier_result = peptide.detect_outlier()
+                            if outlier_result.is_outlier:
+                                log_object.info(f"Skipping outlier sequence {rec.id} in {hg}: {', '.join(outlier_result.issues)}")
+                                continue
+
                             # Compute hydrophobicity (using Kyte-Doolittle scale)
                             hydrophobicity = peptide.hydrophobicity()
                             hydrophobicity_values.append(hydrophobicity)

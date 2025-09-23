@@ -304,12 +304,12 @@ def zolscape():
                              'Average delta(Beta, Alpha) by FUBAR across sites', 
                              'Proportion of Sites Under Selection which are Positive',
                              'P-value for gene-wide episodic selection by BUSTED']
-
-    zol_sheet_header += ['KO Annotation (E-value)', 'PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)', 
-                          'CARD Annotation (E-value)', 'IS Finder (E-value)', 
-                          'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)', 
-                          'VFDB Annotation (E-value)', 'Pfam Domains', 'CDS Locus Tags', 
-                          'OG Consensus Sequence']
+ 
+    zol_sheet_header += ['Hydrophobicity Mean', 'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 'Aliphatic Index Std Dev', 'm/z Mean', 'm/z Std Dev', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)',
+                           'CARD Annotation (E-value)', 'IS Finder (E-value)',
+                           'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',
+                           'VFDB Annotation (E-value)', 'Pfam Domains', 'CDS Locus Tags',
+                           'OG Consensus Sequence']
 
     zctf_handle.write('\t'.join(zol_sheet_header) + '\n')
     num_rows = 1
@@ -325,9 +325,9 @@ def zolscape():
                     if j == 0: continue
                     line = line.strip()
                     ls = line.split('\t')
-                    row = [cluster, gcf] + ls[:18] + ls[19: ]
+                    row = [cluster, gcf] + ls[:24] + ls[25:]
                     if ' -s ' in zol_parameters or ' --selection-analysis ' in zol_parameters: 
-                        row = [cluster, gcf] + ls[: 20] + ls[21: ]
+                        row = [cluster, gcf] + ls[:26] + ls[27:]
                     zctf_handle.write('\t'.join(row) + '\n')
                     num_rows += 1
     zctf_handle.close()
@@ -344,7 +344,7 @@ def zolscape():
                               'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
                               'Proportion of sites which are highly ambiguous in codon alignment', 
                               'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC', 'Median GC Skew', 
-                              'BGC score (GECCO weights)', 'Viral score (V-Score)'])
+                              'BGC score (GECCO weights)', 'Viral score (V-Score)', 'Hydrophobicity Mean', 'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 'Aliphatic Index Std Dev', 'm/z Mean', 'm/z Std Dev'])
 
     zr_data = util.load_table_in_panda_data_frame(consolidated_table_file, 
         zr_numeric_columns)

@@ -869,7 +869,7 @@ def dereplicate_using_skani(
         except Exception:
             pass
         
-        util.run_cmd_via_subprocess(skani_sketch_cmd, log_object=log_object, check_files=[skani_sketch_db])
+        util.run_cmd_via_subprocess(skani_sketch_cmd, log_object=log_object, check_directories=[skani_sketch_db])
         
         skani_result_file = derep_dir + "skani_results.tsv"
         skani_dist_cmd = [

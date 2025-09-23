@@ -45,7 +45,6 @@ from zol import util
 import argparse
 import os
 import shutil
-import subprocess
 import sys
 import traceback
 
@@ -295,13 +294,19 @@ def cgc():
     except Exception as e: 
         sys.stderr.write('The zol results directory required as input does not exist.\n')
         sys.exit(1)
-
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output already directory exists. Overvwriting...\n")
-
-    util.setup_ready_directory([outdir])
-
-    outdir = os.path.abspath(outdir) + '/'
+    
+    # create output directory if needed, or warn of over-writing
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     # create logging object
     log_file = outdir + 'Progress.log'
@@ -445,7 +450,8 @@ def cgc():
                 mapping_results_dir = mapping_dir + 'Results/'
                 mapping_result_file = mapping_results_dir + 'Orthogroups.tsv'
                 find_ogs_cmd = ['findOrthologs.py', '-p', proteomes_dir, '-o', mapping_results_dir, '-c', '1']
-                util.run_cmd_via_subprocess(find_ogs_cmd, log_object, check_files = [mapping_result_file])
+                util.run_cmd_via_subprocess(find_ogs_cmd, log_object=log_object, 
+                                            check_files = [mapping_result_file])
 
                 with open(mapping_result_file) as omrf: 
                     for i, line in enumerate(omrf): 
@@ -642,17 +648,8 @@ def cgc():
     sys.stdout.write(msg + '\n')
 
     plot_cmd = ['Rscript', rscript_path]
-    try: 
-        subprocess.call(' '.join(plot_cmd), shell = True, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL, 
-                        executable = '/bin/bash')
-        assert (os.path.isfile(result_pdf_file))
-        log_object.info(f'Successfully ran: {" ".join(plot_cmd)}')
-    except Exception as e: 
-        print(f"Error: {e}")
-        log_object.error(f'Had an issue running R based plotting - potentially because of R setup issues in conda: {" ".join(plot_cmd)}')
-        sys.stderr.write(f'Had an issue running R based plotting - potentially because of R setup issues in conda: {" ".join(plot_cmd)}\n')
-        log_object.error(e)
-        sys.exit(1)
+    util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, 
+                                check_files = [result_pdf_file])
 
     msg = f'cgc finished successfully!\nResulting PDF can be found at: {result_pdf_file}'
     log_object.info(msg)

@@ -87,7 +87,7 @@ def create_parser():
         required = True)
     parser.add_argument('-r', 
         '--big-scape-results', 
-        help = "Path to BiG-SCAPE results directory - if multiple", 
+        help = "Path to BiG-SCAPE results directory - will be searched recursively for 'clustering' files.", 
         required = True)
     parser.add_argument('-o', '--outdir', help = "Output directory.", required = True)
     parser.add_argument('-z', 
@@ -129,11 +129,17 @@ def zolscape():
     jobs = myargs.jobs
 
     # create output directory if needed, or warn of over-writing
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Will continue, possibly overwrite some results, but generally attempt to use checkpoints to skip steps successfuly completed...\n ")
-        sleep(5)
-    else: 
-        util.setup_ready_directory([outdir])
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     try: 
         assert(os.path.isdir(bigscape_input_dir) and os.path.isdir(bigscape_results_dir))
@@ -224,7 +230,7 @@ def zolscape():
                                 zol_parameters, 
                                 '-o', 
                                 output_dir, 
-                                '-i'] + input_gbks + [log_object]
+                                '-i'] + input_gbks
                     zol_cmds.append(zol_cmd)
                 else: 
                     msg = f'Warning: no BGC GenBanks found for GCF {gcf} in clustering results file {cluster}'
@@ -240,9 +246,21 @@ def zolscape():
             sys.stderr.write(msg + '\n')
             sys.exit(0)
         else: 
-            p = multiprocessing.Pool(jobs)
-            p.map(util.multi_process, zol_cmds)
-            p.close()
+            # Use robust error handling for zol analysis runs
+            result_summary = util.robust_multiprocess_executor(
+                worker_function=util.multi_process_safe,
+                inputs=zol_cmds,
+                pool_size=jobs,
+                error_strategy="report_and_continue",
+                log_object=log_object,
+                description="zol gene cluster analysis"
+            )
+
+            success_prop = result_summary['success_count'] / result_summary['total_processed']
+            msg = f"{success_prop*100.0}% of zol runs were successful."
+            sys.stdout.write(msg + '\n')
+            log_object.info(msg)
+
     else: 
         msg = 'Note, something was found in the zol result\'s directory from a previous run, will attempt to use available results.'
         sys.stderr.write(msg + '\n')

@@ -151,10 +151,17 @@ def apos():
     threads = myargs.threads
 
     # create output directory if needed, or warn of over-writing
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
-        sleep(5)
-    util.setup_ready_directory([outdir])
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     if (mobsuite_results_dir == None or not os.path.isdir(mobsuite_results_dir)) and (genomad_results_dir == None or not os.path.isdir(genomad_results_dir)): 
         sys.stderr.write("Neither MOB-suite nor geNomad sample results directory provided as input or the paths are faulty! \n")
@@ -313,19 +320,18 @@ def apos():
             util.setup_ready_directory([plasmid_fai_res_dir], delete_if_exist = True)
             reference_genome_gbk = plasmid_fai_res_dir + 'reference.gbk'
             gene_call_cmd = ['runProdigalAndMakeProperGenbank.py', '-i', sample_genome, '-s', 'reference', '-l', 
-                                'OG', '-o', plasmid_fai_res_dir]
-            util.run_cmd_via_subprocess(gene_call_cmd, 
-          log_object, 
-          check_files = [reference_genome_gbk])
+                             'OG', '-o', plasmid_fai_res_dir]
+            util.run_cmd_via_subprocess(gene_call_cmd, log_object=log_object, 
+                                        check_files = [reference_genome_gbk])
             locus_genbank = plasmid_fai_res_dir + 'Reference_Query.gbk'
             locus_proteome = plasmid_fai_res_dir + 'Reference_Query.faa'
             fai.subset_genbank_for_query_locus(reference_genome_gbk, 
-          locus_genbank, 
-          locus_proteome, 
-          scaff, 
-          int(start_coord), 
-          int(end_coord), 
-          log_object)
+                                                locus_genbank, 
+                                                locus_proteome, 
+                                                scaff, 
+                                                int(start_coord), 
+                                                int(end_coord), 
+                                                log_object)
             util.diamond_blast_and_get_best_hits(plasmid_id, locus_proteome, locus_proteome, preptg_db_dir, plasmid_fai_res_dir, log_object, 
                                             identity_cutoff = simple_blastp_identity_cutoff, coverage_cutoff = simple_blastp_coverage_cutoff, 
                                             blastp_mode = simple_blastp_sensitivity_mode, prop_key_prots_needed = 0.0, 
@@ -334,14 +340,13 @@ def apos():
             # run fai
             fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
                        '-tg', 
-                     preptg_db_dir, 
-                     fai_options, 
-                     '-o', 
-                     plasmid_fai_res_dir, 
-                     '-c', 
-                     str(threads)]
-            util.run_cmd_via_subprocess(fai_cmd, 
-          log_object)
+                        preptg_db_dir, 
+                        fai_options, 
+                        '-o', 
+                        plasmid_fai_res_dir, 
+                        '-c', 
+                        str(threads)]
+            util.run_cmd_via_subprocess(fai_cmd, log_object=log_object)
     plasmid_info_handle.close()
 
     tg_plasmid_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))

@@ -15,8 +15,8 @@ import pickle
 import resource
 import shutil
 import statistics
-import subprocess
 import sys
+import subprocess
 import traceback
 import pandas as pd
 import warnings
@@ -36,6 +36,7 @@ import pandas as pd
 import pyhmmer
 import tqdm
 from zol import fai, zol
+import hashlib
 
 # TypedDict definitions for better type safety
 class BestHitInfo(TypedDict):
@@ -206,6 +207,7 @@ def process_location_string(location_string) -> None:
             f"Error processing location string {location_string}"
         )
 
+
 def _download_files(urls, resdir):
     """
     Download files from the given URLs and save them to the specified directory.
@@ -246,6 +248,7 @@ def _download_files(urls, resdir):
     loop.run_until_complete(main())
     loop.close()
 
+
 def download_gtdb_genomes(
     taxa_name,
     gtdb_release,
@@ -278,7 +281,7 @@ def download_gtdb_genomes(
         "-o",
         gtdb_listing_file,
     ]
-    run_cmd_via_subprocess(curl_cmd, log_object, check_files=[gtdb_listing_file])
+    run_cmd_via_subprocess(curl_cmd, log_object=log_object, check_files=[gtdb_listing_file])
 
     msg = (
         f"Beginning by assessing which genomic assemblies are available for the taxa {taxa_name} in GTDB {gtdb_release}"
@@ -321,8 +324,6 @@ def download_gtdb_genomes(
                             "_".join(gtdb_species.split())
                             + f"_{gca}.fasta.gz"
                         )
-
-    
 
     genome_count = len(genome_url_paths)
     if genome_count == 0:
@@ -510,32 +511,32 @@ def memory_limit(mem: int) -> None:
         
         # Validate memory limit is within reasonable bounds
         if mem < MIN_MEMORY_LIMIT:
-            print(f"Warning: Requested memory limit ({mem}GB) is below minimum ({MIN_MEMORY_LIMIT}GB)")
-            print(f"Using minimum limit of {MIN_MEMORY_LIMIT}GB")
+            sys.stderr.write(f"Warning: Requested memory limit ({mem}GB) is below minimum ({MIN_MEMORY_LIMIT}GB)\n")
+            sys.stderr.write(f"Using minimum limit of {MIN_MEMORY_LIMIT}GB\n")
             mem = MIN_MEMORY_LIMIT
         elif mem > MAX_MEMORY_LIMIT:
-            print(f"Warning: Requested memory limit ({mem}GB) is above maximum ({MAX_MEMORY_LIMIT}GB)")
-            print(f"Using maximum limit of {MAX_MEMORY_LIMIT}GB")
+            sys.stderr.write(f"Warning: Requested memory limit ({mem}GB) is above maximum ({MAX_MEMORY_LIMIT}GB)\n")
+            sys.stderr.write(f"Using maximum limit of {MAX_MEMORY_LIMIT}GB\n")
             mem = MAX_MEMORY_LIMIT
         
         max_virtual_memory: int = mem * 1000000000
         soft, hard = resource.getrlimit(resource.RLIMIT_AS)
         
         # Handle RLIM_INFINITY (unlimited) values
-        soft_gb = "unlimited" if soft == resource.RLIM_INFINITY else f"{soft // 1000000000}GB"
-        hard_gb = "unlimited" if hard == resource.RLIM_INFINITY else f"{hard // 1000000000}GB"
+        soft_gb = "unlimited" if soft == resource.RLIM_INFINITY else f"{soft // 1000000000}GB\n"
+        hard_gb = "unlimited" if hard == resource.RLIM_INFINITY else f"{hard // 1000000000}GB\n"
         
         # Check if the requested limit exceeds the system's hard limit
         if hard != resource.RLIM_INFINITY and max_virtual_memory > hard:
-            print(f"Warning: Requested memory limit ({mem}GB) exceeds system maximum ({hard_gb})")
-            print(f"Using system maximum instead")
+            sys.stderr.write(f"Warning: Requested memory limit ({mem}GB) exceeds system maximum ({hard_gb})\n")
+            sys.stderr.write(f"Using system maximum instead\n")
             max_virtual_memory = hard
         
         # Check if the requested limit is lower than the current soft limit
         if soft != resource.RLIM_INFINITY and max_virtual_memory < soft:
-            print(f"Reducing memory limit from {soft_gb} to {mem}GB")
+            sys.stderr.write(f"Reducing memory limit from {soft_gb} to {mem}GB\n")
         elif soft == resource.RLIM_INFINITY:
-            print(f"Setting memory limit from unlimited to {mem}GB")
+            sys.stderr.write(f"Setting memory limit from unlimited to {mem}GB\n")
         
         # When setting a lower limit, we need to set both soft and hard limits
         # to the same value to ensure the limit is enforced
@@ -545,12 +546,12 @@ def memory_limit(mem: int) -> None:
             else:
                 resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory, hard))
             
-            print(f"Memory limit set to: {mem}GB")
+            sys.stderr.write(f"Memory limit set to: {mem}GB\n")
         except ValueError as e:
             if "current limit exceeds maximum limit" in str(e):
-                print(f"Warning: Unable to set memory limit to {mem}GB on this system")
-                print("This may be due to system restrictions (common on macOS)")
-                print("Memory usage will not be limited by this process")
+                sys.stderr.write(f"Warning: Unable to set memory limit to {mem}GB on this system\n")
+                sys.stderr.write("This may be due to system restrictions (common on macOS)\n")
+                sys.stderr.write("Memory usage will not be limited by this process\n")
             else:
                 raise
     except Exception as e:
@@ -559,11 +560,13 @@ def memory_limit(mem: int) -> None:
 
 def run_cmd_via_subprocess(
     cmd,
-    log_object,
+    log_object=None,
     check_files=[],
     check_directories=[],
     stdout=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
+    verbose=True,
+    exit_on_error=True
 ) -> None:
     """
     Description:
@@ -576,26 +579,151 @@ def run_cmd_via_subprocess(
     - check_directories: Directories to check the existence of assuming successful run of the command.
     - stdout: Where to have subprocess direct standard output.
     - stderr: Where to have subprocess direct standard errorr.
+    - verbose: Whether to print verbose output.
+    - exit_on_error: Whether to exit the program if there is an error.
     ********************************************************************************************************************
     """
-    log_object.info(f"Running {' '.join(cmd)}")
+    if verbose:
+        msg = f"Running {' '.join(cmd)}"
+        if log_object is not None:
+            log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+
     try:
-        subprocess.call(
-            " ".join(cmd),
-            shell=True,
-            stdout=stdout,
-            stderr=stderr,
-            executable="/bin/bash",
-        )
-        for cf in check_files:
-            assert os.path.isfile(cf)
-        for cd in check_directories:
-            assert os.path.isdir(cd)
-        log_object.info(f"Successfully ran: {' '.join(cmd)}")
-    except Exception as e:
-        log_object.error(f"Had an issue running: {' '.join(cmd)}")
-        log_object.error(traceback.format_exc())
-        raise RuntimeError(f"Had an issue running: {' '.join(cmd)}")
+        if stdout == subprocess.DEVNULL:
+            assert stderr == subprocess.DEVNULL
+        if stderr == subprocess.DEVNULL:
+            assert stdout == subprocess.DEVNULL
+    except AssertionError as e:
+        sys.stderr.write(f"If stdout is DEVNULL, then stderr must also be DEVNULL and vice versa for function run_cmd_via_subprocess!\n")
+        if exit_on_error:
+            sys.exit(1)
+        else:
+            raise RuntimeError()
+
+    try:
+        if stdout != subprocess.DEVNULL:
+            assert os.path.isfile(stdout)
+        if stderr != subprocess.DEVNULL:
+            assert os.path.isfile(stderr)
+    except AssertionError as e:
+        sys.stderr.write(f"If stdout/stderr are not DEVNULL, then it must be a file for function run_cmd_via_subprocess!\n")
+        if exit_on_error:
+            sys.exit(1)
+        else:
+            raise RuntimeError()
+
+    result = None
+    try:
+        if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
+            result = subprocess.run(" ".join(cmd), shell=True, 
+                                    capture_output=True, text=True, 
+                                    executable='/bin/bash')
+        else:
+            # Run the command, redirecting stdout and stderr to files
+            result = subprocess.run(" ".join(cmd),
+                                    stdout=open(stdout, 'w'),
+                                    stderr=open(stderr, 'w'),
+                                    text=True, shell=True, executable='/bin/bash')                   
+        if result.returncode != 0:
+            msg = f"Had an issue running: {' '.join(cmd)}"
+            sys.stderr.write(msg + "\n")
+            if log_object is not None:
+                log_object.error(msg)
+
+            if verbose:
+                if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
+                    msg = f"Return code: {result.returncode}"
+                    if result.stdout:
+                        msg += f"\nStdout:\n{result.stdout}"
+                    if result.stderr:
+                        msg += f"\nStderr:\n{result.stderr}"
+                    sys.stderr.write(msg + "\n")
+                    if log_object is not None:
+                        log_object.error(msg)
+                        log_object.error(traceback.format_exc())
+                else:
+                    msg = f"Standard error was redirected to the file: {stderr}"
+                    sys.stderr.write(msg + "\n")
+                    if log_object is not None:
+                        log_object.error(msg)
+    
+                    msg = f"Standard output was redirected to the file: {stdout}"
+                    sys.stderr.write(msg + "\n")
+                    if log_object is not None:
+                        log_object.error(msg)
+
+            if exit_on_error:
+                sys.exit(1)
+            else:
+                raise RuntimeError()
+        else:
+            if verbose:
+                msg = f"Successfully ran: {' '.join(cmd)}"
+                if log_object is not None:
+                    log_object.info(msg)
+                sys.stdout.write(msg + "\n")
+        
+        for f in check_files:
+            try:
+                assert os.path.isfile(f)
+            except AssertionError:
+                msg = f"File {f} does not exist after running: {' '.join(cmd)}"
+                sys.stderr.write(msg + "\n")
+                if log_object is not None:
+                    log_object.error(msg)
+                if exit_on_error:
+                    sys.exit(1)
+                else:
+                    raise RuntimeError()
+
+        for d in check_directories:
+            try:
+                assert os.path.isdir(d)
+            except AssertionError:
+                msg = f"Directory {d} does not exist after running: {' '.join(cmd)}"
+                sys.stderr.write(msg + "\n")
+                if log_object is not None:
+                    log_object.error(msg)
+                if exit_on_error:
+                    sys.exit(1)
+                else:
+                    raise RuntimeError()
+
+    except Exception:
+        msg = f"Had an issue running: {' '.join(cmd)}"
+        if log_object is not None:
+            log_object.error(msg)
+        sys.stderr.write(msg + "\n")
+        if verbose:
+            sys.stderr.write(traceback.format_exc() + "\n")
+            if log_object != None:
+                log_object.error(traceback.format_exc())
+
+            if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
+                msg = f"Return code: {result.returncode}"
+                if result.stdout:
+                    msg += f"\nStdout:\n{result.stdout}"
+                if result.stderr:
+                    msg += f"\nStderr:\n{result.stderr}"
+                sys.stderr.write(msg + "\n")
+                if log_object is not None:
+                    log_object.error(msg)
+            else:
+                msg = f"Standard error was redirected to the file: {stderr}"
+                sys.stderr.write(msg + "\n")
+                if log_object is not None:
+                    log_object.error(msg)
+
+                msg = f"Standard output was redirected to the file: {stdout}"
+                sys.stderr.write(msg + "\n")
+                if log_object is not None:
+                    log_object.error(msg)
+            
+        if exit_on_error:
+            sys.exit(1)
+        else:
+            raise RuntimeError()
 
 
 def clean_up_sample_name(original_name) -> None:
@@ -706,7 +834,7 @@ def extract_scaffold_from_gzipped_genbank(filename, scaffold_name) -> Optional[S
                         return record
         return None  # Scaffold not found
     except Exception as e:
-        print(f"Error: {e}")
+        sys.stderr.write(f"Error: {e}\n")
         return None
 
 
@@ -802,36 +930,108 @@ def create_genbank(
         sys.exit(1)
 
 
-def multi_process(input) -> None:
+def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strategy="report_and_continue", 
+                                 log_object=None, description="parallel processing") -> Dict[str, Any]:
     """
-    Description:
-    This is a generalizable function to be used with multiprocessing to parallelize list of commands. Inputs should
-    correspond to space separated command (as list), with last item in list corresponding to a logging object handle for \
-    logging progress.
-    ********************************************************************************************************************
+    Robust parallel processing executor with configurable error handling.
+    
     Parameters:
-    - input: A list corresponding to a command to run with the last item in the list corresponding to a logging object
-             for the function.
-    ********************************************************************************************************************
+    - worker_function: The function to execute in parallel
+    - inputs: List of inputs for the worker function
+    - pool_size: Number of processes in the pool
+    - error_strategy: Strategy for handling errors:
+        - "report_and_continue": Log errors but continue processing (default)
+        - "report_and_stop": Log errors and stop on first error
+        - "ignore_and_continue": Silently ignore errors and continue
+        - "collect_errors": Collect all errors and return them
+    - log_object: Logger object for error reporting
+    - description: Description of the operation for logging
+    
+    Returns:
+    - Dictionary with 'success_count', 'error_count', 'errors' (if collect_errors strategy)
     """
-    input_cmd = input[:-1]
-    log_object = input[-1]
-    log_object.info(f"Running the following command: {' '.join(input_cmd)}")
+    import tqdm
+    
+    success_count = 0
+    error_count = 0
+    errors = []
+    
+    if log_object:
+        msg = f"Starting {description} for {len(inputs)} items using {pool_size} processes"
+        log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+    
+    actual_worker = worker_function
+    
+    p = multiprocessing.Pool(pool_size)
     try:
-        subprocess.call(
-            " ".join(input_cmd),
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            executable="/bin/bash",
-        )
-        log_object.info(f"Successfully ran: {' '.join(input_cmd)}")
+        with tqdm.tqdm(p.imap_unordered(actual_worker, inputs), total=len(inputs), desc=description) as pbar:
+            for result in pbar:
+                if result is None or (isinstance(result, tuple) and result[0] == "success"):
+                    success_count += 1
+                elif isinstance(result, tuple) and result[0] == "error":
+                    error_count += 1
+                    error_info = result[1]
+                    
+                    if "report" in error_strategy:
+                        error_msg = f"Error in {description}: {error_info}"
+                        if log_object:
+                            log_object.warning(error_msg)
+                        sys.stderr.write(f"Warning - {error_msg}\n")
+
+                    if error_strategy == "collect_errors":
+                        errors.append(error_info)
+                    elif error_strategy == "report_and_stop":
+                        raise RuntimeError(f"Stopping due to worker error: {error_info}")
+                else:
+                    success_count += 1
+                
     except Exception as e:
-        log_object.error(f"Had an issue running: {' '.join(input_cmd)}")
-        sys.stderr.write(f"Had an issue running: {' '.join(input_cmd)}")
-        log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Critical error in {description}: {str(e)}"
+        if log_object:
+            log_object.error(error_msg)
+        sys.stderr.write(f"Error: {error_msg}\n")
+        if error_strategy in ["report_and_stop"]:
+            raise
+    finally:
+        p.close()
+        p.join()
+    
+    result_summary = {
+        'success_count': success_count,
+        'error_count': error_count,
+        'total_processed': success_count + error_count
+    }
+    
+    if error_strategy == "collect_errors":
+        result_summary['errors'] = errors
+    
+    if log_object:
+        log_object.info(f"Completed {description}: {success_count} successful, {error_count} errors")
+    
+    return result_summary
+
+
+def multi_process_safe(input_cmd: List[str]) -> Tuple[str, Union[str, None]]:
+    """
+    Safe version of multi_process that returns error information instead of raising exceptions.
+    Returns ('success', None) on success or ('error', error_message) on failure.
+    """
+    try:
+        result = subprocess.run(" ".join(input_cmd), shell=True, stderr=subprocess.PIPE,
+                                stdout=subprocess.PIPE, text=True, executable='/bin/bash')
+        if result.returncode != 0:
+            msg = f"Command failed with exit code {result.returncode}: {' '.join(input_cmd)}"
+            if result.stderr:
+                msg += f"\nSTDERR:\n{result.stderr}"
+            if result.stdout:
+                msg += f"\nSTDOUT:\n{result.stdout}"
+            return ('error', msg)
+        return ('success', None)
+    except FileNotFoundError:
+        return ('error', f"Command not found: {input_cmd[0]}")
+    except Exception as e:
+        return ('error', f"An unexpected error occurred while running {' '.join(input_cmd)}: {e}")
 
 
 def setup_ready_directory(directories, delete_if_exist=False) -> None:
@@ -853,21 +1053,31 @@ def setup_ready_directory(directories, delete_if_exist=False) -> None:
                     )
                     if response.lower() != "yes":
                         sys.stderr.write(
-                            f"Deletion of directory {d} was not requested!\n"
+                            f"Deletion of directory {d} was not requested! Exiting to avoid issues ...\n"
                         )
-                        return
-                    os.system(f"rm -rf {d}")
+                        sys.exit(0)
+                    
+                    shutil.rmtree(d)
+                    try:
+                        assert not os.path.isdir(d)
+                    except AssertionError:
+                        msg = f"Directory {d} still exists after deletion attempt!"
+                        sys.stderr.write(msg + "\n")
+                        sys.exit(1)
+
+                    os.mkdir(d)
                     sys.stderr.write(
                         f"Warning: directory {d} was deleted and recreated!\n"
                     )
-                    os.system(f"mkdir {d}")
                 else:
                     sys.stderr.write(
-                        f"Warning: directory {d} exists! Overwriting\n"
+                        f"Warning: directory {d} exists! Overwriting might occur.\n"
                     )
             else:
-                os.system(f"mkdir {d}")
-    except Exception as e:
+                os.mkdir(d)
+    except Exception:
+        msg = "Issues with creating up or recreating directories."
+        sys.stderr.write(msg + "\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)
 
@@ -1025,7 +1235,6 @@ def check_valid_genbank(
                                 feature.qualifiers.get("near_scaffold_edge")[0]
                                 == "True"
                             )
-                            # print(edgy_cds)
                         except Exception as e:
                             pass
                 seqs += str(rec.seq)
@@ -1470,48 +1679,62 @@ def process_genomes_using_miniprot(
                 + miniprot_run_cmd
                 + [";"]
                 + miniprot_process_cmd
-                + [log_object]
             )
 
         msg = f"Running miniprot for {len(miniprot_cmds)} genomes"
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, miniprot_cmds),
-            total=len(miniprot_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for miniprot processing
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=miniprot_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop",  # Continue even if some miniprot runs fail
+            log_object=log_object,
+            description="miniprot annotation"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with miniprot annotation for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
         gzip_cmds = []
         for sample in sample_genomes:
             try:
                 sample_mp_gbk = additional_genbanks_directory + sample + ".gbk"
-                gzip_cmds.append(['gzip', sample_mp_gbk, log_object])
+                gzip_cmds.append(['gzip', sample_mp_gbk])
                 sample_mp_faa = (
                     additional_proteomes_directory + sample + ".faa"
                 )
                 assert os.path.isfile(sample_mp_gbk) and os.path.isfile(sample_mp_faa)
             except Exception as e:
                 sys.stderr.write(
-                    f"Unable to validate successful genbank / predicted - proteome creation for sample {sample}"
+                    f"Unable to validate successful GenBank/predicted-proteome creation for sample {sample}"
                 )
                 sys.stderr.write(traceback.format_exc())
                 sys.exit(1)
    
-        p = multiprocessing.Pool(threads)
-        msg = f"Gzipping {len(gzip_cmds)} genome-wide GenBank files"
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, gzip_cmds),
-            total=len(gzip_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for gzip compression after miniprot
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=gzip_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop", 
+            log_object=log_object,
+            description="gzip compression (post-miniprot)"
+        )
    
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with gzip compression of miniprot-based GenBanks for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
+
     except Exception as e:
         log_object.error(
             "Problem with creating commands for running miniprot or convertMiniprotGffToGbkAndProt.py. Exiting now ..."
@@ -1586,19 +1809,22 @@ def process_genomes_using_prodigal(
             ]
             if meta_mode:
                 prodigal_cmd += ["-m"]
-            prodigal_cmds.append(prodigal_cmd + [log_object])
+            prodigal_cmds.append(prodigal_cmd)
 
-        msg = f"Running {gene_calling_method} for {len(prodigal_cmds)} genomes"
+        # Use robust error handling for gene calling
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=prodigal_cmds,
+            pool_size=threads,
+            error_strategy="report_and_continue",
+            log_object=log_object,
+            description=f"{gene_calling_method} gene calling"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of {gene_calling_method} gene calling runs were successful."
+        sys.stdout.write(msg + '\n')
         log_object.info(msg)
-        sys.stdout.write(msg + "\n")
-
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, prodigal_cmds),
-            total=len(prodigal_cmds),
-        ):
-            pass
-        p.close()
 
         gzip_cmds = []
         for sample in sample_genomes:
@@ -1607,27 +1833,40 @@ def process_genomes_using_prodigal(
                 os.system(
                     f"mv {prodigal_outdir + sample + '.gbk'} {prodigal_genbanks}"
                 )
-                gzip_cmds.append(['gzip', prodigal_genbanks + sample + '.gbk', log_object])
+                gzip_cmds.append(['gzip', prodigal_genbanks + sample + '.gbk'])
                 os.system(
                     f"mv {prodigal_outdir + sample + '.faa'} {prodigal_proteomes}"
                 )
             except Exception as e:
                 sys.stderr.write(
-                    f"Unable to validate successful genbank/predicted - proteome creation for sample {sample}\n"
+                    f"Unable to validate successful GenBank/predicted-proteome creation for sample {sample}\n"
                 )
                 sys.stderr.write(traceback.format_exc())
-                sys.exit(1)
-        
-        p = multiprocessing.Pool(threads)
-        msg = f"Gzipping {len(gzip_cmds)} genome-wide GenBank files"
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, gzip_cmds),
-            total=len(gzip_cmds),
-        ):
-            pass
-        p.close()
+
+        try:
+            assert(len(gzip_cmds) >= 1)
+        except Exception as e:
+            msg = f"Unable to validate successful GenBank/predicted-proteome creation for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
+
+        # Use robust error handling for gzip compression after prodigal
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=gzip_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop",
+            log_object=log_object,
+            description="gzip compression (post-prodigal)"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with gzip compression of prodigal-based GenBanks for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
     except Exception as e:
         log_object.error(
@@ -1724,7 +1963,7 @@ def process_genomes_as_genbanks(
             if rename_locus_tags:
                 process_cmd += ["-r"]
 
-            process_cmds.append(process_cmd + [log_object])
+            process_cmds.append(process_cmd)
 
         msg = (
             f"Attempting to process/reformat {len(process_cmds)} genomes provided as GenBank files"
@@ -1732,13 +1971,15 @@ def process_genomes_as_genbanks(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, process_cmds),
-            total=len(process_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for GenBank processing
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=process_cmds,
+            pool_size=threads,
+            error_strategy="ignore_and_continue",
+            log_object=log_object,
+            description="GenBank file processing"
+        )
 
         error_summary_file_handle = open(error_summary_file, 'w')
         samples_with_noted_errors = set([])
@@ -1776,15 +2017,15 @@ def process_genomes_as_genbanks(
                 sample_genomes_updated[sample] = (
                     genbanks_directory + sample + ".gbk"
                 )
-                gzip_cmds.append(["gzip", gbk_file, log_object])
+                gzip_cmds.append(["gzip", gbk_file])
                 successfully_processed += 1
             except AssertionError:
                 if os.path.isfile(faa_file):
-                    os.system("rm -f " + faa_file)
+                    remove_file(faa_file)
                 if os.path.isfile(gbk_file):
-                    os.system("rm -f " + gbk_file)
+                    remove_file(gbk_file)
                 if os.path.isfile(map_file):
-                    os.system("rm -f " + map_file)
+                    remove_file(map_file)
                 msg = f"Unable to validate successful genbank reformatting / predicted - proteome creation for sample {sample}\n"
                 sys.stderr.write(msg)
                 if not sample in samples_with_noted_errors:
@@ -1800,20 +2041,22 @@ def process_genomes_as_genbanks(
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
-        p = multiprocessing.Pool(threads)
-        msg = f"Gzipping {len(gzip_cmds)} genome-wide GenBank files"
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
-        for _ in tqdm.tqdm(
-            p.imap_unordered(multi_process, gzip_cmds),
-            total=len(gzip_cmds),
-        ):
-            pass
-        p.close()        
-
-        sys.stdout.write(
-            f"Successfully processed {successfully_processed} genomes!\n"
+        # Use robust error handling for gzip compression after GenBank processing
+        result_summary = robust_multiprocess_executor(
+            worker_function=multi_process_safe,
+            inputs=gzip_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop",
+            log_object=log_object,
+            description="gzip compression (post-GenBank processing)"
         )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with gzip compression of GenBanks for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
     except Exception as e:
         log_object.error(
@@ -1825,10 +2068,11 @@ def process_genomes_as_genbanks(
     return sample_genomes_updated
 
 
-def determine_genome_format(inputs) -> None:
+def determine_genome_format(inputs):
     """
     Description:
     This function determines whether a target sample genome is provided in GenBank or FASTA format.
+    Returns ('success', format_type) on success or ('error', error_message) on failure.
     ********************************************************************************************************************
     Parameters:
     - input a list which can be expanded to the following:
@@ -1839,7 +2083,7 @@ def determine_genome_format(inputs) -> None:
     ********************************************************************************************************************
     """
 
-    sample, genome_file, format_assess_dir, log_object = inputs
+    sample, genome_file, format_assess_dir = inputs
     try:
         gtype = "unknown"
         if is_fasta(genome_file):
@@ -1852,9 +2096,11 @@ def determine_genome_format(inputs) -> None:
         with open(format_assess_dir + sample + ".txt", "w") as sample_res_handle:
             sample_res_handle.write(f"{sample}\t{gtype}\n")
         
+        return ('success', gtype)
+        
     except Exception as e:
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Error determining format for sample {sample}: {str(e)}"
+        return ('error', error_msg)
 
 
 def parse_sample_genomes(
@@ -1891,7 +2137,7 @@ def parse_sample_genomes(
                 ls = line.split("\t")
                 sample, genome_file = ls
                 assess_inputs.append(
-                    [sample, genome_file, format_assess_dir, log_object]
+                    [sample, genome_file, format_assess_dir]
                 )
                 try:
                     assert os.path.isfile(genome_file)
@@ -1913,13 +2159,19 @@ def parse_sample_genomes(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(determine_genome_format, assess_inputs),
-            total=len(assess_inputs),
-        ):
-            pass
-        p.close()
+        result_summary = robust_multiprocess_executor(
+            worker_function=determine_genome_format,
+            inputs=assess_inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",
+            log_object=log_object,
+            description="genome format determination"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of genome format determination runs were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         os.system(
             f"find {format_assess_dir} -maxdepth 1 -type f | xargs cat >> {format_predictions_file}"
@@ -2342,7 +2594,7 @@ def chunks(lst, n) -> Generator[List[Any], None, None]:
         yield lst[i : i + n]
 
 
-def parse_genbank_and_find_boundary_genes(inputs) -> None:
+def parse_genbank_and_find_boundary_genes(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     Function to parse a full genome GenBank and writes a dictionary of genes per scaffold, gene to scaffold, and a
@@ -2356,87 +2608,97 @@ def parse_genbank_and_find_boundary_genes(inputs) -> None:
                                in the description.
     ********************************************************************************************************************
     """
+    try:
+        distance_to_scaffold_boundary = 2000
+        gene_location: Dict[str, Any] = {}
+        scaffold_genes = defaultdict(set)
+        boundary_genes = set([])
+        gene_id_to_order = defaultdict(dict)
+        gene_order_to_id = defaultdict(dict)
 
-    distance_to_scaffold_boundary = 2000
-    gene_location: Dict[str, Any] = {}
-    scaffold_genes = defaultdict(set)
-    boundary_genes = set([])
-    gene_id_to_order = defaultdict(dict)
-    gene_order_to_id = defaultdict(dict)
+        sample, sample_genbank, pkl_result_file = inputs
+        osg = None
+        if sample_genbank.endswith(".gz"):
+            osg = gzip.open(sample_genbank, "rt")
+        else:
+            osg = open(sample_genbank)
 
-    sample, sample_genbank, pkl_result_file = inputs
-    osg = None
-    if sample_genbank.endswith(".gz"):
-        osg = gzip.open(sample_genbank, "rt")
-    else:
-        osg = open(sample_genbank)
-
-    for rec in SeqIO.parse(osg, "genbank"):
-        scaffold = rec.id
-        scaffold_length = len(str(rec.seq))
-        boundary_ranges = set(
-            range(1, distance_to_scaffold_boundary + 1)
-        ).union(
-            set(
-                range(
-                    scaffold_length - distance_to_scaffold_boundary,
-                    scaffold_length + 1,
+        for rec in SeqIO.parse(osg, "genbank"):
+            scaffold = rec.id
+            scaffold_length = len(str(rec.seq))
+            boundary_ranges = set(
+                range(1, distance_to_scaffold_boundary + 1)
+            ).union(
+                set(
+                    range(
+                        scaffold_length - distance_to_scaffold_boundary,
+                        scaffold_length + 1,
+                    )
                 )
             )
-        )
-        gene_starts = []
-        for feature in rec.features:
-            if not feature.type == "CDS":
-                continue
-            locus_tag = feature.qualifiers.get("locus_tag")[0]
+            gene_starts = []
+            for feature in rec.features:
+                if not feature.type == "CDS":
+                    continue
+                locus_tag = feature.qualifiers.get("locus_tag")[0]
 
-            start, end, direction, all_coords = process_location_string(
-                str(feature.location) # type: ignore
-            )
+                start, end, direction, all_coords = process_location_string(
+                    str(feature.location) # type: ignore
+                )
 
-            gene_location[locus_tag] = {
-                "scaffold": scaffold,
-                "start": start,
-                "end": end,
-                "direction": direction,
-            }
-            scaffold_genes[scaffold].add(locus_tag)
+                gene_location[locus_tag] = {
+                    "scaffold": scaffold,
+                    "start": start,
+                    "end": end,
+                    "direction": direction,
+                }
+                scaffold_genes[scaffold].add(locus_tag)
 
-            gene_range = set(range(start, end + 1))
-            if len(gene_range.intersection(boundary_ranges)) > 0:
-                boundary_genes.add(locus_tag)
+                gene_range = set(range(start, end + 1))
+                if len(gene_range.intersection(boundary_ranges)) > 0:
+                    boundary_genes.add(locus_tag)
 
-            gene_starts.append([locus_tag, start])
+                gene_starts.append([locus_tag, start])
 
-        for i, g in enumerate(sorted(gene_starts, key=itemgetter(1))):
-            gene_id_to_order[scaffold][g[0]] = i
-            gene_order_to_id[scaffold][i] = g[0]
-    
+            for i, g in enumerate(sorted(gene_starts, key=itemgetter(1))):
+                gene_id_to_order[scaffold][g[0]] = i
+                gene_order_to_id[scaffold][i] = g[0]
+        
 
-    sample_data = [
-        gene_location,
-        dict(scaffold_genes),
-        boundary_genes,
-        dict(gene_id_to_order),
-        dict(gene_order_to_id),
-    ]
+        sample_data = [
+            gene_location,
+            dict(scaffold_genes),
+            boundary_genes,
+            dict(gene_id_to_order),
+            dict(gene_order_to_id),
+        ]
 
-    with open(pkl_result_file, "wb") as pickle_file:
-        pickle.dump(sample_data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(pkl_result_file, "wb") as pickle_file:
+            pickle.dump(sample_data, pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        return ('success', None)
+    except Exception as e:
+        error_msg = f"Error parsing GenBank and finding boundary genes for {inputs[0]}: {str(e)}"
+        return ('error', error_msg)
 
 
-def convert_genome_genbank_to_fasta(inputs) -> None:
-    input_gbk, output_fasta = inputs
-    if input_gbk.endswith(".gz"):
-        with open(output_fasta, "w") as output_fasta_handle:
-            with gzip.open(input_gbk, "rt") as oig:
-                for rec in SeqIO.parse(oig, "genbank"):
-                    output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
-    else:
-        with open(output_fasta, "w") as output_fasta_handle:
-            with open(input_gbk) as oig:
-                for rec in SeqIO.parse(oig, "genbank"):
-                    output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
+def convert_genome_genbank_to_fasta(inputs) -> Tuple[str, Optional[str]]:
+    try:
+        input_gbk, output_fasta = inputs
+        if input_gbk.endswith(".gz"):
+            with open(output_fasta, "w") as output_fasta_handle:
+                with gzip.open(input_gbk, "rt") as oig:
+                    for rec in SeqIO.parse(oig, "genbank"):
+                        output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
+        else:
+            with open(output_fasta, "w") as output_fasta_handle:
+                with open(input_gbk) as oig:
+                    for rec in SeqIO.parse(oig, "genbank"):
+                        output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
+        return ('success', None)
+    except Exception as e:
+        error_msg = f"Error converting GenBank to FASTA for {inputs[0]}: {str(e)}"
+        return ('error', error_msg)
                 
 def create_nj_tree(
     additional_genbanks_directory,
@@ -2476,18 +2738,21 @@ def create_nj_tree(
                 conversion_inputs.append([input_gbk, output_fasta])
                 all_genomes_listing_handle.write(f"{output_fasta}\n")        
 
-        # parallelize conversion
-        msg = f"Converting genome GenBank to FASTA for {len(conversion_inputs)} genomes"
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
+        result_summary = robust_multiprocess_executor(
+            worker_function=convert_genome_genbank_to_fasta,
+            inputs=conversion_inputs,
+            pool_size=threads,
+            error_strategy="report_and_stop",
+            log_object=log_object,
+            description="GenBank to FASTA conversion"
+        )
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(convert_genome_genbank_to_fasta, conversion_inputs),
-            total=len(conversion_inputs),
-        ):
-            pass
-        p.close()
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with GenBank to FASTA conversion for at least one sample. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
         # run skani triangle
         skani_result_file = workspace_dir + "Skani_Triangle_Edge_Output.txt"
@@ -2502,29 +2767,7 @@ def create_nj_tree(
             "-o",
             skani_result_file,
         ]
-        try:
-            subprocess.call(
-                " ".join(skani_triangle_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(skani_result_file)
-            log_object.info(
-                f"Successfully ran: {' '.join(skani_triangle_cmd)}"
-            )
-        except Exception as e:
-            log_object.error(
-                f"Had an issue with running skani: {' '.join(skani_triangle_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue with running skani: {' '.join(skani_triangle_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
-
+        run_cmd_via_subprocess(skani_triangle_cmd, log_object=log_object, check_files=[skani_result_file])
         shutil.rmtree(tmp_genome_fasta_dir)
 
         dist_matrix_file = workspace_dir + "Skani_Based_Distance_Matrix.txt"
@@ -2562,26 +2805,7 @@ def create_nj_tree(
             rscript_path, dist_matrix_file, unrooted_tree_file, log_object
         )
         nj_tree_cmd = ["Rscript", rscript_path]
-        try:
-            subprocess.call(
-                " ".join(nj_tree_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(unrooted_tree_file)
-            log_object.info(f"Successfully ran: {' '.join(nj_tree_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue with generating neigbhor - joining tree: {' '.join(nj_tree_cmd)}" \
-            )
-            sys.stderr.write(
-                f"Had an issue with generating neighbor - joining tree: {' '.join(nj_tree_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
+        run_cmd_via_subprocess(nj_tree_cmd, log_object=log_object, check_files=[unrooted_tree_file])
 
         # Midpoint the tree using ete3
         t = Tree(unrooted_tree_file)
@@ -2622,16 +2846,17 @@ def clean_up(clean_up_dirs_and_files, log_object) -> None:
         for df in clean_up_dirs_and_files:
             if os.path.isfile(df):
                 log_object.warning(f"Deleting the file {df}")
-                os.system(f"rm -fi {df}")
+                remove_file(df)
             elif os.path.isdir(df):
-                log_object.warning(f"Deleting the file {df}")
+                log_object.warning(f"Deleting the directory {df}")
                 shutil.rmtree(df)
             else:
                 log_object.error(f"Couldn't find {df} to delete!")
     except Exception as e:
-        sys.stderr.write("Issues with cleaning up files / directories.\n")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error("Issues with cleaning up files / directories.\n")
+        msg = "Issues with cleaning up files / directories."
+        sys.stderr.write(msg + "\n")
+        sys.stderr.write(traceback.format_exc() + "\n")
+        log_object.error(msg)
         log_object.error(traceback.format_exc())
         sys.exit(1)
 
@@ -2645,7 +2870,7 @@ def diamond_blast_and_get_best_hits(
     identity_cutoff=40.0,
     coverage_cutoff=70.0,
     evalue_cutoff=1e-3,
-    blastp_mode="very - sensitive",
+    blastp_mode="very-sensitive",
     prop_key_prots_needed=0.0,
     threads=1,
 ) -> None:
@@ -2809,75 +3034,42 @@ def diamond_blast_and_get_best_hits(
         sys.exit(1)
 
 
-def diamond_blast(inputs) -> None:
-    og_prot_file, og_prot_dmnd_db, og_blast_file, log_object = inputs
-
-    makedb_cmd = [
-        "diamond",
-        "makedb",
-        "--ignore - warnings",
-        "--in",
-        og_prot_file,
-        "-d",
-        og_prot_dmnd_db,
-        "--threads",
-        "1"
-    ]
-    search_cmd = [
-        "diamond",
-        "blastp",
-        "--ignore - warnings",
-        "-p",
-        "1",
-        "-d",
-        og_prot_dmnd_db,
-        "-q",
-        og_prot_file,
-        "-o",
-        og_blast_file,
-    ]
+def diamond_blast(inputs) -> Tuple[str, Optional[str]]:
     try:
-        subprocess.call(
-            " ".join(makedb_cmd),
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            executable="/bin/bash",
-        )
-        assert os.path.exists(og_prot_dmnd_db)
-        log_object.info(f"Successfully ran: {' '.join(makedb_cmd)}")
-    except Exception as e:
-        log_object.error(
-            f"Had an issue running DIAMOND makedb: {' '.join(makedb_cmd)}"
-        )
-        sys.stderr.write(
-            f"Had an issue running DIAMOND makedb: {' '.join(makedb_cmd)}\n"
-        )
-        log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        og_prot_file, og_prot_dmnd_db, og_blast_file = inputs
 
-    try:
-        subprocess.call(
-            " ".join(search_cmd),
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            executable="/bin/bash",
-        )
-        assert os.path.exists(og_blast_file)
-        log_object.info(f"Successfully ran: {' '.join(search_cmd)}")
-    except Exception as e:
-        log_object.error(
-            f"Had an issue running DIAMOND blastp: {' '.join(search_cmd)}"
-        )
-        sys.stderr.write(
-            f"Had an issue running DIAMOND blastp: {' '.join(search_cmd)}\n"
-        )
-        log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        makedb_cmd = [
+            "diamond",
+            "makedb",
+            "--ignore-warnings",
+            "--in",
+            og_prot_file,
+            "-d",
+            og_prot_dmnd_db,
+            "--threads",
+            "1"
+        ]
+        search_cmd = [
+            "diamond",
+            "blastp",
+            "--ignore-warnings",
+            "-p",
+            "1",
+            "-d",
+            og_prot_dmnd_db,
+            "-q",
+            og_prot_file,
+            "-o",
+            og_blast_file,
+        ]
 
+        run_cmd_via_subprocess(makedb_cmd, check_files=[og_prot_dmnd_db], verbose=False)
+            
+        run_cmd_via_subprocess(search_cmd, check_files=[og_blast_file], verbose=False)
+        return ('success', None)
+    except Exception as e:
+        error_msg = f"Error in diamond_blast for {inputs[0]}: {str(e)}"
+        return ('error', error_msg)
 
 def determine_fai_param_recommendations(
     genbanks, ortho_matrix_file, hg_prot_dir, outdir, log_object, threads=1
@@ -2930,20 +3122,25 @@ def determine_fai_param_recommendations(
             og_blast_file = self_blast_dir + og + ".txt"
             og_prot_dmnd_db = hg_prot_dir + f
             diamond_self_blasting_inputs.append(
-                [og_prot_file, og_prot_dmnd_db, og_blast_file, log_object]
+                [og_prot_file, og_prot_dmnd_db, og_blast_file]
             )
 
-        msg = f"Running reflexive DIAMOND BLASTp for {len(diamond_self_blasting_inputs)} ortholog groups"
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
+        # Use robust error handling for DIAMOND blast processing
+        result_summary = robust_multiprocess_executor(
+            worker_function=diamond_blast,
+            inputs=diamond_self_blasting_inputs,
+            pool_size=threads,
+            error_strategy="report_and_stop",  
+            log_object=log_object,
+            description="DIAMOND self-blast processing"
+        )
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(diamond_blast, diamond_self_blasting_inputs),
-            total=len(diamond_self_blasting_inputs),
-        ):
-            pass
-        p.close()
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with DIAMOND self-blast processing for at least one orthogroup. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
         og_min_eval_params = outdir + "OG_Information.txt"
         with open(og_min_eval_params, "w") as omep_handle:
@@ -3474,19 +3671,18 @@ def run_pyhmmer_for_vo_gfor_salt(inputs) -> None:
         )
 
 
-def annotate_mges(inputs) -> None:
+def annotate_mges(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     Annotate MGEs for a single sample's predicted proteome file.
     ********************************************************************************************************************
     Parameters:
-    - inputs: A list of length 6:
+    - inputs: A list of length 5:
             - sample: sample / genome name.
             - faa_file: path to proteome for sample / genome.
             - vog_annot_file: path to the pyhmmer results for VOG annotations (will be written to - should not exist). \
             - mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (will be written to - should not exist). \
-            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (will be written to - should not exist). \
-            - log_object: a logging object.
+            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (will be written to - should not exist).
     ********************************************************************************************************************
     """
     sample = "NA"
@@ -3497,12 +3693,10 @@ def annotate_mges(inputs) -> None:
             vog_annot_file,
             mobsuite_annot_file,
             is_annot_file,
-            log_object,
         ) = inputs
 
         zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
         db_locations = None
-        conda_setup_success = None
         if zol_data_directory != "None":
             try:
                 zol_data_directory = os.path.abspath(zol_data_directory) + "/"
@@ -3558,22 +3752,15 @@ def annotate_mges(inputs) -> None:
                             "-o",
                             annot_result_file,
                         ]
-                        run_cmd_via_subprocess(
-                            search_cmd, log_object, check_files=[annot_result_file]
-                        )
+                        run_cmd_via_subprocess(search_cmd, check_files=[annot_result_file],
+                                               verbose=False)
+        return ('success', None)
     except Exception as e:
-        sys.stderr.write(
-            f"Issues with MGE annotation commands for sample {sample}.\n"
-        )
-        log_object.error(
-            f"Issues with MGE annotation commands for sample {sample}."
-        )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Issues with MGE annotation commands for sample {sample}: {str(e)}"
+        return ('error', error_msg)
 
 
-def process_mge_annotations(inputs) -> None:
+def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     Function to process MGE annotation results from DIAMOND blastp and pyhmmer searching for a single sample as well as
@@ -3586,8 +3773,7 @@ def process_mge_annotations(inputs) -> None:
             - summary_file: The output file for the sample with information on MGE locations.
             - vog_annot_file: path to the pyhmmer results for VOG annotations (should already exist). \
             - mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (should already exist). \
-            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (should already exist). \
-            - log_object: a logging object.
+            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (should already exist).
     ********************************************************************************************************************
     """
     try:
@@ -3603,7 +3789,6 @@ def process_mge_annotations(inputs) -> None:
             vog_annot_file,
             mobsuite_annot_file,
             is_annot_file,
-            log_object,
         ) = inputs
 
         try:
@@ -3616,11 +3801,8 @@ def process_mge_annotations(inputs) -> None:
             sys.stderr.write(
                 f"Issue validating the existence of one or more of the annotation files for sample: {sample}\n"
             )
-            log_object.error(
-                f"Issue validating the existence of one or more of the annotation files for sample: {sample}"
-            )
             # TODO: Consider making this an end - program error
-            return
+            return ('error', f"Issue validating the existence of one or more of the annotation files for sample: {sample}")
 
         vog_hits = set([])
         with open(vog_annot_file) as ovaf:
@@ -3755,17 +3937,11 @@ def process_mge_annotations(inputs) -> None:
                             + "\n"
                         )
         
+        return ('success', None)
 
     except Exception as e:
-        sys.stderr.write(
-            f"Issues with MGE annotation processing for sample {sample}.\n"
-        )
-        log_object.error(
-            f"Issues with MGE annotation processing for sample {sample}."
-        )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Issues with MGE annotation processing for sample {sample}: {str(e)}"
+        return ('error', error_msg)
 
 
 def process_diamond_for_gc_to_ribo_ratio(
@@ -4003,26 +4179,8 @@ def make_gc_vs_ribo_prot_aai_scatterplot(
             log_object,
         )
         plot_cmd = ["Rscript", rscript_file]
-        try:
-            subprocess.call(
-                " ".join(plot_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(gc_ribo_aai_plot_pdf_file)
-            log_object.info(f"Successfully ran: {' '.join(plot_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running R based plotting - potentially because of R setup issues in conda: {' '.join(plot_cmd)}" \
-            )
-            sys.stderr.write(
-                f"Had an issue running R based plotting - potentially because of R setup issues in conda: {' '.join(plot_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
+        run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files=[gc_ribo_aai_plot_pdf_file])
+ 
     except Exception as e:
         sys.stderr.write(
             "Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.\n"
@@ -4844,3 +5002,30 @@ def create_fake_diamond_linclust_file(fasta_file: str, diamond_linclust_cluster_
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
         sys.exit(1)
+
+def remove_file(file_path: str, log_object=None) -> None:
+    """
+    Description:
+    Removes a file with error handling.
+    ********************************************************************************************************************
+    Parameters:
+    - file_path: The path to the file to remove.
+    - log_object: A logging object.
+    ********************************************************************************************************************
+    """
+    try:
+        os.remove(file_path)
+        if log_object is not None:
+            log_object.info(f"Successfully removed file: {file_path}")
+    except FileNotFoundError:
+        msg = f"File not found and could not be removed: {file_path}"
+        if log_object is not None:
+            log_object.warning(msg)
+        sys.stderr.write(msg + '\n')
+        raise RuntimeWarning()
+    except Exception as e:
+        msg = f"Error removing file {file_path}: {e}"
+        if log_object is not None:
+            log_object.error(msg)
+        sys.stderr.write(msg + '\n')
+        raise RuntimeWarning()

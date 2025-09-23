@@ -40,11 +40,9 @@ UW Madison, Department of Medical Microbiology and Immunology
 from collections import defaultdict
 from operator import attrgetter, itemgetter
 import argparse
-import concurrent.futures
 import os
 from typing import Dict, List, Optional, Union, Any, Tuple
 import shutil
-import subprocess
 import sys
 import traceback
 from Bio import SeqIO
@@ -158,30 +156,12 @@ def create_parser() -> argparse.Namespace:
     return args
 
 
-def run_cmd(inputs) -> None:
-    command = inputs[:-1]
-    log_object = inputs[-1]
-    try:
-        subprocess.call(
-            " ".join(command),
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            executable="/bin/bash",
-        )
-    except Exception as e:
-        log_object.error(f"Issue with running: {' '.join(command)}")
-        log_object.error(e)
-        raise RuntimeError(e)
-
-
-def refactor_proteomes_function(inputs) -> None:
+def refactor_proteomes_function(inputs) -> Tuple[str, Optional[str]]:
     (
         sample_name,
         prot_file,
         updated_prot_file,
         original_naming_file,
-        log_object,
     ) = inputs
     try:
         with open(updated_prot_file, "w") as updated_prot_handle:
@@ -205,48 +185,37 @@ def refactor_proteomes_function(inputs) -> None:
                         + "\n"
                     )
             original_naming_handle.close()
-        
+        return ('success', None)
     except Exception as e:
-        log_object.error("Error with refactoring proteome file.")
-        log_object.error(e)
-        sys.exit(1)
+        error_msg = f"Error with refactoring proteome file {prot_file}: {str(e)}"
+        return ('error', error_msg)
 
 
-def one_vs_all_parse(inputs) -> None:
+def one_vs_all_parse(inputs) -> Tuple[str, Optional[str]]:
     (
         sample,
         samp_algn_res,
         samp_forth_res,
         identity_cutoff,
         coverage_cutoff,
-        log_object,
     ) = inputs
-
-    rbh_cmd = [
-        rbh_prog,
-        samp_algn_res,
-        str(identity_cutoff),
-        str(coverage_cutoff),
-        sample,
-        ">",
-        samp_forth_res,
-    ]
     try:
-        subprocess.call(
-            " ".join(rbh_cmd),
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            executable="/bin/bash",
-        )
-        assert os.path.isfile(samp_forth_res)
+        rbh_cmd = [
+            rbh_prog,
+            samp_algn_res,
+            str(identity_cutoff),
+            str(coverage_cutoff),
+            sample,
+            ">",
+            samp_forth_res,
+        ]
+        util.run_cmd_via_subprocess(rbh_cmd, check_files = [samp_forth_res])
+
+        util.remove_file(samp_algn_res)
+        return ('success', None)
     except Exception as e:
-        log_object.error(f"Issue with running: {' '.join(rbh_cmd)}")
-        log_object.error(e)
-        raise RuntimeError(e)
-
-    os.system(f"rm -f {samp_algn_res}")
-
+        error_msg = f"Error in one-vs-all parsing for sample {sample}: {str(e)}"
+        return ('error', error_msg)
 
 def create_final_results(
     concat_result_file,
@@ -473,15 +442,26 @@ def find_orthologs() -> None:
                                 prot_file,
                                 updated_prot_file,
                                 original_naming_file,
-                                log_object,
                             ]
                         )
                         proteome_listing_handle.write(f"{sample_name}\t{prot_file}\t{updated_prot_file}\n")
 
-                with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=threads
-                ) as executor:
-                    executor.map(refactor_proteomes_function, refactor_proteomes)
+                # Use robust error handling for proteome refactoring
+                result_summary = util.robust_multiprocess_executor(
+                    worker_function=refactor_proteomes_function,
+                    inputs=refactor_proteomes,
+                    pool_size=threads,
+                    error_strategy="report_and_continue",  # Continue even if some proteomes fail
+                    log_object=log_object,
+                    description="proteome refactoring"
+                )
+
+                success_prop = result_summary['success_count'] / result_summary['total_processed']
+                if success_prop != 1.0:
+                    msg = f"Issues with proteome refactoring for at least one proteome. Exiting now ..."
+                    sys.stderr.write(msg + '\n')
+                    log_object.error(msg)
+                    sys.exit(1)
 
             except Exception as e:
                 log_object.error(e)
@@ -556,93 +536,24 @@ def find_orthologs() -> None:
                 str(threads)
             ]
 
-            try:
-                subprocess.call(
-                    " ".join(diamond_makedb_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(db_path)
-            except Exception as e:
-                log_object.error(
-                    f"Issue with running: {' '.join(diamond_makedb_cmd)}"
-                )
-                log_object.error(e)
-                raise RuntimeError(e)
+            util.run_cmd_via_subprocess(diamond_makedb_cmd, check_files = [db_path])
 
             alignment_result_file = outdir + "Reflexive_Alignment.out"
-            diamond_blastp_cmd = [
-                "diamond",
-                "blastp",
-                "--ignore-warnings",
-                "-d",
-                db_path,
-                "-q",
-                concat_faa,
-                "-o",
-                alignment_result_file,
-                "--outfmt",
-                "6",
-                "qseqid",
-                "sseqid",
-                "pident",
-                "length",
-                "mismatch",
-                "gapopen",
-                "qstart",
-                "qend",
-                "sstart",
-                "send",
-                "evalue",
-                "bitscore",
-                "qcovhsp",
-                "-k0",
-                "--very-sensitive",
-                "-e",
-                str(evalue_cutoff),
-                "--masking",
-                "0",
-                "-p",
-                str(threads),
-            ]
-            try:
-                subprocess.call(
-                    " ".join(diamond_blastp_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(alignment_result_file)
-            except Exception as e:
-                log_object.error(
-                    f"Issue with running: {' '.join(diamond_blastp_cmd)}"
-                )
-                log_object.error(e)
-                raise RuntimeError(e)
+            diamond_blastp_cmd = ["diamond", "blastp", "--ignore-warnings", "-d", db_path,
+                                  "-q", concat_faa, "-o", alignment_result_file, "--outfmt",
+                                  "6", "qseqid", "sseqid", "pident", "length", "mismatch",
+                                  "gapopen", "qstart", "qend", "sstart", "send", "evalue",
+                                  "bitscore", "qcovhsp", "-k0", "--very-sensitive", "-e",
+                                  str(evalue_cutoff), "--masking", "0", "-p", str(threads)]
+            util.run_cmd_via_subprocess(diamond_blastp_cmd, check_files = [alignment_result_file])
 
             split_diamond_cmd = [
                 split_diamond_results_prog,
                 alignment_result_file,
                 sample_listing_file,
             ]
-            try:
-                subprocess.call(
-                    " ".join(split_diamond_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-            except Exception as e:
-                log_object.error(
-                    f"Issue with running: {' '.join(split_diamond_cmd)}"
-                )
-                log_object.error(e)
-                raise RuntimeError(e)
-
+            
+            util.run_cmd_via_subprocess(split_diamond_cmd, check_files = [alignment_result_file])
             os.system(f"touch {step2_checkpoint_file}")
 
         msg = "--------------------\nStep 3\n--------------------\nRunning RBH.\n"
@@ -659,13 +570,25 @@ def find_orthologs() -> None:
             for inp_tup in sample_inputs:
                 parallelize_inputs.append(
                     list(inp_tup)
-                    + [identity_cutoff, coverage_cutoff, log_object]
+                    + [identity_cutoff, coverage_cutoff]
                 )
 
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=threads
-            ) as executor:
-                executor.map(one_vs_all_parse, parallelize_inputs)
+            # Use robust error handling for one-vs-all parsing
+            result_summary = util.robust_multiprocess_executor(
+                worker_function=one_vs_all_parse,
+                inputs=parallelize_inputs,
+                pool_size=threads,
+                error_strategy="report_and_stop",  # Continue even if some comparisons fail
+                log_object=log_object,
+                description="one-vs-all ortholog parsing"
+            )
+
+            success_prop = result_summary['success_count'] / result_summary['total_processed']
+            if success_prop != 1.0:
+                msg = f"Issues with one-vs-all ortholog parsing for at least one sample. Exiting now ..."
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
+                sys.exit(1)
 
             os.system(
                 f"cat {forth_res_dir}* > {find_orthos_result_file}"
@@ -748,22 +671,7 @@ def find_orthologs() -> None:
                 log_object.error(msg)
                 sys.exit(1)
 
-            log_object.info(f"Running: {' '.join(find_clusters_cmd)}")
-            try:
-                subprocess.call(
-                    " ".join(find_clusters_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(cluster_result_file)
-            except Exception as e:
-                log_object.error(
-                    f"Issue with running: {' '.join(find_clusters_cmd)}"
-                )
-                log_object.error(e)
-                raise RuntimeError(e)
+            util.run_cmd_via_subprocess(find_clusters_cmd, check_files = [cluster_result_file])
 
             with open(tmp_result_file, "w") as result_handle:
                 subclust_id = 1
@@ -783,9 +691,8 @@ def find_orthologs() -> None:
                             result_handle.write(f"OG_{subclust_id}\t{rec.id}\n")
                             subclust_id += 1
             
-            os.system(
-                f"rm {alignment_result_file} {cluster_result_file}"
-            )
+            util.remove_file(alignment_result_file)
+            util.remove_file(cluster_result_file)
             shutil.rmtree(forth_res_dir)
             shutil.rmtree(align_res_dir)
 
@@ -847,19 +754,7 @@ def find_orthologs() -> None:
                 str(threads),
             ] + diamond_params.split()
 
-            try:
-                subprocess.call(
-                    " ".join(diamond_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(diamond_cluster_file)
-            except Exception as e:
-                log_object.error(f"Issue with running: {' '.join(diamond_cmd)}")
-                log_object.error(e)
-                raise RuntimeError(e)
+            util.run_cmd_via_subprocess(diamond_cmd, check_files = [diamond_cluster_file])
 
             os.system(f"touch {step2_checkpoint_file}")
 

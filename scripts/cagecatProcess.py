@@ -40,13 +40,8 @@ UW Madison, Department of Medical Microbiology and Immunology
 import os
 import sys
 import argparse
-import subprocess
-import concurrent.futures
 from Bio import SeqIO
-from collections import defaultdict
-from operator import attrgetter, itemgetter
 from zol import util
-import shutil
 
 def create_parser():
 	""" Parse arguments """
@@ -124,15 +119,9 @@ def cagecatProcess():
 	
 	cagecat_dir = outdir + 'CAGECAT_Results/'
 	cagecat_res_dir = cagecat_dir + 'results/'
-	extraction_cmd = ['unzip', extract_clusters_zip_file, '-d', cagecat_dir]
-	try:
-		print(' '.join(extraction_cmd))
-		subprocess.call(' '.join(extraction_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-		assert(os.path.isdir(cagecat_res_dir))
-	except Exception as e:
-		log_object.error(f"Issue with running: {' '.join(extraction_cmd)}")
-		log_object.error(e)
-		raise RuntimeError(e)
+	extraction_cmd = ['unzip', extract_clusters_zip_file, '-d', cagecat_dir]	
+	util.run_cmd_via_subprocess(extraction_cmd, log_object=log_object, 
+								check_directories = [cagecat_res_dir])
 	
 	# Step 2: Process GenBank files and produce final versions with locus_tags
 	msg = "--------------------\nStep 1\n--------------------\nProcessing GenBank files and producing final versions."

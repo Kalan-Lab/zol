@@ -6,19 +6,18 @@ import decimal
 import itertools
 import json
 import math
-import multiprocessing
 import os
 from typing import Dict, List, Optional, Union, Any, Tuple, Generator, Set, TypedDict
 import pickle
-import random
 import shutil
 import statistics
 import subprocess
 import sys
 import traceback
-from Bio import SeqIO
+from Bio import SeqIO, AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 from scipy import stats
 import pandas as pd
 import pyhmmer
@@ -96,26 +95,7 @@ def perform_sl_full_protein_clustering(
 
         clusters_file = workspace_dir + "Full_Protein_Clusters.txt"
         clust_cmd = ["slclust", "<", pair_file, ">", clusters_file]
-
-        try:
-            subprocess.call(
-                " ".join(clust_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(clusters_file)
-            log_object.info(f"Successfully ran: {' '.join(clust_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running slclust: {' '.join(clust_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running slclust: {' '.join(clust_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.exit(1)
+        util.run_cmd_via_subprocess(clust_cmd, log_object=log_object, check_files=[clusters_file])
 
         cluster_id = 1
         with open(full_prot_cluster_file, "w") as res_handle:
@@ -135,7 +115,6 @@ def perform_sl_full_protein_clustering(
                 if not prot in clustered_set:
                     res_handle.write(f"{prot}\tSL_{cluster_id}\n")
                     cluster_id += 1
-        
 
     except Exception as e:
         sys.stderr.write(traceback.format_exc() + "\n")
@@ -151,7 +130,6 @@ def map_chunk_protein_coords_to_feature_coords(
     name,
     evalue,
     eukaryotic_gene_cluster_flag,
-    log_object,
 ) -> SeqFeature:
     """
     Description:
@@ -238,7 +216,6 @@ def map_chunk_protein_coords_to_feature_coords(
             translated_prot_seq = "M" + translated_prot_seq[1:]
             msg = \
      "Warning: changing starting protein residue from V or L to M. This is expected for bacteria, but if you are seeing this with running a eukaryotic dataset - it indicates an issue!"
-            log_object.warning(msg)
             sys.stderr.write(msg + "\n")
 
         try:
@@ -287,11 +264,10 @@ def map_chunk_protein_coords_to_feature_coords(
         return feature
     except Exception as e:
         sys.stderr.write(traceback.format_exc() + "\n")
-        log_object.error(traceback.format_exc())
         raise RuntimeError()
 
 
-def create_chopped_genbank(inputs) -> None:
+def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     Create a chopped CDS GenBank file from a regular GenBank file - core function for batchCreateChoppedGenbanks(). \
@@ -306,7 +282,6 @@ def create_chopped_genbank(inputs) -> None:
             - pfam_z: The Pfam record count - for accurate E-value estimation.
             - minimal_length: The minimum length in amino acids for a domain matching or intra-domain region to be kept and
                           tagged as a chopped CDS feature.
-            - log_object: A logging object.
     - threads: The number of threads to use [Default is 1].
     ********************************************************************************************************************
     """
@@ -319,7 +294,6 @@ def create_chopped_genbank(inputs) -> None:
         pfam_z,
         minimal_length,
         eukaryotic_gene_cluster_flag,
-        log_object,
     ) = inputs
     try:
         lt_coord_info: Dict[str, Any] = {}
@@ -452,8 +426,7 @@ def create_chopped_genbank(inputs) -> None:
                         lt_coord_info[tg],
                         dn,
                         de,
-                        eukaryotic_gene_cluster_flag,
-                        log_object,
+                        eukaryotic_gene_cluster_flag
                     )
                     chopped_features[record].append(chopped_feature)
                 else:
@@ -474,7 +447,7 @@ def create_chopped_genbank(inputs) -> None:
                             if dn == "NA":
                                 dn = (
                                     tg
-                                    + "|inter - domain_region|"
+                                    + "|inter-domain_region|"
                                     + str(tg_interdomain_index)
                                 )
                                 tg_interdomain_index += 1
@@ -486,8 +459,7 @@ def create_chopped_genbank(inputs) -> None:
                                     lt_coord_info[tg],
                                     dn,
                                     de,
-                                    eukaryotic_gene_cluster_flag,
-                                    log_object,
+                                    eukaryotic_gene_cluster_flag
                                 )
                             )
                             chopped_features[record].append(chopped_feature)
@@ -505,15 +477,11 @@ def create_chopped_genbank(inputs) -> None:
                     gbk_rec.features = chopped_features[rec.id]
                     SeqIO.write(gbk_rec, occgf, "genbank")
             
+        return ('success', None)
 
     except Exception as e:
-        msg = (
-            f"An issue occurred with creating chopped up version of GenBank file {gbk}."
-        )
-        log_object.warning(msg)
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.write(msg + "\n")
-        sys.exit(1)
+        error_msg = f"An issue occurred with creating chopped up version of GenBank file {gbk}: {str(e)}"
+        return ('error', error_msg)
 
 
 def batch_create_chopped_genbanks(
@@ -617,24 +585,25 @@ def batch_create_chopped_genbanks(
                     pfam_z,
                     minimal_length,
                     eukaryotic_gene_cluster_flag,
-                    log_object,
                 ]
             )
 
-        msg = (
-            "Creating domain - chopped up version of GenBank files for %d gene clusters"
-            % len(gbk_mod_inputs)
+        # Use robust error handling for chopped GenBank creation
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=create_chopped_genbank,
+            inputs=gbk_mod_inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some GenBank processing fails
+            log_object=log_object,
+            description="domain-chopped GenBank file creation"
         )
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(create_chopped_genbank, gbk_mod_inputs),
-            total=len(gbk_mod_inputs),
-        ):
-            pass
-        p.close()
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with domain-chopped GenBank file creation for at least one GenBank file. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
         with open(dom_to_cds_relations_file, "w") as ccc_handle:
             for f in os.listdir(modified_genbank_dir):
@@ -723,19 +692,7 @@ def reinflate_orthogroups(
             str(threads),
         ] + diamond_params.split()
 
-        try:
-            subprocess.call(
-                " ".join(diamond_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(diamond_cluster_file)
-        except Exception as e:
-            log_object.error(f"Issue with running: {' '.join(diamond_cmd)}")
-            log_object.error(e)
-            raise RuntimeError(e)
+        util.run_cmd_via_subprocess(diamond_cmd, log_object=log_object, check_files=[diamond_cluster_file])
 
         clust_proteins = defaultdict(set)
         protein_to_clust: Dict[str, str] = {}
@@ -911,28 +868,9 @@ def dereplicate_using_skani(
                 skani_sketch_cmd.append("--separate-sketches")
         except Exception:
             pass
-        try:
-            subprocess.call(
-                " ".join(skani_sketch_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isdir(skani_sketch_db)
-            log_object.info(
-                f"Successfully ran skani: {' '.join(skani_sketch_cmd)}"
-            )
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running skani: {' '.join(skani_sketch_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running skani: {' '.join(skani_sketch_cmd)}\nThis might be due to unix default limits - you can try setting \"ulimit -S -s unlimited\" prior to rerunning zol\n."
-            )
-            log_object.error(e)
-            sys.exit(1)
-
+        
+        util.run_cmd_via_subprocess(skani_sketch_cmd, log_object=log_object, check_files=[skani_sketch_db])
+        
         skani_result_file = derep_dir + "skani_results.tsv"
         skani_dist_cmd = [
             "skani",
@@ -951,29 +889,8 @@ def dereplicate_using_skani(
         if skani_small_genomes_preset:
             skani_dist_cmd += ["--small-genomes"]
 
-        try:
-            subprocess.call(
-                " ".join(skani_dist_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-
-            assert os.path.isfile(skani_result_file)
-            log_object.info(
-                f"Successfully ran skani: {' '.join(skani_dist_cmd)}"
-            )
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running skani: {' '.join(skani_dist_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running skani: {' '.join(skani_dist_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.exit(1)
-
+        util.run_cmd_via_subprocess(skani_dist_cmd, log_object=log_object, check_files=[skani_result_file])
+        
         similar_pairs_file = derep_dir + "Similar_Pairs.txt"
         with open(similar_pairs_file, "w") as similar_pairs_handle:
             all_gcs = set([])
@@ -1051,25 +968,7 @@ def dereplicate_using_skani(
                 str(threads),
             ]
 
-        try:
-            subprocess.call(
-                " ".join(clust_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(clusters_file)
-            log_object.info(f"Successfully ran: {' '.join(clust_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running slclust or mcl: {' '.join(clust_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running slclust or mcl: {' '.join(clust_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.exit(1)
+        util.run_cmd_via_subprocess(clust_cmd, log_object=log_object, check_files=[clusters_file])
 
         representatives = set([])
         rep_genbank_members = defaultdict(set)
@@ -1291,35 +1190,15 @@ def partition_and_create_upstream_nucl_alignments(
                     "-perturb",
                     "12345",
                 ]
-            try:
-                subprocess.call(
-                    " ".join(align_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(upst_algn_file)
-                log_object.info(f"Successfully ran: {' '.join(align_cmd)}")
-            except Exception as e:
-                log_object.error(
-                    f"Had an issue running MUSCLE: {' '.join(align_cmd)}"
-                )
-                sys.stderr.write(
-                    f"Had an issue running MUSCLE: {' '.join(align_cmd)}\n"
-                )
-                log_object.error(e)
-                sys.exit(1)
+            util.run_cmd_via_subprocess(align_cmd, log_object=log_object, 
+                                        check_files=[upst_algn_file], verbose=False)
 
-    except Exception as e:
-        sys.stderr.write(
-            "Issues with partitioning / aligning upstream sequences.\n"
-        )
-        log_object.error(
-            "Issues with partitioning / aligning upstream sequences."
-        )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+    except Exception:
+        msg = "Issues with partitioning / aligning upstream sequences."
+        sys.stderr.write(msg + "\n")
+        sys.stderr.write(traceback.format_exc() + "\n")
+        log_object.error(msg)
+        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
@@ -1367,32 +1246,61 @@ def create_protein_alignments(
                     "-perturb",
                     "12345",
                 ]
-            try:
-                subprocess.call(
-                    " ".join(align_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(prot_algn_file)
-                log_object.info(f"Successfully ran: {' '.join(align_cmd)}")
-            except Exception as e:
-                log_object.error(
-                    f"Had an issue running MUSCLE: {' '.join(align_cmd)}"
-                )
-                sys.stderr.write(
-                    f"Had an issue running MUSCLE: {' '.join(align_cmd)}\n"
-                )
-                log_object.error(e)
-                sys.exit(1)
+            util.run_cmd_via_subprocess(align_cmd, log_object=log_object, 
+                                        check_files=[prot_algn_file], verbose=False)
     except Exception as e:
-        sys.stderr.write("Issues with creating protein alignments.\n")
-        log_object.error("Issues with creating protein alignments.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        msg = "Issues with creating protein alignments."
+        sys.stderr.write(msg + "\n")
+        log_object.error(msg)
+        sys.stderr.write(traceback.format_exc() + "\n")
+        log_object.error(traceback.format_exc())
         sys.exit(1)
 
+"""
+# This function is still experimental but might switch to later if pal2nal
+# is found to be slower or installation is problematic.
+
+def convert_protein_alignments_to_codon_alignments(inputs):
+    # Description:
+    # This function uses Biopython's Align module to convert protein
+    # alignments to codon alignments. It writes sequences to the output
+    # file iteratively to minimize memory usage.
+    try:
+        prot_algn_file, nucl_file, codo_algn_file = inputs
+
+        # Read protein alignment and nucleotide sequences
+        prot_algn = AlignIO.read(prot_algn_file, "fasta")
+        nucl_seqs = {rec.id: rec for rec in SeqIO.parse(nucl_file, "fasta")}
+
+        def codon_record_generator():
+            # A generator that yields codon sequence records.
+            for prot_rec in prot_algn:
+                nucl_rec = nucl_seqs.get(prot_rec.id)
+                if not nucl_rec:
+                    raise ValueError(f"Nucleotide sequence not found for protein {prot_rec.id}")
+                
+                codon_seq = ""
+                nucl_idx = 0
+                for aa in prot_rec.seq:
+                    if aa == "-":
+                        codon_seq += "---"
+                    else:
+                        codon_seq += str(nucl_rec.seq[nucl_idx:nucl_idx+3])
+                        nucl_idx += 3
+                
+                yield SeqRecord(Seq(codon_seq), id=prot_rec.id, description="")
+
+        # Write codon alignment to file iteratively
+        with open(codo_algn_file, "w") as ocaf:
+            SeqIO.write(codon_record_generator(), ocaf, "fasta")
+
+    except Exception as e:
+        sys.stderr.write(f"Issues with converting protein alignment {prot_algn_file} to a codon alignment.\n")
+        sys.stderr.write(str(e) + "\n")
+        sys.stderr.write(traceback.format_exc())
+        return ('error', f"Failed to process {prot_algn_file} due to {str(e)}")
+    return ('success', None)
+"""
 
 def create_codon_alignments(
     prot_algn_dir, nucl_dir, codo_algn_dir, log_object, threads=1
@@ -1424,24 +1332,28 @@ def create_codon_alignments(
                     "fasta",
                     ">",
                     codo_algn_file,
-                    log_object,
                 ]
             )
-
         msg = (
-            "Running PAL2NAL to generate codon alignments for %d ortholog groups"
+            "Converting protein alignments to codon alignments for %d ortholog groups"
             % len(pal2nal_cmds)
         )
-        log_object.info(msg)
-        sys.stdout.write(msg + "\n")
+        # Use robust error handling for pal2nal processing
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=pal2nal_cmds,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some pal2nal runs fail
+            log_object=log_object,
+            description="codon alignment creation"
+        )
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, pal2nal_cmds),
-            total=len(pal2nal_cmds),
-        ):
-            pass
-        p.close()
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with pal2nal codon alignment creation for at least one ortholog group. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
     except Exception as e:
         sys.stderr.write("Issues with creating codon alignments.\n")
@@ -1490,7 +1402,6 @@ def trim_alignments(
                     "-keepseqs",
                     "-gt",
                     "0.9",
-                    log_object,
                 ]
             )
             trim_cmds.append(
@@ -1502,8 +1413,7 @@ def trim_alignments(
                     codo_algn_trim_file,
                     "-keepseqs",
                     "-gt",
-                    "0.9",
-                    log_object,
+                    "0.9"
                 ]
             )
 
@@ -1514,13 +1424,35 @@ def trim_alignments(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, trim_cmds),
-            total=len(trim_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for trimming
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=trim_cmds,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some trimming fails
+            log_object=log_object,
+            description="alignment trimming"
+        )
+
+        successfully_trimmed = 0
+        for f in os.listdir(prot_algn_trim_dir):
+            if f.endswith(".msa.faa"):
+                no_sites = False
+                with open(prot_algn_trim_dir + f) as oaf:
+                    for rec in SeqIO.parse(oaf, "fasta"):
+                        if len(rec.seq) == 0:
+                            no_sites = True
+                            break
+                if no_sites:
+                    util.remove_file(prot_algn_trim_dir + f)
+                    if os.path.isfile(codo_algn_trim_dir + f):
+                        util.remove_file(codo_algn_trim_dir + f)
+                else:
+                    successfully_trimmed += 1
+        
+        msg = f"Successfully trimmed {successfully_trimmed} protein / codon alignments."
+        sys.stdout.write(msg + "\n")
+        log_object.info(msg)
 
     except Exception as e:
         sys.stderr.write("Issues with trimming protein / codon alignments.\n")
@@ -1569,8 +1501,7 @@ def create_gene_trees(
                         "-nt",
                         codo_algn_trim_file,
                         ">",
-                        tree_file,
-                        log_object,
+                        tree_file
                     ]
                 )
             else:
@@ -1580,8 +1511,7 @@ def create_gene_trees(
                         "-nt",
                         codo_algn_file,
                         ">",
-                        tree_file,
-                        log_object,
+                        tree_file
                     ]
                 )
                 msg = (
@@ -1597,13 +1527,22 @@ def create_gene_trees(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, fasttree_cmds),
-            total=len(fasttree_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for FastTree
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=fasttree_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop",  # Continue even if some tree building fails
+            log_object=log_object,
+            description="FastTree phylogeny construction"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with FastTree phylogeny construction for at least one ortholog group. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
     except Exception as e:
         sys.stderr.write("Issues with creating gene trees.\n")
@@ -1645,8 +1584,7 @@ def create_profile_hmms_and_consensus_seqs(
                     "-n",
                     prefix,
                     prot_hmm_file,
-                    prot_algn_file,
-                    log_object,
+                    prot_algn_file
                 ]
             )
             hmmemit_cmds.append(
@@ -1655,8 +1593,7 @@ def create_profile_hmms_and_consensus_seqs(
                     "-c",
                     "-o",
                     prot_cons_file,
-                    prot_hmm_file,
-                    log_object,
+                    prot_hmm_file
                 ]
             )
 
@@ -1667,13 +1604,22 @@ def create_profile_hmms_and_consensus_seqs(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, hmmbuild_cmds),
-            total=len(hmmbuild_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for hmmbuild
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=hmmbuild_cmds,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some HMM building fails
+            log_object=log_object,
+            description="HMMER3 hmmbuild"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with HMMER3 hmmbuild for at least one ortholog group. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
         msg = (
             "Running HMMER3 hmmemit to generate consensus protein sequences for %d ortholog groups"
@@ -1682,13 +1628,22 @@ def create_profile_hmms_and_consensus_seqs(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, hmmemit_cmds),
-            total=len(hmmemit_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for hmmemit
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=hmmemit_cmds,
+            pool_size=threads,
+            error_strategy="report_and_stop",
+            log_object=log_object,
+            description="HMMER3 hmmemit consensus generation"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        if success_prop != 1.0:
+            msg = f"Issues with HMMER3 hmmemit consensus generation for at least one ortholog group. Exiting now ..."
+            sys.stderr.write(msg + '\n')
+            log_object.error(msg)
+            sys.exit(1)
 
     except Exception as e:
         sys.stderr.write(
@@ -1775,48 +1730,9 @@ def annotate_custom_database(
             "-o",
             blastp_file,
         ]
-
-        try:
-            subprocess.call(
-                " ".join(makedb_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(dmnd_db)
-            log_object.info(f"Successfully ran: {' '.join(makedb_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running DIAMOND makedb: {' '.join(makedb_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running DIAMOND makedb: {' '.join(makedb_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
-
-        try:
-            subprocess.call(
-                " ".join(search_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(blastp_file)
-            log_object.info(f"Successfully ran: {' '.join(search_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running DIAMOND blastp: {' '.join(search_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running DIAMOND blastp: {' '.join(search_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
+        
+        util.run_cmd_via_subprocess(makedb_cmd, log_object=log_object, check_files=[dmnd_db])
+        util.run_cmd_via_subprocess(search_cmd, log_object=log_object, check_files=[blastp_file])
 
         id_to_description: Dict[str, str] = {}
         with open(custom_protein_db_faa) as ocpdf:
@@ -1866,7 +1782,7 @@ def annotate_custom_database(
         sys.exit(1)
     return custom_annotations
 
-def run_pyhmmer(inputs) -> None:
+def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
     name, db_file, z, protein_faa, annotation_result_file, threads = inputs
     try:
         alphabet = pyhmmer.easel.Alphabet.amino()
@@ -1936,9 +1852,12 @@ def run_pyhmmer(inputs) -> None:
                                 )
                                 + "\n"
                             )
+        
+        return ('success', None)
             
     except Exception as e:
-        raise RuntimeError(f"Problem running pyhmmer! {e}")
+        error_msg = f"Problem running pyhmmer! {str(e)}"
+        return ('error', error_msg)
 
 
 # TypedDict for best hits structure in annotate_consensus_sequences
@@ -2027,7 +1946,7 @@ def annotate_consensus_sequences(
                             z,
                             protein_faa,
                             annotation_result_file,
-                            hmm_individual_threads,
+                            hmm_individual_threads
                         ]
                     )
                 elif db_file.endswith(".dmnd") and not name in set(
@@ -2044,8 +1963,7 @@ def annotate_consensus_sequences(
                         "-q",
                         protein_faa,
                         "-o",
-                        annotation_result_file,
-                        log_object,
+                        annotation_result_file
                     ]
                     dmnd_search_cmds.append(search_cmd)
 
@@ -2056,13 +1974,24 @@ def annotate_consensus_sequences(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(hmm_pool_size)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(run_pyhmmer, hmm_search_cmds),
-            total=len(hmm_search_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for pyhmmer
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=run_pyhmmer,
+            inputs=hmm_search_cmds,
+            pool_size=hmm_pool_size,
+            error_strategy="report_and_continue",  # Continue even if some HMM searches fail
+            log_object=log_object,
+            description="pyhmmer functional annotation"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        
+        msg = f"{success_prop*100.0}% of pyhmmer-based database annotations were successful"
+        if success_prop != 1.0:
+            msg += f" - this is not critical but unexpected - please report on GitHub issues."
+
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         msg = (
             "Running DIAMOND blastp for functional annotation for %d databases"
@@ -2071,13 +2000,22 @@ def annotate_consensus_sequences(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(dmnd_pool_size)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(util.multi_process, dmnd_search_cmds),
-            total=len(dmnd_search_cmds),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for DIAMOND search
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=dmnd_search_cmds,
+            pool_size=dmnd_pool_size,
+            error_strategy="report_and_continue",
+            log_object=log_object,
+            description="DIAMOND blastp functional annotation"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of DIAMOND blastp-based database annotations were successful"
+        if success_prop != 1.0:
+            msg += f" - this is not critical but unexpected - please report on GitHub issues."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         annotations: Dict[str, Dict[str, ConsensusAnnotationResult]] = {}
         for rf in os.listdir(annotation_dir):
@@ -2719,7 +2657,7 @@ def determine_og_stats(
         sys.exit(1)
 
 
-def individual_hyphy_run(inputs) -> None:
+def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     This functions run HyPhy based analyses (GARD + FUBAR) for a single ortholog group.
@@ -2736,7 +2674,6 @@ def individual_hyphy_run(inputs) -> None:
             - skip_busted: boolean flag for whether to skip BUSTED analysis.
             - gard_mode: analysis mode for GARD - either "Faster" or "Normal".
             - gard_timeout: timeout for running gard (in minutes).
-            - log_object: a logging object.
     *******************************************************************************************************************
     """
     (
@@ -2751,7 +2688,6 @@ def individual_hyphy_run(inputs) -> None:
         skip_busted,
         gard_mode,
         gard_timeout,
-        log_object,
     ) = inputs
     try:
         input_gbks_with_hg = set([])
@@ -2760,7 +2696,7 @@ def individual_hyphy_run(inputs) -> None:
                 input_gbks_with_hg.add(rec.id.split("|")[0])
 
         if len(input_gbks_with_hg) < 4:
-            return
+            return ('success', 'skipped_insufficient_genomes')
 
         unique_seqs = set([])
         align_len = 0
@@ -2770,10 +2706,10 @@ def individual_hyphy_run(inputs) -> None:
                 align_len = len(str(rec.seq))
 
         if len(unique_seqs) == 1:
-            return
+            return ('success', 'skipped_identical_sequences')
 
         if align_len <= 200:
-            return
+            return ('success', 'skipped_short_alignment')
 
         if skip_gard:
             fubar_cmd = [
@@ -2785,25 +2721,11 @@ def individual_hyphy_run(inputs) -> None:
                 "--tree",
                 hg_full_codo_tree_file,
             ]
-            try:
-                subprocess.call(
-                    " ".join(fubar_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(hg_codo_algn_file + ".FUBAR.json")
-                os.system(
-                    f"mv {hg_codo_algn_file}.FUBAR.json {fubar_outdir}"
-                )
-                log_object.info(f"Successfully ran: {' '.join(fubar_cmd)}")
-            except Exception as e:
-                msg = f"Had an issue running FUBAR: {' '.join(fubar_cmd)}"
-                log_object.error(msg)
-                sys.stderr.write(msg + "\n")
-                log_object.error(e)
-                sys.exit(1)
+            util.run_cmd_via_subprocess(fubar_cmd, 
+                                        check_files=[hg_codo_algn_file + ".FUBAR.json"],
+                                        verbose=False)
+            os.system(f"mv {hg_codo_algn_file}.FUBAR.json {fubar_outdir}")
+            
             if not skip_busted:
                 busted_cmd = [
                     "hyphy",
@@ -2814,26 +2736,13 @@ def individual_hyphy_run(inputs) -> None:
                     "--tree",
                     hg_full_codo_tree_file,
                 ]
-                try:
-                    subprocess.call(
-                        " ".join(busted_cmd),
-                        shell=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        executable="/bin/bash",
-                    )
-                    assert os.path.isfile(hg_codo_algn_file + ".BUSTED.json")
-                    os.system(
-                        f"mv {hg_codo_algn_file}.BUSTED.json {busted_outdir}"
-                    )
-                    log_object.info(
-                        f"Successfully ran: {' '.join(busted_cmd)}"
-                    )
-                except Exception as e:
-                    msg = f"Had an issue running BUSTED: {' '.join(busted_cmd)}"
-                    log_object.error(msg)
-                    sys.stderr.write(msg + "\n")
-                    sys.exit(1)
+                util.run_cmd_via_subprocess(busted_cmd, 
+                                            check_files=[hg_codo_algn_file + ".BUSTED.json"],
+                                            verbose=False)
+                os.system(f"mv {hg_codo_algn_file}.BUSTED.json {busted_outdir}")
+            
+            return ('success', None)
+
         else:
             gard_cmd = [
                 "hyphy",
@@ -2849,8 +2758,9 @@ def individual_hyphy_run(inputs) -> None:
                 best_gard_output,
             ]
             add_tree = False
+
             try:
-                subprocess.call(
+                subprocess.run(
                     " ".join(gard_cmd),
                     shell=True,
                     stdout=subprocess.DEVNULL,
@@ -2860,14 +2770,9 @@ def individual_hyphy_run(inputs) -> None:
                 )
             except subprocess.TimeoutExpired as e:
                 msg = f"Timed out running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                log_object.error(msg)
                 sys.stderr.write(msg + "\n")
                 best_gard_output = hg_codo_algn_file
-                add_tree = True 
-            except Exception as e:
-                msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                log_object.error(msg)
-                sys.stderr.write(msg + "\n")
+                add_tree = True
 
             if not add_tree:
                 try:
@@ -2875,10 +2780,8 @@ def individual_hyphy_run(inputs) -> None:
                         os.path.isfile(best_gard_output)
                         and os.path.getsize(best_gard_output) >= 100
                     )
-                    log_object.info(f"Successfully ran: {' '.join(gard_cmd)}")
                 except Exception as e:
                     msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                    log_object.error(msg)
                     sys.stderr.write(msg + "\n")      
                     best_gard_output = hg_codo_algn_file
                     add_tree = True
@@ -2892,25 +2795,11 @@ def individual_hyphy_run(inputs) -> None:
             ]
             if add_tree:
                 fubar_cmd += ["--tree", hg_full_codo_tree_file]
-            try:
-                subprocess.call(
-                    " ".join(fubar_cmd),
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
-                )
-                assert os.path.isfile(best_gard_output + ".FUBAR.json")
-                os.system(
-                    f"mv {best_gard_output}.FUBAR.json {fubar_outdir}"
-                )
-                log_object.info(f"Successfully ran: {' '.join(fubar_cmd)}")
-            except Exception as e:
-                msg = f"Had an issue running FUBAR: {' '.join(fubar_cmd)}"
-                log_object.error(msg)
-                sys.stderr.write(msg + "\n")
-                sys.stderr.write(traceback.format_exc())
-                sys.exit(1)
+
+            util.run_cmd_via_subprocess(fubar_cmd, 
+                                        check_files=[best_gard_output + ".FUBAR.json"],
+                                        verbose=False)
+            os.system(f"mv {hg_codo_algn_file}.FUBAR.json {fubar_outdir}")
 
             if not skip_busted:
                 busted_cmd = [
@@ -2922,35 +2811,16 @@ def individual_hyphy_run(inputs) -> None:
                 ]
                 if add_tree:
                     busted_cmd += ["--tree", hg_full_codo_tree_file]
-                try:
-                    subprocess.call(
-                        " ".join(busted_cmd),
-                        shell=True,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        executable="/bin/bash",
-                    )
-                    assert os.path.isfile(best_gard_output + ".BUSTED.json")
-                    os.system(
-                        f"mv {best_gard_output}.BUSTED.json {busted_outdir}"
-                    )
-                    log_object.info(
-                        f"Successfully ran: {' '.join(busted_cmd)}"
-                    )
-                except Exception as e:
-                    msg = f"Had an issue running BUSTED: {' '.join(busted_cmd)}"
-                    log_object.error(msg)
-                    sys.stderr.write(msg + "\n")
-                    sys.stderr.write(traceback.format_exc())
-                    sys.exit(1)
+                util.run_cmd_via_subprocess(busted_cmd, 
+                                            check_files=[best_gard_output + ".BUSTED.json"],
+                                            verbose=False)
+                os.system(f"mv {hg_codo_algn_file}.BUSTED.json {busted_outdir}")
+        
+        return ('success', None)
 
     except Exception as e:
-        msg = f"Issues with running HYPHY based analyses for ortholog group {hg}"
-        log_object.error(msg)
-        sys.stderr.write(msg + "\n")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Issues with running HyPhy based analyses for ortholog group {hg}: {str(e)}"
+        return ('error', error_msg)
 
 
 def run_hyphy_analyses(
@@ -3008,8 +2878,7 @@ def run_hyphy_analyses(
                     skip_gard,
                     skip_busted,
                     gard_mode,
-                    gard_timeout,
-                    log_object,
+                    gard_timeout
                 ]
             )
 
@@ -3020,13 +2889,20 @@ def run_hyphy_analyses(
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(individual_hyphy_run, hyphy_inputs),
-            total=len(hyphy_inputs),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for HyPhy analysis
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=individual_hyphy_run,
+            inputs=hyphy_inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some HyPhy runs fail
+            log_object=log_object,
+            description="HyPhy recombination & selection analysis"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of HyPhy runs were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         gard_partitions: Dict[str, Any] = {}
         for f in os.listdir(gard_results_dir):
@@ -3037,7 +2913,11 @@ def run_hyphy_analyses(
                     continue
                 with open(gard_json_result) as ogjr:
                     gard_results = json.load(ogjr)
-                number_of_partitions = len(gard_results["trees"])
+                try:
+                    number_of_partitions = len(gard_results["trees"])
+                except KeyError:
+                    number_of_partitions = "NA"
+                    log_object.warning(f"GARD results for {hg} missing 'trees' key - potentially due to timeout.")
                 gard_partitions[hg] = number_of_partitions
 
         fubar_sel_props: Dict[str, Any] = {}
@@ -3132,7 +3012,7 @@ def run_hyphy_analyses(
         sys.exit(1)
 
 
-def determine_seq_sim_protein_alignment(inputs) -> None:
+def determine_seq_sim_protein_alignment(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     This function computes the sequence similarity / identity between proteins in a MSA.
@@ -3142,57 +3022,63 @@ def determine_seq_sim_protein_alignment(inputs) -> None:
             - hg: The ortholog group identifier.
             - protein_alignment_file: The protein multiple sequence alignment file for the ortholog group in FASTA format.
             - outf: The output file where to write pairwise sequence similarities.
-            - log_object: A logging object.
     *******************************************************************************************************************
     """
-    use_only_core = True  # hardcoded true at the moment
-    hg, protein_alignment_file, outf, log_object = inputs
-    protein_sequences: Dict[str, Any] = {}
-    with open(protein_alignment_file) as ocaf:
-        for rec in SeqIO.parse(ocaf, "fasta"):
-            protein_sequences[rec.id] = str(rec.seq).upper()
+    try:
+        use_only_core = True  # hardcoded true at the moment
+        hg, protein_alignment_file, outf = inputs
+        protein_sequences: Dict[str, Any] = {}
+        with open(protein_alignment_file) as ocaf:
+            for rec in SeqIO.parse(ocaf, "fasta"):
+                protein_sequences[rec.id] = str(rec.seq).upper()
 
-    pair_seq_matching = defaultdict(lambda: defaultdict(lambda: 0.0))
-    for i, g1 in enumerate(sorted(protein_sequences)):
-        s1 = g1.split("|")[0]
-        g1s = protein_sequences[g1]
-        for j, g2 in enumerate(sorted(protein_sequences)):
-            if i >= j:
-                continue
-            s2 = g2.split("|")[0]
-            if s1 == s2:
-                continue
-            g2s = protein_sequences[g2]
-            tot_comp_pos = 0
-            match_pos = 0
-            for pos, g1a in enumerate(g1s):
-                g2a = g2s[pos]
-                if g1a != "-" or g2a != "-":
-                    if not use_only_core or (
-                        use_only_core and g1a != "-" and g2a != "-"
-                    ):
-                        tot_comp_pos += 1
-                        if g1a == g2a:
-                            match_pos += 1
-            general_matching_percentage = 0.0
-            if tot_comp_pos > 0:
-                general_matching_percentage = float(match_pos) / float(
-                    tot_comp_pos
-                )
-            if (
-                pair_seq_matching[s1][s2] < general_matching_percentage
-                and pair_seq_matching[s2][s1] < general_matching_percentage
-            ):
-                pair_seq_matching[s1][s2] = general_matching_percentage
-                pair_seq_matching[s2][s1] = general_matching_percentage
+        pair_seq_matching = defaultdict(lambda: defaultdict(lambda: 0.0))
+        for i, g1 in enumerate(sorted(protein_sequences)):
+            s1 = g1.split("|")[0]
+            g1s = protein_sequences[g1]
+            for j, g2 in enumerate(sorted(protein_sequences)):
+                if i >= j:
+                    continue
+                s2 = g2.split("|")[0]
+                if s1 == s2:
+                    continue
+                g2s = protein_sequences[g2]
+                tot_comp_pos = 0
+                match_pos = 0
+                for pos, g1a in enumerate(g1s):
+                    g2a = g2s[pos]
+                    if g1a != "-" or g2a != "-":
+                        if not use_only_core or (
+                            use_only_core and g1a != "-" and g2a != "-"
+                        ):
+                            tot_comp_pos += 1
+                            if g1a == g2a:
+                                match_pos += 1
+                general_matching_percentage = 0.0
+                if tot_comp_pos > 0:
+                    general_matching_percentage = float(match_pos) / float(
+                        tot_comp_pos
+                    )
+                if (
+                    pair_seq_matching[s1][s2] < general_matching_percentage
+                    and pair_seq_matching[s2][s1] < general_matching_percentage
+                ):
+                    pair_seq_matching[s1][s2] = general_matching_percentage
+                    pair_seq_matching[s2][s1] = general_matching_percentage
 
-    pair_seq_matching_normal = default_to_regular(pair_seq_matching)
-    with open(outf, "wb") as pickle_file:
-        pickle.dump(
-            pair_seq_matching_normal,
-            pickle_file,
-            protocol=pickle.HIGHEST_PROTOCOL,
-        )
+        pair_seq_matching_normal = default_to_regular(pair_seq_matching)
+        with open(outf, "wb") as pickle_file:
+            pickle.dump(
+                pair_seq_matching_normal,
+                pickle_file,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        
+        return ('success', None)
+    
+    except Exception as e:
+        error_msg = f"Error in determine_seq_sim_protein_alignment for ortholog group {hg}: {str(e)}"
+        return ('error', error_msg)
 
 def compute_beta_rd_gc(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
@@ -3224,19 +3110,26 @@ def compute_beta_rd_gc(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[D
         for f in os.listdir(prot_algn_dir):
             hg = f.split(".msa.faa")[0]
             outf = brd_results_dir + hg + ".sims.pkl"
-            inputs.append([hg, prot_algn_dir + f, outf, log_object])
+            inputs.append([hg, prot_algn_dir + f, outf])
 
         msg = f"Determining Beta - RDgc statistic for {len(inputs)} ortholog groups"
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(determine_seq_sim_protein_alignment, inputs),
-            total=len(inputs),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for sequence similarity analysis
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=determine_seq_sim_protein_alignment,
+            inputs=inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some similarity analysis fails
+            log_object=log_object,
+            description="protein sequence similarity analysis"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of protein sequence similarity analysis runs were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         hg_sims_dict: Dict[str, Any] = {}
         gc_wide_sims_dict = defaultdict(lambda: defaultdict(list))
@@ -3281,7 +3174,7 @@ def compute_beta_rd_gc(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[D
     return hg_med_beta_rd, hg_max_beta_rd
 
 
-def calculate_msa_entropy(inputs) -> None:
+def calculate_msa_entropy(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     This function computes the average entropy statistic for a MSA of proteins for an individual ortholog group.
@@ -3291,10 +3184,9 @@ def calculate_msa_entropy(inputs) -> None:
             - hg: The ortholog group identifier.
             - nucl_algn_fasta: The nucleotide / codon multiple sequence alignment file for the ortholog group in FASTA format.
             - outf: The output file where to write the average entropy calculated.
-            - log_object: A logging object.
     *******************************************************************************************************************
     """
-    hg, nucl_algn_fasta, outf, log_object = inputs
+    hg, nucl_algn_fasta, outf = inputs
     try:
         seqs = []
         with open(nucl_algn_fasta) as onaf:
@@ -3332,11 +3224,10 @@ def calculate_msa_entropy(inputs) -> None:
             avg_entropy = all_entropy / accounted_sites
         with open(outf, "w") as outf_handle:
             outf_handle.write(f"{hg}\t{avg_entropy}\n")
-        
+        return ('success', None)
     except Exception as e:
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Error calculating MSA entropy for ortholog group {hg}: {str(e)}"
+        return ('error', error_msg)
 
 def run_entropy_analysis(
     codo_algn_trim_dir, upst_algn_dir, evo_dir, log_object, threads=1
@@ -3367,24 +3258,32 @@ def run_entropy_analysis(
             hg = f.split(".msa.fna")[0]
             caf = codo_algn_trim_dir + f
             outf = entropy_res_dir + hg + "_codon.txt"
-            inputs.append([hg, caf, outf, log_object])
+            inputs.append([hg, caf, outf])
 
         for f in os.listdir(upst_algn_dir):
             hg = f.split(".msa.fna")[0]
             uaf = upst_algn_dir + f
             outf = entropy_res_dir + hg + "_upstream.txt"
-            inputs.append([hg, uaf, outf, log_object])
+            inputs.append([hg, uaf, outf])
 
         msg = "Computing sequence and upstream sequence entropy for ortholog groups"
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(calculate_msa_entropy, inputs), total=len(inputs)
-        ):
-            pass
-        p.close()
+        # Use robust error handling for MSA entropy calculation
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=calculate_msa_entropy,
+            inputs=inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",  # Continue even if some entropy calculations fail
+            log_object=log_object,
+            description="MSA entropy calculation"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of MSA entropy calculation runs were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         hg_entropy: Dict[str, Any] = {}
         hg_upst_entropy: Dict[str, Any] = {}
@@ -3494,7 +3393,7 @@ def calculate_ambiguity(codo_algn_dir, codo_algn_trim_dir, log_object) -> Tuple[
     return full_amb_prop, trim_amb_prop
 
 
-def run_tajimas_d_analysis_per_hg(inputs) -> None:
+def run_tajimas_d_analysis_per_hg(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
     This function oversees the calculation of Tajima's D and proportion of segregating sites per ortholog group.
@@ -3505,10 +3404,9 @@ def run_tajimas_d_analysis_per_hg(inputs) -> None:
             - trim_codon_align: The trimmed codon multiple sequence alignment file for the ortholog group in FASTA format.
             - outf: The output file where to write the Tajima's D statistic and the proportion of segregating sites for the
                     ortholog group.
-            - log_object: A logging object.
     *******************************************************************************************************************
     """
-    hg, trim_codon_align, outf, log_object = inputs
+    hg, trim_codon_align, outf = inputs
     try:
         with open(outf, "w") as outf_handle:
             codo_sequences = []
@@ -3523,16 +3421,10 @@ def run_tajimas_d_analysis_per_hg(inputs) -> None:
                 taj_d = "NA"
                 seg_sites_prop = "NA"
             outf_handle.write(f"{hg}\t{taj_d}\t{seg_sites_prop}\n")
+        return ('success', None)
     except Exception as e:
-        sys.stderr.write(
-            f"Issues with calculating Tajima's D for ortholog group {hg}.\n"
-        )
-        log_object.error(
-            f"Issues with calculating Tajima's D for ortholog group {hg}."
-        )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        error_msg = f"Issues with calculating Tajima's D for ortholog group {hg}: {str(e)}"
+        return ('error', error_msg)
 
 
 def determine_bgc_and_viral_scores(pfam_annotations, log_object) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -3661,7 +3553,7 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
             hg = catf.split(".msa.fna")[0]
             trim_codon_align = codo_algn_trim_dir + catf
             outf = tajd_resdir + hg + ".txt"
-            inputs.append([hg, trim_codon_align, outf, log_object])
+            inputs.append([hg, trim_codon_align, outf])
 
         msg = (
             "Computing Tajima's D statistic (using trimmed codon alignments) for %d ortholog groups" \
@@ -3670,13 +3562,20 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-        p = multiprocessing.Pool(threads)
-        for _ in tqdm.tqdm(
-            p.imap_unordered(run_tajimas_d_analysis_per_hg, inputs),
-            total=len(inputs),
-        ):
-            pass
-        p.close()
+        # Use robust error handling for Tajima's D analysis
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=run_tajimas_d_analysis_per_hg,
+            inputs=inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue", 
+            log_object=log_object,
+            description="Tajima's D analysis"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of Tajima's D computations were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         hg_tajimas_d: Dict[str, Any] = {}
         hg_seg_sites_prop: Dict[str, Any] = {}
@@ -4168,6 +4067,12 @@ def consolidate_report(
                 "P-value for gene-wide episodic selection by BUSTED",
             ]
         header += [
+            "Hydrophobicity Mean",
+            "Hydrophobicity Std Dev",
+            "Aliphatic Index Mean",
+            "Aliphatic Index Std Dev",
+            "m/z Mean",
+            "m/z Std Dev",
             "Custom Annotation (E-value)",
             "KO Annotation (E-value)",
             "PGAP Annotation (E-value)",
@@ -4220,6 +4125,9 @@ def consolidate_report(
             )
             hg_gcs = util.gather_value_from_dict_for_homolog_group(
                 hg, hg_stats["hg_median_gcskew"]
+            )
+            hg_peptides_stats = util.gather_value_from_dict_for_homolog_group(
+                hg, hg_stats["hg_peptides_stats"]
             )
             hg_ordr = hg_tup[1][0]
             hg_dire = '"' + hg_tup[1][1] + '"'
@@ -4354,6 +4262,12 @@ def consolidate_report(
                 row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
 
             row += [
+                hg_peptides_stats['hydrophobicity_mean'],
+                hg_peptides_stats['hydrophobicity_std'],
+                hg_peptides_stats['aliphatic_index_mean'],
+                hg_peptides_stats['aliphatic_index_std'],
+                hg_peptides_stats['mz_mean'],
+                hg_peptides_stats['mz_std'],
                 cust_annot,
                 ko_annot,
                 pgap_annot,
@@ -4448,6 +4362,12 @@ def consolidate_report(
             "Median GC Skew",
             "BGC score (GECCO weights)",
             "Viral score (V-Score)",
+            "Hydrophobicity Mean",
+            "Hydrophobicity Std Dev",
+            "Aliphatic Index Mean",
+            "Aliphatic Index Std Dev",
+            "m/z Mean",
+            "m/z Std Dev",
         }
 
         warn_format = workbook.add_format(
@@ -5115,29 +5035,145 @@ def plot_heatmap(
             log_object,
         )
         plot_cmd = ["Rscript", rscript_path]
-        try:
-            subprocess.call(
-                " ".join(plot_cmd),
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                executable="/bin/bash",
-            )
-            assert os.path.isfile(plot_result_pdf)
-            log_object.info(f"Successfully ran: {' '.join(plot_cmd)}")
-        except Exception as e:
-            log_object.error(
-                f"Had an issue running R based plotting - potentially because of R setup issues in conda: {' '.join(plot_cmd)}"
-            )
-            sys.stderr.write(
-                f"Had an issue running R based plotting - potentially because of R setup issues in conda: {' '.join(plot_cmd)}\n"
-            )
-            log_object.error(e)
-            sys.stderr.write(traceback.format_exc())
-            sys.exit(1)
+        util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files=[plot_result_pdf])
+
     except Exception as e:
         sys.stderr.write("Issues creating heatmap visualization in zol.\n")
         log_object.error("Issues creating heatmap visualization in zol.")
         sys.stderr.write(str(e) + "\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.exit(1)
+
+
+def compute_peptides_stats(
+    orthogroup_matrix_file,
+    hg_prot_dir,
+    log_object,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Description:
+    This function computes peptides.py statistics (hydrophobicity, aliphatic_index, mz) 
+    for each ortholog group, calculating mean and standard deviation for each property.
+    *******************************************************************************************************************
+    Parameters:
+    - orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
+    - hg_prot_dir: The directory of FASTA files with protein sequences for each ortholog group.
+    - log_object: A logging object.
+    *******************************************************************************************************************
+    Results:
+    - peptides_stats: A dictionary where keys are ortholog group IDs and values are dictionaries
+      containing 'hydrophobicity_mean', 'hydrophobicity_std', 'aliphatic_index_mean', 
+      'aliphatic_index_std', 'mz_mean', 'mz_std' for each ortholog group.
+    *******************************************************************************************************************
+    """
+    try:
+        import peptides
+        
+        peptides_stats = {}
+        
+        # Get list of ortholog groups from matrix file
+        ortholog_groups = []
+        with open(orthogroup_matrix_file) as omf:
+            for i, line in enumerate(omf):
+                if i == 0:  # Skip header
+                    continue
+                line = line.rstrip("\\n")
+                ls = line.split("\t")
+                hg = ls[0]
+                ortholog_groups.append(hg)
+        
+        log_object.info(f"Computing peptides.py statistics for {len(ortholog_groups)} ortholog groups")
+        
+        for hg in ortholog_groups:
+            prot_file = hg_prot_dir + hg + ".faa"
+            
+            if not os.path.isfile(prot_file):
+                log_object.warning(f"Protein file not found for ortholog group {hg}: {prot_file}")
+                peptides_stats[hg] = {
+                    'hydrophobicity_mean': 'NA',
+                    'hydrophobicity_std': 'NA',
+                    'aliphatic_index_mean': 'NA',
+                    'aliphatic_index_std': 'NA',
+                    'mz_mean': 'NA',
+                    'mz_std': 'NA'
+                }
+                continue
+            
+            # Read protein sequences and compute peptides.py statistics
+            hydrophobicity_values = []
+            aliphatic_index_values = []
+            mz_values = []
+            
+            try:
+                with open(prot_file) as pf:
+                    for rec in SeqIO.parse(pf, "fasta"):
+                        seq = str(rec.seq)
+                        
+                        # Skip sequences with ambiguous amino acids or too short
+                        if len(seq) < 10 or any(aa in AMBIGUOUS_AMINO_ACIDS for aa in seq):
+                            continue
+                        
+                        try:
+                            # Create Peptide object and compute properties
+                            peptide = peptides.Peptide(seq)
+                            
+                            # Compute hydrophobicity (using Kyte-Doolittle scale)
+                            hydrophobicity = peptide.hydrophobicity()
+                            hydrophobicity_values.append(hydrophobicity)
+                            
+                            # Compute aliphatic index
+                            aliphatic_idx = peptide.aliphatic_index()
+                            aliphatic_index_values.append(aliphatic_idx)
+                            
+                            # Compute molecular weight (mz)
+                            mw = peptide.molecular_weight()
+                            mz_values.append(mw)
+                            
+                        except Exception as e:
+                            log_object.warning(f"Error computing peptides.py stats for sequence {rec.id} in ortholog group {hg}: {e}")
+                            continue
+                
+                # Calculate mean and standard deviation
+                if hydrophobicity_values:
+                    peptides_stats[hg] = {
+                        'hydrophobicity_mean': statistics.mean(hydrophobicity_values),
+                        'hydrophobicity_std': statistics.stdev(hydrophobicity_values) if len(hydrophobicity_values) > 1 else 0.0,
+                        'aliphatic_index_mean': statistics.mean(aliphatic_index_values),
+                        'aliphatic_index_std': statistics.stdev(aliphatic_index_values) if len(aliphatic_index_values) > 1 else 0.0,
+                        'mz_mean': statistics.mean(mz_values),
+                        'mz_std': statistics.stdev(mz_values) if len(mz_values) > 1 else 0.0
+                    }
+                else:
+                    peptides_stats[hg] = {
+                        'hydrophobicity_mean': 'NA',
+                        'hydrophobicity_std': 'NA',
+                        'aliphatic_index_mean': 'NA',
+                        'aliphatic_index_std': 'NA',
+                        'mz_mean': 'NA',
+                        'mz_std': 'NA'
+                    }
+                    
+            except Exception as e:
+                log_object.error(f"Error processing protein file for ortholog group {hg}: {e}")
+                peptides_stats[hg] = {
+                    'hydrophobicity_mean': 'NA',
+                    'hydrophobicity_std': 'NA',
+                    'aliphatic_index_mean': 'NA',
+                    'aliphatic_index_std': 'NA',
+                    'mz_mean': 'NA',
+                    'mz_std': 'NA'
+                }
+        
+        log_object.info("Completed computing peptides.py statistics")
+        return peptides_stats
+        
+    except ImportError:
+        log_object.error("peptides.py library not found. Please install it with: pip install peptides")
+        sys.stderr.write("peptides.py library not found. Please install it with: pip install peptides\\n")
+        sys.exit(1)
+    except (IOError, ValueError, statistics.StatisticsError) as e:
+        error_msg = f"Issues with computing peptides.py statistics for ortholog groups. Error: {e}"
+        log_object.error(error_msg)
+        sys.stderr.write(error_msg + "\\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)

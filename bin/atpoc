@@ -170,10 +170,17 @@ def atpoc():
     threads = myargs.threads
 
     # create output directory if needed, or warn of over-writing
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
-        sleep(5)
-    util.setup_ready_directory([outdir])
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     if (vibrant_results_dir == None or not os.path.isdir(vibrant_results_dir)) and (phispy_results_dir == None or not os.path.isdir(phispy_results_dir) and (genomad_results_dir == None or not os.path.isdir(genomad_results_dir))): 
         sys.stderr.write("Neither PhiSpy, VIBRANT, nor geNomad sample results directory provided as input or the paths are faulty! \n")
@@ -328,36 +335,23 @@ def atpoc():
                 gene_call_cmd += ['-gcm', 'pyrodigal']
             else: 
                 gene_call_cmd += ['-gcm', 'prodigal-gv']
-            util.run_cmd_via_subprocess(gene_call_cmd, 
-          log_object, 
-          check_files = [reference_genome_gbk])
+            util.run_cmd_via_subprocess(gene_call_cmd, log_object=log_object, 
+                                        check_files = [reference_genome_gbk])
             locus_genbank = phage_fai_res_dir + 'Reference_Query.gbk'
             locus_proteome = phage_fai_res_dir + 'Reference_Query.faa'
-            fai.subset_genbank_for_query_locus(reference_genome_gbk, 
-          locus_genbank, 
-          locus_proteome, 
-          scaff, 
-          int(start_coord), 
-          int(end_coord), 
-          log_object)
+            fai.subset_genbank_for_query_locus(reference_genome_gbk, locus_genbank, locus_proteome, 
+                                               scaff, int(start_coord), int(end_coord), log_object)
             util.diamond_blast_and_get_best_hits(phage_id, locus_proteome, locus_proteome, preptg_db_dir, phage_fai_res_dir, log_object, 
                                             identity_cutoff = simple_blastp_identity_cutoff, coverage_cutoff = simple_blastp_coverage_cutoff, 
                                             blastp_mode = simple_blastp_sensitivity_mode, prop_key_prots_needed = 0.0, 
                                             evalue_cutoff = simple_blastp_evalue_cutoff, threads = threads)
         else: 
             # run fai
-            fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
-                       '-tg', 
-                     preptg_db_dir, 
-                     fai_options, 
-                     '-o', 
-                     phage_fai_res_dir, 
-                     '-c', 
-                     str(threads)]
+            fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord,
+                       '-tg', preptg_db_dir, fai_options, '-o', phage_fai_res_dir, '-c', str(threads)]
             if not use_pyrodigal_flag: 
                 fai_cmd += ['-rgv']
-            util.run_cmd_via_subprocess(fai_cmd, 
-          log_object)
+            util.run_cmd_via_subprocess(fai_cmd, log_object=log_object)
     phage_info_handle.close()
 
     tg_phage_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))

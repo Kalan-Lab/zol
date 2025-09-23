@@ -7,16 +7,14 @@ Kalan Lab
 UW Madison, Department of Medical Microbiology and Immunology
 """
 
+from math import log
 from Bio import SeqIO
 from rich_argparse import RawTextRichHelpFormatter
 from zol import util
 import argparse
-import multiprocessing
 import os
 import shutil
-import subprocess
 import sys
-import traceback
 
 # BSD 3-Clause License
 #
@@ -312,11 +310,18 @@ def prep_tg():
         gene_calling_method = 'miniprot reference proteome mapping'
         reference_proteome = os.path.abspath(args.reference_proteome)
 
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists!Exiting\n ")
-        sys.exit(1)
-    else: 
-        os.system(f'mkdir {outdir}')
+    # create output directory if needed, or warn of over-writing
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     if (target_genomes_dir is None and download_premade is None and
             gtdb_taxon is None): 
@@ -458,40 +463,18 @@ def prep_tg():
         uncompress_dir = outdir + 'Uncompressed_Genomes/'
 
         if target_genomes_dir is not None: 
-            list_cmd = [
-                'listAllGenomesInDirectory.py', '-z', '-i', target_genomes_dir, 
-                '--uncompress_dir', uncompress_dir, ' > ', target_listing_file
-            ]
-            try: 
-                subprocess.call(
-                    ' '.join(list_cmd), shell = True, stdout = subprocess.DEVNULL, 
-                    stderr = subprocess.DEVNULL, executable = '/bin/bash'
-                )
-                log_object.info(f"Successfully ran: {' '.join(list_cmd)}")
-            except Exception as e: 
-                print(f"Error: {e}")
-                log_object.error(f"Had an issue running: {' '.join(list_cmd)}")
-                sys.stderr.write(f"Had an issue running: {' '.join(list_cmd)}")
-                log_object.error(e)
-                sys.exit(1)
+            list_cmd = ['listAllGenomesInDirectory.py', '-z', '-i', target_genomes_dir, 
+                        '--uncompress_dir', uncompress_dir, ' > ', target_listing_file]
+            util.run_cmd_via_subprocess(list_cmd, log_object=log_object, 
+                                        check_files = [target_listing_file], 
+                                        verbose = False)
 
         if gtdb_taxon is not None: 
-            list_cmd = [
-                'listAllGenomesInDirectory.py', '-i', gtdb_genomes_dir, '-z', 
-                '--uncompress_dir', uncompress_dir, ' >> ', target_listing_file
-            ]
-            try: 
-                subprocess.call(
-                    ' '.join(list_cmd), shell = True, stdout = subprocess.DEVNULL, 
-                    stderr = subprocess.DEVNULL, executable = '/bin/bash'
-                )
-                log_object.info(f"Successfully ran: {' '.join(list_cmd)}")
-            except Exception as e: 
-                print(f"Error: {e}")
-                log_object.error(f"Had an issue running: {' '.join(list_cmd)}")
-                sys.stderr.write(f"Had an issue running: {' '.join(list_cmd)}")
-                log_object.error(e)
-                sys.exit(1)
+            list_cmd = ['listAllGenomesInDirectory.py', '-i', gtdb_genomes_dir, '-z', 
+                        '--uncompress_dir', uncompress_dir, ' >> ', target_listing_file]
+            util.run_cmd_via_subprocess(list_cmd, log_object=log_object, 
+                                        check_files = [target_listing_file], 
+                                        verbose = False)
 
         genome_count = 0
         with open(target_listing_file) as otlf: 
@@ -610,9 +593,8 @@ def prep_tg():
                 diamond_linclust_cmd += ['-M', str(max_memory) + 'G']
                 
             try:
-                util.run_cmd_via_subprocess(diamond_linclust_cmd, log_object, check_files=[diamond_cluster_file])
-                subprocess.call(' '.join(diamond_linclust_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-                log_object.info('Successfully ran: %s' % ' '.join(diamond_linclust_cmd))
+                util.run_cmd_via_subprocess(diamond_linclust_cmd, log_object=log_object, 
+                                            check_files=[diamond_cluster_file])
 
                 # Recreate FASTA database for clustered proteins
                 diamond_linclust_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
@@ -629,13 +611,14 @@ def prep_tg():
                             if rec.id in diamond_linclust_reps:
                                 dcf.write('>' + rec.id + '\n' + str(rec.seq).rstrip('*') + '\n')
 
-                os.system(f'rm -f {target_genomes_concat_db_faa}')
+                os.remove(target_genomes_concat_db_faa)
 
                 # Use the clustered FASTA file for DIAMOND database creation
                 target_genomes_concat_db_faa = diamond_linclust_output_faa
             except Exception as e:
-                log_object.error('Had an issue running or processing DIAMOND linclust: %s' % ' '.join(diamond_linclust_cmd))
-                sys.stderr.write('Had an issue running or processing DIAMOND linclust: %s\n' % ' '.join(diamond_linclust_cmd))
+                msg = f'Had an issue running or processing DIAMOND linclust: {" ".join(diamond_linclust_cmd)}'
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
                 log_object.error(e)
                 sys.exit(1)
         else:
@@ -671,20 +654,46 @@ def prep_tg():
                 summary_file = mge_annot_summary_dir + sample + '.txt'
                 search_mge_annot_inputs.append([
                     sample, faa_file, vog_annot_file, mobsuite_annot_file, 
-                    is_annot_file, log_object
+                    is_annot_file
                 ])
                 process_mge_annot_inputs.append([
                     sample, gbk_file, summary_file, vog_annot_file, 
-                    mobsuite_annot_file, is_annot_file, log_object
+                    mobsuite_annot_file, is_annot_file
                 ])
 
-            p = multiprocessing.Pool(threads)
-            p.map(util.annotate_mges, search_mge_annot_inputs)
-            p.close()
+            # Use robust error handling for MGE annotation search
+            result_summary1 = util.robust_multiprocess_executor(
+                worker_function=util.annotate_mges,
+                inputs=search_mge_annot_inputs,
+                pool_size=threads,
+                error_strategy="report_and_stop",
+                log_object=log_object,
+                description="MGE annotation search"
+            )
 
-            p = multiprocessing.Pool(threads)
-            p.map(util.process_mge_annotations, process_mge_annot_inputs)
-            p.close()
+            success_prop = result_summary1['success_count'] / result_summary1['total_processed']
+            if success_prop != 1.0:
+                msg = f'Issues with MGE annotation search for at least one sample. Exiting now ...'
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
+                sys.exit(1)
+
+            # Use robust error handling for MGE annotation processing
+            result_summary2 = util.robust_multiprocess_executor(
+                worker_function=util.process_mge_annotations,
+                inputs=process_mge_annot_inputs,
+                pool_size=threads,
+                error_strategy="report_and_stop", 
+                log_object=log_object,
+                description="MGE annotation processing"
+            )
+
+            success_prop = result_summary1['success_count'] / result_summary1['total_processed']
+            if success_prop != 1.0:
+                msg = f'Issues with MGE annotation search for at least one sample. Exiting now ...'
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
+                sys.exit(1)
 
         # Remove individual proteome files and compress genomes
         msg = '--------------------\nStep 4\n--------------------\n'
@@ -695,39 +704,43 @@ def prep_tg():
         shutil.rmtree(additional_proteomes_directory)
 
         target_genomes_concat_db_dmnd = outdir + 'Target_Genomes_DB.dmnd'
-        diamond_makedb_cmd = [
-            'diamond', 'makedb', '--ignore-warnings', '--in', target_genomes_concat_db_faa, 
-            '-d', target_genomes_concat_db_dmnd, '--threads', str(threads)
-        ]
-        try: 
-            util.run_cmd_via_subprocess(diamond_makedb_cmd, log_object, check_files=[target_genomes_concat_db_dmnd])
-            log_object.info(f'Successfully ran: {" ".join(diamond_makedb_cmd)}')
-            os.system(f'rm -f {target_genomes_concat_db_faa}')
-        except Exception as e: 
-            print(f"Error: {e}")
-            log_object.error(f'Had an issue running: {" ".join(diamond_makedb_cmd)}')
-            sys.stderr.write(f'Had an issue running: {" ".join(diamond_makedb_cmd)}\n')
-            log_object.error(e)
-            sys.exit(1)
-
-        target_genome_annotation_data = util.read_in_annotation_files_for_expanded_sample_set(
-            target_genome_annotation_listing_file, additional_genbanks_directory
-        )
+        diamond_makedb_cmd = ['diamond', 'makedb', '--ignore-warnings', '--in', 
+                              target_genomes_concat_db_faa, '-d', 
+                              target_genomes_concat_db_dmnd, '--threads', str(threads)]
+        util.run_cmd_via_subprocess(diamond_makedb_cmd, log_object=log_object, 
+                                    check_files=[target_genomes_concat_db_dmnd])
+        util.remove_file(target_genomes_concat_db_faa, log_object)
+        
+        target_genome_annotation_data = util.read_in_annotation_files_for_expanded_sample_set(target_genome_annotation_listing_file, additional_genbanks_directory)
 
         pickle_output_dir = outdir + 'Target_Genomes_Info_Pickled/'
         util.setup_ready_directory([pickle_output_dir], delete_if_exist = True)
-        try: 
+        try:
             sample_genbank_info = []
             for sample in target_genome_annotation_data: 
                 sample_genbank = target_genome_annotation_data[sample]['genbank']
                 result_pkl_file = pickle_output_dir + sample + '.pkl'
                 sample_genbank_info.append([sample, sample_genbank, result_pkl_file])
 
-            p = multiprocessing.Pool(threads)
-            p.map(util.parse_genbank_and_find_boundary_genes, sample_genbank_info)
-            p.close()
+            # Use robust error handling for GenBank parsing and boundary gene identification
+            result_summary = util.robust_multiprocess_executor(
+                worker_function=util.parse_genbank_and_find_boundary_genes,
+                inputs=sample_genbank_info,
+                pool_size=threads,
+                error_strategy="report_and_stop",  # Continue even if some parsing fails
+                log_object=log_object,
+                description="GenBank parsing and boundary gene identification"
+            )
+
+            success_prop = result_summary['success_count'] / result_summary['total_processed']
+            if success_prop != 1.0:
+                msg = f'Issues with GenBank parsing and boundary gene identification for at least one sample. Exiting now ...'
+                sys.stderr.write(msg + '\n')
+                log_object.error(msg)
+                sys.exit(1)
+
         except Exception as e: 
-            sys.stderr.write('Issues creating pickle file needed for fai.')
+            sys.stderr.write('Issues creating pickle files needed for fai.')
             sys.stderr.write(str(e) + '\n')
             log_object.error(e)
             sys.exit(1)

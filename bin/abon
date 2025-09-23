@@ -38,6 +38,7 @@ UW Madison, Department of Medical Microbiology and Immunology
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+from re import L
 from Bio import SeqIO
 from collections import defaultdict
 from operator import itemgetter
@@ -49,7 +50,6 @@ import argparse
 import math
 import os
 import pandas as pd
-import subprocess
 import sys
 import traceback
 
@@ -158,10 +158,17 @@ def abon():
     threads = myargs.threads
 
     # create output directory if needed, or warn of over-writing
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n ")
-        sleep(5)
-    util.setup_ready_directory([outdir])
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     if (antismash_results_dir == None or not os.path.isdir(antismash_results_dir)) and (gecco_results_dir == None or not os.path.isdir(gecco_results_dir)): 
         sys.stderr.write("Neither anitSMASH nor GECCO sample results directory provided as input or the paths are faulty!\n")
@@ -185,9 +192,8 @@ def abon():
     gecco_weights_pkl_link = "https://github.com/Kalan-Lab/lsaBGC/raw/main/db/GECCO_PF_Weights.pkl"
     gecco_weights_pkl_file = outdir + 'GECCO_PF_Weights.pkl'
     curl_download_cmd = ['curl', '-L', gecco_weights_pkl_link, '-o', gecco_weights_pkl_file]
-    util.run_cmd_via_subprocess(curl_download_cmd, 
-        log_object, 
-        check_files = [gecco_weights_pkl_file])
+    util.run_cmd_via_subprocess(curl_download_cmd, log_object=log_object, 
+                                check_files = [gecco_weights_pkl_file])
 
     msg = 'Parsing BGC prediction results'
     sys.stdout.write(msg + '\n')
@@ -292,20 +298,9 @@ def abon():
                                             evalue_cutoff = simple_blastp_evalue_cutoff, threads = threads)
         else: 
             # run fai
-            fai_cmd = ['fai', 
-          '-i', 
-          bgc_path, 
-          '-tg', 
-          preptg_db_dir, 
-          '-kpq', 
-          key_prot_file, 
-          fai_options, 
-          '-o', 
-          bgc_fai_res_dir, 
-          '-c', 
-          str(threads)]
-            util.run_cmd_via_subprocess(fai_cmd, 
-          log_object)
+            fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, 
+                        fai_options, '-o', bgc_fai_res_dir, '-c', str(threads)]
+            util.run_cmd_via_subprocess(fai_cmd, log_object=log_object)
     bgc_info_handle.close()
 
     tg_bgc_aai = defaultdict(lambda: defaultdict(lambda: 'NA'))

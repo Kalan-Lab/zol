@@ -7,6 +7,7 @@
 ### UW Madison, Department of Medical Microbiology and Immunology
 """
 
+from math import log
 from Bio import SeqIO
 from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
@@ -106,7 +107,7 @@ def salt():
 
     fai_results_dir = myargs.fai_results_dir
     target_genomes_db = myargs.target_genomes_db
-    outdir = myargs.outdir
+    outdir = os.path.abspath(myargs.outdir) + '/'
     threads = myargs.threads
 
     try: 
@@ -115,15 +116,18 @@ def salt():
         sys.stderr.write("One or more of the required input directories do not exist.\n")
         sys.exit(1)
 
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Overwriting in 5 seconds, \n"
-                         "but only where needed - will use checkpoints to avoid\n"
-                         "redoing successfully completed steps ...\n ")
-        sleep(5)
-    else: 
-        os.mkdir(outdir)
-
-    outdir = os.path.abspath(outdir) + '/'
+    # create output directory if needed, or warn of over-writing
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     check_dir = outdir + 'Checkpoint_Files/'
     if not os.path.isdir(check_dir): 
@@ -244,12 +248,23 @@ def salt():
             genome = gc_to_genome[gc]
             genome_gbk = genome_gbks[genome]
             gc_gbk = gc_gbks[gc]
-            codoff_cmd = ['codoff', '-g', genome_gbk, '-f', gc_gbk, '-o', outf, log_object]
+            codoff_cmd = ['codoff', '-g', genome_gbk, '-f', gc_gbk, '-o', outf]
             codoff_cmds.append(codoff_cmd)
 
-        p = multiprocessing.Pool(threads)
-        p.map(util.multi_process, codoff_cmds) # type: ignore
-        p.close()
+        # Use robust error handling for codoff analysis
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=util.multi_process_safe,
+            inputs=codoff_cmds,
+            pool_size=threads,
+            error_strategy="report_and_continue",
+            log_object=log_object,
+            description="codoff codon optimization analysis"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of codoff runs were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
 
         os.system(f'touch {checkpoint_2_file}')
 
@@ -264,9 +279,8 @@ def salt():
     if mge_annots_exist and not os.path.isfile(checkpoint_3_file): 
         mge_annots_overview_file = outdir + 'MGE_Annotations_Overview.txt'
         concat_cmd = ['time', 'find', tg_mge_annot_dir, '-maxdepth', '1', '-type', 'f', '|', 'xargs', 'cat', ' >> ', mge_annots_overview_file]
-        util.run_cmd_via_subprocess(concat_cmd, 
-         log_object, 
-         check_files = [mge_annots_overview_file])
+        util.run_cmd_via_subprocess(concat_cmd, log_object=log_object, 
+                                    check_files = [mge_annots_overview_file])
         os.system(f'touch {checkpoint_3_file}')
 
     if os.path.isfile(outdir + 'MGE_Annotations_Overview.txt'): 

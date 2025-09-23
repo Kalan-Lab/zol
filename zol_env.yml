@@ -42,6 +42,7 @@ dependencies:
   - colour
   - rich-argparse
   - tqdm
+  - peptides
   - aiofile
   - aiohttp
   - "bioconda::muscle=5.1"

@@ -268,5 +268,7 @@ def processAndReformatNCBIGenbanks():
 	if error_outfile_handle is not None:
 		error_outfile_handle.close()
 
+	sys.exit(0)
+
 if __name__ == '__main__':
 	processAndReformatNCBIGenbanks()

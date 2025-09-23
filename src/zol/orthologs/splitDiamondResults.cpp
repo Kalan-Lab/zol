@@ -22,7 +22,7 @@ using namespace std;
 
 
 /*
-NOT USED - INSTEAD MEMORY LIMITS APPLIED IN PYTHON PER SUBPROCESS JOB
+NOT USED - INSTEAD MEMORY LIMITS APPLIED IN PYTHON
 Code for limiting memory taken from Raul Salinas-Monteagudo's response:
 https://stackoverflow.com/questions/3774858/artificially-limit-c-c-memory-usage
 class RLimit {

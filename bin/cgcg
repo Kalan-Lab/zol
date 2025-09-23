@@ -230,7 +230,7 @@ def cgcg():
     myargs = create_parser()
 
     zol_results_dir = os.path.abspath(myargs.zol_results_dir) + '/'
-    outdir = myargs.outdir
+    outdir = os.path.abspath(myargs.outdir) + '/'
     color_track = myargs.color_track
     low_value = myargs.low_value
     high_value = myargs.high_value
@@ -269,13 +269,22 @@ def cgcg():
         sys.stderr.write('A custom colors file was provided but the path could not be validated to exist.\n')
         sys.exit(1)
 
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output already directory exists. Overvwriting...\n ")
+    # create output directory if needed, or warn of over-writing
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
-    outdir = os.path.abspath(outdir) + '/'
     findir = outdir + 'Final_Results/'
 
-    util.setup_ready_directory([outdir, findir])
+    util.setup_ready_directory([findir])
 
     # create logging object
     log_file = outdir + 'Progress.log'
@@ -672,7 +681,8 @@ def create_color_legend(low_value,
         rout.write('dev.off()\n\n')
         rout.close()
         rscript_cmd = ['Rscript', rscript_path]
-        util.run_cmd_via_subprocess(rscript_cmd, log_object, check_files = [legend_png_file])
+        util.run_cmd_via_subprocess(rscript_cmd, log_object=log_object, 
+                                    check_files = [legend_png_file])
     except Exception as e: 
         msg = f'Issues creating legend for coloring - check out the Rscript for creating it for more details: {rscript_path}'
         sys.stderr.write(msg + '\n')

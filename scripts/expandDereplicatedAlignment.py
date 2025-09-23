@@ -4,7 +4,6 @@ import os
 import sys
 import argparse
 from zol import util
-import subprocess
 from Bio import SeqIO
 
 def create_parser():
@@ -83,14 +82,8 @@ def expandOg():
 				   'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue',
 				   'bitscore', 'qcovhsp', 'scovhsp', '-k0', '--out', align_result_file, '--evalue', '1e-3']
 
-	try:
-		subprocess.call(' '.join(diamond_cmd), shell=True, stdout=subprocess.DEVNULL,
-						stderr=subprocess.DEVNULL, executable='/bin/bash')
-		assert (os.path.isfile(align_result_file))
-	except Exception as e:
-		print(' '.join(diamond_cmd))
-		raise RuntimeError(e)
-
+	util.run_cmd_via_subprocess(diamond_cmd, check_files = [align_result_file])
+	
 	matching_lts = set([])
 	with open(align_result_file) as oarf:
 		for line in oarf:
@@ -111,22 +104,14 @@ def expandOg():
 
 	orthogroup_seqs_msa = outdir + 'OrthoGroup.msa.faa'
 	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads), '-perturb', '12345']
-	try:
-		subprocess.call(' '.join(muscle_cmd), shell=True, stdout=subprocess.DEVNULL,
-						stderr=subprocess.DEVNULL, executable='/bin/bash')
-		assert (os.path.isfile(orthogroup_seqs_msa))
-	except Exception as e:
-		raise RuntimeError(e)
+	util.run_cmd_via_subprocess(muscle_cmd, check_files = [orthogroup_seqs_msa])
 
 	phylogeny_tre = outdir + 'OrthoGroup.tre'
 	if run_fasttree:
 		fasttree_cmd = ['fasttree', orthogroup_seqs_msa, '>', phylogeny_tre]
-		try:
-			subprocess.call(' '.join(fasttree_cmd), shell=True, stdout=subprocess.DEVNULL,
-							stderr=subprocess.DEVNULL, executable='/bin/bash')
-			assert (os.path.isfile(align_result_file))
-		except Exception as e:
-			raise RuntimeError(e)
+		util.run_cmd_via_subprocess(fasttree_cmd, check_files = [phylogeny_tre])
+
+	sys.exit(0)
 
 if __name__ == '__main__':
 	expandOg()

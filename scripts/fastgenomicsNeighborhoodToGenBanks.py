@@ -39,9 +39,9 @@ UW Madison, Department of Medical Microbiology and Immunology
  
 
 import os
+from re import U
 import sys
 import argparse
-import subprocess
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -152,18 +152,10 @@ def fastgenomicsNeighborhoodToGenBanks():
 	gfah.close()
 
 	ngd_gca_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section', 'genbank', '-A', gca_accessions_file, '-o', genome_fasta_dir, '--flat-output',  'all']	
-	try:
-		subprocess.call(' '.join(ngd_gca_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-	except Exception as e:
-		sys.stderr.write(f'Had an issue running: {" ".join(ngd_gca_cmd)}\n')
-		sys.stderr.write(traceback.format_exc())
+	util.run_cmd_via_subprocess(ngd_gca_cmd)
 	
 	ngd_gcf_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section', 'refseq', '-A', gcf_accessions_file, '-o', genome_fasta_dir, '--flat-output',  'all']	
-	try:
-		subprocess.call(' '.join(ngd_gcf_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-	except Exception as e:
-		sys.stderr.write(f'Had an issue running: {" ".join(ngd_gcf_cmd)}\n')
-		sys.stderr.write(traceback.format_exc())
+	util.run_cmd_via_subprocess(ngd_gcf_cmd)
 
 	os.system('gunzip ' + genome_fasta_dir + '*.gz')
 

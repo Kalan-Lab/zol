@@ -39,9 +39,9 @@ UW Madison, Department of Medical Microbiology and Immunology
  
 import os
 import sys
+from tabnanny import check
 import pandas
 import argparse
-import subprocess
 from time import sleep
 from zol import util
 import traceback
@@ -156,14 +156,7 @@ def genSynVis():
 	rscript_path = outdir + 'generateSyntenicVisual.R'
 	util.generate_syntenic_visual_r(plot_input_file, plot_result_pdf, plot_height, plot_width, rscript_path)
 	plot_cmd = ['Rscript', rscript_path]
-	try:
-		subprocess.call(' '.join(plot_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-						executable='/bin/bash')
-		assert (os.path.isfile(plot_result_pdf))
-	except Exception as e:
-		sys.stderr.write(f"Had an issue running R based plotting - potentially because of R setup issues in conda: {' '.join(plot_cmd)}\n")
-		sys.stderr.write(traceback.format_exc())
-		sys.exit(1)
+	util.run_cmd_via_subprocess(plot_cmd, check_files = [plot_result_pdf])
 		
 if __name__ == '__main__':
 	genSynVis()

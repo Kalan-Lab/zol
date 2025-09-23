@@ -45,7 +45,6 @@ from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from collections import defaultdict
 from zol import util
-import subprocess
 from operator import itemgetter
 
 def create_parser():
@@ -132,11 +131,7 @@ def prodigalAndReformat():
 	if meta_mode and not gene_calling_method == 'prodigal-gv':
 		prodigal_cmd += ['-p', 'meta']
 
-	subprocess.call(' '.join(prodigal_cmd), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, executable='/bin/bash')
-	try:
-		assert(os.path.isfile(og_prod_pred_prot_file))
-	except Exception as e:
-		raise RuntimeError("Prodigal did not run until the end.")
+	util.run_cmd_via_subprocess(prodigal_cmd, check_files = [og_prod_pred_prot_file])
 
 	# Step 2: Process Prodigal predicted proteome and create polished version with locus tags
 	pc_prod_pred_prot_file = outdir + sample_name + '.faa'

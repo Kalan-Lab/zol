@@ -46,11 +46,9 @@ from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util, zol
 import argparse
-import multiprocessing
 import os
 import pickle
 import shutil
-import subprocess
 import sys
 import traceback
 
@@ -436,7 +434,7 @@ def zol_main():
     """
     myargs = create_parser()
 
-    input = myargs.input
+    input_arg = myargs.input
     outdir = os.path.abspath(myargs.output_dir) + '/'
     select_fai_params_mode = myargs.select_fai_params_mode
     domain_mode = myargs.domain_mode
@@ -482,8 +480,8 @@ def zol_main():
 
     input_files = []
     try: 
-        assert(len(input) > 0)
-        for inp in input: 
+        assert(len(input_arg) > 0)
+        for inp in input_arg: 
             if os.path.isfile(inp): 
                 input_files.append(os.path.abspath(inp))
             elif os.path.isdir(inp): 
@@ -494,13 +492,17 @@ def zol_main():
         sys.stderr.write('One or more of the input directories or files do not exist.\n')
         sys.exit(1)
 
-    if os.path.isdir(outdir): 
-        sys.stderr.write("Output directory exists. Overwriting in 5 seconds,\n"
-                       "but only where needed - will use checkpoints to avoid\n"
-                       "redoing successfully completed steps ...\n ")
-        sleep(5)
-    else: 
-        os.mkdir(outdir)
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     fin_outdir = outdir + 'Final_Results/'
     check_dir = outdir + 'Checkpoint_Files/'
@@ -540,7 +542,7 @@ def zol_main():
 
     log_object.info("Saving parameters for future records.")
     parameters_file = outdir + 'Parameter_Inputs.txt'
-    parameter_values = [input, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
+    parameter_values = [input_arg, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
                         select_fai_params_mode, dl_orthogroup_flag, dl_orthogroup_params, 
                         identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
                         (not use_super5), 
@@ -708,7 +710,7 @@ def zol_main():
     chopped_genbanks = None
     ccds_to_cds_relation_file = outdir + 'cCDS_to_CDS_Relation.txt'
     if domain_mode: 
-        msg = 'Note, using domain mode - if rerunning on the same output directory, but domain\nmode was not previously requested please just run in a\nnew directory.'
+        msg = 'Note, using domain mode - if rerunning on the same output directory, but domain\nmode was not previously requested please just run in a new directory.'
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
@@ -829,15 +831,9 @@ def zol_main():
                 if dl_orthogroup_flag: 
                     fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-dlo', 
                               '-dlp', '"' + dl_orthogroup_params + '"', '-c', str(threads)]
-                try: 
-                    subprocess.call(' '.join(fo_cmd), shell = True, stdout = subprocess.DEVNULL, 
-                                    stderr = subprocess.DEVNULL, executable = '/bin/bash')
-                    assert (os.path.isfile(ortho_matrix_file))
-                except Exception as e: 
-                    sys.stderr.write(f"Error: {e}\n")
-                    log_object.error(f"Issue with running: {' '.join(fo_cmd)}")
-                    log_object.error(e)
-                    raise RuntimeError(e)
+
+                util.run_cmd_via_subprocess(fo_cmd, log_object=log_object, 
+                                            check_files = [ortho_matrix_file])
                 if reinflate_flag: 
                     rog_dir = outdir + 'Reinflate_Orthogroups/'
                     util.setup_ready_directory([rog_dir], delete_if_exist = True)
@@ -1022,13 +1018,15 @@ def zol_main():
                                                                                                             log_object, 
                                                                                                             representative_associated_members=representative_associated_members,
                                                                                                             impute_broad_conservation=ibc_flag)
+        hg_peptides_stats = zol.compute_peptides_stats(ortho_matrix_file, hg_prot_dir, log_object)
         hg_order_scores = zol.determine_consensus_order_of_ogs(genbanks, core_ortho_matrix_file, markovian_file, consensus_path_file, log_object, domain_mode=domain_mode)
         hg_full_amb, hg_trim_amb = zol.calculate_ambiguity(codo_algn_dir, codo_algn_trim_dir, log_object)
 
         hg_stats = {'hg_single_copy_status': hg_single_copy_status, 'hg_prop_samples': hg_prop_samples, 
                     'hg_median_gcskew': hg_median_gcskew, 'hg_median_gc': hg_median_gc, 
                     'hg_median_lengths': hg_median_lengths, 'hg_order_scores': hg_order_scores, 'hg_locus_tags': hg_lts, 
-                    'hg_full_ambiguity': hg_full_amb, 'hg_trim_ambiguity': hg_trim_amb}
+                    'hg_full_ambiguity': hg_full_amb, 'hg_trim_ambiguity': hg_trim_amb,
+                    'hg_peptides_stats': hg_peptides_stats}
         with open(hg_stats_pickle_file, 'wb') as pickle_file: 
             pickle.dump(hg_stats, pickle_file)
         os.system(f'touch {step5_check_file}')

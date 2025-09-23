@@ -7,20 +7,16 @@ Kalan Lab
 UW Madison, Department of Medical Microbiology and Immunology
 """
 
-from ast import parse
 from Bio import SeqIO
 from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util, fai
 import argparse
-import multiprocessing
 import os
 import pickle
 import shutil
-import subprocess
 import sys
 import traceback
-from collections import defaultdict
 
 # BSD 3-Clause License
 #
@@ -446,16 +442,19 @@ def fai_main():
 
     check_dir = outdir + 'Checkpoint_Files/'
     clean_up_checkpoint_file = check_dir + 'cleaned_up.txt'
+
     # create output directory if needed, or warn of over-writing
-    if os.path.isdir(outdir): 
-        if not os.path.isfile(clean_up_checkpoint_file): 
-            sys.stderr.write("Output directory exists. Overwriting in 5 seconds, but only where needed - will use checkpoints to avoid redoing successfully completed steps ...\n ")
-            sleep(5)
-        else: 
-            sys.stderr.write("Output directory exists and has already been cleaned-up, meaning checkpoints can't be used properly to rerun certain steps. Please just write to a new directory.\n")
-            exit(1)
-    else: 
-        os.mkdir(outdir)
+    if os.path.isdir(outdir):
+        sys.stderr.write("Output directory exists. Files will be overwritten, but\n"
+                       "checkpoints will be used to avoid redoing successfully\n"
+                       "completed steps.\n"
+                       "Do you wish to proceed? (yes/no): ")
+        user_input = input().strip().lower()
+        if user_input not in ['yes', 'y']:
+            sys.stderr.write("Execution cancelled by user.\n")
+            sys.exit(0)
+    else:
+        util.setup_ready_directory([outdir], delete_if_exist = False)
 
     final_results_dir = outdir + 'Final_Results/'
     if not os.path.isdir(final_results_dir): 
@@ -641,18 +640,9 @@ def fai_main():
                                  'OG', '-o', work_dir]
                 if use_prodigal_gv_for_reference_flag: 
                     gene_call_cmd += ['-gcm', 'prodigal-gv']
-                try: 
-                    subprocess.call(' '.join(gene_call_cmd), shell = True, stdout = subprocess.DEVNULL, 
-                                    stderr = subprocess.DEVNULL, 
-                                    executable = '/bin/bash')
-                    assert(os.path.isfile(reference_genome_gbk))
-                    log_object.info(f'Successfully ran: {" ".join(gene_call_cmd)}')
-                except Exception as e: 
-                    msg = f'Had an issue running runProdigalAndMakeProperGenbank.py: {" ".join(gene_call_cmd)}'
-                    log_object.error(msg)
-                    sys.stderr.write(msg + "\n")
-                    log_object.error(e)
-                    sys.exit(1)
+                util.run_cmd_via_subprocess(gene_call_cmd, log_object=log_object, 
+                                            check_files = [reference_genome_gbk])
+                
             locus_genbank = work_dir + 'Reference_Query.gbk'
             locus_proteome = work_dir + 'Reference_Query.faa'
             fai.subset_genbank_for_query_locus(reference_genome_gbk, locus_genbank, locus_proteome, reference_contig, 
@@ -878,7 +868,7 @@ def fai_main():
                 msg = 'No target genomes found that meet the minimum criteria for harboring a gene cluster of interest.'
                 sys.stderr.write(msg + "\n")
                 log_object.error(msg)
-                sys.exit(1)
+                sys.exit(0)
 
             msg = f'Will be considering {len(target_annotation_information)} of {len(valid_tg_samples)} target genomes as candidates for harboring the gene cluster of interest.'
             sys.stdout.write(msg + "\n")

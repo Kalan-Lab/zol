@@ -14,16 +14,17 @@ import statistics
 import subprocess
 import sys
 import traceback
-from Bio import SeqIO, AlignIO
+from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
 from scipy import stats
 import pandas as pd
 import pyhmmer
 import tqdm
 import xlsxwriter
 from zol import data_dictionary, util
+import peptides
+
 
 AMBIGUOUS_AMINO_ACIDS = set(["B", "J", "Z", "X"])
 
@@ -4026,6 +4027,9 @@ def consolidate_report(
             "OG Median Length (bp)",
             "OG Consensus Order",
             "OG Consensus Direction",
+            "Custom Annotation (E-value)",
+            "KO Annotation (E-value)",
+            "Pfam Domains",
         ]
         if domain_mode != False:
             header = [
@@ -4036,6 +4040,9 @@ def consolidate_report(
                 "Single-Linkage Full Protein Cluster",
                 "OG Consensus Order",
                 "OG Consensus Direction",
+                "Custom Annotation (E-value)",
+                "KO Annotation (E-value)",
+                "Pfam Domains",
             ]
         if comp_stats != None:
             header += [
@@ -4057,6 +4064,12 @@ def consolidate_report(
             "Median GC Skew",
             "BGC score (GECCO weights)",
             "Viral score (V-Score)",
+            "Hydrophobicity Mean",
+            "Hydrophobicity Std Dev",
+            "Aliphatic Index Mean",
+            "Aliphatic Index Std Dev",
+            "m/z Mean",
+            "m/z Std Dev",
         ]
         if run_hyphy:
             header += [
@@ -4067,14 +4080,6 @@ def consolidate_report(
                 "P-value for gene-wide episodic selection by BUSTED",
             ]
         header += [
-            "Hydrophobicity Mean",
-            "Hydrophobicity Std Dev",
-            "Aliphatic Index Mean",
-            "Aliphatic Index Std Dev",
-            "m/z Mean",
-            "m/z Std Dev",
-            "Custom Annotation (E-value)",
-            "KO Annotation (E-value)",
             "PGAP Annotation (E-value)",
             "PaperBLAST Annotation (E-value)",
             "CARD Annotation (E-value)",
@@ -4082,7 +4087,6 @@ def consolidate_report(
             "MIBiG Annotation (E-value)",
             "VOG Annotation (E-value)",
             "VFDB Annotation (E-value)",
-            "Pfam Domains",
             "CDS Locus Tags",
             "OG Consensus Sequence",
         ]
@@ -4210,7 +4214,7 @@ def consolidate_report(
             if "pfam" in annotations and hg in annotations["pfam"]:
                 pfam_annots = "; ".join(annotations["pfam"][hg]["descriptions"])
             con_seq = seqs[hg]
-            row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire]
+            row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire, cust_annot, ko_annot, pfam_annots]
             if domain_mode:
                 fp_clusters = set([])
                 for dog in hg_stats["hg_locus_tags"][hg]:
@@ -4234,6 +4238,9 @@ def consolidate_report(
                     fp_cluster,
                     hg_ordr,
                     hg_dire,
+                    cust_annot,
+                    ko_annot,
+                    pfam_annots,
                 ]
             if comp_stats != None:
                 fp = comp_stats[hg]["prop_foc_with"]
@@ -4242,8 +4249,10 @@ def consolidate_report(
                     fst = comp_stats[hg]["fst"]
                     fst_upst = comp_stats[hg]["fst_upst"]
                 row += [fp, cp, fst, fst_upst]
+
             hg_gw = type_weights["bgc"][hg]
             hg_vs = type_weights["viral"][hg]
+
             row += [
                 hg_tajd,
                 hg_segs,
@@ -4257,19 +4266,17 @@ def consolidate_report(
                 hg_gcs,
                 hg_gw,
                 hg_vs,
-            ]
-            if run_hyphy:
-                row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
-
-            row += [
                 hg_peptides_stats['hydrophobicity_mean'],
                 hg_peptides_stats['hydrophobicity_std'],
                 hg_peptides_stats['aliphatic_index_mean'],
                 hg_peptides_stats['aliphatic_index_std'],
                 hg_peptides_stats['mz_mean'],
                 hg_peptides_stats['mz_std'],
-                cust_annot,
-                ko_annot,
+            ]
+            if run_hyphy:
+                row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
+
+            row += [
                 pgap_annot,
                 pb_annot,
                 card_annot,
@@ -4277,7 +4284,6 @@ def consolidate_report(
                 mibig_annot,
                 vog_annot,
                 vfdb_annot,
-                pfam_annots,
                 hg_lts,
                 con_seq,
             ]
@@ -4316,6 +4322,7 @@ def consolidate_report(
                 "valign": "top",
                 "fg_color": "#FFFFFF",
                 "border": 1,
+                "border_color": "#000000",
             }
         )
 
@@ -4371,19 +4378,24 @@ def consolidate_report(
         }
 
         warn_format = workbook.add_format(
-            {"bg_color": "#bf241f", "bold": True, "font_color": "#FFFFFF"}
+            {"bg_color": "#bf241f", "bold": True, "font_color": "#FFFFFF", "border": 1, "border_color": "#DCDCDC"}
         )
         na_format = workbook.add_format(
-            {"font_color": "#a6a6a6", "bg_color": "#FFFFFF", "italic": True}
+            {"font_color": "#a6a6a6", "bg_color": "#FFFFFF", "italic": True, "border": 1, "border_color": "#DCDCDC"}
         )
         header_format = workbook.add_format(
             {
                 "bold": True,
-                "text_wrap": True,
+                "text_wrap": False,
                 "valign": "top",
-                "fg_color": "#D7E4BC",
+                "fg_color": "#FFFFFF",
+                "font_color": "#000000",
                 "border": 1,
+                "border_color": "#DCDCDC",
             }
+        )
+        gecco_format = workbook.add_format(
+            {"bg_color": "#d5abde", "border": 1, "border_color": "#DCDCDC"}
         )
 
         results_df = util.load_table_in_panda_data_frame(
@@ -4394,6 +4406,12 @@ def consolidate_report(
         )
 
         worksheet = writer.sheets["ZoL Results"]
+        border_format = workbook.add_format({'border': 1, 'border_color': '#DCDCDC'})
+        worksheet.set_column(0, len(results_df.columns) - 1, None, border_format)
+        
+        # Apply header formatting directly to header row cells
+        for col_num in range(len(results_df.columns)):
+            worksheet.write(0, col_num, results_df.columns[col_num], header_format)
         worksheet.conditional_format(
             "B2:B" + str(num_rows),
             {
@@ -4404,7 +4422,7 @@ def consolidate_report(
             },
         )
         worksheet.conditional_format(
-            "A2:BA" + str(num_rows),
+            f"A2:{util.get_excel_columns()[len(results_df.columns)-1]}{num_rows}",
             {
                 "type": "cell",
                 "criteria": "==",
@@ -4412,513 +4430,467 @@ def consolidate_report(
                 "format": na_format,
             },
         )
-        worksheet.conditional_format(
-            "A1:BA1",
-            {
-                "type": "cell",
-                "criteria": "!=",
-                "value": "NA",
-                "format": header_format,
-            },
-        )
+
+        excel_cols = util.get_excel_columns()
+        col_map = {col: excel_cols[i] for i, col in enumerate(results_df.columns)}
 
         # prop gene clusters with hg
-        worksheet.conditional_format(
-            "C2:C" + str(num_rows),
-            {
-                "type": "2_color_scale",
-                "min_color": "#f7de99",
-                "max_color": "#c29006",
-                "min_value": 0.0,
-                "max_value": 1.0,
-                "min_type": "num",
-                "max_type": "num",
-            },
-        )
+        col = 'Proportion of Total Gene Clusters with OG'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#CCCCCC",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
         # gene lengths
-        worksheet.conditional_format(
-            "D2:D" + str(num_rows),
-            {
-                "type": "2_color_scale",
-                "min_color": "#a3dee3",
-                "max_color": "#1ebcc9",
-                "min_value": 100,
-                "max_value": 2500,
-                "min_type": "num",
-                "max_type": "num",
-            },
-        )
+        col = 'OG Median Length (bp)'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#5A8AC6",
+                    "min_value": 100,
+                    "max_value": 2500,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
 
-        if comp_stats != None:
-            hfo = [
-                "G",
-                "H",
-                "I",
-                "J",
-                "K",
-                "L",
-                "M",
-                "N",
-                "O",
-                "P",
-                "Q",
-                "R",
-                "S",
-                "T",
-                "U",
-                "V",
-            ]
-            if domain_mode:
-                hfo = [
-                    "H",
-                    "I",
-                    "J",
-                    "K",
-                    "L",
-                    "M",
-                    "N",
-                    "O",
-                    "P",
-                    "Q",
-                    "R",
-                    "S",
-                    "T",
-                    "U",
-                    "V",
-                    "W",
-                ]
+        if comp_stats:
             # prop focal gene clusters with hg
-            worksheet.conditional_format(
-                hfo[0] + "2:" + hfo[0] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f7de99",
-                    "max_color": "#c29006",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
+            col = 'Proportion of Focal Gene Clusters with OG'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#FFFFFF",
+                        "max_color": "#CCCCCC",
+                        "min_type": "num",
+                        "max_type": "num",
+                        "min_value": 0.0,
+                        "max_value": 1.0,
+                    },
+                )
             # prop comparator gene clusters with hg
-            worksheet.conditional_format(
-                hfo[1] + "2:" + hfo[1] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f7de99",
-                    "max_color": "#c29006",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-            # fst
-            worksheet.conditional_format(
-                hfo[2] + "2:" + hfo[2] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#aecaf5",
-                    "max_color": "#6198ed",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
+            col = 'Proportion of Comparator Gene Clusters with OG'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#FFFFFF",
+                        "max_color": "#CCCCCC",
+                        "min_type": "num",
+                        "max_type": "num",
+                        "min_value": 0.0,
+                        "max_value": 1.0,
+                    },
+                )
+            # Fixation Index
+            col = 'Fixation Index'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#5A8AC6",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#D98880",
+                        "min_value": 0.0,
+                        "mid_value": 0.5,
+                        "max_value": 1.0,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # Upstream Region Fixation Index
+            col = 'Upstream Region Fixation Index'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#5A8AC6",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#D98880",
+                        "min_value": 0.0,
+                        "mid_value": 0.5,
+                        "max_value": 1.0,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
 
-            # upstream region fst
+        # Tajima's D
+        col = "Tajima's D"
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[3] + "2:" + hfo[3] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#aecaf5",
-                    "max_color": "#6198ed",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # taj-d
-            worksheet.conditional_format(
-                hfo[4] + "2:" + hfo[4] + str(num_rows),
+                cell_range,
                 {
                     "type": "3_color_scale",
-                    "min_color": "#f7a09c",
-                    "mid_color": "#e0e0e0",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "mid_type": "num",
-                    "max_color": "#87cefa",
+                    "min_color": "#E6B0AA",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#B8CCE4",
                     "min_value": -2.0,
                     "mid_value": 0.0,
                     "max_value": 2.0,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
                 },
             )
- 
-            # prop seg sites
+        # Entropy
+        col = 'Entropy'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[5] + "2:" + hfo[5] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#eab3f2",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#a37ba8",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F86B6B",
                     "min_value": 0.0,
                     "max_value": 1.0,
+                    "min_type": "num",
+                    "max_type": "num",
                 },
             )
-
-            # entropy
+        # Upstream Entropy
+        col = 'Upstream Region Entropy'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[6] + "2:" + hfo[6] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#f7a8bc",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#fa6188",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F86B6B",
                     "min_value": 0.0,
                     "max_value": 1.0,
-                },
-            )
-
-            # upstream region entropy
-            worksheet.conditional_format(
-                hfo[7] + "2:" + hfo[7] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f7a8bc",
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#fa6188",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
                 },
             )
-
-            # beta-rd gc
+            
+        # Beta-RD
+        col1 = 'Median Beta-RD-gc'
+        col2 = 'Max Beta-RD-gc'
+        if col1 in col_map and col2 in col_map:
+            cell_range = f"{col_map[col1]}2:{col_map[col2]}{num_rows}"
             worksheet.conditional_format(
-                hfo[8] + "2:" + hfo[8] + str(num_rows),
+                cell_range,
                 {
                     "type": "3_color_scale",
-                    "min_color": "#fac087",
-                    "mid_color": "#e0e0e0",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "mid_type": "num",
-                    "max_color": "#9eb888",
+                    "min_color": "#F8696B",
+                    "mid_color": "#FFEB84",
+                    "max_color": "#63BE7B",
                     "min_value": 0.75,
                     "mid_value": 1.0,
                     "max_value": 1.25,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
                 },
             )
-            # max beta - rd gc
+        # proportion ambiguous
+        col1 = 'Proportion of sites which are highly ambiguous in codon alignment'
+        col2 = 'Proportion of sites which are highly ambiguous in trimmed codon alignment'
+        if col1 in col_map and col2 in col_map:
+            cell_range = f"{col_map[col1]}2:{col_map[col2]}{num_rows}"
             worksheet.conditional_format(
-                hfo[9] + "2:" + hfo[9] + str(num_rows),
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#E6B0AA",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+        
+        if run_hyphy:
+            # GARD Partitions
+            col = 'GARD Partitions Based on Recombination Breakpoints'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#FFFFFF",
+                        "max_color": "#F8696B",
+                        "min_value": 1,
+                        "max_value": 5,
+                        "min_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # FUBAR sites
+            col = 'Number of Sites Identified as Under Positive or Negative Selection by FUBAR'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#FFFFFF",
+                        "max_color": "#B8D4B8",
+                        "min_value": 0,
+                        "max_value": 10,
+                        "min_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # FUBAR dba
+            col = 'Average delta(Beta, Alpha) by FUBAR across sites'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#E6B0AA",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#B8D4B8",
+                        "min_value": -5,
+                        "mid_value": 0,
+                        "max_value": 5,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # FUBAR prop
+            col = 'Proportion of Sites Under Selection which are Positive'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#E6B0AA",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#B8D4B8",
+                        "min_value": 0,
+                        "mid_value": 0.5,
+                        "max_value": 1,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # BUSTED pval
+            col = 'P-value for gene-wide episodic selection by BUSTED'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#63BE7B",
+                        "max_color": "#FFFFFF",
+                        "min_value": 0,
+                        "max_value": 0.05,
+                        "min_type": "num",
+                        "max_type": "num",
+                    },
+                )
+        
+        # GC
+        col = 'Median GC'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#63BE7B",
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+            
+        # Median GC Skew
+        col = 'Median GC Skew'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
                 {
                     "type": "3_color_scale",
-                    "min_color": "#fac087",
-                    "mid_color": "#e0e0e0",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "mid_type": "num",
-                    "max_color": "#9eb888",
-                    "min_value": 0.75,
-                    "mid_value": 1.0,
-                    "max_value": 1.25,
-                },
-            )
-
-            # ambiguity full ca
-            worksheet.conditional_format(
-                hfo[10] + "2:" + hfo[10] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#ed8c8c",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#ab1616",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # ambiguity trim ca
-            worksheet.conditional_format(
-                hfo[11] + "2:" + hfo[11] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#ed8c8c",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#ab1616",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # GC
-            worksheet.conditional_format(
-                hfo[12] + "2:" + hfo[12] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#abffb7",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#43bf55",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # GC Skew
-            worksheet.conditional_format(
-                hfo[13] + "2:" + hfo[13] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#c7afb4",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#965663",
-                    "min_value": -2.0,
-                    "max_value": 2.0,
-                },
-            )
-
-            # BGC score
-            worksheet.conditional_format(
-                hfo[14] + "2:" + hfo[14] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f5aca4",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#c75246",
-                    "min_value": -7.0,
-                    "max_value": 13.0,
-                },
-            )
-
-            # viral score
-            worksheet.conditional_format(
-                hfo[15] + "2:" + hfo[15] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#dfccff",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#715a96",
-                    "min_value": 0.0,
-                    "max_value": 10.0,
-                },
-            )
-
-        else:
-            hfo = ["G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"]
-            if domain_mode:
-                hfo = [
-                    "H",
-                    "I",
-                    "J",
-                    "K",
-                    "L",
-                    "M",
-                    "N",
-                    "O",
-                    "P",
-                    "Q",
-                    "R",
-                    "S",
-                ]
-            # taj-d
-            worksheet.conditional_format(
-                hfo[0] + "2:" + hfo[0] + str(num_rows),
-                {
-                    "type": "3_color_scale",
-                    "min_color": "#f7a09c",
-                    "mid_color": "#e0e0e0",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "mid_type": "num",
-                    "max_color": "#87cefa",
-                    "min_value": -2.0,
+                    "min_color": "#E8D5D5",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#D5E8F5",
+                    "min_value": -0.2,
                     "mid_value": 0.0,
-                    "max_value": 2.0,
+                    "max_value": 0.2,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
                 },
             )
-
-            # prop seg sites
+        # BGC score (GECCO)
+        col = 'BGC score (GECCO weights)'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[1] + "2:" + hfo[1] + str(num_rows),
+                cell_range,
+                {
+                    "type": "cell",
+                    "criteria": ">",
+                    "value": 2,
+                    "format": gecco_format,
+                },
+            )
+        # Viral score (V-score)
+        col = 'Viral score (V-Score)'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#eab3f2",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#E6B0AA",
+                    "min_value": 0,
+                    "max_value": 4,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#a37ba8",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
                 },
             )
-
-            # entropy
+        # Hydrophobicity Mean
+        col = 'Hydrophobicity Mean'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[2] + "2:" + hfo[2] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f7a8bc",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#fa6188",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # upstream region entropy
-            worksheet.conditional_format(
-                hfo[3] + "2:" + hfo[3] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#f7a8bc",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#fa6188",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-            )
-
-            # median beta-rd gc
-            worksheet.conditional_format(
-                hfo[4] + "2:" + hfo[4] + str(num_rows),
+                cell_range,
                 {
                     "type": "3_color_scale",
-                    "min_color": "#fac087",
-                    "mid_color": "#e0e0e0",
+                    "min_color": "#5A8AC6",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#F8696B",
+                    "min_value": -2.5,
+                    "mid_value": 0,
+                    "max_value": 2.5,
                     "min_type": "num",
-                    "max_type": "num",
                     "mid_type": "num",
-                    "max_color": "#9eb888",
-                    "min_value": 0.75,
-                    "mid_value": 1.0,
-                    "max_value": 1.25,
-                },
-            )
-            # max beta-rd gc
-            worksheet.conditional_format(
-                hfo[5] + "2:" + hfo[5] + str(num_rows),
-                {
-                    "type": "3_color_scale",
-                    "min_color": "#fac087",
-                    "mid_color": "#e0e0e0",
-                    "min_type": "num",
                     "max_type": "num",
-                    "mid_type": "num",
-                    "max_color": "#9eb888",
-                    "min_value": 0.75,
-                    "mid_value": 1.0,
-                    "max_value": 1.25,
                 },
             )
-
-            # ambiguity full ca
+        # Hydrophobicity Std Dev
+        col = 'Hydrophobicity Std Dev'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[6] + "2:" + hfo[6] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#ed8c8c",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F8696B",
+                    "min_value": 0,
+                    "max_value": 2,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#ab1616",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
                 },
             )
-
-            # ambiguity trim ca
+        # Aliphatic Index Mean
+        col = 'Aliphatic Index Mean'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[7] + "2:" + hfo[7] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#ed8c8c",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#63BE7B",
+                    "min_value": 50,
+                    "max_value": 150,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#ab1616",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
                 },
             )
-
-            # GC
+        # Aliphatic Index Std Dev
+        col = 'Aliphatic Index Std Dev'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[8] + "2:" + hfo[8] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#abffb7",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F8696B",
+                    "min_value": 0,
+                    "max_value": 30,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#43bf55",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
                 },
             )
-
-            # GC Skew
+        # m/z Mean
+        col = 'm/z Mean'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[9] + "2:" + hfo[9] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#c7afb4",
+                    "min_color": "#dcedde",
+                    "max_color": "#87bba2",
+                    "min_value": 5000,
+                    "max_value": 75000,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#965663",
-                    "min_value": -2.0,
-                    "max_value": 2.0,
                 },
             )
-
-            # BGC score
+        # m/z Std Dev
+        col = 'm/z Std Dev'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
             worksheet.conditional_format(
-                hfo[10] + "2:" + hfo[10] + str(num_rows),
+                cell_range,
                 {
                     "type": "2_color_scale",
-                    "min_color": "#f5aca4",
+                    "min_color": "#dcedde",
+                    "max_color": "#87bba2",
+                    "min_value": 0,
+                    "max_value": 5000,
                     "min_type": "num",
                     "max_type": "num",
-                    "max_color": "#c75246",
-                    "min_value": -7.0,
-                    "max_value": 13.0,
                 },
             )
-
-            # viral score
-            worksheet.conditional_format(
-                hfo[11] + "2:" + hfo[11] + str(num_rows),
-                {
-                    "type": "2_color_scale",
-                    "min_color": "#dfccff",
-                    "min_type": "num",
-                    "max_type": "num",
-                    "max_color": "#715a96",
-                    "min_value": 0.0,
-                    "max_value": 10.0,
-                },
-            )
-
-        worksheet.autofilter("A1:BA" + str(num_rows))
-        worksheet.filter_column(2, "x >= 0.1")
+        
+        worksheet.autofilter(f"A1:{excel_cols[len(results_df.columns) - 1]}{num_rows}")
+        if 'Proportion of Total Gene Clusters with OG' in col_map:
+            worksheet.filter_column(col_map["Proportion of Total Gene Clusters with OG"], "x >= 0.1")
         workbook.close()
-
+    
     except Exception as e:
-        sys.stderr.write("Issues creating consolidated results files.\n")
         log_object.error("Issues creating consolidated results files.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        log_object.error(e)
+        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
@@ -5066,9 +5038,7 @@ def compute_peptides_stats(
       'aliphatic_index_std', 'mz_mean', 'mz_std' for each ortholog group.
     *******************************************************************************************************************
     """
-    try:
-        import peptides
-        
+    try:        
         peptides_stats = {}
         
         # Get list of ortholog groups from matrix file
@@ -5179,3 +5149,25 @@ def compute_peptides_stats(
         sys.stderr.write(error_msg + "\\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)
+
+def run_fegenie(
+    input_file,
+    output_file,
+    log_object,
+    threads=1,
+):
+    try:
+        cmd = [
+            "fegenie",
+            "-i",
+            input_file,
+            "-o",
+            output_file,
+            "--threads",
+            str(threads),
+        ]
+        util.run_cmd_via_subprocess(cmd, log_object=log_object, check_files=[output_file])
+        return ('success', None)
+    except Exception as e:
+        error_msg = f"Issues with running fegenie: {str(e)}"
+        return ('error', error_msg)

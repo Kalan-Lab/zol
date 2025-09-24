@@ -5042,3 +5042,15 @@ def remove_file(file_path: str, log_object=None) -> None:
             log_object.error(msg)
         sys.stderr.write(msg + '\n')
         raise RuntimeWarning()
+
+def get_excel_columns():
+    """
+    Generate a list of Excel column names (A, B, C, ..., Z, AA, AB, ...).
+    """
+    columns = []
+    for i in range(26):
+        columns.append(chr(ord('A') + i))
+    for i in range(26):
+        for j in range(26):
+            columns.append(chr(ord('A') + i) + chr(ord('A') + j))
+    return columns

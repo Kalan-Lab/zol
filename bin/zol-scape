@@ -39,6 +39,7 @@ UW Madison, Department of Medical Microbiology and Immunology
 
 
 from collections import defaultdict
+from zol.util import get_excel_columns
 from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util
@@ -268,48 +269,62 @@ def zolscape():
 
     consolidated_table_file = outdir + 'zol-scape_Results.tsv'
     zctf_handle = open(consolidated_table_file, 'w')
-
-    zol_sheet_header = ['Clustering File Path', 
-                        'GCF ID', 
-                        'Ortholog Group (OG) ID', 
-                        'OG is Single Copy?', 
-                        'Proportion of Total Gene Cluster Instances with OG', 
-                        'OG Median Length (bp)', 'OG Consensus Order', 
-                        'OG Consensus Direction', 'Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 
-                        'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
-                        'Proportion of sites which are highly ambiguous in codon alignment', 
-                        'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC', 'Median GC Skew',
-                        'BGC score (GECCO weights)', 'Viral score (V-Score)']
-
+ 
     domain_mode = False
     if ' -dom ' in zol_parameters or ' --domain-mode ' in zol_parameters: 
         domain_mode = True
-        zol_sheet_header = ['Clustering File Path', 
-                            'GCF ID', 
-                            'Ortholog Group (OG) ID', 
-                            'OG is Single Copy?', 
-                            'Proportion of Total Gene Cluster Instances with OG', 
-                            'Proportion of Complete Gene Cluster Instances with OG', 
-                            'OG Median Length (bp)', 
-                            'Single-Linkage Full Protein Cluster', 
-                            'OG Consensus Order', 'OG Consensus Direction', 'Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites', 
-                            'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
-                            'Proportion of sites which are highly ambiguous in codon alignment', 
-                            'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC', 'Median GC Skew', 
-                            'BGC score (GECCO weights)', 'Viral score (V-Score)']
 
+    header = [
+        'Clustering File Path',
+        'GCF ID',
+        'Ortholog Group (OG) ID',
+        'OG is Single Copy?',
+        'Proportion of Total Gene Clusters with OG',
+        'OG Median Length (bp)', 'OG Consensus Order',
+        'OG Consensus Direction',
+        'Custom Annotation (E-value)',
+        'KO Annotation (E-value)',
+        'Pfam Domains'
+    ]
+    if domain_mode:
+        header = [
+            'Clustering File Path',
+            'GCF ID',
+                             'Ortholog Group (OG) ID', 
+                             'OG is Single Copy?', 
+            'Proportion of Total Gene Clusters with OG',
+                             'OG Median Length (bp)', 
+                             'Single-Linkage Full Protein Cluster', 
+            'OG Consensus Order',
+            'OG Consensus Direction',
+            'Custom Annotation (E-value)',
+            'KO Annotation (E-value)',
+            'Pfam Domains'
+        ]
+ 
+    evolutionary_stats_header = ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites',
+                             'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
+                             'Proportion of sites which are highly ambiguous in codon alignment', 
+                                 'Proportion of sites which are highly ambiguous in trimmed codon alignment',
+                                 'Median GC', 'Median GC Skew']
+    peptide_header = ['BGC score (GECCO weights)', 'Viral score (V-Score)', 'Hydrophobicity Mean',
+                             'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 'Aliphatic Index Std Dev', 
+                             'm/z Mean', 'm/z Std Dev']
+ 
+    hyphy_header = []
     if '-s' in zol_parameters or '--selection-analysis' in zol_parameters: 
-        zol_sheet_header += ['GARD Partitions Based on Recombination Breakpoints', 
+        hyphy_header = ['GARD Partitions Based on Recombination Breakpoints',
                              'Number of Sites Identified as Under Positive or Negative Selection by FUBAR', 
                              'Average delta(Beta, Alpha) by FUBAR across sites', 
                              'Proportion of Sites Under Selection which are Positive',
                              'P-value for gene-wide episodic selection by BUSTED']
  
-    zol_sheet_header += ['Hydrophobicity Mean', 'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 'Aliphatic Index Std Dev', 'm/z Mean', 'm/z Std Dev', 'KO Annotation (E-value)', 'PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)',
-                           'CARD Annotation (E-value)', 'IS Finder (E-value)',
-                           'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',
-                           'VFDB Annotation (E-value)', 'Pfam Domains', 'CDS Locus Tags',
-                           'OG Consensus Sequence']
+    annotation_header = ['PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)',
+                         'IS Finder (E-value)', 'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',
+                         'VFDB Annotation (E-value)']
+ 
+    zol_sheet_header = header + evolutionary_stats_header + peptide_header + hyphy_header + annotation_header + \
+                       ['CDS Locus Tags', 'OG Consensus Sequence']
 
     zctf_handle.write('\t'.join(zol_sheet_header) + '\n')
     num_rows = 1
@@ -325,15 +340,13 @@ def zolscape():
                     if j == 0: continue
                     line = line.strip()
                     ls = line.split('\t')
-                    row = [cluster, gcf] + ls[:24] + ls[25:]
-                    if ' -s ' in zol_parameters or ' --selection-analysis ' in zol_parameters: 
-                        row = [cluster, gcf] + ls[:26] + ls[27:]
+                    row = [cluster, gcf] + ls
                     zctf_handle.write('\t'.join(row) + '\n')
                     num_rows += 1
     zctf_handle.close()
 
-    zr_numeric_columns = set(['Proportion of Total Gene Cluster Instances with OG', 
-                              'Proportion of Complete Gene Cluster Instances with OG', 
+    zr_numeric_columns = set(['Proportion of Total Gene Clusters with OG', 
+                              'Proportion of Complete Gene Clusters with OG', 
                               'OG Median Length (bp)', 'OG Consensus Order', 
                               'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints', 
                               'GARD Partitions Based on Recombination Breakpoints', 
@@ -343,8 +356,10 @@ def zolscape():
                               'Proportion of Filtered Codon Alignment is Segregating Sites', 
                               'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
                               'Proportion of sites which are highly ambiguous in codon alignment', 
-                              'Proportion of sites which are highly ambiguous in trimmed codon alignment', 'Median GC', 'Median GC Skew', 
-                              'BGC score (GECCO weights)', 'Viral score (V-Score)', 'Hydrophobicity Mean', 'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 'Aliphatic Index Std Dev', 'm/z Mean', 'm/z Std Dev'])
+                              'Proportion of sites which are highly ambiguous in trimmed codon alignment', 
+                              'Median GC', 'Median GC Skew', 'BGC score (GECCO weights)', 'Viral score (V-Score)', 
+                              'Hydrophobicity Mean', 'Hydrophobicity Std Dev', 'Aliphatic Index Mean', 
+                              'Aliphatic Index Std Dev', 'm/z Mean', 'm/z Std Dev'])
 
     zr_data = util.load_table_in_panda_data_frame(consolidated_table_file, 
         zr_numeric_columns)
@@ -354,17 +369,26 @@ def zolscape():
     writer = pd.ExcelWriter(zol_spreadsheet_file, engine = 'xlsxwriter')
     workbook = writer.book
 
-    warn_format = workbook.add_format({'bg_color': '#bf241f', 
-        'bold': True, 
-        'font_color': '#FFFFFF'})
-    na_format = workbook.add_format({'font_color': '#a6a6a6', 
-        'bg_color': '#FFFFFF', 
-        'italic': True})
-    header_format = workbook.add_format({'bold': True, 
-        'text_wrap': True, 
-        'valign': 'top', 
-        'fg_color': '#D7E4BC', 
-        'border': 1})
+    warn_format = workbook.add_format(
+        {"bg_color": "#bf241f", "bold": True, "font_color": "#FFFFFF", "border": 1, "border_color": "#DCDCDC"}
+    )
+    na_format = workbook.add_format(
+        {"font_color": "#a6a6a6", "bg_color": "#FFFFFF", "italic": True, "border": 1, "border_color": "#DCDCDC"}
+    )
+    header_format = workbook.add_format(
+        {
+            "bold": True,
+            "text_wrap": False,
+            "valign": "top",
+            "fg_color": "#FFFFFF",
+            "font_color": "#000000",
+            "border": 1,
+            "border_color": "#DCDCDC",
+        }
+    )
+    gecco_format = workbook.add_format(
+        {"bg_color": "#d5abde", "border": 1, "border_color": "#DCDCDC"}
+    )
 
     zr_data.to_excel(writer, 
         sheet_name = 'zol-scape Results', 
@@ -372,103 +396,424 @@ def zolscape():
         na_rep = "NA")
     zr_sheet = writer.sheets['zol-scape Results']
 
-    zr_sheet.conditional_format('D2:D' + str(num_rows), 
-        {'type': 'cell', 
-        'criteria': '==', 
-        'value': '"False"', 
-        'format': warn_format})
-    zr_sheet.conditional_format('A2:CA' + str(num_rows), 
-        {'type': 'cell', 
-        'criteria': '==', 
-        'value': '"NA"', 
-        'format': na_format})
-    zr_sheet.conditional_format('A1:CA1', 
-        {'type': 'cell', 
-        'criteria': '!=', 
-        'value': 'NA', 
-        'format': header_format})
+    border_format = workbook.add_format({'border': 1, 'border_color': '#DCDCDC'})
+    zr_sheet.set_column(0, len(zr_data.columns) - 1, None, border_format)
+    
+    # Apply header formatting directly to header row cells
+    for col_num in range(len(zr_data.columns)):
+        zr_sheet.write(0, col_num, zr_data.columns[col_num], header_format)
+
+    zr_sheet.conditional_format(
+        f"A2:{get_excel_columns()[len(zr_data.columns)-1]}{num_rows}",
+        {
+            "type": "cell",
+            "criteria": "==",
+            "value": '"NA"',
+            "format": na_format,
+        },
+    )
+
+    excel_cols = get_excel_columns()
+    col_map = {col: excel_cols[i] for i, col in enumerate(zr_data.columns)}
+
+    col = 'OG is Single Copy?'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "cell",
+                "criteria": "==",
+                "value": '"False"',
+                "format": warn_format,
+            },
+        )
 
     # prop gene-clusters with hg
-    zr_sheet.conditional_format('E2:E' + str(num_rows), 
-        {'type': '2_color_scale', 
-        'min_color': "#f7de99", 
-        'max_color': "#c29006", 
+    col = 'Proportion of Total Gene Clusters with OG'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#CCCCCC",
         "min_value": 0.0, 
         "max_value": 1.0, 
-        'min_type': 'num', 
-        'max_type': 'num'})
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
 
     # gene-lengths
-    zr_sheet.conditional_format('F2:F' + str(num_rows), 
-        {'type': '2_color_scale', 
-        'min_color': "#a3dee3", 
-        'max_color': "#1ebcc9", 
+    col = 'OG Median Length (bp)'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#5A8AC6",
         "min_value": 100, 
         "max_value": 2500, 
-        'min_type': 'num', 
-        'max_type': 'num'})
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
 
-    hfo = ['I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T']
-    if domain_mode: 
-        hfo = ['J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']
     # taj-d
-    zr_sheet.conditional_format(hfo[0] + '2:' + hfo[0] + str(num_rows), 
-                                    {'type': '3_color_scale', 'min_color': "#f7a09c", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num', 
-                                    'max_color': "#87cefa", "min_value": -2.0, "mid_value": 0.0, "max_value": 2.0})
+    col = "Tajima's D"
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "3_color_scale",
+                "min_color": "#E6B0AA",
+                "mid_color": "#FFFFFF",
+                "max_color": "#B8CCE4",
+                "min_value": -2.0,
+                "mid_value": 0.0,
+                "max_value": 2.0,
+                "min_type": "num",
+                "mid_type": "num",
+                "max_type": "num",
+            },
+        )
 
-    # prop seg sites
-    zr_sheet.conditional_format(hfo[1] + '2:' + hfo[1] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#eab3f2", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#a37ba8", "min_value": 0.0, "max_value": 1.0})
+    # Entropy
+    col = 'Entropy'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#F86B6B",
+                "min_value": 0.0,
+                "max_value": 1.0,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+    # Upstream Entropy
+    col = 'Upstream Region Entropy'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#F86B6B",
+                "min_value": 0.0,
+                "max_value": 1.0,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
 
-    # entropy
-    zr_sheet.conditional_format(hfo[2] + '2:' + hfo[2] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+    # Beta-RD
+    col1 = 'Median Beta-RD-gc'
+    col2 = 'Max Beta-RD-gc'
+    if col1 in col_map and col2 in col_map:
+        cell_range = f"{col_map[col1]}2:{col_map[col2]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "3_color_scale",
+                "min_color": "#F8696B",
+                "mid_color": "#FFEB84",
+                "max_color": "#63BE7B",
+                "min_value": 0.75,
+                "mid_value": 1.0,
+                "max_value": 1.25,
+                "min_type": "num",
+                "mid_type": "num",
+                "max_type": "num",
+            },
+        )
 
-    # upstream region entropy
-    zr_sheet.conditional_format(hfo[3] + '2:' + hfo[3] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#f7a8bc", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#fa6188", "min_value": 0.0, "max_value": 1.0})
+    # proportion ambiguous
+    col1 = 'Proportion of sites which are highly ambiguous in codon alignment'
+    col2 = 'Proportion of sites which are highly ambiguous in trimmed codon alignment'
+    if col1 in col_map and col2 in col_map:
+        cell_range = f"{col_map[col1]}2:{col_map[col2]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#E6B0AA",
+                "min_value": 0.0,
+                "max_value": 1.0,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
 
-    # median beta-rd gc
-    zr_sheet.conditional_format(hfo[4] + '2:' + hfo[4] + str(num_rows), 
-                                    {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num', 
-                                    'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
-    # max beta-rd gc
-    zr_sheet.conditional_format(hfo[5] + '2:' + hfo[5] + str(num_rows), 
-                                    {'type': '3_color_scale', 'min_color': "#fac087", "mid_color": "#e0e0e0", 'min_type': 'num', 'max_type': 'num', 'mid_type': 'num', 
-                                    'max_color': "#9eb888", "min_value": 0.75, "mid_value": 1.0, "max_value": 1.25})
-
-    # ambiguity full ca
-    zr_sheet.conditional_format(hfo[6] + '2:' + hfo[6] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
-
-    # ambiguity trim ca
-    zr_sheet.conditional_format(hfo[7] + '2:' + hfo[7] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#ed8c8c", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#ab1616", "min_value": 0.0, "max_value": 1.0})
-
-    # GC
-    zr_sheet.conditional_format(hfo[8] + '2:' + hfo[8] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#abffb7", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#43bf55", "min_value": 0.0, "max_value": 1.0})
-
-    # GC Skew
-    zr_sheet.conditional_format(hfo[9] + '2:' + hfo[9] + str(num_rows), 
-                                    {'type': '2_color_scale', 'min_color': "#c7afb4", 'min_type': 'num', 'max_type': 'num', 
-                                    'max_color': "#965663", "min_value": -2.0, "max_value": 2.0})
-
-
-    # BGC score
-    zr_sheet.conditional_format(hfo[10] + "2:" + hfo[10] + str(num_rows),
-                {"type": "2_color_scale", "min_color": "#f5aca4", "min_type": "num", "max_type": "num", "max_color": "#c75246", "min_value": -7.0, "max_value": 13.0},
+    if '-s' in zol_parameters or '--selection-analysis' in zol_parameters:
+        # GARD Partitions
+        col = 'GARD Partitions Based on Recombination Breakpoints'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F8696B",
+                    "min_value": 1,
+                    "max_value": 5,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+        # FUBAR sites
+        col = 'Number of Sites Identified as Under Positive or Negative Selection by FUBAR'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#B8D4B8",
+                    "min_value": 0,
+                    "max_value": 10,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+        # FUBAR dba
+        col = 'Average delta(Beta, Alpha) by FUBAR across sites'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "3_color_scale",
+                    "min_color": "#E6B0AA",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#B8D4B8",
+                    "min_value": -5,
+                    "mid_value": 0,
+                    "max_value": 5,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
+                },
+            )
+        # FUBAR prop
+        col = 'Proportion of Sites Under Selection which are Positive'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "3_color_scale",
+                    "min_color": "#E6B0AA",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#B8D4B8",
+                    "min_value": 0,
+                    "mid_value": 0.5,
+                    "max_value": 1,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
+                },
+            )
+        # BUSTED pval
+        col = 'P-value for gene-wide episodic selection by BUSTED'
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#63BE7B",
+                    "max_color": "#FFFFFF",
+                    "min_value": 0,
+                    "max_value": 0.05,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
             )
 
+    # GC
+    col = 'Median GC'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#63BE7B",
+                "min_value": 0.0,
+                "max_value": 1.0,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+            
+    # Median GC Skew
+    col = 'Median GC Skew'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "3_color_scale",
+                "min_color": "#E8D5D5",
+                "mid_color": "#FFFFFF",
+                "max_color": "#D5E8F5",
+                "min_value": -0.2,
+                "mid_value": 0.0,
+                "max_value": 0.2,
+                "min_type": "num",
+                "mid_type": "num",
+                "max_type": "num",
+            },
+        )
+        
+    # BGC score (GECCO)
+    col = 'BGC score (GECCO weights)'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "cell",
+                "criteria": ">",
+                "value": 2,
+                "format": gecco_format,
+            },
+        )
+
     # viral score
-    zr_sheet.conditional_format(hfo[11] + "2:" + hfo[11] + str(num_rows),
-                {"type": "2_color_scale", "min_color": "#dfccff", "min_type": "num", "max_type": "num", "max_color": "#715a96", "min_value": 0.0, "max_value": 10.0},
+    col = 'Viral score (V-Score)'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#E6B0AA",
+                "min_value": 0,
+                "max_value": 4,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # Hydrophobicity Mean
+    col = 'Hydrophobicity Mean'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "3_color_scale",
+                "min_color": "#5A8AC6",
+                "mid_color": "#FFFFFF",
+                "max_color": "#F8696B",
+                "min_value": -2.5,
+                "mid_value": 0,
+                "max_value": 2.5,
+                "min_type": "num",
+                "mid_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # Hydrophobicity Std Dev
+    col = 'Hydrophobicity Std Dev'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#F8696B",
+                "min_value": 0,
+                "max_value": 2,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # Aliphatic Index Mean
+    col = 'Aliphatic Index Mean'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#63BE7B",
+                "min_value": 50,
+                "max_value": 150,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # Aliphatic Index Std Dev
+    col = 'Aliphatic Index Std Dev'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#F8696B",
+                "min_value": 0,
+                "max_value": 30,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # m/z Mean
+    col = 'm/z Mean'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#dcedde",
+                "max_color": "#87bba2",
+                "min_value": 5000,
+                "max_value": 75000,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # m/z Std Dev
+    col = 'm/z Std Dev'
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#dcedde",
+                "max_color": "#87bba2",
+                "min_value": 0,
+                "max_value": 5000,
+                "min_type": "num",
+                "max_type": "num",
+            },
             )
 
     # Freeze the first row of both sheets
@@ -484,5 +829,5 @@ def zolscape():
     util.close_logger_object(log_object)
     sys.exit(0)
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     zolscape()

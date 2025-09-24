@@ -1989,7 +1989,7 @@ def annotate_consensus_sequences(
             description="pyhmmer functional annotation"
         )
 
-        if len(result_summary['total_processed']) > 0:
+        if result_summary['total_processed'] > 0:
             success_prop = result_summary['success_count'] / result_summary['total_processed']            
             msg = f"{success_prop*100.0}% of pyhmmer-based database annotations were successful"
             if success_prop != 1.0:
@@ -2014,7 +2014,7 @@ def annotate_consensus_sequences(
             description="DIAMOND blastp functional annotation"
         )
 
-        if len(result_summary['total_processed']) > 0:
+        if result_summary['total_processed'] > 0:
             success_prop = result_summary['success_count'] / result_summary['total_processed']
             msg = f"{success_prop*100.0}% of DIAMOND blastp-based database annotations were successful"
             if success_prop != 1.0:

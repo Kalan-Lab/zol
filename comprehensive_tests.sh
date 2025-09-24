@@ -20,9 +20,9 @@ prepTG -i Aflavus_Genomes_GenBank/ -o prepTG_Aspergillus/
 
 prepTG -i Aflavus_Genomes_FASTA/ -o prepTG_Aspergillus_Miniprot/ -rp GCF_009017415.1_ASM901741v1_protein.faa
 
-############################################
-### Epa Enterococcus dataset based testing
-############################################
+##############################################
+### Epa Enterococcus dataset based testing ###
+##############################################
 
 # Step 1a: run prepTG on target genomes directory (FASTA) 
 prepTG -i Target_Genomes/ -o prepTG_Database/ -c 10 -cst -ma
@@ -50,8 +50,9 @@ zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_SFP_
 cgc -i zol_Comparative_Results/ -o cgc_Results/
 cgcg -i zol_Comparative_Results/ -o cgcg_Results/
 
-# Step 5: test out abon, atpoc, apos, and salt
+# Step 5: test out abon, atpoc, apos, salt, and zol-scape
 abon -tg prepTG_Database/ -a antiSMASH_Results/Efaecalis_V583/ -g GECCO_Results/Efaecalis_V583/ -o abon_Results/ -c 10
 atpoc -tg prepTG_Database/ -i Efaecalis_V583_Genome.fasta -ps PhiSpy_Results/Efaecalis_V583/ -vi VIBRANT_Results/Efaecalis_V583/ -gn geNomad_Results/Efaecalis_V583/ -o atpoc_Results/ -c 10
 apos -tg prepTG_Database/ -i Efaecalis_V583_Genome.fasta -ms MOB-suite_Results/Efaecalis_V583/ -gn geNomad_Results/Efaecalis_V583/ -o apos_Results/ -c 10
 salt -f fai_Results_1/ -tg prepTG_Database/ -o salt_Results/ -c 10
+zol-scape -i Efaecalis_antiSMASH_Results/ -r Efaecalis_BiG-SCAPE_Results/ -o zol-scape_Results/ -c 10

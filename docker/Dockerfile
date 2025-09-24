@@ -23,10 +23,10 @@ RUN conda install -n base conda-libmamba-solver && conda config --set solver lib
 
 # Install zol
 WORKDIR /usr/src/zol/ 
-ENV PATH /usr/src/zol_conda_env/bin:$PATH
-ENV CONDA_PREFIX /usr/src/zol_conda_env
-ENV ZOL_EXEC_PATH /usr/src/zol_conda_env/bin/
-ENV ZOL_DATA_PATH /usr/src/zol_conda_env/share/zol/db/
+ENV PATH=/usr/src/zol_conda_env/bin:$PATH
+ENV CONDA_PREFIX=/usr/src/zol_conda_env
+ENV ZOL_EXEC_PATH=/usr/src/zol_conda_env/bin/
+ENV ZOL_DATA_PATH=/usr/src/zol_conda_env/share/zol/db/
 RUN pip install . && setup_annotation_dbs.py -m && chmod -R 555 /usr/src/zol/ && chmod 777 /home
 
 USER 1000:1000
@@ -36,8 +36,8 @@ RUN mkdir /home/prepTG_input /home/prepTG_refproteome /home/prepTG_output && \
     mkdir /home/cgc_output /home/cgcg_input /home/cgcg_output
 
 WORKDIR /home
-ENV LANG C.UTF-8
-ENV LC_ALL C.UTF-8
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 ENTRYPOINT ["ZOL"]
 CMD ["--help"]

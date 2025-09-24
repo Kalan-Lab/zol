@@ -139,7 +139,7 @@ zol-suite [-h]
 
 ___Requires docker to be installed on your system!___
 
-To keep the Docker image size relatively low (currently ~13 GB), only the Pfam and PGAP HMMs/databases are included.
+To keep the Docker image size relatively low (currently ~18 GB), only the Pfam and PGAP HMMs/databases are included.
 
 ```bash
 # get wrapper script from GitHub

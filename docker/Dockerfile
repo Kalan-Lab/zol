@@ -9,17 +9,11 @@ LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
 WORKDIR /usr/src
 SHELL ["/bin/bash", "-c"]
 
-RUN apt-get update && apt-get install -y git wget
-
-# Clone zol github repo and create conda environment
-RUN git clone https://github.com/Kalan-Lab/zol && rm -rf zol/test_case.tar.gz
-
-# Create and activate conda environment
-RUN conda install -n base conda-libmamba-solver && conda config --set solver libmamba && \
-    conda env create -f /usr/src/zol/zol_env.yml -p /usr/src/zol_conda_env/ && conda clean --all -y && \
-    echo "source activate /usr/src/zol_conda_env/" > ~/.bashrc && source ~/.bashrc && \
-    apt-get clean -y && apt-get autoclean -y && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+# create and activate conda environment
+RUN apt-get update && apt-get install -y git wget curl gcc
+RUN conda install -n base conda-libmamba-solver
+RUN conda config --set solver libmamba
+RUN conda create -p /usr/src/zol_conda_env/ -c conda-forge -c bioconda zol
 
 # Install zol
 WORKDIR /usr/src/zol/ 
@@ -27,7 +21,11 @@ ENV PATH=/usr/src/zol_conda_env/bin:$PATH
 ENV CONDA_PREFIX=/usr/src/zol_conda_env
 ENV ZOL_EXEC_PATH=/usr/src/zol_conda_env/bin/
 ENV ZOL_DATA_PATH=/usr/src/zol_conda_env/share/zol/db/
-RUN pip install . && setup_annotation_dbs.py -m && chmod -R 555 /usr/src/zol/ && chmod 777 /home
+RUN mkdir -p "$ZOL_DATA_PATH" \
+    # update to in v1.6.10 && setup_annotation_dbs.py -ld -y \
+    && printf "yes\n" | setup_annotation_dbs.py -ld \
+    && chmod -R 555 /usr/src/zol/ \
+    && chmod 777 /home
 
 USER 1000:1000
 RUN mkdir /home/prepTG_input /home/prepTG_refproteome /home/prepTG_output && \

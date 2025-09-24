@@ -265,7 +265,7 @@ def cgc():
     myargs = create_parser()
 
     zol_results_dir = os.path.abspath(myargs.zol_results_dir) + '/'
-    outdir = myargs.outdir
+    outdir = os.path.abspath(myargs.outdir) + '/'
     tracks = myargs.tracks
     color_schemes = myargs.color_schemes
     custom_color_scheme_file = myargs.custom_color_scheme_file

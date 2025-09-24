@@ -599,7 +599,11 @@ def batch_create_chopped_genbanks(
             description="domain-chopped GenBank file creation"
         )
 
-        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        total_processed = result_summary.get('total_processed', 0) or 0
+        if total_processed == 0:
+            success_prop = 0.0
+        else:
+            success_prop = result_summary['success_count'] / total_processed
         if success_prop != 1.0:
             msg = f"Issues with domain-chopped GenBank file creation for at least one GenBank file. Exiting now ..."
             sys.stderr.write(msg + '\n')
@@ -1985,14 +1989,13 @@ def annotate_consensus_sequences(
             description="pyhmmer functional annotation"
         )
 
-        success_prop = result_summary['success_count'] / result_summary['total_processed']
-        
-        msg = f"{success_prop*100.0}% of pyhmmer-based database annotations were successful"
-        if success_prop != 1.0:
-            msg += f" - this is not critical but unexpected - please report on GitHub issues."
-
-        sys.stdout.write(msg + '\n')
-        log_object.info(msg)
+        if len(result_summary['total_processed']) > 0:
+            success_prop = result_summary['success_count'] / result_summary['total_processed']            
+            msg = f"{success_prop*100.0}% of pyhmmer-based database annotations were successful"
+            if success_prop != 1.0:
+                msg += f" - this is not critical but unexpected - please report on GitHub issues."
+            sys.stdout.write(msg + '\n')
+            log_object.info(msg)
 
         msg = (
             "Running DIAMOND blastp for functional annotation for %d databases"
@@ -2011,12 +2014,13 @@ def annotate_consensus_sequences(
             description="DIAMOND blastp functional annotation"
         )
 
-        success_prop = result_summary['success_count'] / result_summary['total_processed']
-        msg = f"{success_prop*100.0}% of DIAMOND blastp-based database annotations were successful"
-        if success_prop != 1.0:
-            msg += f" - this is not critical but unexpected - please report on GitHub issues."
-        sys.stdout.write(msg + '\n')
-        log_object.info(msg)
+        if len(result_summary['total_processed']) > 0:
+            success_prop = result_summary['success_count'] / result_summary['total_processed']
+            msg = f"{success_prop*100.0}% of DIAMOND blastp-based database annotations were successful"
+            if success_prop != 1.0:
+                msg += f" - this is not critical but unexpected - please report on GitHub issues."
+            sys.stdout.write(msg + '\n')
+            log_object.info(msg)
 
         annotations: Dict[str, Dict[str, ConsensusAnnotationResult]] = {}
         for rf in os.listdir(annotation_dir):

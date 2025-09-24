@@ -67,6 +67,7 @@ def create_parser():
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download Pfam and PGAP HMMs.", required=False, default=False)
 	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, CARD proteins, & MIBiG proteins.", required=False, default=False)	
+	parser.add_argument('-y', '--yes', action='store_true', help="Assume 'yes' for prompts (non-interactive).", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
@@ -86,13 +87,15 @@ def setup_annot_dbs():
 	threads = myargs.threads
 	minimal_mode = myargs.minimal
 	lsabgc_minimal_mode = myargs.lsabgc_minimal
+	non_interactive_yes = myargs.yes or str(os.getenv('ZOL_NONINTERACTIVE', '0')).strip() in ['1', 'true', 'True']
 
 	try:
 		assert(os.path.isdir(download_path))
-		response = input(f"The directory {download_path}\nalready exists, will delete it and recreate it. (This directory\nshould be specific to zol not a general directory for\ndatabases) Proceed with deleting? (yes/no): ")
-		if response.lower() != 'yes':
-			os.system('Deletion not requested! Exiting ...')
-			sys.exit(1)
+		if not non_interactive_yes:
+			response = input(f"The directory {download_path}\nalready exists, will delete it and recreate it. (This directory\nshould be specific to zol not a general directory for\ndatabases) Proceed with deleting? (yes/no): ")
+			if response.lower() != 'yes':
+				os.system('Deletion not requested! Exiting ...')
+				sys.exit(1)
 	except Exception as e:
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist or user did not accept deleting the directory and recreating it!\n')
 

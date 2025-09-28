@@ -1,6 +1,0 @@
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecalis_B594.fasta
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecalis_OG1RF.fasta
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecium_EnGen0003.fasta
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecium_EnGen0013.fasta
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecium_EnGen0018.fasta
-/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/prepTG_Database/Species_Tree_Workspace/Genome_FASTAs/Efaecalis_V583.fasta

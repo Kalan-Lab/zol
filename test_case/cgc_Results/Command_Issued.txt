@@ -1,1 +1,0 @@
-/Users/raufs/Coding/zol/develop_v1.6.10/conda_env/bin/cgc -i zol_Results/ -o cgc_Results/

@@ -1,6 +1,0 @@
-Efaecium_EnGen0013	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0013_fai-gene-cluster-1.gbk
-Efaecium_EnGen0018	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0018_fai-gene-cluster-1.gbk
-Efaecium_EnGen0003	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecium_EnGen0003_fai-gene-cluster-1.gbk
-Efaecalis_V583	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecalis_V583_fai-gene-cluster-1.gbk
-Efaecalis_B594	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecalis_B594_fai-gene-cluster-1.gbk
-Efaecalis_OG1RF	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_2/GC_Segment_Processing/GeneCluster_Genbanks/Efaecalis_OG1RF_fai-gene-cluster-1.gbk

@@ -1,0 +1,1 @@
+Efaecalis_V583	/Users/raufs/Coding/zol/develop_v1.6.10/zol/test_case/fai_Results_1/GC_Segment_Processing/GeneCluster_Genbanks/Efaecalis_V583_fai-gene-cluster-1.gbk

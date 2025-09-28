@@ -1502,7 +1502,7 @@ def create_gene_trees(
             if seqlen > 0:
                 fasttree_cmds.append(
                     [
-                        "fasttree",
+                        "FastTree",
                         "-nt",
                         codo_algn_trim_file,
                         ">",
@@ -1512,7 +1512,7 @@ def create_gene_trees(
             else:
                 fasttree_cmds.append(
                     [
-                        "fasttree",
+                        "FastTree",
                         "-nt",
                         codo_algn_file,
                         ">",
@@ -4032,7 +4032,7 @@ def consolidate_report(
             "OG Consensus Order",
             "OG Consensus Direction",
             "Custom Annotation (E-value)",
-            "KO Annotation (E-value)",
+            "PGAP Annotation (E-value)",
             "Pfam Domains",
         ]
         if domain_mode != False:
@@ -4045,7 +4045,7 @@ def consolidate_report(
                 "OG Consensus Order",
                 "OG Consensus Direction",
                 "Custom Annotation (E-value)",
-                "KO Annotation (E-value)",
+                "PGAP Annotation (E-value)",
                 "Pfam Domains",
             ]
         if comp_stats != None:
@@ -4084,7 +4084,7 @@ def consolidate_report(
                 "P-value for gene-wide episodic selection by BUSTED",
             ]
         header += [
-            "PGAP Annotation (E-value)",
+            "KO Annotation (E-value)",
             "PaperBLAST Annotation (E-value)",
             "CARD Annotation (E-value)",
             "IS Finder (E-value)",
@@ -4218,7 +4218,7 @@ def consolidate_report(
             if "pfam" in annotations and hg in annotations["pfam"]:
                 pfam_annots = "; ".join(annotations["pfam"][hg]["descriptions"])
             con_seq = seqs[hg]
-            row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire, cust_annot, ko_annot, pfam_annots]
+            row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire, cust_annot, pgap_annot, pfam_annots]
             if domain_mode:
                 fp_clusters = set([])
                 for dog in hg_stats["hg_locus_tags"][hg]:
@@ -4243,7 +4243,7 @@ def consolidate_report(
                     hg_ordr,
                     hg_dire,
                     cust_annot,
-                    ko_annot,
+                    pgap_annot,
                     pfam_annots,
                 ]
             if comp_stats != None:
@@ -4281,7 +4281,7 @@ def consolidate_report(
                 row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
 
             row += [
-                pgap_annot,
+                ko_annot,
                 pb_annot,
                 card_annot,
                 isf_annot,
@@ -4512,9 +4512,9 @@ def consolidate_report(
                     cell_range,
                     {
                         "type": "3_color_scale",
-                        "min_color": "#5A8AC6",
+                        "min_color": "#A9CCE3",
                         "mid_color": "#FFFFFF",
-                        "max_color": "#D98880",
+                        "max_color": "#E6B0AA",
                         "min_value": 0.0,
                         "mid_value": 0.5,
                         "max_value": 1.0,
@@ -4531,9 +4531,9 @@ def consolidate_report(
                     cell_range,
                     {
                         "type": "3_color_scale",
-                        "min_color": "#5A8AC6",
+                        "min_color": "#A9CCE3",
                         "mid_color": "#FFFFFF",
-                        "max_color": "#D98880",
+                        "max_color": "#E6B0AA",
                         "min_value": 0.0,
                         "mid_value": 0.5,
                         "max_value": 1.0,

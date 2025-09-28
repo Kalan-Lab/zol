@@ -1,0 +1,6 @@
+Efaecalis_V583	Genomic_Genbanks_Additional/Efaecalis_V583.gbk.gz
+Efaecalis_OG1RF	Genomic_Genbanks_Additional/Efaecalis_OG1RF.gbk.gz
+Efaecalis_B594	Genomic_Genbanks_Additional/Efaecalis_B594.gbk.gz
+Efaecium_EnGen0018	Genomic_Genbanks_Additional/Efaecium_EnGen0018.gbk.gz
+Efaecium_EnGen0003	Genomic_Genbanks_Additional/Efaecium_EnGen0003.gbk.gz
+Efaecium_EnGen0013	Genomic_Genbanks_Additional/Efaecium_EnGen0013.gbk.gz

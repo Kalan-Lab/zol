@@ -108,7 +108,7 @@ def expandOg():
 
 	phylogeny_tre = outdir + 'OrthoGroup.tre'
 	if run_fasttree:
-		fasttree_cmd = ['fasttree', orthogroup_seqs_msa, '>', phylogeny_tre]
+		fasttree_cmd = ['FastTree', orthogroup_seqs_msa, '>', phylogeny_tre]
 		util.run_cmd_via_subprocess(fasttree_cmd, check_files = [phylogeny_tre])
 
 	sys.exit(0)

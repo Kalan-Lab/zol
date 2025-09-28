@@ -283,7 +283,7 @@ def zolscape():
         'OG Median Length (bp)', 'OG Consensus Order',
         'OG Consensus Direction',
         'Custom Annotation (E-value)',
-        'KO Annotation (E-value)',
+        'PGAP Annotation (E-value)',
         'Pfam Domains'
     ]
     if domain_mode:
@@ -298,7 +298,7 @@ def zolscape():
             'OG Consensus Order',
             'OG Consensus Direction',
             'Custom Annotation (E-value)',
-            'KO Annotation (E-value)',
+            'PGAP Annotation (E-value)',
             'Pfam Domains'
         ]
  
@@ -319,7 +319,7 @@ def zolscape():
                              'Proportion of Sites Under Selection which are Positive',
                              'P-value for gene-wide episodic selection by BUSTED']
  
-    annotation_header = ['PGAP Annotation (E-value)', 'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)',
+    annotation_header = ['KO Annotation (E-value)', 'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)',
                          'IS Finder (E-value)', 'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',
                          'VFDB Annotation (E-value)']
  

@@ -603,9 +603,9 @@ def run_cmd_via_subprocess(
 
     try:
         if stdout != subprocess.DEVNULL:
-            assert os.path.isfile(stdout)
+            assert os.path.isdir(os.path.dirname(stdout))
         if stderr != subprocess.DEVNULL:
-            assert os.path.isfile(stderr)
+            assert os.path.isdir(os.path.dirname(stderr))
     except AssertionError as e:
         sys.stderr.write(f"If stdout/stderr are not DEVNULL, then it must be a file for function run_cmd_via_subprocess!\n")
         if exit_on_error:

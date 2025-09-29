@@ -22,8 +22,7 @@ ENV CONDA_PREFIX=/usr/src/zol_conda_env
 ENV ZOL_EXEC_PATH=/usr/src/zol_conda_env/bin/
 ENV ZOL_DATA_PATH=/usr/src/zol_conda_env/share/zol/db/
 RUN mkdir -p "$ZOL_DATA_PATH" \
-    # update to in v1.6.10 && setup_annotation_dbs.py -ld -y \
-    && printf "yes\n" | setup_annotation_dbs.py -ld \
+    && setup_annotation_dbs.py -m -y \
     && chmod -R 555 /usr/src/zol/ \
     && chmod 777 /home
 

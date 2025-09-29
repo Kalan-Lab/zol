@@ -1,7 +1,7 @@
 [project]
 name = "zol"
 authors = [{name="Rauf Salamzade", email="salamzader@gmail.com"}]
-version = "1.6.10"
+version = "1.6.11"
 description = "zol suite for detection and evolutionary analysis of gene clusters"
 readme = "README.md"
 

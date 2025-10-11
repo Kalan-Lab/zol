@@ -721,7 +721,7 @@ def reinflate_orthogroups(
             log_object,
             diamond_sensitivity=diamond_mode,
             threads=threads,
-            k_hits=10,
+            k_hits=" 10",
             compute_query_coverage=True
         )
         

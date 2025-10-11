@@ -486,7 +486,7 @@ def run_diamond_blastp(
     diamond_block_size=None,
     evalue_cutoff=1e-3,
     threads=1,
-    k_hits=0,
+    k_hits="0",
     compute_query_coverage=False,
 ) -> None:
     """
@@ -539,8 +539,8 @@ def run_diamond_blastp(
             "evalue",
             "bitscore",
             "qlen",
-            "slen",
-            "-k" + str(k_hits),
+            "slen", 
+            "-k" + k_hits,
             "--out",
             diamond_results_file,
             "--evalue",
@@ -550,7 +550,7 @@ def run_diamond_blastp(
             diamond_blastp_cmd = ["diamond", "blastp", "--ignore-warnings", "--threads",
                                   str(threads), "--query", query_fasta, "--db", target_concat_genome_db,
                                   "--outfmt", "6", "qseqid", "sseqid", "pident", "evalue", "bitscore",
-                                  "qlen", "slen", "qcovhsp", "-k0", "--out", diamond_results_file,
+                                  "qlen", "slen", "qcovhsp", "-k" + k_hits, "--out", diamond_results_file,
                                   "--evalue", str(evalue_cutoff)]
 
         if diamond_sensitivity != "default":

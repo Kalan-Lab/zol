@@ -774,13 +774,13 @@ def reinflate_orthogroups(
             os.remove(rep_prot_dmnd_db)
             os.remove(nonrep_prot_file)
             os.remove(rep_prot_file)
+            os.remove(diamond_results_file)
         except Exception as e:
             msg = f"Issues with removing temporary files during reinflation of orthogroups."
             log_object.error(msg)
             sys.stderr.write(msg + "\n")
             sys.exit(1)
 
-        
         msg = f"{len(proteins_with_possible_issues_during_reinflation)} proteins that did not match any ortholog group or matched multiple ortholog groups equally well. You can get details at:\n{protein_issues_file}"
         log_object.warning(msg)
         sys.stderr.write(msg + "\n")

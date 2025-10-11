@@ -486,6 +486,7 @@ def run_diamond_blastp(
     diamond_block_size=None,
     evalue_cutoff=1e-3,
     threads=1,
+    k_hits=0,
     compute_query_coverage=False,
 ) -> None:
     """
@@ -502,6 +503,7 @@ def run_diamond_blastp(
     - evalue_cutoff: The maximum E - value cutoff to regard an alignment to a target genome protein as homologous to a
                      query protein.
     - threads: The number of threads to use.
+    - k_hits: The number of hits to return.
     - compute_query_coverage: Whether to compute the query coverage - used for the simple BLASTp approach of abon,
                               atpoc, and apos.
     ********************************************************************************************************************
@@ -538,7 +540,7 @@ def run_diamond_blastp(
             "bitscore",
             "qlen",
             "slen",
-            "-k0",
+            "-k" + str(k_hits),
             "--out",
             diamond_results_file,
             "--evalue",

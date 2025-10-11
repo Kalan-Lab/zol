@@ -22,7 +22,7 @@ import pandas as pd
 import pyhmmer
 import tqdm
 import xlsxwriter
-from zol import data_dictionary, util
+from zol import data_dictionary, util, fai
 import peptides
 
 
@@ -639,31 +639,33 @@ def reinflate_orthogroups(
     ortho_matrix_file,
     prot_dir,
     rog_dir,
+    protein_issues_file,
     log_object,
-    diamond_params="--approx-id 98 --mutual-cover 95 -M 4G",
+    diamond_params="fast 98.0 95.0",
     threads=1,
 ) -> None:
     """
     Description:
     This function reinflates a matrix of ortholog groups to include all proteins in a given directory.
     The function first reads the ortholog group matrix and creates a set of protein IDs that are representatives of
-    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses diamond linclust
-    to cluster all proteins in the prot_dir directory and reads the diamond linclust clustering output to create a
-    dictionary that maps non - representative protein IDs to ortholog groups.
-
+    ortholog groups from the representative (dereplicated) set of gene clusters. The function then uses diamond blastp
+    to cluster all non-representative proteins to the representative proteins.
     *******************************************************************************************************************
     Parameters:
     - orthogroup_matrix_file: The ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
     - prot_dir: A directory containing protein FASTA files.
     - rog_dir: A directory to write temporary + result files pertaining to reinflation to.
+    - protein_issues_file: A file to write the proteins that were not mapped to any representative protein to or that 
+                           matched two different representative proteins equally well.
     - log_object: An object for logging messages.
-    - diamond_params: Diamond linclust parameters. Default is: "--approx-id 98 --mutual-cover 95 -M 4G"
-    - threads: The number of threads to use for the diamond linclust clustering step.
+    - diamond_params: Diamond linclust parameters. Default is: "fast 98.0 95.0"
+    - threads: The number of threads to use for the diamond blastp clustering step.
     *******************************************************************************************************************
     """
     try:
         reps = set([])
         rep_to_hg: Dict[str, Any] = {}
+        sample_hg_proteins = defaultdict(lambda: defaultdict(set))
         with open(ortho_matrix_file) as oomf:
             for i, line in enumerate(oomf):
                 if i == 0:
@@ -674,103 +676,131 @@ def reinflate_orthogroups(
                 for pids in ls[1:]:
                     for pid in pids.split(","):
                         pid = pid.strip()
+                        if pid == "": continue
                         reps.add(pid)
                         rep_to_hg[pid] = hg
+                        sample = pid.split("|")[0]
+                        sample_hg_proteins[sample][hg].add(pid)
 
-        comp_prot_file = rog_dir + "All_Proteins.faa"
-        with open(comp_prot_file, "w") as cf_handle:
-            for f in os.listdir(prot_dir):
-                with open(prot_dir + f) as olf:
-                    for rec in SeqIO.parse(olf, "fasta"):
-                        cf_handle.write(f">{rec.id}\n{rec.seq}\n")
+        nonrep_prot_file = rog_dir + "Non_Rep_Proteins.faa"
+        rep_prot_file = rog_dir + "Rep_Proteins.faa"
+        nrp_handle = open(nonrep_prot_file, "w")
+        rp_handle = open(rep_prot_file, "w")
+        for f in os.listdir(prot_dir):
+            with open(prot_dir + f) as olf:
+                for rec in SeqIO.parse(olf, "fasta"):
+                    if rec.id in rep_to_hg:
+                        rp_handle.write(f">{rec.id}\n{rec.seq}\n")
+                    else:
+                        nrp_handle.write(f">{rec.id}\n{rec.seq}\n")
+        nrp_handle.close()
+        rp_handle.close()
 
-        diamond_cluster_file = rog_dir + "diamond_linclust_clusters.tsv"
-        diamond_cmd = [
+        # create database of representative proteins 
+        rep_prot_dmnd_db = rep_prot_file + ".dmnd"
+        makedb_cmd = [
             "diamond",
-            "linclust",
-            "-d",
-            comp_prot_file,
-            "-o",
-            diamond_cluster_file,
-            diamond_params,
+            "makedb",
+            "--in",
+            rep_prot_file,
+            "--db",
+            rep_prot_dmnd_db,
             "--threads",
             str(threads),
-        ] + diamond_params.split()
+        ]
+        util.run_cmd_via_subprocess(makedb_cmd, log_object=log_object, check_files=[rep_prot_dmnd_db])
 
-        util.run_cmd_via_subprocess(diamond_cmd, log_object=log_object, check_files=[diamond_cluster_file])
+        diamond_mode, identity_threshold, coverage_threshold = diamond_params.split()
+        identity_threshold = float(identity_threshold)
+        coverage_threshold = float(coverage_threshold)
 
-        clust_proteins = defaultdict(set)
-        protein_to_clust: Dict[str, str] = {}
-        with open(diamond_cluster_file) as occf:
-            for line in occf:
+        fai.run_diamond_blastp(
+            rep_prot_dmnd_db,
+            nonrep_prot_file,
+            rog_dir,
+            log_object,
+            diamond_sensitivity=diamond_mode,
+            threads=threads,
+            k_hits=10,
+            compute_query_coverage=True
+        )
+        
+        diamond_results_file = rog_dir + "DIAMOND_Results.txt"
+        try:
+            assert os.path.isfile(diamond_results_file)
+        except AssertionError as e:
+            msg = f"Issues with running diamond blastp during reinflation of orthogroups."
+            log_object.error(msg)
+            sys.stderr.write(msg + "\n")
+            sys.exit(1)
+        
+        pif_handle = open(protein_issues_file, "w")
+
+        best_hits = defaultdict(lambda: [None, 0.0])
+        proteins_with_possible_issues_during_reinflation = set([])
+        with open(diamond_results_file) as odf:
+            for line in odf:
                 line = line.strip()
-                if not line:
-                    continue
-                parts = line.split('\t')
-                if len(parts) < 2:
-                    continue
-                rep_id = parts[0]
-                member_id = parts[1]
-                protein_to_clust[member_id] = rep_id
-                clust_proteins[rep_id].add(member_id)
+                qseqid, sseqid, pident, evalue, bitscore, qlen, slen, qcovhsp = line.split("\t")
+                pident = float(pident)
+                bitscore = float(bitscore)
+                qcovhsp = float(qcovhsp)
+                if pident >= identity_threshold and qcovhsp >= coverage_threshold:
+                    if best_hits[qseqid][1] < bitscore:
+                        best_hits[qseqid] = [sseqid, bitscore]
+                    elif best_hits[qseqid][1] == bitscore:
+                        if rep_to_hg[sseqid] != rep_to_hg[best_hits[qseqid][0]]:
+                            proteins_with_possible_issues_during_reinflation.add(qseqid)
+                            msg = f"{qseqid}\tprotein matches multiple different representative proteins equally well - using the first match {best_hits[qseqid][0]} which corresponds to ortholog group {rep_to_hg[best_hits[qseqid][0]]} instead of {sseqid} which corresponds to ortholog group {rep_to_hg[sseqid]}.\n" 
+                            pif_handle.write(msg)
+
+        for qseqid, sseqid in best_hits.items():
+            sample = qseqid.split("|")[0]
+            sample_hg_proteins[sample][rep_to_hg[sseqid[0]]].add(qseqid)
 
         all_samples = set([])
         for f in os.listdir(prot_dir):
-            all_samples.add(".faa".join(f.split(".faa")[:-1]))
+            sample = ".faa".join(f.split(".faa")[:-1])
+            all_samples.add(sample)
+            with open(prot_dir + f) as olf:
+                for rec in SeqIO.parse(olf, "fasta"):
+                    if rec.id not in best_hits and not rec.id in rep_to_hg:
+                        proteins_with_possible_issues_during_reinflation.add(rec.id)
+                        msg = f"{rec.id}\tprotein does not match any ortholog group.\n"
+                        pif_handle.write(msg)
+        pif_handle.close()
+
+        try:
+            os.remove(rep_prot_dmnd_db)
+            os.remove(nonrep_prot_file)
+            os.remove(rep_prot_file)
+        except Exception as e:
+            msg = f"Issues with removing temporary files during reinflation of orthogroups."
+            log_object.error(msg)
+            sys.stderr.write(msg + "\n")
+            sys.exit(1)
+
+        
+        msg = f"{len(proteins_with_possible_issues_during_reinflation)} proteins that did not match any ortholog group or matched multiple ortholog groups equally well. You can get details at:\n{protein_issues_file}"
+        log_object.warning(msg)
+        sys.stderr.write(msg + "\n")
 
         inflated_og_matrix_file = rog_dir + "Orthogroups.tsv"
         with open(inflated_og_matrix_file, "w") as iomf_handle:
-            accounted = set([])
             with open(ortho_matrix_file) as oomf:
                 for i, line in enumerate(oomf):
                     line = line.strip("\n")
                     ls = line.split("\t")
                     if i == 0:
-                        iomf_handle.write(
-                            "Sample\t"
-                            + "\t".join(sorted(list(all_samples)))
-                            + "\n"
-                        )
+                        iomf_handle.write("Sample\t" + "\t".join(sorted(list(all_samples))) + "\n")
                         continue
                     hg = ls[0]
-                    cluster_obs = set([])
-                    all_pids_by_sample = defaultdict(set)
-                    for pids in ls[1:]:
-                        for pid in pids.split(","):
-                            pid = pid.strip()
-                            if pid == "":
-                                continue
-                            cluster_obs.add(protein_to_clust[pid])
-                            all_pids_by_sample[pid.split("|")[0]].add(pid)
-                    for clust in cluster_obs:
-                        for pid in clust_proteins[clust]:
-                            if pid in reps and rep_to_hg[pid] != hg:
-                                sys.stderr.write(
-                                    f"Warning: The protein {pid} is a representative of ortholog group {rep_to_hg[pid]}, but can potentially belong to multiple. Skipping its incorporation for ortholog group {hg}.\n"
-                                )
-                                log_object.warning(
-                                    f"The protein {pid} is a representative of a ortholog group {rep_to_hg[pid]}, but can potentially belong to multiple. Skipping its incorporation for ortholog group {hg}."
-                                )
-                            elif pid in accounted:
-                                sys.stderr.write(
-                                    f"Warning: The protein {pid} has already been clustered into a ortholog group, but can potentially belong to multiple. Skipping its incorporation for ortholog group {hg}.\n"
-                                )
-                                log_object.warning(
-                                    f"The protein {pid} has already been clustered into a ortholog group, but can potentially belong to multiple. Skipping its incorporation for ortholog group {hg}."
-                                )
-                            else:
-                                all_pids_by_sample[pid.split("|")[0]].add(pid)
-                            accounted.add(pid)
                     row = [hg]
                     for sample in sorted(list(all_samples)):
-                        samp_pids_for_hg = ""
-                        if sample in all_pids_by_sample:
-                            samp_pids_for_hg = ", ".join(
-                                sorted(all_pids_by_sample[sample])
-                            )
+                        samp_pids_for_hg = ", ".join(sorted(sample_hg_proteins[sample][hg]))
                         row.append(samp_pids_for_hg)
-                    iomf_handle.write("\t".join(row) + "\n")
-        
+                    iomf_handle.write("\t".join(row) + "\n")                    
+
 
     except Exception as e:
         sys.stderr.write(

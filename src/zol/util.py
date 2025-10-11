@@ -1203,7 +1203,7 @@ def check_valid_genbank(
     """
     try:
         number_of_cds = 0
-        lt_has_comma = False
+        lt_has_comma_or_pipe = False
         lt_is_none = False
         seqs = ""
         recs = 0
@@ -1228,8 +1228,8 @@ def check_valid_genbank(
                                 lt = pi
                         if lt == None:
                             lt_is_none = True
-                        if lt and "," in lt:
-                            lt_has_comma = True
+                        if lt and ("," in lt or "|" in lt):
+                            lt_has_comma_or_pipe = True
 
                         if require_translation:
                             try:
@@ -1251,7 +1251,7 @@ def check_valid_genbank(
         prop_missing = sum(
             [1 for bp in seqs if not bp in set(["A", "C", "G", "T"])]
         ) / len(seqs)
-        if number_of_cds > 0 and not lt_is_none and not lt_has_comma:
+        if number_of_cds > 0 and not lt_is_none and not lt_has_comma_or_pipe:
             if (quality_assessment and prop_missing >= 0.1) or (
                 draft_assessment and (recs > 1 or edgy_cds)
             ):

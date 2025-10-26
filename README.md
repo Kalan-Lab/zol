@@ -211,14 +211,14 @@ You can now make changes, test them, commit, and finally make a pull request.
 Please also consider downloading the full testing dataset and running more comprehensive testing:
 
 ```bash
-wget https://zenodo.org/records/17220853/files/testing_cases.tar.gz?download=1
+wget https://zenodo.org/records/17449428/files/testing_cases.tar.gz?download=1
 mv testing_cases* testing_cases.tar.gz 
 
 # run comprehensive_tests.sh shell script found in zol's git repo:
 bash comprehensive_tests.sh
 ```
 
-Expected results using the version v1.6.11 can be found at: https://zenodo.org/records/17329294.
+Expected results using the version v1.6.12 can be found at: https://zenodo.org/records/17449428.
 
 ## License:
 

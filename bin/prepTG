@@ -252,7 +252,7 @@ will be skipped.
         required = False, default = False
     )  
     parser.add_argument(
-        '-sr', '--recluster',
+        '-rc', '--recluster',
         action = 'store_true',
         help = "Perform DIAMOND recluster to improve protein clustering.",
         required = False, default = False

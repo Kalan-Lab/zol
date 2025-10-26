@@ -623,7 +623,7 @@ def prep_tg():
                 # Use the clustered FASTA file for DIAMOND database creation
                 target_genomes_concat_db_faa = diamond_linclust_output_faa
             except Exception as e:
-                msg = f'Had an issue processing DIAMOND linclust + recluster results.'
+                msg = f'Had an issue processing DIAMOND linclust (+ recluster) results.'
                 sys.stderr.write(msg + '\n')
                 log_object.error(msg)
                 log_object.error(e)

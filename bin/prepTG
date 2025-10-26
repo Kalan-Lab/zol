@@ -252,9 +252,9 @@ will be skipped.
         required = False, default = False
     )  
     parser.add_argument(
-        '-sr', '--skip-recluster',
+        '-sr', '--recluster',
         action = 'store_true',
-        help = "Skip DIAMOND recluster to improve clustering.",
+        help = "Perform DIAMOND recluster to improve protein clustering.",
         required = False, default = False
     )
     parser.add_argument(
@@ -312,7 +312,7 @@ def prep_tg():
     reference_proteome = args.reference_proteome
     collapsing_params = args.collapsing_params
     skip_diamond_linclust = args.skip_diamond_linclust
-    skip_recluster = args.skip_recluster
+    recluster = args.recluster
     
     if reference_proteome is not None: 
         gene_calling_method = 'miniprot reference proteome mapping'
@@ -374,7 +374,7 @@ def prep_tg():
         download_premade, target_genomes_dir, gtdb_taxon, gtdb_release, outdir, 
         reference_proteome, gene_calling_method, meta_mode, create_species_tree, 
         threads, max_memory, mge_annotation_flag, rename_locus_tags, error_no_lt, 
-        error_no_translation, collapsing_params, skip_diamond_linclust
+        error_no_translation, collapsing_params, skip_diamond_linclust, recluster
     ]
     parameter_names = [
         "Download Premade Database", "Target Genomes Directory", "GTDB species/genus", 
@@ -383,7 +383,8 @@ def prep_tg():
         "Number of threads", "Maximum Memory in GB", "MGE Annotation Requested?", 
         "Rename Locus Tags in GenBank files?", "Error if no Locus Tags in GenBank files?", 
         "Error if no Translation in GenBank files?", 
-        "DIAMOND linclust Collapsing Parameters", "Skip DIAMOND linclust Clustering?"
+        "DIAMOND linclust Collapsing Parameters", "Skip DIAMOND linclust Clustering?", 
+        "Perform DIAMOND recluster to improve protein clustering?"
     ]
     util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)
     log_object.info("Done saving parameters!")
@@ -597,10 +598,10 @@ def prep_tg():
             util.diamond_cluster_and_recluster(target_genomes_concat_db_faa, diamond_cluster_file, 
                                                diamond_refined_cluster_file, log_object, threads=threads, 
                                                diamond_params=collapsing_params,  cluster_method="linclust",
-                                               skip_recluster=skip_recluster, mem=max_memory_for_diamond)
+                                               skip_recluster=(not recluster), mem=max_memory_for_diamond)
             try:
 
-                if not skip_recluster:
+                if recluster:
                     diamond_cluster_file = diamond_refined_cluster_file
 
                 # Recreate FASTA database for clustered proteins
@@ -630,7 +631,7 @@ def prep_tg():
         else:
             util.create_fake_diamond_linclust_file(target_genomes_concat_db_faa, diamond_cluster_file, log_object)
 
-        if not skip_diamond_linclust and not skip_recluster: 
+        if not skip_diamond_linclust and recluster: 
             diamond_cluster_file = diamond_refined_cluster_file
 
         try:

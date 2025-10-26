@@ -132,16 +132,20 @@ def parse_homolog_group_matrix(orthogroup_matrix_file, log_object) -> Dict[str, 
     return protein_to_hg
 
 
-def collapse_proteins_using_diamond_linclust(protein_fasta, nr_protein_fasta, log_object) -> Dict[str, Any]:
+def collapse_proteins_using_diamond_cluster(protein_fasta, nr_protein_fasta, log_object, diamond_params="--approx-id 95.0 --mutual-cover 90.0", threads=1, memory=4) -> Dict[str, Any]:
     """
     Description:
-    This function collapses query proteins using diamond linclust.
+    This function collapses query proteins using diamond cluster. To ensure that criteria are met 
+    diamond recluster is also applied. 
     ********************************************************************************************************************
     Parameters:
     - protein_fasta: A file with the original set of protein queries in FASTA form.
-    - nr_protein_fasta: The path to the non-redundant (nr) protein queries after diamond linclust representative selection 
+    - nr_protein_fasta: The path to the non-redundant (nr) protein queries after diamond cluster representative selection 
                         in FASTA format.
     - log_object: A logging object.
+    - diamond_params: The parameters to use for diamond cluster. Default is "--approx-id 95.0 --mutual-cover 90.0".
+    - threads: The number of threads to use for diamond cluster. Default is 1.
+    - memory: The maximum memory to use in GB.
     ********************************************************************************************************************
     Return:
     - protein_to_hg: A dictionary mapping proteins names / locus_tags to representative proteins.
@@ -150,26 +154,17 @@ def collapse_proteins_using_diamond_linclust(protein_fasta, nr_protein_fasta, lo
     protein_to_hg: Dict[str, Any] = {}
     try:
         diamond_cluster_file = nr_protein_fasta + "_clusters.tsv"
-        diamond_cmd = [
-            "diamond",
-            "linclust",
-            "-d",
-            protein_fasta,
-            "-o",
-            diamond_cluster_file,
-            "--approx-id",
-            "95",
-            "--mutual-cover", 
-            "90"
-        ]
+        diamond_refined_cluster_file = nr_protein_fasta + "_refined_clusters.tsv"
 
-        util.run_cmd_via_subprocess(diamond_cmd, log_object=log_object, check_files = [diamond_cluster_file])
+        util.diamond_cluster_and_recluster(protein_fasta, diamond_cluster_file, diamond_refined_cluster_file, 
+                                           log_object, threads=threads, diamond_params=diamond_params, 
+                                           cluster_method="cluster", skip_recluster=False, mem=memory)
 
         prefix = ".".join(protein_fasta.split("/")[-1].split(".")[:-1])
         
-        # Parse diamond linclust output
+        # Parse diamond clustering output
         reps = set([])
-        with open(diamond_cluster_file) as occf:
+        with open(diamond_refined_cluster_file) as occf:
             for line in occf:
                 line = line.strip()
                 if not line:
@@ -196,10 +191,11 @@ def collapse_proteins_using_diamond_linclust(protein_fasta, nr_protein_fasta, lo
                         outf_handle.write(f">{protein_id}\n{str(record.seq)}\n")
 
     except Exception as e:
-        sys.stderr.write("Issues running diamond linclust.\n")
-        log_object.error("Issues running diamond linclust.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        msg = f"Issues running diamond cluster or recluster."
+        log_object.error(msg)
+        log_object.error(traceback.format_exc())
+        sys.stderr.write(msg + "\n")
+        sys.stderr.write(traceback.format_exc() + "\n")
         sys.exit(1)
     return protein_to_hg
 
@@ -245,8 +241,7 @@ def parse_coords_from_genbank(genbanks, log_object) -> Dict[str, Dict[str, Any]]
 
 
 def gen_consensus_sequences(
-    genbanks, outdir, log_object, threads=1, use_super5=False
-) -> List[str]:
+    genbanks, outdir, log_object, threads=1, use_super5=True) -> List[str]:
     """
     Description:
     This function performs zol-based ortholog group determination across CDS protein sequences from query GenBank files
@@ -299,8 +294,7 @@ def gen_consensus_sequences(
             "-o",
             og_dir,
             "-c",
-            str(threads),
-        ]
+            str(threads)]
         util.run_cmd_via_subprocess(fo_cmd, log_object=log_object,
                                     check_files = [ortho_matrix_file])
 

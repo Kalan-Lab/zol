@@ -101,6 +101,71 @@ def is_skani_version_at_least_0_3_0() -> bool:
         return False
 
 
+def diamond_cluster_and_recluster(dimaond_database_file, diamond_cluster_file, 
+                                refined_cluster_file, log_object, threads=1,
+                                diamond_params="--approx-id 95.0 --mutual-cover 90.0",
+                                cluster_method="cluster", skip_recluster=False, mem=4) -> None:
+    """
+    Description:
+    This function runs diamond cluster and then refines the results using diamond realign.
+    ********************************************************************************************************************
+    Parameters:
+    - dimaond_database_file: The path to the diamond database file.
+    - diamond_cluster_file: The path to the diamond cluster file.
+    - refined_cluster_file: The path to the output refined cluster file.
+    - log_object: A logging object.
+    - threads: The number of threads to use for diamond linclust. Default is 1.
+    - diamond_params: The parameters to use for diamond linclust. Default is "--approx-id 95.0 --mutual-cover 90.0".
+    - cluster_method: The method to use for diamond cluster. Default is "cluster". Options are "cluster" and "linclust".
+    - skip_recluster: Whether to skip the recluster step. Default is False.
+    - mem: The memory to use for the diamond cluster in GB. Default is 4.
+    ********************************************************************************************************************
+    """
+    try:
+        if mem == None:
+            mem = 4
+
+        cluster_cmd = [
+            "diamond",
+            cluster_method,
+            "--db",
+            dimaond_database_file,
+            "--out",
+            diamond_cluster_file,
+            "--threads",
+            str(threads),
+            '-M',
+            str(mem) + 'G',
+        ] + diamond_params.split()
+
+        run_cmd_via_subprocess(cluster_cmd, log_object=log_object, check_files=[diamond_cluster_file])
+        
+        if not skip_recluster:
+            recluster_cmd = [
+                "diamond",
+                "recluster",
+                "--clusters",
+                diamond_cluster_file,
+                "--db",
+                dimaond_database_file,
+                "--out",
+                refined_cluster_file,
+                "--threads",
+                str(threads),
+                '-M',
+                str(mem) + "G",
+            ] + diamond_params.split()
+
+            run_cmd_via_subprocess(recluster_cmd, log_object=log_object, check_files=[refined_cluster_file])
+
+    except Exception as e:
+        msg = f"Issues running diamond linclust or recluster for the input file {dimaond_database_file}.\n"
+        log_object.info(msg)
+        log_object.error(traceback.format_exc())
+        sys.stderr.write(msg + "\n")
+        sys.stderr.write(traceback.format_exc() + "\n")
+        sys.exit(1)
+
 def process_location_string(location_string) -> None:
     """
     Description:

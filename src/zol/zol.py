@@ -1256,6 +1256,20 @@ def create_protein_alignments(
             prefix = ".faa".join(pf.split(".faa")[:-1])
             prot_file = prot_dir + pf
             prot_algn_file = prot_algn_dir + prefix + ".msa.faa"
+
+            prot_count = 0
+            with open(prot_file) as opf:
+                for line in opf:
+                    if line.startswith(">"):
+                        prot_count += 1
+                    if prot_count >= 2:
+                        break
+
+            # Avoid aligning ortholog groups with only one protein.
+            if prot_count == 1:
+                shutil.copy(prot_file, prot_algn_file)
+                continue
+
             align_cmd = [
                 "muscle",
                 "-align",

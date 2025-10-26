@@ -145,19 +145,19 @@ def create_parser():
              "[Default is 1.5].", 
         required = False, 
         default = 1.5)
-    parser.add_argument('-dlo', 
-        '--dl-orthogroup', 
+    parser.add_argument('-dco', 
+        '--dc-orthogroup', 
         action = 'store_true', 
-        help = "Cluster proteins using diamond linclust instead of using the\n"
+        help = "Cluster proteins using diamond cluster instead of using the\n"
                "standard InParanoid-like ortholog group prediction approach.\n"
                "This approach is faster and can use less memory, but is less\n"
                "accurate. Memory can be controlled via the --max-memory option.", 
         required = False, 
         default = False)
-    parser.add_argument('-dlp', 
-        '--dl-params', 
-        help = "Parameters for performing diamond linclust based ortholog group\n"
-               "clustering if requested via --dl-orthogroup.\n"
+    parser.add_argument('-dcp', 
+        '--dc-params', 
+        help = "Parameters for performing diamond cluster based ortholog group\n"
+               "clustering if requested via --dco-orthogroup.\n"
                "[Default is \"--approx-id 50 --mutual-cover 25\"].", 
         required = False, 
         default = "--approx-id 50 --mutual-cover 25")
@@ -475,8 +475,8 @@ def zol_main():
     allow_edge_cds_flag = myargs.allow_edge_cds
     only_orthogroups_flag = myargs.only_orthogroups
     precomputed_orthogroups_file = myargs.precomputed_orthogroups
-    dl_orthogroup_flag = myargs.dl_orthogroup
-    dl_orthogroup_params = myargs.dl_params
+    dc_orthogroup_flag = myargs.dc_orthogroup
+    dc_orthogroup_params = myargs.dc_params
     max_memory = myargs.max_memory
     skip_cleanup_flag = myargs.skip_cleanup
     skip_annotations_flag = myargs.skip_annotations
@@ -519,9 +519,6 @@ def zol_main():
     if select_fai_params_mode: 
         allow_edge_cds_flag = True
 
-    if max_memory != None:
-        dl_orthogroup_params = dl_orthogroup_params + f" -M {max_memory}G"
-
     """
     START WORKFLOW
     """
@@ -546,7 +543,7 @@ def zol_main():
     log_object.info("Saving parameters for future records.")
     parameters_file = outdir + 'Parameter_Inputs.txt'
     parameter_values = [input_arg, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
-                        select_fai_params_mode, dl_orthogroup_flag, dl_orthogroup_params, 
+                        select_fai_params_mode, dc_orthogroup_flag, dc_orthogroup_params, 
                         identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
                         (not use_super5), fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
                         focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
@@ -557,8 +554,8 @@ def zol_main():
     parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
                        "Minimum length of chopped CDS features for inclusion", "Eukaryotic Gene Cluster?", 
                        "Select fai parameters mode?", 
-                       "Perform iterative DIAMOND linclust based orthogrouping instead of default InParanoid-based approach?", 
-                       "DIAMOND linclust parameters for orthogrouping (assuming approach requested)", 
+                       "Perform iterative DIAMOND cluster based orthogrouping instead of default InParanoid-based approach?", 
+                       "DIAMOND cluster parameters for orthogrouping (assuming approach requested)", 
                        "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
                        "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter", 
                        "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
@@ -570,9 +567,9 @@ def zol_main():
                        "Perform broad level estimation of ortholog group conservation if dereplication requested?", 
                        "Comprehensive reporting of evolutionary statistics, including for non-single copy ortholog groups", 
                        "Rename locus tags?", "Use CDS features with attribute near_scaffold_edge = True.", 
-                       "Perform Dereplication?", "Perform reinflation?", "Reinflation DIAMOND linclust parameters", 
+                       "Perform Dereplication?", "Perform reinflation?", "Reinflation DIAMOND BLASTp parameters", 
                        "Dereplication identity threshold", "Dereplication coverage threshold", 
-                       "Dereplication clustering method / MCL inflation", 
+                       "Dereplication clustering method / MCL inflation parameter", 
                        "Dereplication using skani with --small-genomes preset", 
                        "Custom annotation database", "Plot height", "Plot width", 
                        "Use full GenBank labels?", "Number of threads requested", 
@@ -825,9 +822,13 @@ def zol_main():
                           '-q', str(coverage_threshold), 
                           '-mi', str(clustering_inflation), 
                           '-c', str(threads)]
-                if dl_orthogroup_flag: 
-                    fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-dlo', 
-                              '-dlp', '"' + dl_orthogroup_params + '"', '-c', str(threads)]
+                if dc_orthogroup_flag: 
+                    max_memory_for_diamond = max_memory
+                    if  max_memory == None:
+                        max_memory_for_diamond = 4
+                    fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-dco', 
+                              '-dcp', '"' + dc_orthogroup_params + '"', '-c', str(threads), 
+                              '-m', str(max_memory_for_diamond)]
 
                 util.run_cmd_via_subprocess(fo_cmd, log_object=log_object, 
                                             check_files = [ortho_matrix_file])

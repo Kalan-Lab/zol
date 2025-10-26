@@ -624,7 +624,7 @@ def fai_main():
                 query_fasta = work_dir + 'NR_Reference_Query.faa'
                 protein_queries_fasta = work_dir + '.'.join(list(genbanks)[0].split('/')[-1].split('.')[: -1]) + '.faa'
                 util.convert_genbank_to_cds_prots_fasta(list(genbanks)[0], protein_queries_fasta, log_object, use_either_lt_or_pi = True)
-                protein_to_hg = fai.collapse_proteins_using_diamond_linclust(protein_queries_fasta, query_fasta, log_object)
+                protein_to_hg = fai.collapse_proteins_using_diamond_cluster(protein_queries_fasta, query_fasta, log_object, threads=threads, memory=max_memory)
             else: 
                 ortho_matrix_file, query_fasta = fai.gen_consensus_sequences(genbanks, work_dir, log_object, threads = threads)
                 protein_to_hg = fai.parse_homolog_group_matrix(ortho_matrix_file, log_object)
@@ -649,13 +649,13 @@ def fai_main():
                                            reference_start, reference_end, log_object)
             comp_gene_info = fai.parse_coords_from_genbank([locus_genbank], log_object)
             query_fasta = work_dir + 'NR_Reference_Query.faa'
-            protein_to_hg = fai.collapse_proteins_using_diamond_linclust(locus_proteome, query_fasta, log_object)
+            protein_to_hg = fai.collapse_proteins_using_diamond_cluster(locus_proteome, query_fasta, log_object, threads=threads, memory=max_memory)
         elif input_type_3_observed: 
             # simple case - just take the protein queries provided by the user. Unfortunately, syntenic information is
             # not present for such inputs.
             protein_queries_fasta = os.path.abspath(protein_queries_fasta)
             query_fasta = work_dir + 'NR_Reference_Query.faa'
-            protein_to_hg = fai.collapse_proteins_using_diamond_linclust(protein_queries_fasta, query_fasta, log_object)
+            protein_to_hg = fai.collapse_proteins_using_diamond_cluster(protein_queries_fasta, query_fasta, log_object, threads=threads, memory=max_memory)
         elif input_type_4_observed: 
             # simplest case - just take the single query protein.
             single_query_mode = True

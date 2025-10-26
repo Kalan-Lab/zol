@@ -252,6 +252,12 @@ will be skipped.
         required = False, default = False
     )  
     parser.add_argument(
+        '-sr', '--skip-recluster',
+        action = 'store_true',
+        help = "Skip DIAMOND recluster to improve clustering.",
+        required = False, default = False
+    )
+    parser.add_argument(
         '-c', '--threads', 
         type = int, 
         help = "The number of threads to use. [Default is 1].", 
@@ -306,6 +312,8 @@ def prep_tg():
     reference_proteome = args.reference_proteome
     collapsing_params = args.collapsing_params
     skip_diamond_linclust = args.skip_diamond_linclust
+    skip_recluster = args.skip_recluster
+    
     if reference_proteome is not None: 
         gene_calling_method = 'miniprot reference proteome mapping'
         reference_proteome = os.path.abspath(args.reference_proteome)
@@ -576,29 +584,27 @@ def prep_tg():
         target_genomes_concat_db_handle.close()
 
         diamond_cluster_file = outdir + 'Target_Genomes_DB_clustered.tsv'
+        diamond_refined_cluster_file = outdir + 'Target_Genomes_DB_refined_clustered.tsv'
         if not skip_diamond_linclust:
             msg = '--------------------\nStep 3\n--------------------\n'
             msg += 'Clustering proteins using DIAMOND linclust to avoid redundancy in downstream DIAMOND database.'
             sys.stdout.write(msg + '\n')
             log_object.info(msg)
 
-            # Run DIAMOND linclust to cluster proteins
-            diamond_linclust_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
-            diamond_linclust_cmd = [
-                'diamond', 'linclust', '-d', target_genomes_concat_db_faa, '-o', diamond_cluster_file,
-                collapsing_params, '--threads', str(threads)
-            ]
-            
-            if max_memory is not None:
-                diamond_linclust_cmd += ['-M', str(max_memory) + 'G']
-                
+            max_memory_for_diamond = max_memory
+            if max_memory == None:
+                max_memory_for_diamond = 16
+            util.diamond_cluster_and_recluster(target_genomes_concat_db_faa, diamond_cluster_file, 
+                                               diamond_refined_cluster_file, log_object, threads=threads, 
+                                               diamond_params=collapsing_params,  cluster_method="linclust",
+                                               skip_recluster=skip_recluster, mem=max_memory_for_diamond)
             try:
-                util.run_cmd_via_subprocess(diamond_linclust_cmd, log_object=log_object, 
-                                            check_files=[diamond_cluster_file])
+
+                if not skip_recluster:
+                    diamond_cluster_file = diamond_refined_cluster_file
 
                 # Recreate FASTA database for clustered proteins
                 diamond_linclust_output_faa = outdir + 'Target_Genomes_DB_clustered.faa'
-
                 diamond_linclust_reps = set([])
                 with open(diamond_cluster_file) as dcf:
                     for line in dcf:
@@ -616,7 +622,7 @@ def prep_tg():
                 # Use the clustered FASTA file for DIAMOND database creation
                 target_genomes_concat_db_faa = diamond_linclust_output_faa
             except Exception as e:
-                msg = f'Had an issue running or processing DIAMOND linclust: {" ".join(diamond_linclust_cmd)}'
+                msg = f'Had an issue processing DIAMOND linclust + recluster results.'
                 sys.stderr.write(msg + '\n')
                 log_object.error(msg)
                 log_object.error(e)
@@ -624,11 +630,14 @@ def prep_tg():
         else:
             util.create_fake_diamond_linclust_file(target_genomes_concat_db_faa, diamond_cluster_file, log_object)
 
+        if not skip_diamond_linclust and not skip_recluster: 
+            diamond_cluster_file = diamond_refined_cluster_file
+
         try:
             diamond_linclust_cluster_pickle_file = outdir + 'Target_Genomes_DB_clustered.pkl'
             util.process_diamond_linclust_cluster_file(diamond_cluster_file, diamond_linclust_cluster_pickle_file, log_object)
         except Exception as e:
-            msg = f'Had an issue processing DIAMOND linclust cluster file: {diamond_cluster_file}'
+            msg = f'Had an issue processing DIAMOND cluster file: {diamond_cluster_file}'
             sys.stderr.write(msg + '\n')
             log_object.info(msg)
             log_object.error(e)

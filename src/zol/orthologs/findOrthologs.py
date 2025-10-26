@@ -128,21 +128,21 @@ def create_parser() -> argparse.Namespace:
         default=1.5,
     )
     parser.add_argument(
-        "-dlo",
-        "--dl-orthogroup",
+        "-dco",
+        "--dc-orthogroup",
         action="store_true",
-        help="Infer ortholog groups using diamond linclust.",
+        help="Infer ortholog groups using diamond cluster.",
         required=False,
         default=False,
     )
     parser.add_argument(
-        "-dlp",
-        "--dl-params",
-        help= "Parameters for performing diamond linclust based ortholog group\n"
-              "clustering if requested via --dl-orthogroup.\n"
-              "[Default is \"--approx-id 50 --mutual-cover 25 -M 4G\"].",
+        "-dcp",
+        "--dc-params",
+        help= "Parameters for performing diamond cluster based ortholog group\n"
+              "clustering if requested via --dc-orthogroup.\n"
+              "[Default is \"--approx-id 50 --mutual-cover 25\"].",
         required=False,
-        default="--approx-id 50 --mutual-cover 25 -M 4G"
+        default="--approx-id 50 --mutual-cover 25"
     )
     parser.add_argument(
         "-c",
@@ -150,6 +150,14 @@ def create_parser() -> argparse.Namespace:
         type=int,
         help="Maximum number of threads to use. Default is 1.",
         default=1,
+        required=False,
+    )
+    parser.add_argument(
+        "-m",
+        "--memory",
+        type=int,
+        help="Maximum memory in GB to use. Default is 4.",
+        default=4,
         required=False,
     )
     args = parser.parse_args()
@@ -276,7 +284,7 @@ def create_final_results(
         sys.exit(1)
 
 
-def create_final_results_diamond_linclust(
+def create_final_results_diamond_cluster(
     diamond_cluster_file, result_tab_file, result_mat_file, log_object
 ) -> None:
     try:
@@ -285,7 +293,7 @@ def create_final_results_diamond_linclust(
         clust_protein_counts = defaultdict(int)
         protein_to_clust: Dict[str, Any] = {}
         samples = set([])
-        # Parse diamond linclust output
+        # Parse diamond cluster output
         cluster_representatives = {}  # Maps cluster rep to cluster members
         with open(diamond_cluster_file) as occf:
             for line in occf:
@@ -358,8 +366,9 @@ def find_orthologs() -> None:
     identity_cutoff = myargs.identity
     evalue_cutoff = myargs.evalue
     mcl_inflation = myargs.mcl_inflation
-    diamond_linclust_orthogroup_flag = myargs.dl_orthogroup
-    diamond_params = myargs.dl_params
+    diamond_cluster_orthogroup_flag = myargs.dc_orthogroup
+    diamond_cluster_params = myargs.dc_params
+    memory = myargs.memory
 
     if not os.path.isdir(outdir):
         os.system(f"mkdir {outdir}")
@@ -397,7 +406,7 @@ def find_orthologs() -> None:
     if not os.path.isdir(checkpoint_dir):
         os.system(f"mkdir {checkpoint_dir}")
 
-    if not diamond_linclust_orthogroup_flag:
+    if not diamond_cluster_orthogroup_flag:
         local_proteome_dir = outdir + "Proteomes/"
         if not os.path.isdir(local_proteome_dir):
             os.system(f"mkdir {local_proteome_dir}")
@@ -732,40 +741,31 @@ def find_orthologs() -> None:
                         for rec in SeqIO.parse(olf, "fasta"):
                             cf_handle.write(f">{rec.id}\n{rec.seq}\n")
                 
-        ########### Perform protein clustering using DIAMOND LINCLUST
+        ########### Perform protein clustering using DIAMOND cluster
 
-        # Step 2: Run DIAMOND LINCLUST
-        msg = "--------------------\nStep 2\n--------------------\nRunning DIAMOND LINCLUST to determine protein clusters\n"
+        # Step 2: Run DIAMOND cluster
+        msg = "--------------------\nStep 2\n--------------------\nRunning DIAMOND cluster to determine protein clusters\n"
         sys.stdout.write(msg + "\n")
         log_object.info(msg)
 
-        step2_checkpoint_file = checkpoint_dir + "DIAMOND_LINCLUST_Step2_Checkpoint.txt"
+        step2_checkpoint_file = checkpoint_dir + "DIAMOND_CLUSTER_Step2_Checkpoint.txt"
 
+        diamond_cluster_file = outdir + "diamond_clusters.tsv"
+        diamond_refined_cluster_file = outdir + "diamond_refined_clusters.tsv"
         if not os.path.isfile(step2_checkpoint_file):
-            diamond_cluster_file = outdir + "diamond_linclust_clusters.tsv"
-            diamond_cmd = [
-                "diamond",
-                "linclust",
-                "-d",
-                concat_faa,
-                "-o",
-                diamond_cluster_file,
-                "--threads",
-                str(threads),
-            ] + diamond_params.split()
-
-            util.run_cmd_via_subprocess(diamond_cmd, check_files = [diamond_cluster_file])
-
+            util.diamond_cluster_and_recluster(concat_faa, diamond_cluster_file, diamond_refined_cluster_file,
+                                               log_object, threads=threads, diamond_params=diamond_cluster_params,
+                                               mem=memory)
             os.system(f"touch {step2_checkpoint_file}")
 
         msg = "--------------------\nStep 3\n--------------------\nCreate final result files!\n"
         sys.stdout.write(msg + "\n")
         log_object.info(msg)
-        step3_checkpoint_file = checkpoint_dir + "DIAMOND_LINCLUST_Step3_Checkpoint.txt"
+        step3_checkpoint_file = checkpoint_dir + "DIAMOND_CLUSTER_Step3_Checkpoint.txt"
 
         if not os.path.isfile(step3_checkpoint_file):
-            create_final_results_diamond_linclust(
-                diamond_cluster_file, result_tab_file, result_mat_file, log_object
+            create_final_results_diamond_cluster(
+                diamond_refined_cluster_file, result_tab_file, result_mat_file, log_object
             )
             os.system(f"touch {step3_checkpoint_file}")
 

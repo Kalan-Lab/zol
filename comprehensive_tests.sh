@@ -4,7 +4,7 @@
 Author: Rauf Salamzade
 
 Testing for developers of zol to make sure new code doesn't break anything
-and periodically check proper functioning.
+and to check proper functioning of the code.
 """
 
 # Step 0: Uncompress test_case.tar.gz and cd into it.
@@ -28,7 +28,7 @@ prepTG -i Aflavus_Genomes_FASTA/ -o prepTG_Aspergillus_Miniprot/ -rp GCF_0090174
 prepTG -i Target_Genomes/ -o prepTG_Database/ -c 10 -cst -ma
 
 # Step 2a: run fai (input type 1) to identify orthologous instances of epa from E. faecalis
-fai -i Epa_MIBiG_GBK/Epa_MIBiG_GenBank.gbk -tg prepTG_Database/ -o fai_Results_1/ -c 10 --generate-plots -gdm HMM
+fai -i Epa_MIBiG_GenBank.gbk Efaecium_EnGen0003_Epa_extraction.gbk -tg prepTG_Database/ -o fai_Results_1/ -c 10 --generate-plots -gdm HMM
 
 # Step 2b: run fai (input type 2) to identify orthologous instances of epa from E. faecalis
 fai -r Efaecalis_V583_Genome.fasta -rc NC_004668.1 -rs 2083902 -re 2115174 -tg prepTG_Database/ -o fai_Results_2/ -c 10 --generate-plots
@@ -39,7 +39,7 @@ fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_
 # Step 3: run zol to perform comparative investigations of gene-clusters
 ls -lht fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ | awk '{print $9}' | grep 'faecalis' > Efaecalis_GCs.txt 
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Comparative_Results/ -c 10 --full-genbank-labels -f Efaecalis_GCs.txt
-zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_DLC_Results/ -c 10 -dlo -dlp "--approx-id 50 --mutual-cover 25"
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_DC_Results/ -c 10 -dco -dcp "--approx-id 50 --mutual-cover 25"
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_InDepth_Results/ -c 10 -s -b -ces -aec
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_Reinflate_Results/ -c 10 -d -ri
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_IBC_Results/ -c 10 -d -ibc

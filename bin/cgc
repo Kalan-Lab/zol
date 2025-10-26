@@ -447,7 +447,7 @@ def cgc():
 
                 mapping_results_dir = mapping_dir + 'Results/'
                 mapping_result_file = mapping_results_dir + 'Orthogroups.tsv'
-                find_ogs_cmd = ['findOrthologs.py', '-p', proteomes_dir, '-o', mapping_results_dir, '-c', '1']
+                find_ogs_cmd = ['findOrthologs.py', '-p', proteomes_dir, '-o', mapping_results_dir, '-c', '1', '-m', '4']
                 util.run_cmd_via_subprocess(find_ogs_cmd, log_object=log_object, 
                                             check_files = [mapping_result_file])
 

@@ -144,7 +144,7 @@ def map_chunk_protein_coords_to_feature_coords(
     - tg_coord_info: Coordinate info for the full feature from the GenBank file.
     - name: The unique domain identifier.
     - evalue: The E-value from pyhmmer for the domain hit. NA if not a domain hit but inter-domain region or full protein.
-    - log_object: A logging object.
+    - eukaryotic_gene_cluster_flag: Whether the gene cluster is eukaryotic.
     ********************************************************************************************************************
     """
 
@@ -208,16 +208,16 @@ def map_chunk_protein_coords_to_feature_coords(
             sys.exit(1)
         """
 
-        # account for alterante initiator codons "GTG" and "TTG"
-        if (
-            not eukaryotic_gene_cluster_flag
-            and start_coord == 0
-            and translated_prot_seq[0] in set(["V", "L"])
-        ):
-            translated_prot_seq = "M" + translated_prot_seq[1:]
-            msg = \
-     "Warning: changing starting protein residue from V or L to M. This is expected for bacteria, but if you are seeing this with running a eukaryotic dataset - it indicates an issue!"
-            sys.stderr.write(msg + "\n")
+        if translated_prot_seq != tg_seq_chunk:
+            # account for alterante initiator codons "GTG" and "TTG"
+            if (
+                not eukaryotic_gene_cluster_flag
+                and start_coord == 0
+                and translated_prot_seq[0] in set(["V", "L"])
+            ):
+                translated_prot_seq = "M" + translated_prot_seq[1:]
+                msg = "Warning: changing starting protein residue from V or L to M to match expected translation. This is expected for bacteria, but if you are seeing this with running a eukaryotic dataset - it indicates an issue!"
+                sys.stderr.write(msg + "\n")
 
         try:
             assert translated_prot_seq == tg_seq_chunk
@@ -268,6 +268,52 @@ def map_chunk_protein_coords_to_feature_coords(
         raise RuntimeError()
 
 
+def validate_genbank_for_domain_mode(gbk_file: str) -> Tuple[bool, str]:
+    """
+    Validate a GenBank file for domain mode compatibility.
+    
+    Returns:
+        Tuple of (is_valid: bool, error_message: str)
+        If is_valid is True, error_message will be empty.
+        If is_valid is False, error_message will contain the reason.
+    """
+    try:
+        if not os.path.isfile(gbk_file):
+            return (False, f"File does not exist: {gbk_file}")
+        
+        cds_count = 0
+        issues = []
+        
+        with open(gbk_file) as f:
+            try:
+                for rec in SeqIO.parse(f, "genbank"):
+                    for feature in rec.features:
+                        if feature.type == "CDS":
+                            cds_count += 1
+                            
+                            # Check for locus_tag
+                            if not feature.qualifiers.get("locus_tag"):
+                                issues.append(f"CDS feature in record {rec.id} missing locus_tag")
+                            
+                            # Check for translation
+                            if not feature.qualifiers.get("translation"):
+                                lt = feature.qualifiers.get("locus_tag", ["unknown"])[0]
+                                issues.append(f"CDS feature {lt} in record {rec.id} missing translation")
+            except Exception as e:
+                return (False, f"Error parsing GenBank format: {str(e)}")
+        
+        if cds_count == 0:
+            return (False, "No CDS features found in GenBank file")
+        
+        if issues:
+            return (False, "; ".join(issues[:5]))  # Report first 5 issues
+        
+        return (True, "")
+        
+    except Exception as e:
+        return (False, f"Unexpected error: {str(e)}")
+
+
 def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
@@ -297,7 +343,13 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
         eukaryotic_gene_cluster_flag,
     ) = inputs
     try:
+        # Pre-flight validation checks for better error reporting
+        if not os.path.isfile(gbk):
+            raise FileNotFoundError(f"Input GenBank file not found: {gbk}")
+        if not os.path.isfile(pfam_db_file):
+            raise FileNotFoundError(f"Pfam database file not found: {pfam_db_file}")
         lt_coord_info: Dict[str, Any] = {}
+        cds_count = 0
         with open(prot_file, "w") as pf_handle:
             feat_record: Dict[str, Any] = {}
             with open(gbk) as ogbk:
@@ -305,8 +357,16 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
                     full_sequence = str(rec.seq)
                     for feature in rec.features:
                         if feature.type == "CDS":
-                            lt = feature.qualifiers.get("locus_tag")[0]
-                            seq = feature.qualifiers.get("translation")[0]
+                            cds_count += 1
+                            lt_list = feature.qualifiers.get("locus_tag")
+                            if not lt_list:
+                                raise ValueError(f"CDS feature in record {rec.id} missing locus_tag qualifier")
+                            lt = lt_list[0]
+                            
+                            translation_list = feature.qualifiers.get("translation")
+                            if not translation_list:
+                                raise ValueError(f"CDS feature {lt} in record {rec.id} missing translation qualifier")
+                            seq = translation_list[0]
                             nucl_seq = None
                             start, end, direction, all_coords = util.process_location_string(str(feature.location)) # type: ignore
 
@@ -330,6 +390,10 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
                                 direction
                             ]
                             pf_handle.write(f">{lt}\n" + str(seq) + "\n")
+        
+        # Validate we extracted some CDS features
+        if cds_count == 0:
+            raise ValueError(f"No CDS features found in GenBank file {gbk}")
         
         # align Pfam domains and remove overlap similar to BiG-SCAPE
         alphabet = pyhmmer.easel.Alphabet.amino()
@@ -481,7 +545,10 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
         return ('success', None)
 
     except Exception as e:
-        error_msg = f"An issue occurred with creating chopped up version of GenBank file {gbk}: {str(e)}"
+        error_msg = f"An issue occurred with creating chopped up version of GenBank file {gbk}:\n"
+        error_msg += f"  Error type: {type(e).__name__}\n"
+        error_msg += f"  Error message: {str(e)}\n"
+        error_msg += f"  Traceback:\n{traceback.format_exc()}"
         return ('error', error_msg)
 
 
@@ -519,11 +586,46 @@ def batch_create_chopped_genbanks(
     try:
         dm_scratch_dir = os.path.abspath(dm_scratch_dir) + "/"
 
+        # Pre-flight validation: Check input GenBanks
+        msg = f"Domain mode: Validating {len(genbanks)} input GenBank files..."
+        log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+        
+        validation_errors = {}
+        for gbk in genbanks:
+            is_valid, error_msg = validate_genbank_for_domain_mode(gbk)
+            if not is_valid:
+                validation_errors[gbk] = error_msg
+        
+        if validation_errors:
+            error_msg = f"\n{'='*80}\n"
+            error_msg += f"ERROR: Pre-flight validation failed for {len(validation_errors)} GenBank file(s)\n"
+            error_msg += f"{'='*80}\n\n"
+            error_msg += f"The following GenBank files have issues:\n\n"
+            for i, (gbk, err) in enumerate(validation_errors.items(), 1):
+                error_msg += f"{i}. {gbk}\n"
+                error_msg += f"   Issue: {err}\n\n"
+            error_msg += f"Please fix these issues before running domain mode.\n"
+            error_msg += f"Consider using the --rename-lt flag if locus tags are missing.\n"
+            error_msg += f"{'='*80}\n"
+            log_object.error(error_msg)
+            sys.stderr.write(error_msg)
+            sys.exit(1)
+        
+        msg = f"  All {len(genbanks)} GenBank files passed validation!"
+        log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+
         pfam_db_file = None
         pfam_z = None
         try:
             zol_data_directory = str(os.getenv("ZOL_DATA_PATH")).strip()
             db_locations = None
+            
+            msg = f"Domain mode: Checking for Pfam database..."
+            log_object.info(msg)
+            sys.stdout.write(msg + "\n")
+            
             if zol_data_directory != "None":
                 try:
                     zol_data_directory = (
@@ -532,13 +634,20 @@ def batch_create_chopped_genbanks(
                     db_locations = (
                         zol_data_directory + "database_location_paths.txt"
                     )
+                    msg = f"  ZOL_DATA_PATH is set to: {zol_data_directory}"
+                    log_object.info(msg)
+                    sys.stdout.write(msg + "\n")
                 except Exception as e:
-                    pass
+                    msg = f"  Error processing ZOL_DATA_PATH: {str(e)}"
+                    log_object.warning(msg)
+                    sys.stderr.write(msg + "\n")
 
             if db_locations == None or not os.path.isfile(db_locations):
-                sys.stderr.write(
-                    "Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n"
-                )
+                msg = f"ERROR: Database location file not found at: {db_locations}\n"
+                msg += "  Databases do not appear to be setup or setup properly!\n"
+                msg += "  Please run setup_annotation_dbs.py to setup databases.\n"
+                sys.stderr.write(msg)
+                log_object.error(msg)
 
             if db_locations is not None:
                 with open(db_locations) as odl: 
@@ -556,11 +665,25 @@ def batch_create_chopped_genbanks(
                 and os.path.isfile(pfam_db_file)
                 and pfam_z != None
             )
+            
+            msg = f"  Found Pfam database at: {pfam_db_file}"
+            log_object.info(msg)
+            sys.stdout.write(msg + "\n")
+            msg = f"  Pfam database Z-value: {pfam_z}"
+            log_object.info(msg)
+            sys.stdout.write(msg + "\n")
+            
         except Exception as e:
             msg = \
-     "Issues validating that the Pfam database - please run setup_annotation_database.py to setup databases - note you might be interested in downloading the minimal database instead of the full one."
-            log_object.warning(msg)
-            sys.stderr.write(msg + "\n")
+     f"ERROR: Issues validating the Pfam database.\n"
+            msg += f"  Error: {str(e)}\n"
+            if pfam_db_file:
+                msg += f"  Pfam DB file path: {pfam_db_file}\n"
+                msg += f"  File exists: {os.path.isfile(pfam_db_file) if pfam_db_file else 'N/A'}\n"
+            msg += "  Please run setup_annotation_dbs.py to setup databases.\n"
+            msg += "  Note: you might be interested in downloading the minimal database instead of the full one.\n"
+            log_object.error(msg)
+            sys.stderr.write(msg)
             sys.exit(1)
             
         proteome_dir = dm_scratch_dir + "GenBank_Proteins/"
@@ -600,14 +723,57 @@ def batch_create_chopped_genbanks(
         )
 
         total_processed = result_summary.get('total_processed', 0) or 0
+        success_count = result_summary.get('success_count', 0) or 0
+        error_count = result_summary.get('error_count', 0) or 0
+        
         if total_processed == 0:
             success_prop = 0.0
         else:
-            success_prop = result_summary['success_count'] / total_processed
+            success_prop = success_count / total_processed
+            
+        # Detailed summary of processing results
+        msg = f"\nDomain mode processing summary:\n"
+        msg += f"  Total GenBanks: {len(genbanks)}\n"
+        msg += f"  Successfully processed: {success_count}\n"
+        msg += f"  Failed: {error_count}\n"
+        log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+        
         if success_prop != 1.0:
-            msg = f"Issues with domain-chopped GenBank file creation for at least one GenBank file. Exiting now ..."
-            sys.stderr.write(msg + '\n')
-            log_object.error(msg)
+            # Check which GenBanks succeeded and which failed
+            succeeded_gbks = set()
+            for gbk_file in os.listdir(modified_genbank_dir):
+                if gbk_file.endswith(('.gbk', '.gbff', '.genbank')):
+                    succeeded_gbks.add(gbk_file)
+            
+            failed_gbks = []
+            for gbk in genbanks:
+                gbk_filename = gbk.split("/")[-1]
+                if gbk_filename not in succeeded_gbks:
+                    failed_gbks.append(gbk)
+            
+            error_msg = f"\n{'='*80}\n"
+            error_msg += f"ERROR: Domain mode GenBank processing failed for {len(failed_gbks)} file(s)\n"
+            error_msg += f"{'='*80}\n\n"
+            error_msg += f"The following GenBank files failed to process:\n"
+            for i, failed_gbk in enumerate(failed_gbks, 1):
+                error_msg += f"  {i}. {failed_gbk}\n"
+            error_msg += f"\n"
+            error_msg += f"Please review the error messages above for each failed file.\n"
+            error_msg += f"Common issues include:\n"
+            error_msg += f"  - Missing locus_tag qualifiers in CDS features\n"
+            error_msg += f"  - Missing translation qualifiers in CDS features\n"
+            error_msg += f"  - No CDS features in the GenBank file\n"
+            error_msg += f"  - Malformed GenBank format\n"
+            error_msg += f"  - Issues with Pfam domain annotation\n"
+            error_msg += f"\nConsider:\n"
+            error_msg += f"  - Running zol with the --rename-lt flag if locus tags are missing\n"
+            error_msg += f"  - Checking the GenBank files manually to ensure they are properly formatted\n"
+            error_msg += f"  - Reviewing the detailed error messages in the log file\n"
+            error_msg += f"{'='*80}\n"
+            
+            sys.stderr.write(error_msg)
+            log_object.error(error_msg)
             sys.exit(1)
 
         with open(dom_to_cds_relations_file, "w") as ccc_handle:

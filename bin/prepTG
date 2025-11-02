@@ -121,26 +121,31 @@ in GTDB to be downloaded.
 
 ---------------------------------------------------------------------------------------
 > Considerations
-If FASTA format is provided, assumption is that genomes are prokaryotic and
-pyrodigal/prodigal will be used to perform gene-calling. Eukaryotic genomes can
-be provided as FASTA format but the --reference-proteome file should be used in
-such case to map proteins from a reference proteome (from the same species ideally)
-on to the target genomes. This will prevent detection of new genes in gene-clusters
-detected by fai but synchronize gene-calling and allow for better similarity
-assessment between orthologous genes.
+- If FASTA format is provided, assumption is that genomes are prokaryotic and
+  pyrodigal/prodigal will be used to perform gene-calling. Eukaryotic genomes can
+  be provided as FASTA format but the --reference-proteome file should be used in
+  such case to map proteins from a reference proteome (from the same species ideally)
+  onto the target genomes. This will prevent detection of new genes in gene-clusters
+  detected by fai but synchronize gene-calling and allow for better similarity
+  assessment between orthologous genes.
 
-If you are interested in inferring horizontal gene transfer using salt downstream
-and are working with bacterial genomes - consider issuing the "--mge-annotation"
-flag to annotate phage, plasmid and IS element associated proteins.
+- If you are interested in inferring horizontal gene transfer using salt downstream
+  and are working with bacterial genomes - consider issuing the "--mge-annotation"
+  flag to annotate phage, plasmid and IS element associated proteins in target 
+  genomes.
 
-If GenBank files are provided, CDS features are expected and further each CDS
-feature should contain a "translation" qualifier which features the protein sequence
-and optionally a "locus_tag" qualifier. Options to consider when providing GenBank
-files as input include --rename-locus-tags, --error-no-lt, and --error-no-translation.
-Note, by default, if a CDS does not feature a locus tag, it will be given an arbitrary
-one. Also, if a CDS does not feature a translation, the CDS feature will be skipped.
-If > 10% of CDS features are skipped for lacking a translation, then the entire genome
-will be skipped.
+- If GenBank files are provided, CDS features are expected and further each CDS
+  feature should contain a "translation" qualifier which features the protein sequence
+  and optionally a "locus_tag" qualifier. Options to consider when providing GenBank
+  files as input include --rename-locus-tags, --error-no-lt, and --error-no-translation.
+  Note, by default, if a CDS does not feature a locus tag, it will be given an arbitrary
+  one. Also, if a CDS does not feature a translation, the CDS feature will be skipped.
+  If >10% of CDS features are skipped for lacking a translation, then the entire genome
+  will be skipped.
+ 
+- DIAMOND linclust (on by default) is an approximate clustering, for more information on 
+  its impact, please see the prepTG wiki page: 
+  https://github.com/Kalan-Lab/zol/wiki/1.-more-info-on-prepTG
 """
 
     parser = argparse.ArgumentParser(

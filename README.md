@@ -218,7 +218,7 @@ mv testing_cases* testing_cases.tar.gz
 bash comprehensive_tests.sh
 ```
 
-Expected results using the version v1.6.12 can be found at: https://zenodo.org/records/17449428.
+Expected results using version 1.6.13 can be found at: https://zenodo.org/records/17504312.
 
 ## License:
 

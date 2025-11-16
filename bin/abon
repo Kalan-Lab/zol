@@ -556,7 +556,7 @@ def identify_key_proteins_in_antismash_bgc(bgc_path,
                 if line.startswith('LOCUS'): 
                     bgc_scaffold = line.split()[1].strip()
                 elif line.startswith('Orig. start') and '::' in line: 
-                    bgc_starts.append(int(line.split()[-1].replace('>', '').replace('<', '')))
+                    bgc_starts.append(int(line.split()[-1].replace('>', '').replace('<', '')) + 1)
                 elif line.startswith('Orig. end') and '::' in line: 
                     bgc_ends.append(int(line.split()[-1].replace('>', '').replace('<', '')))
                 elif line.startswith('Original ID') and '::' in line: 

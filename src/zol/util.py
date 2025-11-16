@@ -4308,7 +4308,7 @@ def consolidate_salty_spreadsheet(
             "scaffold length (bp)",
             "scaffold CDS count",
             "GC CDS count",
-            "codoff empirical P-value",
+            "codoff Discordance Percentile",
             "GC AAI observed - expectation",
             "GC AAI between genome and reference genome",
             "ribosomal protein AAI between genome and reference genome",
@@ -4326,7 +4326,7 @@ def consolidate_salty_spreadsheet(
                 for line in ogcf:
                     line = line.strip()
                     ls = line.split("\t")
-                    if ls[0] == "Empirical P-value":
+                    if ls[0] == "Discordance Percentile":
                         gc_codoff_pvals[gc] = ls[1]
 
         genome_scaffold_annot_info = defaultdict(
@@ -4538,7 +4538,7 @@ def consolidate_salty_spreadsheet(
             "scaffold CDS count",
             "total scaffold CDS count",
             "GC CDS count",
-            "codoff empirical P-value",
+            "codoff Discordance Percentile",
             "GC AAI observed - expectation",
             "distance to IS-associated element",
             "scaffold CDS proportion IS-associated elements",
@@ -4574,7 +4574,7 @@ def consolidate_salty_spreadsheet(
             },
         )
 
-        # codoff p - value
+        # codoff Discordance Percentile
         worksheet.conditional_format(
             "H2:H" + str(num_rows + 1),
             {
@@ -4583,8 +4583,8 @@ def consolidate_salty_spreadsheet(
                 "mid_color": "#f7ca81",
                 "max_color": "#f7de99",
                 "min_value": 0.0,
-                "mid_value": 0.05,
-                "max_value": 1.0,
+                "mid_value": 5.0,
+                "max_value": 100.0,
                 "min_type": "num",
                 "mid_type": "num",
                 "max_type": "num",

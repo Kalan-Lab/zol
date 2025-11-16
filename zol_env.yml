@@ -37,7 +37,7 @@ dependencies:
   - conda-forge::r-dplyr
   - conda-forge::r-aplot
   - ete3
-  - codoff
+  - "codoff>=1.2.3"
   - gravis
   - colour
   - rich-argparse

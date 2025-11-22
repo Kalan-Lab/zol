@@ -307,7 +307,7 @@ def salt():
                 if i == 0: continue
                 line = line.strip()
                 ls = line.split('\t')
-                agg_score = float(ls[2])
+                agg_score = float(ls[5])
                 if agg_score > best_tg_score: 
                     best_tg_score = agg_score
                     best_tg_hit = ls[0]

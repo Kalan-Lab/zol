@@ -40,12 +40,7 @@ UW Madison, Department of Medical Microbiology and Immunology
 import os
 import sys
 import argparse
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from Bio.SeqFeature import SeqFeature, FeatureLocation
-from collections import defaultdict
 from zol import util
-from operator import itemgetter
 
 def create_parser():
 	""" Parse arguments """
@@ -104,93 +99,21 @@ def prodigalAndReformat():
 	START WORKFLOW
 	"""
 
-	# check if uncompression needed
+	# Use the core implementation from util.py to avoid code duplication
 	try:
-		if input_genomic_fasta_file.endswith('.gz'):
-			os.system(f'cp {input_genomic_fasta_file} {outdir}')
-			updated_genomic_fasta_file = outdir + input_genomic_fasta_file.split('/')[-1].split('.gz')[0]
-			os.system(f'gunzip {updated_genomic_fasta_file}.gz')
-			input_genomic_fasta_file = updated_genomic_fasta_file
-		assert(util.is_fasta(input_genomic_fasta_file))
+		util.prodigal_and_reformat_core(
+			input_genomic_fasta_file,
+			outdir,
+			sample_name,
+			locus_tag,
+			gene_calling_method=gene_calling_method,
+			meta_mode=meta_mode,
+			log_object=None,
+		)
+		sys.exit(0)
 	except Exception as e:
-		raise RuntimeError('Input genomic assembly does not appear to be in FASTA format.')
-
-	# Step 1: Run Prodigal (if needed)
-	og_prod_pred_prot_file = outdir + sample_name + '.original_predicted_proteome'
-	prodigal_cmd = []
-	if gene_calling_method == 'pyrodigal':
-		prodigal_cmd = ['pyrodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	elif gene_calling_method == 'prodigal':
-		prodigal_cmd = ['prodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	elif gene_calling_method == 'prodigal-gv':
-		prodigal_cmd = ['prodigal-gv', '-p', 'meta', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
-	else:
-		sys.stderr.write('The gene-calling method selected is not a valid option. Has to be either: prodigal, pyrodigal, or prodigal-gv.\n')
+		sys.stderr.write(f'Error during gene calling and reformatting: {str(e)}\n')
 		sys.exit(1)
-
-	if meta_mode and not gene_calling_method == 'prodigal-gv':
-		prodigal_cmd += ['-p', 'meta']
-
-	util.run_cmd_via_subprocess(prodigal_cmd, check_files = [og_prod_pred_prot_file])
-
-	# Step 2: Process Prodigal predicted proteome and create polished version with locus tags
-	pc_prod_pred_prot_file = outdir + sample_name + '.faa'
-	pc_prod_pred_prot_handle = open(pc_prod_pred_prot_file, 'w')
-	scaffold_prots = defaultdict(list)
-	prot_sequences = {}
-	prot_locations = {}
-	with open(og_prod_pred_prot_file) as ooppf:
-		for i, rec in enumerate(SeqIO.parse(ooppf, 'fasta')):
-			if (i+1) < 10:
-				pid = '00000'+str(i+1)
-			elif (i+1) < 100:
-				pid = '0000'+str(i+1)
-			elif (i+1) < 1000:
-				pid = '000'+str(i+1)
-			elif (i+1) < 10000:
-				pid = '00'+str(i+1)
-			elif (i+1) < 100000:
-				pid = '0'+str(i+1)
-			else:
-				pid = str(i+1)
-			new_prot_id = locus_tag + '_' + pid
-			scaffold = '_'.join(rec.id.split('_')[:-1])
-			start = int(rec.description.split(' # ')[1])
-			end = int(rec.description.split(' # ')[2])
-			direction = int(rec.description.split(' # ')[3])
-			scaffold_prots[scaffold].append([new_prot_id, start])
-			prot_locations[new_prot_id] = [scaffold, start, end, direction]
-			prot_sequences[new_prot_id] = str(rec.seq)
-			dir_str = '+'
-			if direction == -1: dir_str = '-'
-			pc_prod_pred_prot_handle.write('>' + new_prot_id + ' ' + scaffold + ' ' + str(start) + ' ' + str(end) + ' ' + dir_str + '\n' + str(rec.seq) + '\n')
-	pc_prod_pred_prot_handle.close()
-
-	print(scaffold_prots.keys())
-
-	# Step 3: Process Prodigal predicted genbank and create polished version with locus tags and protein + nucleotide
-	# sequences
-	pc_prod_genbank_file = outdir + sample_name + '.gbk'
-	pc_prod_genbank_handle = open(pc_prod_genbank_file, 'w')
-	with open(input_genomic_fasta_file) as oigff:
-		for fasta_rec in SeqIO.parse(oigff, 'fasta'):
-			seq = fasta_rec.seq
-			record = SeqRecord(seq, id=fasta_rec.id, name=fasta_rec.id, description='')
-			record.annotations['molecule_type'] = 'DNA'
-			feature_list = []
-			for prot in sorted(scaffold_prots[fasta_rec.id], key=itemgetter(1)):
-				pstart = prot_locations[prot[0]][1]
-				pend = prot_locations[prot[0]][2]
-				pstrand = prot_locations[prot[0]][3]
-				feature = SeqFeature(FeatureLocation(start=pstart-1, end=pend, strand=pstrand), type='CDS')
-				feature.qualifiers['locus_tag'] = prot[0]
-				feature.qualifiers['translation'] = prot_sequences[prot[0]].rstrip('*')
-				feature_list.append(feature)
-			record.features = feature_list
-			SeqIO.write(record, pc_prod_genbank_handle, 'genbank')
-	pc_prod_genbank_handle.close()
-
-	sys.exit(0)
 	
 if __name__ == '__main__':
 	prodigalAndReformat()

@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+
+"""
+### Program: regex
+### Author: Rauf Salamzade
+### Kalan Lab
+### UW Madison, Department of Medical Microbiology and Immunology
+"""
+
+from Bio import SeqIO
+from rich_argparse import RawTextRichHelpFormatter
+from zol import util
+import argparse
+import os
+import sys
+
+# BSD 3-Clause License
+#
+# Copyright (c) 2023-2025, Kalan-Lab
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met: 
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice, 
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+os.environ["OMP_NUM_THREADS"] = "1"
+
+
+def create_parser(): 
+    """ Parse arguments """
+    parser = argparse.ArgumentParser(description = """
+    Program: regex
+    Author: Rauf Salamzade
+    Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
+
+    regex - region extractor
+
+    regex extracts a specific genomic region from a genome file (GenBank or FASTA format)
+    and outputs a GenBank file with the extracted region. If the input is a FASTA file, 
+    gene calling (pyrodigal, prodigal, or prodigal-gv) will be performed first to annotate
+    CDS features before extraction.
+
+    Note: Features that overlap or extend beyond the specified start/end coordinates are 
+    excluded from the output. Only complete features fully contained within the extracted 
+    region are retained.
+
+    This tool is useful for extracting specific genomic regions based on coordinates for
+    downstream analysis or visualization.
+    """, formatter_class = RawTextRichHelpFormatter)
+
+    parser.add_argument('-i', 
+        '--input-genome', 
+        help = "Path to input genome file (GenBank or FASTA format).", 
+        required = True)
+    parser.add_argument('-s', 
+        '--scaffold', 
+        help = "Scaffold/contig identifier to extract from.", 
+        required = True)
+    parser.add_argument('-b', 
+        '--start', 
+        type = int, 
+        help = "Start coordinate of the region to extract.", 
+        required = True)
+    parser.add_argument('-e', 
+        '--end', 
+        type = int, 
+        help = "End coordinate of the region to extract.", 
+        required = True)
+    parser.add_argument('-o', 
+        '--output-genbank', 
+        help = "Output GenBank file for the extracted region.", 
+        required = True)
+    parser.add_argument('-t',
+        '--tmp-dir',
+        help = "Temporary directory for intermediate files [Default is ./regex_tmp/].",
+        required = False,
+        default = './regex_tmp/')
+    parser.add_argument('--cleanup',
+        action = 'store_true',
+        help = "Remove temporary directory after successful completion.",
+        default = False,
+        required = False)
+    parser.add_argument('-gcm',
+        '--gene-calling-method',
+        help = "Gene calling method for FASTA input: pyrodigal, prodigal, or prodigal-gv\n[Default is pyrodigal].",
+        required = False,
+        default = 'pyrodigal')
+    parser.add_argument('-m',
+        '--meta-mode',
+        action = 'store_true',
+        help = "Use metagenomics mode for gene calling (for FASTA input only).",
+        default = False,
+        required = False)
+
+    args = parser.parse_args()
+    return args
+
+
+def regex(): 
+    myargs = create_parser()
+
+    input_genome = os.path.abspath(myargs.input_genome)
+    scaffold = myargs.scaffold
+    start_coord = myargs.start
+    end_coord = myargs.end
+    output_genbank = os.path.abspath(myargs.output_genbank)
+    tmp_dir = os.path.abspath(myargs.tmp_dir) + '/'
+    cleanup = myargs.cleanup
+    gene_calling_method = myargs.gene_calling_method.lower()
+    meta_mode = myargs.meta_mode
+
+    # Validate inputs
+    try: 
+        assert os.path.isfile(input_genome)
+    except Exception as e: 
+        sys.stderr.write("Input genome file does not exist.\n")
+        sys.exit(1)
+
+    try:
+        assert start_coord > 0 and end_coord > 0 and end_coord >= start_coord
+    except Exception as e:
+        sys.stderr.write("Invalid coordinates. Start and end must be positive, and end must be >= start.\n")
+        sys.exit(1)
+
+    # Create output directory if needed
+    output_dir = os.path.dirname(output_genbank)
+    if output_dir and not os.path.isdir(output_dir):
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            sys.stderr.write(f"Could not create output directory: {str(e)}\n")
+            sys.exit(1)
+
+    # Create temporary directory
+    util.setup_ready_directory([tmp_dir], delete_if_exist=False)
+
+    # Create logging object
+    log_file = tmp_dir + 'regex.log'
+    log_object = util.create_logger_object(log_file)
+    version_string = util.get_version()
+
+    sys.stdout.write(f'Running regex version {version_string}\n')
+    log_object.info(f'Running regex version {version_string}')
+
+    # Log command used
+    log_object.info(' '.join(sys.argv))
+
+    # Determine input file type
+    is_genbank = False
+    is_fasta = False
+    
+    try:
+        with open(input_genome) as handle:
+            first_char = handle.read(1)
+            if first_char == '>':
+                is_fasta = True
+            elif first_char in ['L', 'l']:  # GenBank files typically start with LOCUS
+                is_genbank = True
+            else:
+                # Try parsing as GenBank first, then FASTA
+                handle.seek(0)
+                try:
+                    next(SeqIO.parse(handle, 'genbank'))
+                    is_genbank = True
+                except:
+                    handle.seek(0)
+                    try:
+                        next(SeqIO.parse(handle, 'fasta'))
+                        is_fasta = True
+                    except:
+                        raise ValueError("Could not determine file format")
+    except Exception as e:
+        sys.stderr.write(f"Could not determine input file format: {str(e)}\n")
+        sys.exit(1)
+
+    # If FASTA, run gene calling to create GenBank
+    genbank_file = input_genome
+    if is_fasta:
+        msg = f"Input is FASTA format. Running {gene_calling_method} for gene prediction..."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+        
+        # Use core function directly - output will be tmp_dir/genome.gbk
+        util.prodigal_and_reformat_core(
+            input_genome,
+            tmp_dir,
+            sample_name='genome',
+            locus_tag='RGX',
+            gene_calling_method=gene_calling_method,
+            meta_mode=meta_mode,
+            log_object=log_object
+        )
+        genbank_file = tmp_dir + 'genome.gbk'
+    else:
+        msg = "Input is GenBank format. Proceeding with extraction..."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+
+    # Extract the specified region using util.create_genbank
+    msg = f"Extracting region {scaffold}:{start_coord}..{end_coord} from genome..."
+    sys.stdout.write(msg + '\n')
+    log_object.info(msg)
+
+    try:
+        util.create_genbank(
+            genbank_file,
+            output_genbank,
+            scaffold,
+            start_coord,
+            end_coord
+        )
+        
+        msg = f"Successfully extracted region to: {output_genbank}"
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+        
+    except Exception as e:
+        msg = f"Error extracting region: {str(e)}"
+        sys.stderr.write(msg + '\n')
+        log_object.error(msg)
+        import traceback
+        sys.stderr.write(traceback.format_exc())
+        sys.exit(1)
+
+    msg = f'regex finished successfully!\nExtracted GenBank file: {output_genbank}'
+    log_object.info(msg)
+    sys.stdout.write(msg + '\n')
+
+    # Cleanup temporary directory if requested
+    if cleanup:
+        try:
+            import shutil
+            shutil.rmtree(tmp_dir.rstrip('/'))
+            sys.stdout.write(f'Cleaned up temporary directory: {tmp_dir}\n')
+        except Exception as e:
+            sys.stderr.write(f'Warning: Could not remove temporary directory {tmp_dir}: {str(e)}\n')
+
+
+if __name__ == '__main__': 
+    regex()
+

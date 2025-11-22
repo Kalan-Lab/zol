@@ -5056,7 +5056,7 @@ def consolidate_report(
                 {
                     "type": "2_color_scale",
                     "min_color": "#FFFFFF",
-                    "max_color": "#F8696B",
+                    "max_color": "#63BE7B",
                     "min_value": 0,
                     "max_value": 30,
                     "min_type": "num",

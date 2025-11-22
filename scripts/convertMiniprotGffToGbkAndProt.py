@@ -166,8 +166,8 @@ def convertMiniProtGFFtoGenbank():
 		ogf = gzip.open(genome_fasta, 'rt')
 
 	for rec in SeqIO.parse(ogf, 'fasta'):
+		gbk_rec = SeqRecord(rec.seq, id=rec.id, name=rec.id, description=rec.description) # type: ignore
 		seq = str(rec.seq)
-		gbk_rec = SeqRecord(seq, id=rec.id, name=rec.id, description=rec.description) # type: ignore
 		gbk_rec.annotations['molecule_type'] = 'DNA'
 		feature_list = []
 		for mrna in sorted(scaffold_queries[rec.id], key=itemgetter(1)):

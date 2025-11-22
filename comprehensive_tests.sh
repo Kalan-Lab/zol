@@ -56,3 +56,18 @@ atpoc -tg prepTG_Database/ -i Efaecalis_V583_Genome.fasta -ps PhiSpy_Results/Efa
 apos -tg prepTG_Database/ -i Efaecalis_V583_Genome.fasta -ms MOB-suite_Results/Efaecalis_V583/ -gn geNomad_Results/Efaecalis_V583/ -o apos_Results/ -c 10
 salt -f fai_Results_1/ -tg prepTG_Database/ -o salt_Results/ -c 10
 zol-scape -i Efaecalis_antiSMASH_Results/ -r Efaecalis_BiG-SCAPE_Results/ -o zol-scape_Results/ -c 10
+
+# Step 6: test out regex for extracting genomic regions
+mkdir -p regex_Results/
+
+# Test 6a: Extract region from FASTA file (will run pyrodigal for gene calling)
+regex -i Efaecalis_V583_Genome.fasta -s NC_004668.1 -b 2083902 -e 2115174 -o regex_Results/Efaecalis_epa_from_fasta.gbk
+
+# Test 6b: Extract region from GenBank file (direct extraction)
+regex -i Epa_MIBiG_GenBank.gbk -s BGC0000792 -b 1 -e 10000 -o regex_Results/Epa_subset_from_genbank.gbk
+
+# Test 6c: Test with different gene calling methods on FASTA
+regex -i Efaecalis_V583_Genome.fasta -s NC_004668.1 -b 2090000 -e 2100000 -o regex_Results/Efaecalis_region_prodigal.gbk -gcm prodigal
+
+# Test 6d: Test with metagenomics mode
+regex -i Efaecalis_V583_Genome.fasta -s NC_004668.1 -b 2095000 -e 2105000 -o regex_Results/Efaecalis_region_meta.gbk -m

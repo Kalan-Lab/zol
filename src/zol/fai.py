@@ -2561,6 +2561,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
         data_igc_header = [
             "sample",
             "gene-cluster-id",
+            "scaffold",
+            "start-coordinate",
+            "end-coordinate",
             "aggregate-bitscore",
             "aai-to-query",
             "mean-sequence-to-query-ratio",
@@ -2756,22 +2759,65 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                                 f"Gene cluster GenBank file not found / confirmed for: {igc}"
                             )
 
+                    # Extract scaffold and coordinates from GenBank file
+                    scaffold_name = "NA"
+                    start_coord = "NA"
+                    end_coord = "NA"
+                    try:
+                        with open(igc_path) as igc_handle:
+                            for rec in SeqIO.parse(igc_handle, "genbank"):
+                                # Get scaffold from record ID
+                                scaffold_name = rec.id
+                                # Parse coordinates from comment field in annotations
+                                comment = None
+                                if hasattr(rec, 'annotations') and 'comment' in rec.annotations:
+                                    comment = rec.annotations['comment']
+                                
+                                if comment:
+                                    # Expected format: "Extracted region: scaffold:start..end"
+                                    if "Extracted region:" in comment:
+                                        for line in comment.split('\n'):
+                                            if "Extracted region:" in line:
+                                                coord_part = line.split("Extracted region:")[1].strip()
+                                                if ":" in coord_part and ".." in coord_part:
+                                                    parts = coord_part.split(":")
+                                                    if len(parts) >= 2:
+                                                        coord_range = parts[-1]
+                                                        if ".." in coord_range:
+                                                            start_str, end_str = coord_range.split("..")
+                                                            # Convert to integers if possible
+                                                            try:
+                                                                start_coord = int(start_str.strip())
+                                                                end_coord = int(end_str.strip())
+                                                            except ValueError:
+                                                                # Keep as "NA" if conversion fails
+                                                                pass
+                                                break
+                                break  # Only process first record
+                    except Exception as e:
+                        sys.stderr.write(
+                            f"Warning: Could not extract coordinates from GenBank file {igc_path}: {str(e)}\n"
+                        )
+
+                    # Build row with proper typing - coordinates as numbers when available, strings when NA
                     igc_row = [
-                        str(x)
-                        for x in [
-                            sample,
-                            igc_path,
-                            round(igc_aggregate_bitscore, 3),
-                            round(igc_mean_aai, 3),
-                            round(igc_mean_sql, 3),
-                            igc_prop_hg_found,
-                            gcgbk_to_corr[igc],
-                            igc_bg_genes[igc],
-                            copy_count_string,
-                        ]
-                    ] + igc_hg_pid_sql_pair
+                        sample,
+                        igc_path,
+                        scaffold_name,
+                        start_coord,  # Will be int or "NA"
+                        end_coord,    # Will be int or "NA"
+                        round(igc_aggregate_bitscore, 3),
+                        round(igc_mean_aai, 3),
+                        round(igc_mean_sql, 3),
+                        igc_prop_hg_found,
+                        gcgbk_to_corr[igc],
+                        igc_bg_genes[igc],
+                        copy_count_string,
+                    ]
+                    # Convert to strings for TSV output
+                    igc_row_str = [str(x) for x in igc_row] + igc_hg_pid_sql_pair
                     igc_aggregate_bitscores.append(igc_aggregate_bitscore)
-                    igc_tsv_handle.write("\t".join(igc_row) + "\n")
+                    igc_tsv_handle.write("\t".join(igc_row_str) + "\n")
                     igc_row_count += 1
 
         tot_tsv_handle.close()
@@ -2856,6 +2902,8 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                 "avg-syntenic-correlation",
                 "number-background-genes",
                 "number-gene-clusters",
+                "start-coordinate",
+                "end-coordinate",
             ]
             + hg_headers
         )
@@ -2915,8 +2963,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     "max_value": max(aggregate_bitscores),
                 },
             )
+            # aggregate-bitscore is in column F for igc (shifted by 3 due to scaffold + coordinates)
             igc_worksheet.conditional_format(
-                "C2:C" + str(igc_row_count),
+                "F2:F" + str(igc_row_count),
                 {
                     "type": "2_color_scale",
                     "min_color": "#d9d9d9",
@@ -2941,8 +2990,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     "max_type": "num",
                 },
             )
+            # aai-to-query is in column G for igc (shifted by 3)
             igc_worksheet.conditional_format(
-                "D2:D" + str(igc_row_count),
+                "G2:G" + str(igc_row_count),
                 {
                     "type": "2_color_scale",
                     "min_color": "#d8eaf0",
@@ -2967,8 +3017,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     "max_type": "num",
                 },
             )
+            # mean-sequence-to-query-ratio is in column H for igc (shifted by 3)
             igc_worksheet.conditional_format(
-                "E2:E" + str(igc_row_count),
+                "H2:H" + str(igc_row_count),
                 {
                     "type": "2_color_scale",
                     "min_color": "#dbd5e8",
@@ -2993,8 +3044,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     "max_type": "num",
                 },
             )
+            # proportion-query-genes-found is in column I for igc (shifted by 3)
             igc_worksheet.conditional_format(
-                "F2:F" + str(igc_row_count),
+                "I2:I" + str(igc_row_count),
                 {
                     "type": "2_color_scale",
                     "min_color": "#fce8ee",
@@ -3019,8 +3071,9 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     "max_type": "num",
                 },
             )
+            # syntenic-correlation is in column J for igc (shifted by 3)
             igc_worksheet.conditional_format(
-                "G2:G" + str(igc_row_count),
+                "J2:J" + str(igc_row_count),
                 {
                     "type": "2_color_scale",
                     "min_color": "#fcf6eb",
@@ -3032,13 +3085,20 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                 },
             )
 
+            # hg_index for igc needs to account for 3 extra columns (scaffold, start-coordinate, end-coordinate)
             hg_index = 9
+            hg_index_igc = 12
             for hg in hg_list:
                 columnid_pid = util.determine_column_name_based_on_index(hg_index)
                 columnid_sql = util.determine_column_name_based_on_index(
                     hg_index + 1
                 )
+                columnid_pid_igc = util.determine_column_name_based_on_index(hg_index_igc)
+                columnid_sql_igc = util.determine_column_name_based_on_index(
+                    hg_index_igc + 1
+                )
                 hg_index += 2
+                hg_index_igc += 2
 
                 # percent identity
                 tot_worksheet.conditional_format(
@@ -3054,7 +3114,7 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     },
                 )
                 igc_worksheet.conditional_format(
-                    columnid_pid + "2:" + columnid_pid + str(igc_row_count), # type: ignore
+                    columnid_pid_igc + "2:" + columnid_pid_igc + str(igc_row_count), # type: ignore
                     {
                         "type": "2_color_scale",
                         "min_color": "#d8eaf0",
@@ -3080,7 +3140,7 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     },
                 )
                 igc_worksheet.conditional_format(
-                    columnid_sql + "2:" + columnid_sql + str(igc_row_count), # type: ignore
+                    columnid_sql_igc + "2:" + columnid_sql_igc + str(igc_row_count), # type: ignore
                     {
                         "type": "2_color_scale",
                         "min_color": "#dbd5e8",

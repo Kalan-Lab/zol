@@ -56,6 +56,9 @@ def fai_dd():
 Column\tDescription\tNotes
 sample\tThe identifier of the target genome.\t\t
 gene-cluster-id\tThe identifier of a discrete neighborhood of genes identified as homologous to the query gene cluster.\tOnly in the "Gene Cluster Instance - Report" tab.
+scaffold\tThe scaffold/contig identifier from which the gene cluster was extracted.\tOnly in the "Gene Cluster Instance - Report" tab.
+start-coordinate\tThe start coordinate on the scaffold for the extracted gene cluster region.\tOnly in the "Gene Cluster Instance - Report" tab.
+end-coordinate\tThe end coordinate on the scaffold for the extracted gene cluster region.\tOnly in the "Gene Cluster Instance - Report" tab.
 aggregate-bitscore\tThe aggregate bitscore of hits to the query gene cluster genes.\tOnly the best hit for each query gene/ortholog-group is retained (based on bitscore).
 aai-to-query\tThe average amino-acid identity of the proteins in the target genome to the query gene cluster genes.\tOnly the best hit for each query gene/ortholog-group is retained (based on bitscore).
 mean-sequence-to-query-ratio\tThe average sequence-to-query ratio of the proteins.\tOnly the best hit for each query gene/ortholog-group is retained (based on bitscore).

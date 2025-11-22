@@ -47,9 +47,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from collections import defaultdict
-from operator import itemgetter
 from zol import util
-import traceback
 
 def create_parser():
 	""" Parse arguments """

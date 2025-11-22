@@ -28,6 +28,8 @@ PROGRAM_DESCRIPTIONS = {
     "apos": "Automated analysis of conservation/novelty for a sample's plasmids.",
     "atpoc": "Automated analysis of conservation/novelty for a sample's prophages.",
     "salt": "Support assessment for lateral transfer of gene clusters (experimental).",
+    "regex": "Extract a genomic region (as GenBank) from a genome file (FASTA or GenBank)\n"
+            "based on scaffold and coordinate inputs (experimental).",
     "zol-scape": "Run zol analysis on BiG-SCAPE results."
 }
 

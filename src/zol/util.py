@@ -909,6 +909,8 @@ def create_genbank(
     """
     Description:
     Function to prune full genome-sized GenBank for only features in BGC of interest.
+    Note: Features that overlap or extend beyond the specified boundary coordinates (start_coord, end_coord) are 
+    excluded from the output. Only features that are completely contained within the extracted region are retained.
     ********************************************************************************************************************
     Parameters:
     - full_genbank_file: GenBank file for full genome.
@@ -935,6 +937,21 @@ def create_genbank(
             new_seq_object = Seq(filtered_seq)
             updated_rec = copy.deepcopy(rec)
             updated_rec.seq = new_seq_object # type: ignore
+            
+            # Add coordinate information and fai citation to the GenBank header via annotations
+            coord_info = f"Extracted region: {scaffold}:{start_coord}..{end_coord}"
+            fai_citation = (
+                "This GenBank file was created using the zol-suite.\n"
+                "Citation: zol & fai: large-scale targeted detection and evolutionary\n"
+                "investigation of gene clusters. Nucleic Acids Research 2025.\n"
+                "https://academic.oup.com/nar/article/53/3/gkaf045/8001966"
+            )
+            full_comment = f"{coord_info}\n{fai_citation}"
+            
+            if 'comment' in updated_rec.annotations: # type: ignore
+                updated_rec.annotations['comment'] = f"{updated_rec.annotations['comment']}\n{full_comment}" # type: ignore
+            else:
+                updated_rec.annotations['comment'] = full_comment # type: ignore
 
             updated_features = []
             for feature in rec.features: # type: ignore
@@ -956,22 +973,13 @@ def create_genbank(
                             continue
                         updated_start = sc - start_coord + 1
                         updated_end = ec - start_coord + 1
+                        # Exclude any feature that extends beyond the boundaries
                         if ec > end_coord:
-                            # note overlapping genes in prokaryotes are possible so avoid proteins that overlap
-                            # with boundary proteins found by the HMM.
-                            if feature.type == "CDS":
-                                part_of_cds_hanging = True
-                                continue
-                            else:
-                                updated_end = (
-                                    end_coord - start_coord + 1
-                                )  # ; flag1 = True
+                            part_of_cds_hanging = True
+                            continue
                         if sc < start_coord:
-                            if feature.type == "CDS":
-                                part_of_cds_hanging = True
-                                continue
-                            else:
-                                updated_start = 1  # ; flag2 = True
+                            part_of_cds_hanging = True
+                            continue
                         strand = 1
                         if dc == "-":
                             strand = -1
@@ -1375,6 +1383,147 @@ def convert_genbank_to_cds_prots_fasta(
         )
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)
+
+
+def prodigal_and_reformat_core(
+    input_genomic_fasta_file,
+    outdir,
+    sample_name,
+    locus_tag,
+    gene_calling_method="pyrodigal",
+    meta_mode=False,
+    log_object=None,
+) -> None:
+    """
+    Description:
+    Core function to run gene calling (pyrodigal, prodigal, or prodigal-gv) on a FASTA file and create GenBank/proteome files.
+    This is the shared implementation used by both the script and API.
+    ********************************************************************************************************************
+    Parameters:
+    - input_genomic_fasta_file: Path to input genome FASTA file (can be gzipped).
+    - outdir: Output directory for results (should exist).
+    - sample_name: Sample name to use for output files.
+    - locus_tag: Locus tag prefix to use.
+    - gene_calling_method: Gene calling method - "pyrodigal", "prodigal", or "prodigal-gv" [Default: "pyrodigal"].
+    - meta_mode: Whether to use metagenomics mode [Default: False].
+    - log_object: Optional logging object.
+    ********************************************************************************************************************
+    """
+    try:
+        from Bio.SeqFeature import SeqFeature, FeatureLocation
+        
+        # Ensure output directory exists
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir, exist_ok=True)
+        
+        # Check if uncompression needed
+        if input_genomic_fasta_file.endswith('.gz'):
+            os.system(f'cp {input_genomic_fasta_file} {outdir}')
+            updated_genomic_fasta_file = outdir + input_genomic_fasta_file.split('/')[-1].split('.gz')[0]
+            os.system(f'gunzip {updated_genomic_fasta_file}.gz')
+            input_genomic_fasta_file = updated_genomic_fasta_file
+        
+        if not is_fasta(input_genomic_fasta_file):
+            raise RuntimeError('Input genomic assembly does not appear to be in FASTA format.')
+        
+        # Step 1: Run gene caller
+        og_prod_pred_prot_file = outdir + sample_name + '.original_predicted_proteome'
+        prodigal_cmd = []
+        
+        if gene_calling_method == 'pyrodigal':
+            prodigal_cmd = ['pyrodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
+        elif gene_calling_method == 'prodigal':
+            prodigal_cmd = ['prodigal', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
+        elif gene_calling_method == 'prodigal-gv':
+            prodigal_cmd = ['prodigal-gv', '-p', 'meta', '-i', input_genomic_fasta_file, '-a', og_prod_pred_prot_file]
+        else:
+            raise ValueError('The gene-calling method selected is not valid. Must be: prodigal, pyrodigal, or prodigal-gv.')
+        
+        if meta_mode and gene_calling_method != 'prodigal-gv':
+            prodigal_cmd += ['-p', 'meta']
+        
+        run_cmd_via_subprocess(prodigal_cmd, log_object=log_object, check_files=[og_prod_pred_prot_file])
+        
+        # Step 2: Process predicted proteome and create polished version with locus tags
+        pc_prod_pred_prot_file = outdir + sample_name + '.faa'
+        pc_prod_pred_prot_handle = open(pc_prod_pred_prot_file, 'w')
+        scaffold_prots = defaultdict(list)
+        prot_sequences = {}
+        prot_locations = {}
+        
+        with open(og_prod_pred_prot_file) as ooppf:
+            for i, rec in enumerate(SeqIO.parse(ooppf, 'fasta')):
+                # Format protein ID with zero-padding
+                if (i+1) < 10:
+                    pid = '00000' + str(i+1)
+                elif (i+1) < 100:
+                    pid = '0000' + str(i+1)
+                elif (i+1) < 1000:
+                    pid = '000' + str(i+1)
+                elif (i+1) < 10000:
+                    pid = '00' + str(i+1)
+                elif (i+1) < 100000:
+                    pid = '0' + str(i+1)
+                else:
+                    pid = str(i+1)
+                
+                new_prot_id = locus_tag + '_' + pid
+                scaffold = '_'.join(rec.id.split('_')[:-1])
+                start = int(rec.description.split(' # ')[1])
+                end = int(rec.description.split(' # ')[2])
+                direction = int(rec.description.split(' # ')[3])
+                
+                scaffold_prots[scaffold].append([new_prot_id, start])
+                prot_locations[new_prot_id] = [scaffold, start, end, direction]
+                prot_sequences[new_prot_id] = str(rec.seq)
+                
+                dir_str = '+' if direction == 1 else '-'
+                pc_prod_pred_prot_handle.write(
+                    f'>{new_prot_id} {scaffold} {start} {end} {dir_str}\n{str(rec.seq)}\n'
+                )
+        pc_prod_pred_prot_handle.close()
+        
+        # Step 3: Create GenBank file with CDS features
+        pc_prod_genbank_file = outdir + sample_name + '.gbk'
+        pc_prod_genbank_handle = open(pc_prod_genbank_file, 'w')
+        
+        with open(input_genomic_fasta_file) as oigff:
+            for fasta_rec in SeqIO.parse(oigff, 'fasta'):
+                seq = fasta_rec.seq
+                record = SeqRecord(seq, id=fasta_rec.id, name=fasta_rec.id, description='')
+                record.annotations['molecule_type'] = 'DNA'
+                feature_list = []
+                
+                for prot in sorted(scaffold_prots[fasta_rec.id], key=itemgetter(1)):
+                    pstart = prot_locations[prot[0]][1]
+                    pend = prot_locations[prot[0]][2]
+                    pstrand = prot_locations[prot[0]][3]
+                    
+                    feature = SeqFeature(
+                        FeatureLocation(start=pstart-1, end=pend, strand=pstrand),
+                        type='CDS'
+                    )
+                    feature.qualifiers['locus_tag'] = prot[0]
+                    feature.qualifiers['translation'] = prot_sequences[prot[0]].rstrip('*')
+                    feature_list.append(feature)
+                
+                record.features = feature_list
+                SeqIO.write(record, pc_prod_genbank_handle, 'genbank')
+        
+        pc_prod_genbank_handle.close()
+        
+        if log_object:
+            msg = f"Successfully created GenBank and proteome files for {sample_name}"
+            log_object.info(msg)
+        
+    except Exception as e:
+        msg = f"Error in gene calling and reformatting: {str(e)}"
+        if log_object:
+            log_object.error(msg)
+            log_object.error(traceback.format_exc())
+        sys.stderr.write(msg + '\n')
+        sys.stderr.write(traceback.format_exc())
+        raise
 
 
 def parse_genbank_for_cds_proteins_and_dna(

@@ -65,6 +65,8 @@ Positional Arguments:
     fai            Find additional instances of gene clusters in a genome database using
                    flexible alignment and synteny criteria.
     prepTG         Prepare a database of target genomes for searches using fai.
+    regex          Extract a genomic region (as GenBank) from a genome file (FASTA or GenBank)
+                   based on scaffold and coordinate inputs (experimental).
     salt           Support assessment for lateral transfer of gene clusters (experimental).
     zol            Perform comparative gene cluster analysis.
     zol-scape      Run zol analysis on BiG-SCAPE results.

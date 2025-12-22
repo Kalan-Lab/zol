@@ -11,8 +11,8 @@ OG Median Length (bp)\tThe median length of the homolog group in basepairs.\t\t
 OG Consensus Order\tThe consensus order of the homolog group across all gene clusters.\t\t
 OG Consensus Direction\tThe consensus direction of the homolog group across all gene clusters.\t\t
 Custom Annotation (E-value)\tCustom annotation based on user providing custom protein database.\t\t
-KO Annotation (E-value)\tBest KEGG ortholog annotation(s) (the HMMER3 E-value associated with the best score)\t\t
-Pfam Domains\tPfam domains with E-value < 1e-5 and meeting the "trusted" score thresholds.\t\t
+KO Annotation (E-value)\tBest KEGG ortholog annotation(s) (the HMMER3 E-value associated with the best score)\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
+Pfam Domains\tPfam domains with E-value < 1e-5 and meeting the "trusted" score thresholds.\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
 Proportion of Focal Gene Clusters with OG\t\tOnly produced if comparative analysis is requested by user.
 Proportion of Comparator Gene Clusters with OG\t\tOnly produced if comparative analysis is requested by user.
 Fixation Index\tFst estimate based on measuring pairwise differences in codon alignments and the statistic developed by Hudson, Slatkin, and Maddison 1992: https://academic.oup.com/genetics/article/132/2/583/6009124?login=true\tOnly produced if comparative analysis is requested by user.
@@ -40,12 +40,13 @@ Number of Sites Identified as Under Positive or Negative Selection\tThe number o
 Average delta(Beta, Alpha) by FUBAR across sites\tThe average difference of β-α across sites in the codon alignment as calculated by FUBAR.\tMore negative values imply greater purifying selection whereas more positive values imply greater positive selection.
 Proportion of Sites Under Selection which are Positive\tProportion of the number of sites identified as under either positive or negative selection by FUBAR analysis which are under positive selection.\t\t
 P-value for gene-wide episodic selection by BUSTED\tP-value indicating if gene-wide episodic selection has occurred. For more information please checkout the manuscript by Murrell et al. 2015: https://pmc.ncbi.nlm.nih.gov/articles/PMC4408417/.\t\t
-PGAP Annotation (E-value)\tBest PGAP annotation(s) (the HMMER3 E-value associated with the best score)\t\t
-PaperBLAST Annotation (E-value)\tBest PaperBLAST annotation(s) (the DIAMOND E-value associated with the best bitscore). For associated papers BLAST the consensus sequence or the ID here to on the PaperBLAST webpage: https://papers.genomics.lbl.gov/cgi-bin/litSearch.cgi.\t\t
-CARD Annotation (E-value)\tBest CARD annotation(s) of antimicrobial resistance genes (the DIAMOND E-value associated with the best bitscore)\t\t
-IS Finder (E-value)\tBest ISFinder annotation(s) of IS elements / transposons (the DIAMOND E-value associated with the best bitscore)\t\t
-MIBiG Annotation (E-value)\tBest MIBiG annotation(s) for genes in characterized BGCs (the DIAMOND E-value associated with the best bitscore)\t\t
-VOG Annotation (E-value)\tBest VOG annotation(s) for viral/phage ortholog groups (the HMMER3 E-value associated with the best score)\t\t
+PGAP Annotation (E-value)\tBest PGAP annotation(s) (the HMMER3 E-value associated with the best score)\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
+PaperBLAST Annotation (E-value)\tBest PaperBLAST annotation(s) (the DIAMOND E-value associated with the best bitscore). For associated papers BLAST the consensus sequence or the ID here to on the PaperBLAST webpage: https://papers.genomics.lbl.gov/cgi-bin/litSearch.cgi.\tFASTA-based: Consensus OG sequences are queries, database is target.
+CARD Annotation (E-value)\tBest CARD annotation(s) of antimicrobial resistance genes (the DIAMOND E-value associated with the best bitscore)\tFASTA-based: Consensus OG sequences are queries, database is target.
+IS Finder (E-value)\tBest ISFinder annotation(s) of IS elements / transposons (the DIAMOND E-value associated with the best bitscore)\tFASTA-based: Consensus OG sequences are queries, database is target.
+MIBiG Annotation (E-value)\tBest MIBiG annotation(s) for genes in characterized BGCs (the DIAMOND E-value associated with the best bitscore)\tFASTA-based: Consensus OG sequences are queries, database is target.
+VOG Annotation (E-value)\tBest VOG annotation(s) for viral/phage ortholog groups (the HMMER3 E-value associated with the best score)\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
+VFDB Annotation (E-value)\tBest VFDB annotation(s) for virulence factor genes (the DIAMOND E-value associated with the best bitscore)\tFASTA-based: Consensus OG sequences are queries, database is target.
 CDS Locus Tags\tLocus tag identifiers of genes belonging to the ortholog group.\t\t
 Consensus Sequence\tThe consensus sequence for the ortholog group.\t\t
     """

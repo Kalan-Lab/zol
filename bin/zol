@@ -254,6 +254,16 @@ def create_parser():
                "Relavent to 'domain-mode'. [Default is 50aa].", 
         required = False, 
         default = 50)
+    parser.add_argument('-pfp', 
+        '--pfam-params', 
+        help = "Parameters for controlling Pfam domain annotation with\n"
+               "PyHMMER. String with three space-separated parts:\n"
+               "1) Domain filtering mode (Domain or Full)\n"
+               "2) Score cutoff (Gathering, Trusted, Noise, or None)\n"
+               "3) E-value threshold (float)\n"
+               "[Default is \"Domain Gathering 10.0\"].", 
+        required = False, 
+        default = "Domain Gathering 10.0")
     parser.add_argument('-egc', 
         '--eukaryotic-gene-cluster', 
         action = 'store_true', 
@@ -443,6 +453,7 @@ def zol_main():
     select_fai_params_mode = myargs.select_fai_params_mode
     domain_mode = myargs.domain_mode
     ccds_min_length = myargs.ccds_min_length
+    pfam_params = myargs.pfam_params
     eukaryotic_gene_cluster_flag = myargs.eukaryotic_gene_cluster
     threads = myargs.threads
     use_super5 = (not myargs.quality_align)
@@ -542,7 +553,7 @@ def zol_main():
 
     log_object.info("Saving parameters for future records.")
     parameters_file = outdir + 'Parameter_Inputs.txt'
-    parameter_values = [input_arg, outdir, domain_mode, ccds_min_length, eukaryotic_gene_cluster_flag, 
+    parameter_values = [input_arg, outdir, domain_mode, ccds_min_length, pfam_params, eukaryotic_gene_cluster_flag, 
                         select_fai_params_mode, dc_orthogroup_flag, dc_orthogroup_params, 
                         identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
                         (not use_super5), fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
@@ -552,7 +563,8 @@ def zol_main():
                         derep_inflation, derep_small_genomes, custom_database, length, width, 
                         full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
     parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
-                       "Minimum length of chopped CDS features for inclusion", "Eukaryotic Gene Cluster?", 
+                       "Minimum length of chopped CDS features for inclusion", "Pfam annotation parameters", 
+                       "Eukaryotic Gene Cluster?", 
                        "Select fai parameters mode?", 
                        "Perform iterative DIAMOND cluster based orthogrouping instead of default InParanoid-based approach?", 
                        "DIAMOND cluster parameters for orthogrouping (assuming approach requested)", 
@@ -737,6 +749,7 @@ def zol_main():
           modified_genbank_dir, 
           ccds_to_cds_relation_file, 
           log_object, 
+          pfam_params = pfam_params, 
           eukaryotic_gene_cluster_flag = eukaryotic_gene_cluster_flag, 
           threads = threads)
             with open(chopped_genbanks_pickle_file, 'wb') as pickle_file: 
@@ -973,6 +986,7 @@ def zol_main():
         annotations = zol.annotate_consensus_sequences(consensus_prot_seqs_faa, 
          annotation_dir, 
          log_object, 
+         pfam_params = pfam_params, 
          threads = threads)
         if custom_database != None: 
             custom_annots = zol.annotate_custom_database(consensus_prot_seqs_faa, custom_database, annotation_dir, log_object, threads = threads)

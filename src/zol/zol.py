@@ -28,6 +28,128 @@ import peptides
 
 AMBIGUOUS_AMINO_ACIDS = set(["B", "J", "Z", "X"])
 
+def _search_pfam_domains(
+    protein_faa: str,
+    db_file: str,
+    z: int,
+    pfam_params: str,
+    cpus: int = 1,
+    return_coordinates: bool = False
+) -> Union[Dict[str, List[List[Any]]], List[Tuple[Any, Any, Any, Any]]]:
+    """
+    Core PyHMMER search function for Pfam domains.
+    
+    Parameters:
+    - protein_faa: Path to protein FASTA file
+    - db_file: Path to HMM database
+    - z: Number of sequences in database (for E-value calculation)
+    - pfam_params: String specifying Pfam parameters (format: "FilterMode ScoreCutoff EvalueThreshold")
+    - cpus: Number of CPUs to use [Default is 1]
+    - return_coordinates: If True, return domain coordinates for chopping; if False, return flat list for annotation
+    
+    Returns:
+    - If return_coordinates=True: Dict mapping hit names to list of [query_name, target_from, target_to, score, i_evalue]
+    - If return_coordinates=False: List of tuples (hits, hit, domain, use_domain_filtering) for annotation writing
+    """
+    # Parse Pfam parameters
+    use_domain_filtering, bit_cutoffs, evalue_threshold = parse_pfam_params(pfam_params)
+    
+    # Load protein sequences
+    alphabet = pyhmmer.easel.Alphabet.amino()
+    sequences = []
+    with pyhmmer.easel.SequenceFile(
+        protein_faa, digital=True, alphabet=alphabet
+    ) as seq_file:
+        sequences = list(seq_file)
+    
+    # Build hmmsearch parameters, only include bit_cutoffs if not None
+    search_params = {
+        "Z": int(z),
+        "cpus": cpus,
+    }
+    if bit_cutoffs is not None:
+        search_params["bit_cutoffs"] = bit_cutoffs
+    
+    if return_coordinates:
+        # For domain mode: return coordinates for chopping
+        target_dom_hits: Dict[str, List[List[Any]]] = defaultdict(list)
+        with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+            for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
+                for hit in hits:
+                    domains_to_process = hit.domains.included if use_domain_filtering else hit.domains
+                    for domain in domains_to_process:
+                        if domain.i_evalue <= evalue_threshold:
+                            target_dom_hits[hit.name.decode()].append(
+                                [
+                                    hits.query.name.decode(),
+                                    domain.alignment.target_from,
+                                    domain.alignment.target_to,
+                                    domain.score,
+                                    domain.i_evalue,
+                                ]
+                            )
+        return target_dom_hits
+    else:
+        # For annotation mode: return hits for file writing
+        results = []
+        with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+            for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
+                for hit in hits:
+                    domains_to_process = hit.domains.included if use_domain_filtering else hit.domains
+                    for domain in domains_to_process:
+                        if domain.i_evalue <= evalue_threshold:
+                            results.append((hits, hit, domain))
+        return results
+
+def parse_pfam_params(pfam_params_str: str) -> Tuple[bool, Optional[str], float]:
+    """
+    Parse Pfam parameters string into components for PyHMMER.
+    
+    Parameters:
+    - pfam_params_str: String with three space-separated parts:
+        1) Domain filtering mode (Domain or Full)
+        2) Score cutoff (Gathering, Trusted, Noise, or None)
+        3) E-value threshold (float)
+    
+    Returns:
+    - Tuple of (use_domain_filtering, bit_cutoffs, evalue_threshold)
+      where:
+        - use_domain_filtering: bool indicating if domain-level filtering should be used
+        - bit_cutoffs: str or None for PyHMMER bit_cutoffs parameter ("gathering", "trusted", "noise", or None)
+        - evalue_threshold: float E-value threshold for domain inclusion
+    """
+    try:
+        parts = pfam_params_str.strip().split()
+        if len(parts) != 3:
+            raise ValueError(f"Expected 3 space-separated values, got {len(parts)}")
+        
+        # Parse domain filtering mode
+        filtering_mode = parts[0].lower()
+        if filtering_mode not in ["domain", "full"]:
+            raise ValueError(f"Filtering mode must be 'Domain' or 'Full', got '{parts[0]}'")
+        use_domain_filtering = (filtering_mode == "domain")
+        
+        # Parse score cutoff
+        score_cutoff = parts[1].lower()
+        if score_cutoff not in ["gathering", "trusted", "noise", "none"]:
+            raise ValueError(f"Score cutoff must be 'Gathering', 'Trusted', 'Noise', or 'None', got '{parts[1]}'")
+        bit_cutoffs = None if score_cutoff == "none" else score_cutoff
+        
+        # Parse E-value threshold
+        try:
+            evalue_threshold = float(parts[2])
+            if evalue_threshold < 0:
+                raise ValueError(f"E-value threshold must be positive, got {evalue_threshold}")
+        except ValueError as e:
+            raise ValueError(f"E-value threshold must be a valid positive number, got '{parts[2]}'")
+        
+        return use_domain_filtering, bit_cutoffs, evalue_threshold
+    
+    except Exception as e:
+        sys.stderr.write(f"Error parsing Pfam parameters '{pfam_params_str}': {str(e)}\n")
+        sys.stderr.write("Using default parameters: Domain Gathering 10.0\n")
+        return True, "gathering", 10.0
+
 def determine_ranges(i) -> Generator[Tuple[int, int], None, None]:
     """
     Deteremine continuous ranges from a list of integers. Answer taken from the answers by
@@ -340,6 +462,7 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
         pfam_db_file,
         pfam_z,
         minimal_length,
+        pfam_params,
         eukaryotic_gene_cluster_flag,
     ) = inputs
     try:
@@ -395,34 +518,15 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
         if cds_count == 0:
             raise ValueError(f"No CDS features found in GenBank file {gbk}")
         
-        # align Pfam domains and remove overlap similar to BiG-SCAPE
-        alphabet = pyhmmer.easel.Alphabet.amino()
-        sequences = []
-        with pyhmmer.easel.SequenceFile(
-            prot_file, digital=True, alphabet=alphabet
-        ) as seq_file:
-            sequences = list(seq_file)
-
-        target_dom_hits = defaultdict(list)
-        with pyhmmer.plan7.HMMFile(pfam_db_file) as hmm_file:
-            for hits in pyhmmer.hmmsearch(
-                hmm_file,
-                sequences,
-                bit_cutoffs="trusted",
-                Z=int(pfam_z),
-                cpus=1,
-            ):
-                for hit in hits:
-                    for domain in hit.domains.included:
-                        target_dom_hits[hit.name.decode()].append(
-                            [
-                                hits.query.name.decode(),
-                                domain.alignment.target_from,
-                                domain.alignment.target_to,
-                                domain.score,
-                                domain.i_evalue,
-                            ]
-                        )
+        # Run Pfam annotation using PyHMMER (get domain coordinates for chopping)
+        target_dom_hits = _search_pfam_domains(
+            protein_faa=prot_file,
+            db_file=pfam_db_file,
+            z=pfam_z,
+            pfam_params=pfam_params,
+            cpus=1,
+            return_coordinates=True
+        )
 
         # chop up FASTA based on mostly non-overlapping domains, 10% leaway is given
         with open(mapping_file, "w") as map_handle:
@@ -471,7 +575,6 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
                     )
                     tg_dom_name_iter[dom_name] += 1
                     dom_start_evalues[tg + "_" + str(start)] = str(i_evalue)
-            
 
         chopped_features = defaultdict(list)
         with open(prot_file) as ocf:
@@ -559,6 +662,7 @@ def batch_create_chopped_genbanks(
     modified_genbank_dir,
     dom_to_cds_relations_file,
     log_object,
+    pfam_params="Domain Gathering 10.0",
     eukaryotic_gene_cluster_flag=False,
     threads=1,
 ) -> List[Any]:
@@ -708,6 +812,7 @@ def batch_create_chopped_genbanks(
                     pfam_db_file,
                     pfam_z,
                     minimal_length,
+                    pfam_params,
                     eukaryotic_gene_cluster_flag,
                 ]
             )
@@ -1998,47 +2103,62 @@ def annotate_custom_database(
     return custom_annotations
 
 def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
-    name, db_file, z, protein_faa, annotation_result_file, threads = inputs
+    name, db_file, z, protein_faa, annotation_result_file, threads, pfam_params = inputs
     try:
-        alphabet = pyhmmer.easel.Alphabet.amino()
-        sequences = []
-        with pyhmmer.easel.SequenceFile(
-            protein_faa, digital=True, alphabet=alphabet
-        ) as seq_file:
-            sequences = list(seq_file)
-
         with open(annotation_result_file, "w") as outf:
+            # Write header
+            outf.write("# HMM_Profile\tHMM_Accession\tTarget_Protein\tTarget_Start\tTarget_End\tE-value\tScore\n")
+            
             if name == "pfam":
-                with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-                    for hits in pyhmmer.hmmsearch(
-                        hmm_file,
-                        sequences,
-                        bit_cutoffs="trusted",
-                        Z=int(z),
-                        cpus=threads,
-                    ):
-                        for hit in hits:
-                            accession = "NA"
-                            try:
-                                if hits.query.accession is not None:
-                                    accession = hits.query.accession.decode()
-                            except Exception as e:
-                                accession = "NA"
-                            outf.write(
-                                "\t".join(
-                                    [
-                                        hits.query.name.decode(),
-                                        accession,
-                                        "NA",
-                                        hit.name.decode(),
-                                        "NA",
-                                        str(hit.evalue),
-                                        str(hit.score),
-                                    ]
-                                )
-                                + "\n"
-                            )
+                # Use core search function to get Pfam domain results
+                results = _search_pfam_domains(
+                    protein_faa=protein_faa,
+                    db_file=db_file,
+                    z=z,
+                    pfam_params=pfam_params,
+                    cpus=threads,
+                    return_coordinates=False
+                )
+                
+                # Write results to annotation file
+                for hits, hit, domain in results:
+                    hmm_accession = "NA"
+                    try:
+                        if hits.query.accession is not None:
+                            hmm_accession = hits.query.accession.decode()
+                    except Exception as e:
+                        hmm_accession = "NA"
+                    hmm_profile = hits.query.name.decode()  # HMM is the query
+                    target_protein = hit.name.decode()  # Protein is the target
+                    target_start = str(domain.alignment.target_from)
+                    target_end = str(domain.alignment.target_to)
+                    evalue = str(domain.i_evalue)
+                    score = str(domain.score)
+                    
+                    outf.write(
+                        "\t".join(
+                            [
+                                hmm_profile,
+                                hmm_accession,
+                                target_protein,
+                                target_start,
+                                target_end,
+                                evalue,
+                                score,
+                            ]
+                        )
+                        + "\n"
+                    )
+                        
             else:
+                # For non-Pfam HMM databases
+                alphabet = pyhmmer.easel.Alphabet.amino()
+                sequences = []
+                with pyhmmer.easel.SequenceFile(
+                    protein_faa, digital=True, alphabet=alphabet
+                ) as seq_file:
+                    sequences = list(seq_file)
+                
                 with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
                     for hits in pyhmmer.hmmsearch(
                         hmm_file,
@@ -2047,22 +2167,32 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                         cpus=threads,
                     ):
                         for hit in hits:
-                            accession = "NA"
+                            hmm_accession = "NA"
                             try:
                                 if hits.query.accession is not None:
-                                    accession = hits.query.accession.decode()
+                                    hmm_accession = hits.query.accession.decode()
                             except Exception as e:
-                                accession = "NA"
+                                hmm_accession = "NA"
+                            hmm_profile = hits.query.name.decode()  # HMM is the query
+                            target_protein = hit.name.decode()  # Protein is the target
+                            evalue = str(hit.evalue)
+                            score = str(hit.score)
+                            
+                            # For non-Pfam, use hit-level alignment coordinates (spans all domains)
+                            # TopHit.target_from and TopHit.target_to give full alignment span
+                            target_start = str(hit.target_from) if hasattr(hit, 'target_from') else "NA"
+                            target_end = str(hit.target_to) if hasattr(hit, 'target_to') else (str(hit.length) if hasattr(hit, 'length') else "NA")
+                            
                             outf.write(
                                 "\t".join(
                                     [
-                                        hits.query.name.decode(),
-                                        accession,
-                                        "NA",
-                                        hit.name.decode(),
-                                        "NA",
-                                        str(hit.evalue),
-                                        str(hit.score),
+                                        hmm_profile,
+                                        hmm_accession,
+                                        target_protein,
+                                        target_start,
+                                        target_end,
+                                        evalue,
+                                        score,
                                     ]
                                 )
                                 + "\n"
@@ -2091,6 +2221,7 @@ def annotate_consensus_sequences(
     protein_faa,
     annotation_dir,
     log_object,
+    pfam_params="Domain Gathering 10.0",
     threads=1,
     max_annotation_evalue=1e-5,
 ) -> Dict[str, Dict[str, ConsensusAnnotationResult]]:
@@ -2146,6 +2277,7 @@ def annotate_consensus_sequences(
         hmm_search_cmds = []
         name_to_info_file: Dict[str, str] = {}
         hmm_based_annotations = set([])
+        
         with open(db_locations) as odls:
             for line in odls:
                 line = line.strip()
@@ -2161,7 +2293,8 @@ def annotate_consensus_sequences(
                             z,
                             protein_faa,
                             annotation_result_file,
-                            hmm_individual_threads
+                            hmm_individual_threads,
+                            pfam_params
                         ]
                     )
                 elif db_file.endswith(".dmnd") and not name in set(
@@ -2248,50 +2381,51 @@ def annotate_consensus_sequences(
                     ls = line.split("\t")
                     id_to_description[ls[0]] = ls[1]
 
-            # or by_score if HMMscan - lets avoid a second variable
+            # Track best hits by bitscore (for DIAMOND) or score (for HMM databases)
             best_hits_by_bitscore: Dict[str, BestHitInfoConsensus] = {}
             # note second listing here is evalues for most annotation dbs but for Pfam it is accessions (the PF ids) \
             if db_name in hmm_based_annotations:
                 # parse HMM based results from pyhmmer
+                # Format: HMM_Profile	HMM_Accession	Target_Protein	Target_Start	Target_End	E-value	Score
                 with open(annotation_dir + rf) as oarf:
                     for line in oarf:
                         line = line.rstrip("\n")
                         if line.startswith("#"):
                             continue
                         ls = line.split()
-                        query = ls[3]
-                        accession = ls[1]
-                        hit = ls[0]
+                        hit = ls[0]  # HMM profile name (query in the search)
+                        accession = ls[1]  # HMM accession
+                        subject = ls[2]  # Target protein (what we're annotating)
                         evalue = decimal.Decimal(ls[5])
                         score = float(ls[6])
                         if evalue > max_annotation_evalue:
                             continue
                         if db_name != "pfam":
-                            if query not in best_hits_by_bitscore or score > best_hits_by_bitscore[query]["score"]:
-                                best_hits_by_bitscore[query] = {
+                            if subject not in best_hits_by_bitscore or score > best_hits_by_bitscore[subject]["score"]:
+                                best_hits_by_bitscore[subject] = {
                                     "hits": [hit],
                                     "evalues": [evalue],
                                     "accessions": [accession],
                                     "score": score,
                                 }
-                            elif score == best_hits_by_bitscore[query]["score"]:
-                                best_hits_by_bitscore[query]["hits"].append(hit)
-                                best_hits_by_bitscore[query]["evalues"].append(evalue)
-                                best_hits_by_bitscore[query]["score"] = score
+                            elif score == best_hits_by_bitscore[subject]["score"]:
+                                best_hits_by_bitscore[subject]["hits"].append(hit)
+                                best_hits_by_bitscore[subject]["evalues"].append(evalue)
+                                best_hits_by_bitscore[subject]["score"] = score
                         else:
                             if evalue < max_annotation_evalue:
-                                if query not in best_hits_by_bitscore:
-                                    best_hits_by_bitscore[query] = {
+                                if subject not in best_hits_by_bitscore:
+                                    best_hits_by_bitscore[subject] = {
                                         "hits": [hit],
                                         "evalues": [evalue],
                                         "accessions": [accession],
                                         "score": score,
                                     }
                                 else:
-                                    best_hits_by_bitscore[query]["hits"].append(hit)
-                                    best_hits_by_bitscore[query]["evalues"].append(evalue)
-                                    best_hits_by_bitscore[query]["accessions"].append(accession)
-                                    best_hits_by_bitscore[query]["score"] = score
+                                    best_hits_by_bitscore[subject]["hits"].append(hit)
+                                    best_hits_by_bitscore[subject]["evalues"].append(evalue)
+                                    best_hits_by_bitscore[subject]["accessions"].append(accession)
+                                    best_hits_by_bitscore[subject]["score"] = score
             else:
                 # parse DIAMOND BLASTp based results
                 with open(annotation_dir + rf) as oarf:

@@ -45,6 +45,7 @@ zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Dere
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Derep_IBC_Results/ -c 10 -d -ibc
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Dom_Results/ -c 10 -dom
 zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_SFP_Results/ -c 10 -sfp
+zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_PFP_Custom_Results/ -c 10  -pfp="Full None 1e-5"
 
 # Step 4: test out cgc and cgcg for collapsed gene cluster visualization generation
 cgc -i zol_Comparative_Results/ -o cgc_Results/

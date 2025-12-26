@@ -665,7 +665,7 @@ def prep_tg():
                 gbk_file = additional_genbanks_directory + sample + '.gbk.gz'
                 vog_annot_file = mge_annot_search_dir + sample + '.vog.txt'
                 mobsuite_annot_file = mge_annot_search_dir + sample + '.mobsuite.txt'
-                is_annot_file = mge_annot_search_dir + sample + '.isfinder.txt'
+                is_annot_file = mge_annot_search_dir + sample + '.tn_is.txt'
                 summary_file = mge_annot_summary_dir + sample + '.txt'
                 search_mge_annot_inputs.append([
                     sample, faa_file, vog_annot_file, mobsuite_annot_file, 

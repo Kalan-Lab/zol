@@ -744,14 +744,14 @@ def zol_main():
                 input_genbanks = drep_genbanks
 
             chopped_genbanks = zol.batch_create_chopped_genbanks(input_genbanks, 
-          ccds_min_length, 
-          dm_scratch_dir, 
-          modified_genbank_dir, 
-          ccds_to_cds_relation_file, 
-          log_object, 
-          pfam_params = pfam_params, 
-          eukaryotic_gene_cluster_flag = eukaryotic_gene_cluster_flag, 
-          threads = threads)
+                                                                    ccds_min_length, 
+                                                                    dm_scratch_dir, 
+                                                                    modified_genbank_dir, 
+                                                                    ccds_to_cds_relation_file, 
+                                                                    log_object, 
+                                                                    pfam_params = pfam_params, 
+                                                                    eukaryotic_gene_cluster_flag = eukaryotic_gene_cluster_flag, 
+                                                                    threads = threads)
             with open(chopped_genbanks_pickle_file, 'wb') as pickle_file: 
                 pickle.dump(chopped_genbanks, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
             os.system(f'touch {step15_check_file}')
@@ -984,10 +984,10 @@ def zol_main():
     if not os.path.isfile(step4_check_file) and not skip_annotations_flag: 
         util.setup_ready_directory([annotation_dir], delete_if_exist = True)
         annotations = zol.annotate_consensus_sequences(consensus_prot_seqs_faa, 
-         annotation_dir, 
-         log_object, 
-         pfam_params = pfam_params, 
-         threads = threads)
+                                                        annotation_dir, 
+                                                        log_object, 
+                                                        pfam_params = pfam_params, 
+                                                        threads = threads)
         if custom_database != None: 
             custom_annots = zol.annotate_custom_database(consensus_prot_seqs_faa, custom_database, annotation_dir, log_object, threads = threads)
             annotations['custom'] = custom_annots # type: ignore

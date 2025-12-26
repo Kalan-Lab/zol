@@ -71,13 +71,14 @@ def _search_pfam_domains(
         search_params["bit_cutoffs"] = bit_cutoffs
     
     if return_coordinates:
-        # For domain mode: return coordinates for chopping
+        # For domain mode chopping: ALWAYS use domain-level filtering (.included) regardless of pfam_params
+        # because we're physically chopping proteins by domains
         target_dom_hits: Dict[str, List[List[Any]]] = defaultdict(list)
         with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
             for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
                 for hit in hits:
-                    domains_to_process = hit.domains.included if use_domain_filtering else hit.domains
-                    for domain in domains_to_process:
+                    # Always use .included for chopping - user's Domain/Full choice only affects annotations
+                    for domain in hit.domains.included:
                         if domain.i_evalue <= evalue_threshold:
                             target_dom_hits[hit.name.decode()].append(
                                 [
@@ -90,15 +91,21 @@ def _search_pfam_domains(
                             )
         return target_dom_hits
     else:
-        # For annotation mode: return hits for file writing
+        # For annotation mode: check if Domain or Full reporting
         results = []
         with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
             for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
                 for hit in hits:
-                    domains_to_process = hit.domains.included if use_domain_filtering else hit.domains
-                    for domain in domains_to_process:
-                        if domain.i_evalue <= evalue_threshold:
-                            results.append((hits, hit, domain))
+                    if use_domain_filtering:
+                        # Domain mode: report individual domains
+                        domains_to_process = hit.domains.included
+                        for domain in domains_to_process:
+                            if domain.i_evalue <= evalue_threshold:
+                                results.append((hits, hit, domain, True))  # True = domain-level
+                    else:
+                        # Full mode: report hit-level (full protein alignment)
+                        if hit.evalue <= evalue_threshold:
+                            results.append((hits, hit, None, False))  # False = hit-level, None for domain
         return results
 
 def parse_pfam_params(pfam_params_str: str) -> Tuple[bool, Optional[str], float]:
@@ -655,16 +662,15 @@ def create_chopped_genbank(inputs) -> Tuple[str, Optional[str]]:
         return ('error', error_msg)
 
 
-def batch_create_chopped_genbanks(
-    genbanks,
-    minimal_length,
-    dm_scratch_dir,
-    modified_genbank_dir,
-    dom_to_cds_relations_file,
-    log_object,
-    pfam_params="Domain Gathering 10.0",
-    eukaryotic_gene_cluster_flag=False,
-    threads=1,
+def batch_create_chopped_genbanks(genbanks,
+                                    minimal_length,
+                                    dm_scratch_dir,
+                                    modified_genbank_dir,
+                                    dom_to_cds_relations_file,
+                                    log_object,
+                                    pfam_params="Domain Gathering 10.0",
+                                    eukaryotic_gene_cluster_flag=False,
+                                    threads=1,
 ) -> List[Any]:
     """
     Description:
@@ -2110,7 +2116,7 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
             outf.write("# HMM_Profile\tHMM_Accession\tTarget_Protein\tTarget_Start\tTarget_End\tE-value\tScore\n")
             
             if name == "pfam":
-                # Use core search function to get Pfam domain results
+                # Use core search function to get Pfam results (domain or hit-level based on pfam_params)
                 results = _search_pfam_domains(
                     protein_faa=protein_faa,
                     db_file=db_file,
@@ -2121,7 +2127,7 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                 )
                 
                 # Write results to annotation file
-                for hits, hit, domain in results:
+                for hits, hit, domain, is_domain_level in results:
                     hmm_accession = "NA"
                     try:
                         if hits.query.accession is not None:
@@ -2130,10 +2136,19 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                         hmm_accession = "NA"
                     hmm_profile = hits.query.name.decode()  # HMM is the query
                     target_protein = hit.name.decode()  # Protein is the target
-                    target_start = str(domain.alignment.target_from)
-                    target_end = str(domain.alignment.target_to)
-                    evalue = str(domain.i_evalue)
-                    score = str(domain.score)
+                    
+                    if is_domain_level:
+                        # Domain mode: report individual domain coordinates
+                        target_start = str(domain.alignment.target_from)
+                        target_end = str(domain.alignment.target_to)
+                        evalue = str(domain.i_evalue)
+                        score = str(domain.score)
+                    else:
+                        # Full mode: report hit-level (full protein alignment) coordinates
+                        target_start = str(hit.target_from) if hasattr(hit, 'target_from') else "NA"
+                        target_end = str(hit.target_to) if hasattr(hit, 'target_to') else "NA"
+                        evalue = str(hit.evalue)
+                        score = str(hit.score)
                     
                     outf.write(
                         "\t".join(
@@ -4547,7 +4562,7 @@ def consolidate_report(
                 hg, "card", annotations
             )
             isf_annot = util.gather_annotation_from_dict_for_homolog_group(
-                hg, "isfinder", annotations
+                hg, "tn_is", annotations
             )
             mibig_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "mibig", annotations

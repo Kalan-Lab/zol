@@ -3909,7 +3909,7 @@ def annotate_mges(inputs) -> Tuple[str, Optional[str]]:
             - faa_file: path to proteome for sample / genome.
             - vog_annot_file: path to the pyhmmer results for VOG annotations (will be written to - should not exist). \
             - mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (will be written to - should not exist). \
-            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (will be written to - should not exist).
+            - is_annot_file: path to the DIAMOND blastp results for TnCentral annotations (will be written to - should not exist).
     ********************************************************************************************************************
     """
     sample = "NA"
@@ -3954,7 +3954,7 @@ def annotate_mges(inputs) -> Tuple[str, Optional[str]]:
                             1,
                         ]
                         run_pyhmmer_for_vo_gfor_salt(vog_pyhmmer_input)
-                    elif name == "mobsuite" or name == "isfinder":
+                    elif name == "mobsuite" or name == "tn_is":
                         annot_result_file = is_annot_file
                         if name == "mobsuite":
                             annot_result_file = mobsuite_annot_file
@@ -4000,7 +4000,7 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
             - summary_file: The output file for the sample with information on MGE locations.
             - vog_annot_file: path to the pyhmmer results for VOG annotations (should already exist). \
             - mobsuite_annot_file: path to the DIAMOND blastp results for MOB-suite annotations (should already exist). \
-            - is_annot_file: path to the DIAMOND blastp results for ISfinder annotations (should already exist).
+            - is_annot_file: path to the DIAMOND blastp results for TnCentral annotations (should already exist).
     ********************************************************************************************************************
     """
     try:
@@ -4062,7 +4062,7 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
                 ):
                     mobsuite_hits.add(query)
 
-        isfinder_hits = set([])
+        tn_is_hits = set([])
         with open(is_annot_file) as oiaf:
             for line in oiaf:
                 line = line.strip()
@@ -4075,7 +4075,7 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
                     and evalue <= max_dmnd_annotation_evalue
                     and pident >= min_percent_identity
                 ):
-                    isfinder_hits.add(query)
+                    tn_is_hits.add(query)
 
         with open(summary_file, "w") as summary_handle:
             summary_handle.write(
@@ -4108,7 +4108,7 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
                             continue
                         lt = feat.qualifiers.get("locus_tag")[0]
                         total_cds += 1
-                        if lt in isfinder_hits:
+                        if lt in tn_is_hits:
                             ihits += 1
                             start = (
                                 min(
@@ -4667,6 +4667,16 @@ def consolidate_salty_spreadsheet(
             1,
             0,
             "https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt",
+        )
+        dd_sheet.write(
+            3,
+            0,
+            "NOTE: The TnCentral+ISfinder database used for IS-associated element annotation includes passenger proteins",
+        )
+        dd_sheet.write(
+            4,
+            0,
+            "that are co-located with transposases/recombinases. These may not be directly involved in transposition.",
         )
 
         na_format = workbook.add_format(

@@ -647,13 +647,15 @@ def setup_annot_dbs():
 
 		try:
 			print('Setting up TnCentral database!')
-			is_zip_path = download_path + 'tn_is'
+			is_zip_path = download_path + 'tncentral_isfinder.prot.fa.zip'
 			is_faa_path = download_path + 'tncentral_isfinder.prot.fa'
 			is_faa_proc_path = download_path + 'tncentral_isfinder.processed.prot.faa'
 			is_descriptions_file = download_path + 'tn_is_descriptions.txt'
 
 			# Extract the .fa file from the zip
-			os.system(' '.join(['unzip', '-j', is_zip_path, '*.fa', '-d', download_path]))
+			os.system(' '.join(['unzip', '-j', is_zip_path, '-d', download_path]))
+			assert(os.path.isfile(is_faa_path))
+
 			idf_handle = open(is_descriptions_file, 'w')
 			ifpf_handle = open(is_faa_proc_path, 'w')
 			with open(is_faa_path) as oif:
@@ -665,9 +667,9 @@ def setup_annot_dbs():
 
 			os.system(' '.join(['diamond', 'makedb', '--in', is_faa_proc_path, '-d', is_faa_file, '--threads', str(threads)]))
 
-			assert(os.path.isfile(is_faa_proc_path))
+			assert(os.path.isfile(is_faa_file))
 			assert(os.path.isfile(is_descriptions_file))
-			listing_handle.write('tn_is\t' + is_descriptions_file + '\t' + is_faa_proc_path + '\tNA\n')
+			listing_handle.write('tn_is\t' + is_descriptions_file + '\t' + is_faa_file + '\tNA\n')
 			os.system(' '.join(['rm', '-rf', is_faa_path, is_faa_proc_path, is_zip_path]))
 		except Exception as e:
 			sys.stderr.write('Issues setting up TnCentral database.\n')

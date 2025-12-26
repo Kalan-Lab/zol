@@ -2144,9 +2144,15 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                         evalue = str(domain.i_evalue)
                         score = str(domain.score)
                     else:
-                        # Full mode: report hit-level (full protein alignment) coordinates
-                        target_start = str(hit.target_from) if hasattr(hit, 'target_from') else "NA"
-                        target_end = str(hit.target_to) if hasattr(hit, 'target_to') else "NA"
+                        # Full mode: report hit-level, get envelope coords from best domain
+                        # Note: Hit objects don't have target_from/target_to, must get from domains
+                        if hit.domains and len(hit.domains) > 0:
+                            # Get envelope coordinates spanning all domains
+                            target_start = str(min(d.env_from for d in hit.domains))
+                            target_end = str(max(d.env_to for d in hit.domains))
+                        else:
+                            target_start = "NA"
+                            target_end = "NA"
                         evalue = str(hit.evalue)
                         score = str(hit.score)
                     

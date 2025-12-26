@@ -18,7 +18,7 @@ zol-suite fai -r Efaecalis_V583_Genome.fasta -rc NC_004668.1 -rs 2083902 -re 211
 zol-suite fai -pq Epa_Proteins_from_MIBiG_GenBank.faa -tg prepTG_Database/ -o fai_Results_3/ -c 4 --generate-plots
 
 # Step 3: run zol to perform comparative investigations of gene-clusters
-zol-suite zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 4 --full-genbank-labels -cd Epa_Proteins_from_MIBiG_GenBank.faa 
+zol-suite zol -i fai_Results_2/Final_Results/Homologous_Gene_Cluster_GenBanks/ -o zol_Results/ -c 4 --full-genbank-labels -cd Epa_Proteins_from_MIBiG_GenBank.faa
 
 # Step 4: test out cgc and cgcg for collapsed gene cluster visualization generation
 zol-suite cgc -i zol_Results/ -o cgc_Results/

@@ -12,7 +12,7 @@ OG Consensus Order\tThe consensus order of the homolog group across all gene clu
 OG Consensus Direction\tThe consensus direction of the homolog group across all gene clusters.\t\t
 Custom Annotation (E-value)\tCustom annotation based on user providing custom protein database.\t\t
 KO Annotation (E-value)\tBest KEGG ortholog annotation(s) (the HMMER3 E-value associated with the best score)\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
-Pfam Domains\tPfam domains meeting criteria of `-pfp` parameter. By default, the criteria areE-value < 10 and meeting the "gathering" score thresholds.\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
+Pfam Domains\tPfam domains meeting criteria of `-pfp` parameter. By default, the criteria are E-value < 10 and meeting the "gathering" score thresholds.\tHMM-based: HMM profiles are queries, consensus OG sequences are targets.
 Proportion of Focal Gene Clusters with OG\t\tOnly produced if comparative analysis is requested by user.
 Proportion of Comparator Gene Clusters with OG\t\tOnly produced if comparative analysis is requested by user.
 Fixation Index\tFst estimate based on measuring pairwise differences in codon alignments and the statistic developed by Hudson, Slatkin, and Maddison 1992: https://academic.oup.com/genetics/article/132/2/583/6009124?login=true\tOnly produced if comparative analysis is requested by user.

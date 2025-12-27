@@ -148,7 +148,7 @@ def annotate_prot_seqs() -> None:
                 prot, "card", annotations
             )
             isf_annot = util.gather_annotation_from_dict_for_homolo_group(
-                prot, "tn_is", annotations
+                prot, "isfinder", annotations
             )
             mibig_annot = util.gather_annotation_from_dict_for_homolo_group(
                 prot, "mibig", annotations

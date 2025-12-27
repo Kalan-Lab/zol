@@ -52,7 +52,7 @@ def create_parser():
 	Affiliation: Kalan Lab, UW Madison, Department of Medical Microbiology and Immunology
 		
 	Downloads annotation databases for annotations and lateral transfer inference: KOfam, 
-	PGAP, PaperBlast, MIBiG, CARD, Conserved Ribosomal Proteins, VOGs, TnCentral, VFDB,
+	PGAP, PaperBlast, MIBiG, CARD, Conserved Ribosomal Proteins, VOGs, ISFinder, VFDB,
 	MOB-suite MPF and MOB Proteins, and Pfam.
 								  
 	Location of where to download databases is controlled by setting the environmental
@@ -383,7 +383,7 @@ def setup_annot_dbs():
 		pb_faa_file = download_path + 'paperblast.dmnd'
 		vog_phmm_file = download_path + 'vog.hmm'
 		vog_info_file = download_path + 'vog.annotations.tsv'
-		is_faa_file = download_path + 'tn_is.dmnd'
+		is_faa_file = download_path + 'isfinder.dmnd'
 		mb_faa_file = download_path + 'mibig.dmnd'
 		card_faa_file = download_path + 'card.dmnd'
 		vfdb_faa_file = download_path + 'vfdb.dmnd'
@@ -400,7 +400,7 @@ def setup_annot_dbs():
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
-						  'https://tncentral.ncc.unesp.br/api/download_blast/prot/tn_is',
+						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
 						  'https://card.mcmaster.ca/latest/data',
 						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
                     	  'https://zenodo.org/records/13858489/files/Universal-Hug-et-al.hmm?download=1'
@@ -646,34 +646,30 @@ def setup_annot_dbs():
 			sys.stderr.write(str(e) + '\n')
 
 		try:
-			print('Setting up TnCentral database!')
-			is_zip_path = download_path + 'tncentral_isfinder.prot.fa.zip'
-			is_faa_path = download_path + 'tncentral_isfinder.prot.fa'
-			is_faa_proc_path = download_path + 'tncentral_isfinder.processed.prot.faa'
-			is_descriptions_file = download_path + 'tn_is_descriptions.txt'
-
-			# Extract the .fa file from the zip
-			os.system(' '.join(['unzip', '-j', is_zip_path, '-d', download_path]))
-			assert(os.path.isfile(is_faa_path))
+			print('Setting up ISFinder database!')
+			is_faa_path = download_path + 'IS.faa'
+			is_faa_proc_path = download_path + 'IS.processed.faa'
+			is_descriptions_file = download_path + 'is_descriptions.txt'
 
 			idf_handle = open(is_descriptions_file, 'w')
 			ifpf_handle = open(is_faa_proc_path, 'w')
 			with open(is_faa_path) as oif:
 				for rec in SeqIO.parse(oif, 'fasta'):
-					ifpf_handle.write('>' + rec.id + '\n' + str(rec.seq).rstrip('*').replace('?', 'X').replace(' ', '') + '\n')
+					if '~~~Passenger Gene~~~' in rec.description: continue
+					ifpf_handle.write('>' + rec.description + '\n' + str(rec.seq) + '\n')
 					idf_handle.write(rec.id + '\t' + rec.description + '\n')
-			idf_handle.close()
 			ifpf_handle.close()
+			idf_handle.close()
 
 			os.system(' '.join(['diamond', 'makedb', '--in', is_faa_proc_path, '-d', is_faa_file, '--threads', str(threads)]))
 
-			assert(os.path.isfile(is_faa_file))
+			assert(os.path.isfile(is_faa_path))
 			assert(os.path.isfile(is_descriptions_file))
-			listing_handle.write('tn_is\t' + is_descriptions_file + '\t' + is_faa_file + '\tNA\n')
-			os.system(' '.join(['rm', '-rf', is_faa_path, is_faa_proc_path, is_zip_path]))
+			listing_handle.write('isfinder\t' + is_descriptions_file + '\t' + is_faa_file + '\tNA\n')
+			os.system(' '.join(['rm', '-rf', is_faa_path, is_faa_proc_path]))
 		except Exception as e:
-			sys.stderr.write('Issues setting up TnCentral database.\n')
-			issues_handle.write('Issues setting up TnCentral database.\n')
+			sys.stderr.write('Issues setting up ISFinder database.\n')
+			issues_handle.write('Issues setting up ISFinder database.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 

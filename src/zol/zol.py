@@ -4568,7 +4568,7 @@ def consolidate_report(
                 hg, "card", annotations
             )
             isf_annot = util.gather_annotation_from_dict_for_homolog_group(
-                hg, "tn_is", annotations
+                hg, "isfinder", annotations
             )
             mibig_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "mibig", annotations

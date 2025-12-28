@@ -3078,7 +3078,7 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
         if len(unique_seqs) == 1:
             return ('success', 'skipped_identical_sequences')
 
-        if align_len <= 200:
+        if align_len <= 30:
             return ('success', 'skipped_short_alignment')
 
         if skip_gard:

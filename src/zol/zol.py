@@ -3169,7 +3169,7 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
             util.run_cmd_via_subprocess(fubar_cmd, 
                                         check_files=[best_gard_output + ".FUBAR.json"],
                                         verbose=False)
-            os.system(f"mv {hg_codo_algn_file}.FUBAR.json {fubar_outdir}")
+            os.system(f"mv {best_gard_output}.FUBAR.json {fubar_outdir}")
 
             if not skip_busted:
                 busted_cmd = [
@@ -3184,7 +3184,7 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
                 util.run_cmd_via_subprocess(busted_cmd, 
                                             check_files=[best_gard_output + ".BUSTED.json"],
                                             verbose=False)
-                os.system(f"mv {hg_codo_algn_file}.BUSTED.json {busted_outdir}")
+                os.system(f"mv {best_gard_output}.BUSTED.json {busted_outdir}")
         
         return ('success', None)
 

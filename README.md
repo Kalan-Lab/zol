@@ -220,6 +220,8 @@ mv testing_cases* testing_cases.tar.gz
 bash comprehensive_tests.sh
 ```
 
+To run tests, you will need to have fully downloaded/setup databases. 
+
 Expected results using version 1.6.17 can be found at: https://zenodo.org/records/18070406
 
 ## License:

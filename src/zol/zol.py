@@ -51,6 +51,13 @@ def _search_pfam_domains(
     - If return_coordinates=True: Dict mapping hit names to list of [query_name, target_from, target_to, score, i_evalue]
     - If return_coordinates=False: List of tuples (hits, hit, domain, use_domain_filtering) for annotation writing
     """
+    # Helper for handling bytes/str names from pyhmmer
+    def _name_str(obj: Any) -> str:
+        """pyhmmer may return name/accession as bytes or str depending on version."""
+        if isinstance(obj, bytes):
+            return obj.decode()
+        return str(obj)
+
     # Parse Pfam parameters
     use_domain_filtering, bit_cutoffs, evalue_threshold = parse_pfam_params(pfam_params)
     
@@ -80,9 +87,9 @@ def _search_pfam_domains(
                     # Always use .included for chopping - user's Domain/Full choice only affects annotations
                     for domain in hit.domains.included:
                         if domain.i_evalue <= evalue_threshold:
-                            target_dom_hits[hit.name.decode()].append(
+                            target_dom_hits[_name_str(hit.name)].append(
                                 [
-                                    hits.query.name.decode(),
+                                    _name_str(hits.query.name),
                                     domain.alignment.target_from,
                                     domain.alignment.target_to,
                                     domain.score,
@@ -2109,6 +2116,12 @@ def annotate_custom_database(
     return custom_annotations
 
 def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
+    def _name_str(obj: Any) -> str:
+        """pyhmmer may return name/accession as bytes or str depending on version."""
+        if isinstance(obj, bytes):
+            return obj.decode()
+        return str(obj)
+
     name, db_file, z, protein_faa, annotation_result_file, threads, pfam_params = inputs
     try:
         with open(annotation_result_file, "w") as outf:
@@ -2131,11 +2144,11 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                     hmm_accession = "NA"
                     try:
                         if hits.query.accession is not None:
-                            hmm_accession = hits.query.accession.decode()
-                    except Exception as e:
+                            hmm_accession = _name_str(hits.query.accession)
+                    except Exception:
                         hmm_accession = "NA"
-                    hmm_profile = hits.query.name.decode()  # HMM is the query
-                    target_protein = hit.name.decode()  # Protein is the target
+                    hmm_profile = _name_str(hits.query.name)  # HMM is the query
+                    target_protein = _name_str(hit.name)  # Protein is the target
                     
                     if is_domain_level:
                         # Domain mode: report individual domain coordinates
@@ -2191,11 +2204,11 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                             hmm_accession = "NA"
                             try:
                                 if hits.query.accession is not None:
-                                    hmm_accession = hits.query.accession.decode()
-                            except Exception as e:
+                                    hmm_accession = _name_str(hits.query.accession)
+                            except Exception:
                                 hmm_accession = "NA"
-                            hmm_profile = hits.query.name.decode()  # HMM is the query
-                            target_protein = hit.name.decode()  # Protein is the target
+                            hmm_profile = _name_str(hits.query.name)  # HMM is the query
+                            target_protein = _name_str(hit.name)  # Protein is the target
                             evalue = str(hit.evalue)
                             score = str(hit.score)
                             
@@ -4675,6 +4688,16 @@ def consolidate_report(
             0,
             "https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report",
         )
+        dd_sheet.write(
+            2,
+            0,
+            "To add detail to your methods descriptions, check out additional citations for dependency software at:",
+        )
+        dd_sheet.write(
+            3,
+            0,
+            "https://github.com/Kalan-Lab/zol/wiki/6.-dependencies",
+        )
 
         wrap_format = workbook.add_format(
             {
@@ -4703,11 +4726,11 @@ def consolidate_report(
         worksheet_dd.set_column(1, 3, 50)
 
         for col_num, value in enumerate(data_dict_zol_df.columns.values):
-            worksheet_dd.write(3, col_num + 1, value, header_format)
+            worksheet_dd.write(5, col_num + 1, value, header_format)
 
         colnames = ["Column", "Description", "Notes"]
         for index, row in data_dict_zol_df.iterrows():
-            row_ind = index + 4 # type: ignore
+            row_ind = index + 6 # type: ignore
             format = wrap_format
             for col_ind in range(0, 3):
                 col_name = colnames[col_ind]

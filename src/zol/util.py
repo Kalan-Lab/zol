@@ -3756,12 +3756,18 @@ def run_pyhmmer_for_ribo_prots(
                 sys.exit(1)
             os.chdir(curr_path)
 
+        def _name_str(obj: Any) -> str:
+            """pyhmmer may return name as bytes or str depending on version."""
+            if isinstance(obj, bytes):
+                return obj.decode()
+            return str(obj)
+
         hmm_lengths: Dict[str, Any] = {}
         z = 0
         try:
             with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
                 for hmm in hmm_file:
-                    hmm_lengths[hmm.name.decode()] = len(hmm.consensus) # type: ignore
+                    hmm_lengths[_name_str(hmm.name)] = len(hmm.consensus) # type: ignore
                     z += 1
         except Exception as e:
             raise RuntimeError("Problem getting HMM consensus lengths!")
@@ -3812,10 +3818,10 @@ def run_pyhmmer_for_ribo_prots(
                     ) - hit.best_domain.alignment.hmm_sequence.count(".")
                     hmm_coverage = (
                         n_aligned_positions
-                        / hmm_lengths[hit.best_domain.alignment.hmm_name.decode()]
+                        / hmm_lengths[_name_str(hit.best_domain.alignment.hmm_name)]
                     )
                     if hmm_coverage >= 0.25:
-                        reference_ribo_prots.add(hit.name.decode())
+                        reference_ribo_prots.add(_name_str(hit.name))
 
         with open(tg_query_prots_file, "a+") as tg_query_prots_handle:
             with open(best_tg_faa_file) as obtff:
@@ -3846,13 +3852,19 @@ def run_pyhmmer_for_vo_gfor_salt(inputs) -> None:
             - threads: number of threads to use for search.
     ********************************************************************************************************************
     """
+    def _name_str(obj: Any) -> str:
+        """pyhmmer may return name as bytes or str depending on version."""
+        if isinstance(obj, bytes):
+            return obj.decode()
+        return str(obj)
+
     db_file, z, protein_faa, annotation_result_file, threads = inputs
     try:
         hmm_lengths: Dict[str, Any] = {}
         try:
             with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
                 for hmm in hmm_file:
-                    hmm_lengths[hmm.name.decode()] = len(hmm.consensus) # type: ignore
+                    hmm_lengths[_name_str(hmm.name)] = len(hmm.consensus) # type: ignore
         except Exception as e:
             raise RuntimeError("Problem getting HMM consensus lengths!")
 
@@ -3875,14 +3887,14 @@ def run_pyhmmer_for_vo_gfor_salt(inputs) -> None:
                         ) - hit.best_domain.alignment.hmm_sequence.count(".")
                         hmm_coverage = (
                             n_aligned_positions
-                            / hmm_lengths[hit.best_domain.alignment.hmm_name.decode()] # type: ignore
+                            / hmm_lengths[_name_str(hit.best_domain.alignment.hmm_name)] # type: ignore
                         )
                         outf.write(
                             "\t".join(
                                 [
-                                    hits.query.name.decode(),
+                                    _name_str(hits.query.name),
                                     "NA",
-                                    hit.name.decode(),
+                                    _name_str(hit.name),
                                     "NA",
                                     str(hit.evalue),
                                     str(hit.score),
@@ -3893,8 +3905,10 @@ def run_pyhmmer_for_vo_gfor_salt(inputs) -> None:
                         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc(file=sys.stderr)
         raise RuntimeError(
-            "Problem running pyhmmer for annotating MGEs in target genomes!"
+            f"Problem running pyhmmer for annotating MGEs in target genomes! {e}"
         )
 
 
@@ -4669,12 +4683,22 @@ def consolidate_salty_spreadsheet(
             "https://github.com/Kalan-Lab/zol/wiki/5.4-horizontal-or-lateral-transfer-assessment-of-gene-clusters-using-salt",
         )
         dd_sheet.write(
+            2,
+            0,
+            "To add detail to your methods descriptions, check out additional citations for dependency software at:",
+        )
+        dd_sheet.write(
             3,
+            0,
+            "https://github.com/Kalan-Lab/zol/wiki/6.-dependencies",
+        )
+        dd_sheet.write(
+            5,
             0,
             "NOTE: The ISfinder database used for IS-associated element annotation was filtered for passenger genes but not accessory genes",
         )
         dd_sheet.write(
-            4,
+            6,
             0,
             "that are co-located with transposases/recombinases. These may not be directly involved in transposition.",
         )

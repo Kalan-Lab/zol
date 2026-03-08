@@ -2854,7 +2854,16 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
             "WARNING: If DIAMOND linclust was used to collapse redundancy in the prepTG database (default behavior since v1.6.1), sequence similarity stats reported for some hits are proxied based on their representative proteins.",
             warn_format
         )
-
+        dd_sheet.write(
+            3,
+            0,
+            "To add detail to your methods descriptions, check out additional citations for dependency software at:",
+        )
+        dd_sheet.write(
+            4,
+            0,
+            "https://github.com/Kalan-Lab/zol/wiki/6.-dependencies",
+        )
 
         wrap_format = workbook.add_format(
             {
@@ -2882,11 +2891,11 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
         worksheet_dd.set_column(1, 3, 50)
 
         for col_num, value in enumerate(data_dict_fai_df.columns.values): # type: ignore
-            worksheet_dd.write(4, col_num + 1, value, header_format)
+            worksheet_dd.write(6, col_num + 1, value, header_format)
 
         colnames = ["Column", "Description", "Notes"]
         for index, row in data_dict_fai_df.iterrows(): # type: ignore
-            row_ind = int(index) + 5 # type: ignore
+            row_ind = int(index) + 7 # type: ignore
             format = wrap_format
             for col_ind in range(0, 3):
                 col_name = colnames[col_ind]

@@ -4,6 +4,7 @@ channels:
   - bioconda
 dependencies:
   - "python=3.10"
+  - "setuptools=77.0.3"
   - pip
   - curl
   - setuptools

@@ -222,14 +222,14 @@ bash comprehensive_tests.sh
 
 To run tests, you will need to have fully downloaded/setup databases. 
 
-Expected results using version 1.6.17 can be found at: https://zenodo.org/records/18070406
+Expected results using version 1.6.18 can be found at: https://zenodo.org/records/18917966
 
 ## License:
 
 ```
 BSD 3-Clause License
 
-Copyright (c) 2023-2025, Kalan-Lab
+Copyright (c) 2023-2026, Kalan-Lab
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

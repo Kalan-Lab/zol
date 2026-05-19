@@ -949,8 +949,8 @@ def zol_main():
 
         zol.create_protein_alignments(hg_prot_dir, prot_algn_dir, log_object, aligner=aligner, threads=threads)
         zol.create_codon_alignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, log_object)
-        zol.partition_and_create_upstream_nucl_alignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir, 
-                                                     log_object, threads=threads, aligner=aligner)
+        zol.partition_and_create_upstream_nucl_alignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir,
+                                                     log_object, threads=threads)
         zol.trim_alignments(prot_algn_dir, 
          codo_algn_dir, 
          prot_algn_trim_dir, 

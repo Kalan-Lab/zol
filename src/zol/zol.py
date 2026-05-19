@@ -1502,66 +1502,20 @@ def partition_and_create_upstream_nucl_alignments(
                 shutil.copy(upst_file, upst_algn_file)
                 continue
 
-            if aligner == 'famsa':
-                align_cmd = [
-                    "famsa",
-                    "-t",
-                    str(threads),
-                    upst_file,
-                    upst_algn_file,
-                ]
-                try:
-                    util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
-                                                check_files=[upst_algn_file], verbose=False,
-                                                exit_on_error=False)
-                except RuntimeError:
-                    msg = (f"Warning: FAMSA failed for upstream alignment of {prefix} "
-                           f"(possibly an architectural issue). Retrying with -refine_mode off.")
-                    sys.stderr.write(msg + "\n")
-                    log_object.warning(msg)
-                    if os.path.isfile(upst_algn_file):
-                        os.remove(upst_algn_file)
-                    align_cmd_fallback = [
-                        "famsa",
-                        "-t",
-                        str(threads),
-                        "-refine_mode",
-                        "off",
-                        upst_file,
-                        upst_algn_file,
-                    ]
-                    util.run_cmd_via_subprocess(align_cmd_fallback, log_object=log_object,
-                                                check_files=[upst_algn_file], verbose=False)
-            elif aligner == 'muscle-super5':
-                align_cmd = [
-                    "muscle",
-                    "-super5",
-                    upst_file,
-                    "-output",
-                    upst_algn_file,
-                    "-nt",
-                    "-threads",
-                    str(threads),
-                    "-perturb",
-                    "12345",
-                ]
-                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
-                                            check_files=[upst_algn_file], verbose=False)
-            else:
-                align_cmd = [
-                    "muscle",
-                    "-align",
-                    upst_file,
-                    "-output",
-                    upst_algn_file,
-                    "-nt",
-                    "-threads",
-                    str(threads),
-                    "-perturb",
-                    "12345",
-                ]
-                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
-                                            check_files=[upst_algn_file], verbose=False)
+            align_cmd = [
+                "muscle",
+                "-super5",
+                upst_file,
+                "-output",
+                upst_algn_file,
+                "-nt",
+                "-threads",
+                str(threads),
+                "-perturb",
+                "12345",
+            ]
+            util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                        check_files=[upst_algn_file], verbose=False)
 
     except Exception:
         msg = "Issues with partitioning / aligning upstream sequences."

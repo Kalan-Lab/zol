@@ -47,3 +47,4 @@ dependencies:
   - aiofile
   - aiohttp
   - "bioconda::muscle=5.1"
+  - "bioconda::famsa"

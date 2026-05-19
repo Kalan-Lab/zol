@@ -50,7 +50,7 @@ import sys
 os.environ["OMP_NUM_THREADS"] = "1"
 
 # Constants
-VALID_GTDB_RELEASES = {'R220', 'R226'}
+VALID_GTDB_RELEASES = {'R220', 'R226', 'R232'}
 PREMADE_DB_SET = {
     'Acinetobacter', 'Bacillales', 'Corynebacterium', 'Enterobacter', 
     'Enterococcus', 'Escherichia', 'Klebsiella', 'Lactobacillus', 
@@ -166,8 +166,8 @@ in GTDB to be downloaded.
     )
     parser.add_argument(
         '-gr', '--gtdb-release', 
-        help = 'GTDB release to use. [Current default is R226].', 
-        default = 'R226', required = False
+        help = 'GTDB release to use. [Current default is R232].', 
+        default = 'R232', required = False
     )
     parser.add_argument(
         '-d', '--download-premade', 

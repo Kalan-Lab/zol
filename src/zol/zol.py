@@ -1430,6 +1430,7 @@ def partition_and_create_upstream_nucl_alignments(
     upst_algn_dir,
     log_object,
     threads=1,
+    aligner='famsa',
     use_super5=False,
 ) -> None:
     """
@@ -1443,8 +1444,12 @@ def partition_and_create_upstream_nucl_alignments(
     - upst_algn_dir: A directory to write alignments for each ortholog group.
     - log_object: A logging object.
     - threads: The number of threads to use for alignment.
-    - use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
+    - aligner: The aligner to use. Options are 'famsa' (default), 'muscle', or 'muscle-super5'.
+    - use_super5: Deprecated. If True and aligner is not explicitly set, uses 'muscle-super5'.
     """
+    # Handle legacy use_super5 parameter
+    if use_super5 and aligner == 'famsa':
+        aligner = 'muscle-super5'
     try:
         g_to_hg: Dict[str, Any] = {}
         samples = []
@@ -1483,20 +1488,51 @@ def partition_and_create_upstream_nucl_alignments(
                         min_seq_len = len(str(rec.seq))
             if min_seq_len < 10:
                 continue
+
+            seq_count = 0
+            with open(upst_file) as ouf:
+                for line in ouf:
+                    if line.startswith(">"):
+                        seq_count += 1
+                    if seq_count >= 2:
+                        break
+
             upst_algn_file = upst_algn_dir + prefix + ".msa.fna"
-            align_cmd = [
-                "muscle",
-                "-align",
-                upst_file,
-                "-output",
-                upst_algn_file,
-                "-nt",
-                "-threads",
-                str(threads),
-                "-perturb",
-                "12345",
-            ]
-            if use_super5:
+            if seq_count == 1:
+                shutil.copy(upst_file, upst_algn_file)
+                continue
+
+            if aligner == 'famsa':
+                align_cmd = [
+                    "famsa",
+                    "-t",
+                    str(threads),
+                    upst_file,
+                    upst_algn_file,
+                ]
+                try:
+                    util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                                check_files=[upst_algn_file], verbose=False,
+                                                exit_on_error=False)
+                except RuntimeError:
+                    msg = (f"Warning: FAMSA failed for upstream alignment of {prefix} "
+                           f"(possibly an architectural issue). Retrying with -refine_mode off.")
+                    sys.stderr.write(msg + "\n")
+                    log_object.warning(msg)
+                    if os.path.isfile(upst_algn_file):
+                        os.remove(upst_algn_file)
+                    align_cmd_fallback = [
+                        "famsa",
+                        "-t",
+                        str(threads),
+                        "-refine_mode",
+                        "off",
+                        upst_file,
+                        upst_algn_file,
+                    ]
+                    util.run_cmd_via_subprocess(align_cmd_fallback, log_object=log_object,
+                                                check_files=[upst_algn_file], verbose=False)
+            elif aligner == 'muscle-super5':
                 align_cmd = [
                     "muscle",
                     "-super5",
@@ -1509,8 +1545,23 @@ def partition_and_create_upstream_nucl_alignments(
                     "-perturb",
                     "12345",
                 ]
-            util.run_cmd_via_subprocess(align_cmd, log_object=log_object, 
-                                        check_files=[upst_algn_file], verbose=False)
+                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                            check_files=[upst_algn_file], verbose=False)
+            else:
+                align_cmd = [
+                    "muscle",
+                    "-align",
+                    upst_file,
+                    "-output",
+                    upst_algn_file,
+                    "-nt",
+                    "-threads",
+                    str(threads),
+                    "-perturb",
+                    "12345",
+                ]
+                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                            check_files=[upst_algn_file], verbose=False)
 
     except Exception:
         msg = "Issues with partitioning / aligning upstream sequences."
@@ -1522,7 +1573,7 @@ def partition_and_create_upstream_nucl_alignments(
 
 
 def create_protein_alignments(
-    prot_dir, prot_algn_dir, log_object, use_super5=False, threads=1
+    prot_dir, prot_algn_dir, log_object, aligner='famsa', use_super5=False, threads=1
 ) -> None:
     """
     Description:
@@ -1532,9 +1583,13 @@ def create_protein_alignments(
     - prot_dir: A directory containing protein sequences.
     - prot_algn_dir: A directory to write protein alignments.
     - log_object: A logging object.
-    - use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
+    - aligner: The aligner to use. Options are 'famsa' (default), 'muscle', or 'muscle-super5'.
+    - use_super5: Deprecated. If True and aligner is not explicitly set, uses 'muscle-super5'.
     - threads: The number of threads to use for alignment.
     """
+    # Handle legacy use_super5 parameter
+    if use_super5 and aligner == 'famsa':
+        aligner = 'muscle-super5'
     try:
         for pf in os.listdir(prot_dir):
             prefix = ".faa".join(pf.split(".faa")[:-1])
@@ -1554,19 +1609,37 @@ def create_protein_alignments(
                 shutil.copy(prot_file, prot_algn_file)
                 continue
 
-            align_cmd = [
-                "muscle",
-                "-align",
-                prot_file,
-                "-output",
-                prot_algn_file,
-                "-amino",
-                "-threads",
-                str(threads),
-                "-perturb",
-                "12345",
-            ]
-            if use_super5:
+            if aligner == 'famsa':
+                align_cmd = [
+                    "famsa",
+                    "-t",
+                    str(threads),
+                    prot_file,
+                    prot_algn_file,
+                ]
+                try:
+                    util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                                check_files=[prot_algn_file], verbose=False,
+                                                exit_on_error=False)
+                except RuntimeError:
+                    msg = (f"Warning: FAMSA failed for protein alignment of {prefix} "
+                           f"(possibly an architectural issue). Retrying with -refine_mode off.")
+                    sys.stderr.write(msg + "\n")
+                    log_object.warning(msg)
+                    if os.path.isfile(prot_algn_file):
+                        os.remove(prot_algn_file)
+                    align_cmd_fallback = [
+                        "famsa",
+                        "-t",
+                        str(threads),
+                        "-refine_mode",
+                        "off",
+                        prot_file,
+                        prot_algn_file,
+                    ]
+                    util.run_cmd_via_subprocess(align_cmd_fallback, log_object=log_object,
+                                                check_files=[prot_algn_file], verbose=False)
+            elif aligner == 'muscle-super5':
                 align_cmd = [
                     "muscle",
                     "-super5",
@@ -1579,8 +1652,23 @@ def create_protein_alignments(
                     "-perturb",
                     "12345",
                 ]
-            util.run_cmd_via_subprocess(align_cmd, log_object=log_object, 
-                                        check_files=[prot_algn_file], verbose=False)
+                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                            check_files=[prot_algn_file], verbose=False)
+            else:
+                align_cmd = [
+                    "muscle",
+                    "-align",
+                    prot_file,
+                    "-output",
+                    prot_algn_file,
+                    "-amino",
+                    "-threads",
+                    str(threads),
+                    "-perturb",
+                    "12345",
+                ]
+                util.run_cmd_via_subprocess(align_cmd, log_object=log_object,
+                                            check_files=[prot_algn_file], verbose=False)
     except Exception as e:
         msg = "Issues with creating protein alignments."
         sys.stderr.write(msg + "\n")

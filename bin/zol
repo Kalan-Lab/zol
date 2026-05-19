@@ -294,13 +294,15 @@ def create_parser():
                "for features within 2kb of contig edges.", 
         required = False, 
         default = False)
-    parser.add_argument('-qa', 
-        '--quality-align', 
-        action = 'store_true', 
-        help = "Use MUSCLE align instead of super5 for alignments - slower\n"
-               "but more accurate.", 
+    parser.add_argument('-am', 
+        '--aligner-method', 
+        help = "Aligner to use for multiple sequence alignments. Options are:\n"
+               "  'famsa'         - FAMSA2 (default, fast and accurate)\n"
+               "  'muscle'        - MUSCLE5 -align (slower, high accuracy)\n"
+               "  'muscle-super5' - MUSCLE5 -super5 (fast heuristic)\n",
+        choices = ['famsa', 'muscle', 'muscle-super5'],
         required = False, 
-        default = False)
+        default = 'famsa')
     parser.add_argument('-b', 
         '--betard-analysis', 
         action = 'store_true', 
@@ -456,7 +458,7 @@ def zol_main():
     pfam_params = myargs.pfam_params
     eukaryotic_gene_cluster_flag = myargs.eukaryotic_gene_cluster
     threads = myargs.threads
-    use_super5 = (not myargs.quality_align)
+    aligner = myargs.aligner_method
     fubar_selection = myargs.selection_analysis
     skip_gard = myargs.skip_gard
     skip_busted = myargs.skip_busted
@@ -556,7 +558,7 @@ def zol_main():
     parameter_values = [input_arg, outdir, domain_mode, ccds_min_length, pfam_params, eukaryotic_gene_cluster_flag, 
                         select_fai_params_mode, dc_orthogroup_flag, dc_orthogroup_params, 
                         identity_threshold, coverage_threshold, evalue_threshold, clustering_inflation, 
-                        (not use_super5), fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
+                        aligner, fubar_selection, skip_gard, skip_busted, gard_timeout, betard_analysis, 
                         focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
                         only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
                         allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
@@ -570,7 +572,7 @@ def zol_main():
                        "DIAMOND cluster parameters for orthogrouping (assuming approach requested)", 
                        "Ortholog group finding identity threshold", "Ortholog group finding coverage threshold", 
                        "Ortholog group finding E-value threshold", "Ortholog group finding MCL inflation parameter", 
-                       "Use align mode in MUSCLE for alignments?", "Run FUBAR selection analyses?", 
+                       "Aligner method for MSA (famsa, muscle, or muscle-super5)", "Run FUBAR selection analyses?", 
                        "Skip GARD partitioning by recombination breakpoints?", "Skip BUSTED selection analysis?", 
                        "Time allotted to running GARD per ortholog group", "Computate Beta-RDgc statistics?", 
                        "Focal GenBanks listing", "Comparator GenBanks listing", "Filter low quality gene clusters?", 
@@ -945,10 +947,10 @@ def zol_main():
                                                     hg_nucl_dir, 
                                                     log_object)
 
-        zol.create_protein_alignments(hg_prot_dir, prot_algn_dir, log_object, use_super5 = use_super5, threads = threads)
+        zol.create_protein_alignments(hg_prot_dir, prot_algn_dir, log_object, aligner=aligner, threads=threads)
         zol.create_codon_alignments(prot_algn_dir, hg_nucl_dir, codo_algn_dir, log_object)
         zol.partition_and_create_upstream_nucl_alignments(ortho_matrix_file, nucl_upstream_dir, hg_upst_dir, upst_algn_dir, 
-                                                     log_object, threads = threads, use_super5 = use_super5)
+                                                     log_object, threads=threads, aligner=aligner)
         zol.trim_alignments(prot_algn_dir, 
          codo_algn_dir, 
          prot_algn_trim_dir, 

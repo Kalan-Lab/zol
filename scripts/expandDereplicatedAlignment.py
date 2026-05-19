@@ -2,6 +2,7 @@
 
 import os
 import sys
+import shutil
 import argparse
 from zol import util
 from Bio import SeqIO
@@ -30,6 +31,7 @@ def create_parser():
 	parser.add_argument('-mi', '--min_identity', type=float, help='Minimum identity to a known instance (sequence in query). Default is 95.0.', required=False, default=95.0)
 	parser.add_argument('-mc', '--min_coverage', type=float, help='Minimum query coverage of a known instance (sequence in query). Default is 95.0.', required=False, default=95.0)
 	parser.add_argument('-c', '--threads', type=int, help='The number of threads to use. Default is 1.', required=False, default=1)
+	parser.add_argument('-am', '--aligner_method', help='Aligner to use for MSA. Options: famsa (default), muscle, muscle-super5.', choices=['famsa', 'muscle', 'muscle-super5'], required=False, default='famsa')
 	parser.add_argument('-f', '--run_fasttree', action='store_true', help='Run FastTree for approximate maximum-likelihood phylogeny generation of the orthogroup.', required=False, default=False)
 	args = parser.parse_args()
 
@@ -47,6 +49,7 @@ def expandOg():
 	min_identity = myargs.min_identity
 	min_coverage = myargs.min_coverage
 	threads = myargs.threads
+	aligner_method = myargs.aligner_method
 	run_fasttree = myargs.run_fasttree
 
 	try:
@@ -103,8 +106,33 @@ def expandOg():
 	orthogroup_seqs_handle.close()
 
 	orthogroup_seqs_msa = outdir + 'OrthoGroup.msa.faa'
-	muscle_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads), '-perturb', '12345']
-	util.run_cmd_via_subprocess(muscle_cmd, check_files = [orthogroup_seqs_msa])
+
+	seq_count = 0
+	with open(orthogroup_seqs_faa) as osf:
+		for line in osf:
+			if line.startswith('>'):
+				seq_count += 1
+			if seq_count >= 2:
+				break
+
+	if seq_count == 1:
+		shutil.copy(orthogroup_seqs_faa, orthogroup_seqs_msa)
+	elif aligner_method == 'famsa':
+		align_cmd = ['famsa', '-t', str(threads), orthogroup_seqs_faa, orthogroup_seqs_msa]
+		try:
+			util.run_cmd_via_subprocess(align_cmd, check_files=[orthogroup_seqs_msa], exit_on_error=False)
+		except RuntimeError:
+			sys.stderr.write("Warning: FAMSA failed (possibly an architectural issue). Retrying with -refine_mode off.\n")
+			if os.path.isfile(orthogroup_seqs_msa):
+				os.remove(orthogroup_seqs_msa)
+			align_cmd_fallback = ['famsa', '-t', str(threads), '-refine_mode', 'off', orthogroup_seqs_faa, orthogroup_seqs_msa]
+			util.run_cmd_via_subprocess(align_cmd_fallback, check_files=[orthogroup_seqs_msa])
+	elif aligner_method == 'muscle-super5':
+		align_cmd = ['muscle', '-super5', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads), '-perturb', '12345']
+		util.run_cmd_via_subprocess(align_cmd, check_files=[orthogroup_seqs_msa])
+	else:
+		align_cmd = ['muscle', '-align', orthogroup_seqs_faa, '-output', orthogroup_seqs_msa, '-amino', '-threads', str(threads), '-perturb', '12345']
+		util.run_cmd_via_subprocess(align_cmd, check_files=[orthogroup_seqs_msa])
 
 	phylogeny_tre = outdir + 'OrthoGroup.tre'
 	if run_fasttree:

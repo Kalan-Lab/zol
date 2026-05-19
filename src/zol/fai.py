@@ -241,7 +241,7 @@ def parse_coords_from_genbank(genbanks, log_object) -> Dict[str, Dict[str, Any]]
 
 
 def gen_consensus_sequences(
-    genbanks, outdir, log_object, threads=1, use_super5=True) -> List[str]:
+    genbanks, outdir, log_object, threads=1, aligner='famsa') -> List[str]:
     """
     Description:
     This function performs zol-based ortholog group determination across CDS protein sequences from query GenBank files
@@ -252,7 +252,7 @@ def gen_consensus_sequences(
     - outdir: The output directory / workspace where to write intermediate files / analyses.
     - log_object: A logging object.
     - threads: The number of threads to use.
-    - use_super5: Whether to use the SUPER5 algorithm for MUSCLE alignment.
+    - aligner: The aligner to use for MSA. Options are 'famsa' (default), 'muscle', or 'muscle-super5'.
     ********************************************************************************************************************
     Return:
     - orthogroup_matrix_file: An ortholog group vs sample matrix file, where cells correspond to locus tag identifiers.
@@ -334,7 +334,7 @@ def gen_consensus_sequences(
         hg_prot_dir,
         prot_algn_dir,
         log_object,
-        use_super5=use_super5,
+        aligner=aligner,
         threads=threads,
     )
     zol.create_profile_hmms_and_consensus_seqs(

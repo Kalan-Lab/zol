@@ -1430,12 +1430,11 @@ def partition_and_create_upstream_nucl_alignments(
     upst_algn_dir,
     log_object,
     threads=1,
-    aligner='famsa',
-    use_super5=False,
 ) -> None:
     """
     Description:
-    This function partitions upstream DNA sequences into ortholog groups and creates alignments for each group.
+    This function partitions upstream DNA sequences into ortholog groups and creates 
+    alignments using MUSCLE super5 for each group.
     *******************************************************************************************************************
     Parameters:
     - ortho_matrix_file: A file containing an orthomatrix.
@@ -1444,12 +1443,7 @@ def partition_and_create_upstream_nucl_alignments(
     - upst_algn_dir: A directory to write alignments for each ortholog group.
     - log_object: A logging object.
     - threads: The number of threads to use for alignment.
-    - aligner: The aligner to use. Options are 'famsa' (default), 'muscle', or 'muscle-super5'.
-    - use_super5: Deprecated. If True and aligner is not explicitly set, uses 'muscle-super5'.
     """
-    # Handle legacy use_super5 parameter
-    if use_super5 and aligner == 'famsa':
-        aligner = 'muscle-super5'
     try:
         g_to_hg: Dict[str, Any] = {}
         samples = []

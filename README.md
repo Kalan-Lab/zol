@@ -213,7 +213,7 @@ You can now make changes, test them, commit, and finally make a pull request.
 Please also consider downloading the full testing dataset and running more comprehensive testing:
 
 ```bash
-wget https://zenodo.org/records/17625101/files/testing_cases.tar.gz?download=1
+wget https://zenodo.org/records/20292654/files/testing_cases.tar.gz?download=1
 mv testing_cases* testing_cases.tar.gz 
 
 # run comprehensive_tests.sh shell script found in zol's git repo:
@@ -222,7 +222,7 @@ bash comprehensive_tests.sh
 
 To run tests, you will need to have fully downloaded/setup databases. 
 
-Expected results using version 1.6.18 can be found at: https://zenodo.org/records/18917966
+Expected results using version 1.6.19 can be found at: https://zenodo.org/records/20292654
 
 ## License:
 

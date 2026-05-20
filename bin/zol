@@ -299,7 +299,7 @@ def create_parser():
         help = "Aligner to use for multiple sequence alignments. Options are:\n"
                "  'famsa'         - FAMSA2 (default)\n"
                "  'muscle'        - MUSCLE5 -align (slower but more accurate)\n"
-               "  'muscle-super5' - MUSCLE5 -super5 (faster heuristic)\n",
+               "  'muscle-super5' - MUSCLE5 -super5 (fast heuristic)\n",
         choices = ['famsa', 'muscle', 'muscle-super5'],
         required = False, 
         default = 'famsa')

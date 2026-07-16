@@ -84,7 +84,7 @@ Options:
 > We recently updated zol to v1.6.0 - which introduces several key updates, including a unified interface that can be issued as `zol-suite`, improved PEP8 compliance for backend code, and lighter databases constructed using prepTG.
 
 > [!NOTE]
-> Since v1.6.0, AI has been used in the development of zol. Prior to this version, AI was only knowingly used for helping scaffold documentation for existing code functions. 
+> Since v1.6.0, AI has been used in the development of zol. Prior to this version, AI was only largely just used for helping scaffold some documentation for existing code functions, though some code and functions were gathered from sources such as StackOverflow.
 
 ## Main Contents:
 

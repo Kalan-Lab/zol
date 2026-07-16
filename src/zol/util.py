@@ -1,5 +1,13 @@
 from Bio.SeqFeature import FeatureLocation
 from collections import defaultdict
+import warnings
+import re
+# Suppress ete3's invalid escape sequence warnings
+warnings.filterwarnings(
+    "ignore",
+    category=SyntaxWarning,
+    module="ete3"
+)
 from ete3 import Tree
 from operator import itemgetter
 import asyncio
@@ -1371,12 +1379,15 @@ def convert_genbank_to_cds_prots_fasta(
                         if use_either_lt_or_pi:
                             if lt == None and pi != None:
                                 lt = pi
-                        prot_seq = feature.qualifiers.get("translation")[0]
+                        try:
+                            prot_seq = feature.qualifiers.get("translation")[0]
+                        except Exception:
+                            prot_seq = str(feature.extract(rec.seq).translate(to_stop=True))
                         prot_handle.write(f">{lt}\n" + str(prot_seq) + "\n")
-        
+
     except Exception as e:
         sys.stderr.write(
-            "Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!\n"
+            "Difficulties in processing input GenBank and converting to protein fasta. Please make sure locus_tag fields are available for GenBank!\n"
         )
         log_object.error( #
             "Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!"
@@ -1527,7 +1538,7 @@ def prodigal_and_reformat_core(
 
 
 def parse_genbank_for_cds_proteins_and_dna(
-    gbk, log_object, allow_edge_cds=True, feature_type="CDS"
+    gbk, log_object, allow_edge_cds=True, feature_type="CDS", use_either_lt_or_pi=False
 ) -> List[Dict[str, Any]]:
     """
     Description:
@@ -1538,6 +1549,7 @@ def parse_genbank_for_cds_proteins_and_dna(
     - log_object: A logging object.
     - allow_edge_cds: Whether to regard CDS features near scaffold edges.
     - feature_type: The focal type of feature. Default is CDS.
+    - use_either_lt_or_pi: Whether to use protein_id as a fallback when locus_tag is absent.
     ********************************************************************************************************************
     Returns:
     - A list which can be expanded to the following dictionaries:
@@ -1556,7 +1568,17 @@ def parse_genbank_for_cds_proteins_and_dna(
                 for feature in rec.features:
                     if feature.type != feature_type:
                         continue
-                    lt = feature.qualifiers.get("locus_tag")[0]
+                    lt = None
+                    try:
+                        lt = feature.qualifiers.get("locus_tag")[0]
+                    except Exception:
+                        if use_either_lt_or_pi:
+                            try:
+                                lt = feature.qualifiers.get("protein_id")[0]
+                            except Exception:
+                                pass
+                    if lt is None:
+                        continue
 
                     start, end, direction, all_coords = process_location_string(
                         str(feature.location) # type: ignore
@@ -1606,12 +1628,12 @@ def parse_genbank_for_cds_proteins_and_dna(
                         )[0].replace(" ", "")
                     except Exception as e:
                         final_nucl_seq = nucl_seq
+                    
                     try:
-                        final_prot_seq = feature.qualifiers.get("translation")[
-                            0
-                        ]
+                        final_prot_seq = feature.qualifiers.get("translation")[0]
                     except Exception as e:
-                        final_prot_seq = str(Seq(nucl_seq).translate())
+                        final_prot_seq = str(feature.extract(rec.seq).translate(to_stop=True))
+                    
                     try:
                         edgy_cds = (
                             feature.qualifiers.get("near_scaffold_edge")[0]

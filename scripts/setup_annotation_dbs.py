@@ -43,6 +43,8 @@ import argparse
 from Bio import SeqIO
 import shutil
 import traceback
+import datetime
+from pathlib import Path
 
 def create_parser():
 	""" Parse arguments """
@@ -66,11 +68,22 @@ def create_parser():
 
 	parser.add_argument('-c', '--threads', type=int, help="Number of threads to use [Default is 4].", required=False, default=4)
 	parser.add_argument('-m', '--minimal', action='store_true', help="Minimal mode - will only download Pfam and PGAP HMMs.", required=False, default=False)
-	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, CARD proteins, & MIBiG proteins.", required=False, default=False)	
+	parser.add_argument('-ld', '--lsabgc-minimal', action='store_true', help="Minimal mode for lsaBGC - will only download Pfam HMMs, PGAP HMMs, & MIBiG proteins.", required=False, default=False)	
 	parser.add_argument('-y', '--yes', action='store_true', help="Assume 'yes' for prompts (non-interactive).", required=False, default=False)
 
 	args = parser.parse_args()
 	return args
+
+def get_file_timestamp(infile):
+	infile = Path(infile)
+	
+	# Fetch the raw Unix timestamp (float)
+	modification_timestamp = infile.stat().st_mtime
+	# Convert to a readable datetime object
+	readable_time = datetime.datetime.fromtimestamp(modification_timestamp)
+
+	return readable_time
+
 
 def setup_annot_dbs():
 	myargs = create_parser()
@@ -99,16 +112,20 @@ def setup_annot_dbs():
 	except Exception as e:
 		sys.stderr.write('Error: Provided directory for downloading annotation files does not exist or user did not accept deleting the directory and recreating it!\n')
 
+	download_release_info_path = download_path + 'release_info/'
+
 	if lsabgc_minimal_mode:
-		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG, CARD, and PGAP databases.\n')
+		sys.stdout.write('lsaBGC minimal mode requested, will only be downloading the Pfam, MIBiG, and PGAP databases.\n')
 	elif minimal_mode:
 		sys.stdout.write('Minimal mode requested, will only be downloading the Pfam and PGAP databases.\n')
 	
 	try:
 		shutil.rmtree(download_path)
 		os.mkdir(download_path)
+		os.mkdir(download_release_info_path)
 		readme_outf = open(download_path + 'README.txt', 'w')
-		readme_outf.write('Default space for downloading KOFam annotation databases.\n')
+		readme_outf.write('Default space for downloading annotation databases.\n')
+		readme_outf.write('Date of database setup: ' + str(datetime.datetime.now()) + '\n')
 		readme_outf.close()
 	except Exception as e:
 		sys.stderr.write('Issues clearing contents of db/ to re-try downloads.\n')
@@ -130,7 +147,7 @@ def setup_annot_dbs():
 		for dl in download_links:
 			bf = dl.split('/')[-1].split('?')[0]
 			download_output = download_path + bf
-			curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+			curl_download_dbs_cmd = ['curl', '-R', '-L', dl, '-o', download_output]
 			os.system(' '.join(curl_download_dbs_cmd))
 			assert(os.path.isfile(download_output))
 	except Exception as e:
@@ -148,13 +165,13 @@ def setup_annot_dbs():
 		pgap_phmm_file = download_path + 'PGAP.hmm'
 		mb_faa_file = download_path + 'mibig.dmnd'
 		pfam_phmm_file = download_path + 'Pfam-A.hmm'
-		card_faa_file = download_path + 'card.dmnd'
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
 				  'https://dl.secondarymetabolites.org/mibig/mibig_prot_seqs_4.0.fasta',
 				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
-				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz',
-				  'https://card.mcmaster.ca/latest/data']
+				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz', # versioning files after this 
+				  'https://ftp.ncbi.nlm.nih.gov/hmm/current/RELEASE_NOTES.txt',
+				  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/relnotes.txt']
 
 		# Download
 		print('Starting download of files!')
@@ -166,10 +183,29 @@ def setup_annot_dbs():
 				if bf == 'data':
 					bf = 'card-data.tar.bz2'
 					download_output = download_path + bf
-				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				curl_download_dbs_cmd = ['curl', '-R', '-L', dl, '-o', download_output]
 				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
+			sys.stderr.write(str(e) + '\n')
+
+		# rename record files 
+		try:
+			if os.path.isfile(download_path + 'RELEASE_NOTES.txt'):
+				rename_pgap_release_notes_cmd = ['mv', download_path + 'RELEASE_NOTES.txt', download_release_info_path + 'pgap_release_notes.txt']
+				os.system(' '.join(rename_pgap_release_notes_cmd))
+
+			if os.path.isfile(download_path + 'relnotes.txt'):
+				rename_pfam_release_notes_cmd = ['mv', download_path + 'relnotes.txt', download_release_info_path + 'pfam_release_notes.txt']
+				os.system(' '.join(rename_pfam_release_notes_cmd))
+				
+			if os.path.isfile(download_path + 'mibig_prot_seqs_4.0.fasta'):
+				os.system(f'echo "v4.0 (November 15, 2024)" > {download_release_info_path + 'mibig_release_notes.txt'}')
+
+		except Exception as e:
+			sys.stderr.write('Issues with renaming record/provenance files.\n')
+			issues_handle.write('Issues with renaming record/provenance files.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -258,30 +294,8 @@ def setup_annot_dbs():
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 			
-		try:
-			print('Setting up CARD database!')
-			print('Check out the ARTS webserver for more detailed analysis in finding BGCs for synthesizing antibiotics.')
-			os.mkdir(download_path + 'CARD_DB_Files/')
-			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
-			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))
-			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file, '--threads', str(threads)]))
-			card_descriptions_file = download_path + 'card_descriptions.txt'
-			cdf_handle = open(card_descriptions_file, 'w')
-			with open(download_path + 'protein_fasta_protein_homolog_model.fasta') as ocf:
-				for rec in SeqIO.parse(ocf, 'fasta'):
-					cdf_handle.write(rec.id + '\t' + rec.description + '\n')
-			cdf_handle.close()
-			os.system(' '.join(['rm', '-rf', download_path + 'CARD_DB_Files/', download_path + 'protein_fasta_protein_homolog_model.fasta', download_path + 'card-data.tar.bz2']))
-			assert(os.path.isfile(card_faa_file))
-			listing_handle.write('card\t' + card_descriptions_file + '\t' + card_faa_file + '\tNA\n')
-		except Exception as e:
-			sys.stderr.write('Issues setting up CARD database.\n')
-			issues_handle.write('Issues setting up CARD database.\n')
-			sys.stderr.write(traceback.format_exc())
-			sys.stderr.write(str(e) + '\n')
 
 
-	
 	elif minimal_mode:
 		# Final annotation files
 		pgap_info_file = download_path + 'hmm_PGAP.tsv'
@@ -290,7 +304,9 @@ def setup_annot_dbs():
 
 		download_links = ['https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.HMM.tgz',
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
-						  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz']
+						  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/Pfam-A.hmm.gz', # versioning files after this 
+						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/RELEASE_NOTES.txt',
+     			  		  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/relnotes.txt']
 
 		# Download
 		print('Starting download of files!')
@@ -299,10 +315,26 @@ def setup_annot_dbs():
 			for dl in download_links:
 				bf = dl.split('/')[-1].split('?')[0]
 				download_output = download_path + bf
-				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				curl_download_dbs_cmd = ['curl', '-R', '-L', dl, '-o', download_output]
 				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading of databases!\n')
+			sys.stderr.write(str(e) + '\n')
+
+		# rename record files 
+		try:
+			if os.path.isfile(download_path + 'RELEASE_NOTES.txt'):
+				rename_pgap_release_notes_cmd = ['mv', download_path + 'RELEASE_NOTES.txt', download_release_info_path + 'pgap_release_notes.txt']
+				os.system(' '.join(rename_pgap_release_notes_cmd))
+
+			if os.path.isfile(download_path + 'relnotes.txt'):
+				rename_pfam_release_notes_cmd = ['mv', download_path + 'relnotes.txt', download_release_info_path + 'pfam_release_notes.txt']
+				os.system(' '.join(rename_pfam_release_notes_cmd))
+
+		except Exception as e:
+			sys.stderr.write('Issues with renaming record/provenance files.\n')
+			issues_handle.write('Issues with renaming record/provenance files.\n')
+			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
 		try:
@@ -400,11 +432,13 @@ def setup_annot_dbs():
 						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/hmm_PGAP.tsv',
 						  'http://fileshare.csb.univie.ac.at/vog/latest/vog.annotations.tsv.gz',
 						  'ftp://ftp.genome.jp/pub/db/kofam/ko_list.gz',
-						  'https://raw.githubusercontent.com/thanhleviet/ISfinder-sequences/master/IS.faa',
+						  'https://github.com/raufs/ISfinder-sequences/raw/refs/heads/master/IS.faa',
 						  'https://card.mcmaster.ca/latest/data',
 						  'https://zenodo.org/records/10304948/files/data.tar.gz?download=1',
-                    	  'https://zenodo.org/records/13858489/files/Universal-Hug-et-al.hmm?download=1'
-						  ]
+                    	  'https://zenodo.org/records/13858489/files/Universal-Hug-et-al.hmm?download=1', # versioning files after this 
+						  'https://ftp.ncbi.nlm.nih.gov/hmm/current/RELEASE_NOTES.txt',
+     			  		  'https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/relnotes.txt', 
+						  'https://fileshare.lisc.univie.ac.at//vog/latest/release.txt']
 
 		# Download
 		print('Starting download of files!')
@@ -416,11 +450,53 @@ def setup_annot_dbs():
 				if bf == 'data':
 					bf = 'card-data.tar.bz2'
 					download_output = download_path + bf
-				curl_download_dbs_cmd = ['curl', '-L', dl, '-o', download_output]
+				curl_download_dbs_cmd = ['curl', '-R', '-L', dl, '-o', download_output]
 				os.system(' '.join(curl_download_dbs_cmd))
 		except Exception as e:
 			sys.stderr.write('Error occurred during downloading!\n')
 			issues_handle.write('Error occurred during downloading with curl.\n')
+			sys.stderr.write(traceback.format_exc())
+			sys.stderr.write(str(e) + '\n')
+
+		# rename record files 
+		try:
+			if os.path.isfile(download_path + 'RELEASE_NOTES.txt'):
+				rename_pgap_release_notes_cmd = ['mv', download_path + 'RELEASE_NOTES.txt', download_release_info_path + 'pgap_release_notes.txt']
+				os.system(' '.join(rename_pgap_release_notes_cmd))
+
+			if os.path.isfile(download_path + 'relnotes.txt'):
+				rename_pfam_release_notes_cmd = ['mv', download_path + 'relnotes.txt', download_release_info_path + 'pfam_release_notes.txt']
+				os.system(' '.join(rename_pfam_release_notes_cmd))
+				
+			if os.path.isfile(download_path + 'mibig_prot_seqs_4.0.fasta'):
+				os.system(f"echo \"v4.0 (November 15, 2024)\" > {download_release_info_path}mibig_release_notes.txt")
+
+			if os.path.isfile(download_path + 'profiles.tar.gz'):
+				timestamp = get_file_timestamp(download_path + 'profiles.tar.gz')
+				os.system(f"echo \"Timestamp: {str(timestamp)}\" > {download_release_info_path}kofam_release_notes.txt")
+			
+			if os.path.isfile(download_path + 'uniq.faa'):
+				timestamp = get_file_timestamp(download_path + 'uniq.faa')
+				os.system(f"echo \"Timestamp: {str(timestamp)}\" > {download_release_info_path}paperblast_release_notes.txt")
+			
+			if os.path.isfile(download_path + 'VFDB_setB_pro.fas.gz'):
+				timestamp = get_file_timestamp(download_path + 'VFDB_setB_pro.fas.gz')
+				os.system(f"echo \"Timestamp: {str(timestamp)}\" > {download_release_info_path}vfdb_release_notes.txt")
+			
+			if os.path.isfile(download_path + 'release.txt'):
+				rename_vog_release_notes_cmd = ['mv', download_path + 'release.txt', download_release_info_path + 'vog_release_notes.txt']
+				os.system(' '.join(rename_vog_release_notes_cmd))
+			
+			if os.path.isfile(download_path + 'card-data.tar.bz2'):
+				timestamp = get_file_timestamp(download_path + 'card-data.tar.bz2')
+				os.system(f"echo \"Timestamp: {str(timestamp)}\" > {download_release_info_path}card_release_notes.txt")
+			
+			if os.path.isfile(download_path + 'data.tar.gz'):
+				os.system(f"echo \"v3.1.8 (December 8, 2023)\" > {download_release_info_path}mobsuite_release_notes.txt")
+
+		except Exception as e:
+			sys.stderr.write('Issues with renaming record/provenance files.\n')
+			issues_handle.write('Issues with renaming record/provenance files.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
 
@@ -568,12 +644,15 @@ def setup_annot_dbs():
 			issues_handle.write('Issues setting up VFDB database.\n')
 			sys.stderr.write(traceback.format_exc())
 			sys.stderr.write(str(e) + '\n')
-		
+
 		try:
 			print('Setting up CARD database!')
+			print('Check out the ARTS webserver for more detailed analysis in finding BGCs for synthesizing antibiotics.')
 			os.mkdir(download_path + 'CARD_DB_Files/')
 			os.system(' '.join(['tar', '-xf', download_path + 'card-data.tar.bz2', '-C', download_path + 'CARD_DB_Files/']))
 			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/protein_fasta_protein_homolog_model.fasta', download_path]))
+			os.system(' '.join(['mv', download_path + 'CARD_DB_Files/CARD-Download-README.txt', download_release_info_path + '/card_license.txt']))
+
 			os.system(' '.join(['diamond', 'makedb', '--in', download_path + 'protein_fasta_protein_homolog_model.fasta', '-d', card_faa_file, '--threads', str(threads)]))
 			card_descriptions_file = download_path + 'card_descriptions.txt'
 			cdf_handle = open(card_descriptions_file, 'w')
@@ -717,6 +796,10 @@ def setup_annot_dbs():
 	issues_handle.close()
 
 	print("Done setting up annotation databases!")
-	print(f"Information on final files used by zol can be found at:\n{listing_file}")
+	print(f"Information on final files used by zol can be found at:\n{listing_file}\n--------------------")
+	print(f"Information on database version/timestamp information can be found at:\n{download_release_info_path}\n--------------------")
+
 	sys.exit(0)
-setup_annot_dbs()
+
+if __name__ == '__main__': 
+	setup_annot_dbs()

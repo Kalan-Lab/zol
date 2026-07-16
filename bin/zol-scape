@@ -302,9 +302,12 @@ def zolscape():
             'Pfam Domains'
         ]
  
-    evolutionary_stats_header = ['Tajima\'s D', 'Proportion of Filtered Codon Alignment is Segregating Sites',
-                             'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
-                             'Proportion of sites which are highly ambiguous in codon alignment', 
+    evolutionary_stats_header = ['Average Pairwise Nucleotide Identity', 'Average Pairwise Protein Identity',
+                             'Std Dev of Pairwise Protein Identity', 'Protein to Nucleotide Identity Ratio',
+                             'Tajima\'s D',
+                             'Proportion of Filtered Codon Alignment is Segregating Sites',
+                             'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc',
+                             'Proportion of sites which are highly ambiguous in codon alignment',
                                  'Proportion of sites which are highly ambiguous in trimmed codon alignment',
                                  'Median GC', 'Median GC Skew']
     peptide_header = ['BGC score (GECCO weights)', 'Viral score (V-Score)', 'Hydrophobicity Mean',
@@ -345,11 +348,13 @@ def zolscape():
                     num_rows += 1
     zctf_handle.close()
 
-    zr_numeric_columns = set(['Proportion of Total Gene Clusters with OG', 
-                              'Proportion of Complete Gene Clusters with OG', 
-                              'OG Median Length (bp)', 'OG Consensus Order', 
-                              'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints', 
-                              'GARD Partitions Based on Recombination Breakpoints', 
+    zr_numeric_columns = set(['Proportion of Total Gene Clusters with OG',
+                              'Proportion of Complete Gene Clusters with OG',
+                              'OG Median Length (bp)', 'OG Consensus Order',
+                              'Average Pairwise Nucleotide Identity', 'Average Pairwise Protein Identity',
+                              'Std Dev of Pairwise Protein Identity', 'Protein to Nucleotide Identity Ratio',
+                              'Tajima\'s D', 'GARD Partitions Based on Recombination Breakpoints',
+                              'GARD Partitions Based on Recombination Breakpoints',
                               'Number of Sites Identified as Under Positive or Negative Selection by FUBAR', 
                               'Average delta(Beta, Alpha) by FUBAR across sites', 
                               'Proportion of Sites Under Selection which are Positive', 
@@ -463,6 +468,59 @@ def zolscape():
             },
         )
 
+    # avg pairwise nucleotide identity
+    for col in ["Average Pairwise Nucleotide Identity", "Average Pairwise Protein Identity"]:
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            zr_sheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#A5D6E3",
+                    "min_value": 40.0,
+                    "max_value": 90.0,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+
+    col = "Std Dev of Pairwise Protein Identity"
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "2_color_scale",
+                "min_color": "#FFFFFF",
+                "max_color": "#F86B6B",
+                "min_value": 0.0,
+                "max_value": 100.0,
+                "min_type": "num",
+                "max_type": "num",
+            },
+        )
+
+    # protein to nucleotide identity ratio
+    col = "Protein to Nucleotide Identity Ratio"
+    if col in col_map:
+        cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+        zr_sheet.conditional_format(
+            cell_range,
+            {
+                "type": "3_color_scale",
+                "min_color": "#E6B0AA",
+                "mid_color": "#FFFFFF",
+                "max_color": "#B8CCE4",
+                "min_value": 0.5,
+                "mid_value": 1.0,
+                "max_value": 1.5,
+                "min_type": "num",
+                "mid_type": "num",
+                "max_type": "num",
+            },
+        )
+
     # taj-d
     col = "Tajima's D"
     if col in col_map:
@@ -525,9 +583,9 @@ def zolscape():
             cell_range,
             {
                 "type": "3_color_scale",
-                "min_color": "#F8696B",
-                "mid_color": "#FFEB84",
-                "max_color": "#63BE7B",
+                "min_color": "#FBB4B5",
+                "mid_color": "#FFF5C1",
+                "max_color": "#B1DEBD",
                 "min_value": 0.75,
                 "mid_value": 1.0,
                 "max_value": 1.25,

@@ -1070,7 +1070,7 @@ def zol_main():
     busted_results_dir = evo_results_dir + 'BUSTED_Results/'
     if not os.path.isfile(step6_check_file): 
         util.setup_ready_directory([evo_results_dir], delete_if_exist = True)
-        tajimas_d, segregating_sites_prop = zol.run_tajimas_d_analysis(codo_algn_trim_dir, evo_results_dir, 
+        tajimas_d, segregating_sites_prop, avg_nuc_identity = zol.run_tajimas_d_analysis(codo_algn_trim_dir, evo_results_dir,
                                                                        log_object, threads = threads)
         hg_entropy, hg_upst_entropy = zol.run_entropy_analysis(codo_algn_trim_dir, upst_algn_dir, evo_results_dir, 
                                                                log_object, threads = threads)
@@ -1094,12 +1094,15 @@ def zol_main():
 
         hg_med_beta_rd = {}
         hg_max_beta_rd = {}
-        if betard_analysis: 
+        if betard_analysis:
             hg_med_beta_rd, hg_max_beta_rd = zol.compute_beta_rd_gc(prot_algn_dir, evo_results_dir, log_object, threads = threads)
-        evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop, 
-                     'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props, 
-                     'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval, 
-                     'median_beta_rd_gc': hg_med_beta_rd, 
+        hg_avg_prot_identity, hg_std_prot_identity = zol.run_pairwise_protein_identity_analysis(prot_algn_dir, evo_results_dir, log_object, threads = threads)
+        evo_stats = {'tajimas_d': tajimas_d, 'segregating_sites_prop': segregating_sites_prop,
+                     'avg_nuc_identity': avg_nuc_identity, 'avg_prot_identity': hg_avg_prot_identity,
+                     'std_prot_identity': hg_std_prot_identity,
+                     'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
+                     'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval,
+                     'median_beta_rd_gc': hg_med_beta_rd,
                      'max_beta_rd_gc': hg_max_beta_rd, 'entropy': hg_entropy, 'entropy_upst': hg_upst_entropy}
         with open(evo_stats_pickle_file, 'wb') as pickle_file: 
             pickle.dump(evo_stats, pickle_file)

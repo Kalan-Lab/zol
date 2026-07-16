@@ -9,6 +9,7 @@ import math
 import os
 from typing import Dict, List, Optional, Union, Any, Tuple, Generator, Set, TypedDict
 import pickle
+import random
 import shutil
 import statistics
 import subprocess
@@ -3499,6 +3500,124 @@ def determine_seq_sim_protein_alignment(inputs) -> Tuple[str, Optional[str]]:
         error_msg = f"Error in determine_seq_sim_protein_alignment for ortholog group {hg}: {str(e)}"
         return ('error', error_msg)
 
+def run_pairwise_protein_identity_per_hg(inputs) -> Tuple[str, Optional[str]]:
+    """
+    Description:
+    Computes average and standard deviation of pairwise protein identity for a single ortholog group.
+    *******************************************************************************************************************
+    Parameters:
+    - inputs: A list which can be expanded to:
+            - hg: The ortholog group identifier.
+            - protein_alignment_file: The protein MSA file for the ortholog group in FASTA format.
+            - outf: Output file path.
+    *******************************************************************************************************************
+    """
+    hg, protein_alignment_file, outf = inputs
+    try:
+        prot_sequences = []
+        with open(protein_alignment_file) as opaf:
+            for rec in SeqIO.parse(opaf, "fasta"):
+                prot_sequences.append(str(rec.seq).upper())
+        if len(prot_sequences) >= 2:
+            pairs = list(itertools.combinations(prot_sequences, 2))
+            if len(pairs) > 10000:
+                random.shuffle(pairs)
+                pairs = pairs[:10000]
+            pair_identities = []
+            for seq_a, seq_b in pairs:
+                matches = 0
+                comparable = 0
+                for a, b in zip(seq_a, seq_b):
+                    if a != '-' and b != '-':
+                        comparable += 1
+                        if a == b:
+                            matches += 1
+                if comparable > 0:
+                    pair_identities.append((matches / comparable)*100.0)
+            if pair_identities:
+                avg_prot_identity = statistics.mean(pair_identities)
+                std_prot_identity = statistics.stdev(pair_identities) if len(pair_identities) >= 2 else 0.0
+            else:
+                avg_prot_identity = "NA"
+                std_prot_identity = "NA"
+        else:
+            avg_prot_identity = "NA"
+            std_prot_identity = "NA"
+        with open(outf, "w") as outf_handle:
+            outf_handle.write(f"{hg}\t{avg_prot_identity}\t{std_prot_identity}\n")
+        return ('success', None)
+    except Exception as e:
+        error_msg = f"Issues with calculating pairwise protein identity for ortholog group {hg}: {str(e)}"
+        return ('error', error_msg)
+
+
+def run_pairwise_protein_identity_analysis(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Description:
+    Computes average and standard deviation of pairwise protein identity for all ortholog groups.
+    ********************************************************************************************************************
+    Parameters:
+    - prot_algn_dir: The directory with protein alignments for ortholog groups.
+    - evo_dir: The workspace / directory where analyses should be performed under.
+    - log_object: A logging object.
+    - threads: The number of threads to use.
+    ********************************************************************************************************************
+    Returns:
+    - hg_avg_prot_identity: A dictionary mapping ortholog groups to their average pairwise protein identity.
+    - hg_std_prot_identity: A dictionary mapping ortholog groups to the std dev of pairwise protein identity.
+    ********************************************************************************************************************
+    """
+    try:
+        evo_dir = os.path.abspath(evo_dir) + "/"
+        prot_algn_dir = os.path.abspath(prot_algn_dir) + "/"
+
+        ppi_resdir = evo_dir + "PairwiseProteinIdentity_Calculations/"
+        util.setup_ready_directory([ppi_resdir])
+
+        inputs = []
+        for f in os.listdir(prot_algn_dir):
+            if not f.endswith(".msa.faa"):
+                continue
+            hg = f.split(".msa.faa")[0]
+            outf = ppi_resdir + hg + ".txt"
+            inputs.append([hg, prot_algn_dir + f, outf])
+
+        msg = "Computing average pairwise protein identity for %d ortholog groups" % len(inputs)
+        log_object.info(msg)
+        sys.stdout.write(msg + "\n")
+
+        result_summary = util.robust_multiprocess_executor(
+            worker_function=run_pairwise_protein_identity_per_hg,
+            inputs=inputs,
+            pool_size=threads,
+            error_strategy="report_and_continue",
+            log_object=log_object,
+            description="pairwise protein identity analysis"
+        )
+
+        success_prop = result_summary['success_count'] / result_summary['total_processed']
+        msg = f"{success_prop*100.0}% of pairwise protein identity computations were successful."
+        sys.stdout.write(msg + '\n')
+        log_object.info(msg)
+
+        hg_avg_prot_identity: Dict[str, Any] = {}
+        hg_std_prot_identity: Dict[str, Any] = {}
+        for f in os.listdir(ppi_resdir):
+            with open(ppi_resdir + f) as otf:
+                for line in otf:
+                    line = line.strip()
+                    hg, avg_pi, std_pi = line.split("\t")
+                    hg_avg_prot_identity[hg] = avg_pi
+                    hg_std_prot_identity[hg] = std_pi
+        return hg_avg_prot_identity, hg_std_prot_identity
+    except Exception as e:
+        sys.stderr.write("Issues with calculating pairwise protein identity for ortholog groups.\n")
+        log_object.error("Issues with calculating pairwise protein identity for ortholog groups.")
+        sys.stderr.write(str(e) + "\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.exit(1)
+
+
 def compute_beta_rd_gc(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Description:
@@ -3815,14 +3934,15 @@ def calculate_ambiguity(codo_algn_dir, codo_algn_trim_dir, log_object) -> Tuple[
 def run_tajimas_d_analysis_per_hg(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
-    This function oversees the calculation of Tajima's D and proportion of segregating sites per ortholog group.
+    This function oversees the calculation of Tajima's D, proportion of segregating sites, and average pairwise
+    nucleotide identity per ortholog group.
     *******************************************************************************************************************
     Parameters:
     - input: A list which can be expanded to the following items:
             - hg: The ortholog group identifier.
             - trim_codon_align: The trimmed codon multiple sequence alignment file for the ortholog group in FASTA format.
-            - outf: The output file where to write the Tajima's D statistic and the proportion of segregating sites for the
-                    ortholog group.
+            - outf: The output file where to write the Tajima's D statistic, proportion of segregating sites, and average
+                    pairwise nucleotide identity for the ortholog group.
     *******************************************************************************************************************
     """
     hg, trim_codon_align, outf = inputs
@@ -3839,7 +3959,27 @@ def run_tajimas_d_analysis_per_hg(inputs) -> Tuple[str, Optional[str]]:
             else:
                 taj_d = "NA"
                 seg_sites_prop = "NA"
-            outf_handle.write(f"{hg}\t{taj_d}\t{seg_sites_prop}\n")
+            # compute average pairwise nucleotide identity (requires >= 2 sequences)
+            if len(codo_sequences) >= 2:
+                pairs = list(itertools.combinations(codo_sequences, 2))
+                if len(pairs) > 5000:
+                    random.shuffle(pairs)
+                    pairs = pairs[:5000]
+                pair_identities = []
+                for seq_a, seq_b in pairs:
+                    matches = 0
+                    comparable = 0
+                    for a, b in zip(seq_a, seq_b):
+                        if a != '-' and b != '-':
+                            comparable += 1
+                            if a == b:
+                                matches += 1
+                    if comparable > 0:
+                        pair_identities.append((matches / comparable) * 100.0)
+                avg_nuc_identity = statistics.mean(pair_identities) if pair_identities else "NA"
+            else:
+                avg_nuc_identity = "NA"
+            outf_handle.write(f"{hg}\t{taj_d}\t{seg_sites_prop}\t{avg_nuc_identity}\n")
         return ('success', None)
     except Exception as e:
         error_msg = f"Issues with calculating Tajima's D for ortholog group {hg}: {str(e)}"
@@ -3940,7 +4080,7 @@ def determine_bgc_and_viral_scores(pfam_annotations, log_object) -> Tuple[Dict[s
             sys.exit(1)
 
 
-def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     """
     Description:
     This function runs Tajima's D analysis for all ortholog groups.
@@ -3952,10 +4092,11 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
     - threads: The number of threads to use.
     ********************************************************************************************************************
     Returns:
-    - A list with two items:
+    - A list with three items:
             - hg_tajimas_d: A dictionary mapping ortholog groups to their Tajima's D estimates.
             - hg_seg_sites: A dictionary mapping ortholog groups to the proportion of segregating sites in their trimmed
                             codon alignments.
+            - hg_avg_nuc_identity: A dictionary mapping ortholog groups to their average pairwise nucleotide identity.
     ********************************************************************************************************************
     """
     try:
@@ -3975,7 +4116,7 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
             inputs.append([hg, trim_codon_align, outf])
 
         msg = (
-            "Computing Tajima's D statistic (using trimmed codon alignments) for %d ortholog groups" \
+            "Computing Tajima's D statistic and average pairwise nucleotide identity (using trimmed codon alignments) for %d ortholog groups" \
             % len(inputs)
         )
         log_object.info(msg)
@@ -3986,7 +4127,7 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
             worker_function=run_tajimas_d_analysis_per_hg,
             inputs=inputs,
             pool_size=threads,
-            error_strategy="report_and_continue", 
+            error_strategy="report_and_continue",
             log_object=log_object,
             description="Tajima's D analysis"
         )
@@ -3998,14 +4139,16 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
 
         hg_tajimas_d: Dict[str, Any] = {}
         hg_seg_sites_prop: Dict[str, Any] = {}
+        hg_avg_nuc_identity: Dict[str, Any] = {}
         for f in os.listdir(tajd_resdir):
             with open(tajd_resdir + f) as otf:
                 for line in otf:
                     line = line.strip()
-                    hg, tajd, ssp = line.split("\t")
+                    hg, tajd, ssp, ani = line.split("\t")
                     hg_tajimas_d[hg] = tajd
                     hg_seg_sites_prop[hg] = ssp
-        return hg_tajimas_d, hg_seg_sites_prop
+                    hg_avg_nuc_identity[hg] = ani
+        return hg_tajimas_d, hg_seg_sites_prop, hg_avg_nuc_identity
     except Exception as e:
         sys.stderr.write(
             "Issues with calculating Tajima's D for ortholog groups.\n"
@@ -4470,6 +4613,10 @@ def consolidate_report(
                 "Upstream Region Fixation Index",
             ]
         header += [
+            "Average Pairwise Nucleotide Identity",
+            "Average Pairwise Protein Identity",
+            "Std Dev of Pairwise Protein Identity",
+            "Protein to Nucleotide Identity Ratio",
             "Tajima's D",
             "Proportion of Filtered Codon Alignment is Segregating Sites",
             "Entropy",
@@ -4554,6 +4701,10 @@ def consolidate_report(
             hg_ordr = hg_tup[1][0]
             hg_dire = '"' + hg_tup[1][1] + '"'
             (
+                hg_avg_nuc_id,
+                hg_avg_prot_id,
+                hg_std_prot_id,
+                hg_prot_nuc_ratio,
                 hg_tajd,
                 hg_entr,
                 hg_upst_entr,
@@ -4566,8 +4717,22 @@ def consolidate_report(
                 hg_max_brdgc,
                 fst,
                 fst_upst,
-            ) = ["NA"] * 12
+            ) = ["NA"] * 16
+
             if hg_scs == True or ces:
+                hg_avg_nuc_id = util.gather_value_from_dict_for_homolog_group(
+                    hg, evo_stats["avg_nuc_identity"]
+                )
+                hg_avg_prot_id = util.gather_value_from_dict_for_homolog_group(
+                    hg, evo_stats["avg_prot_identity"]
+                )
+                hg_std_prot_id = util.gather_value_from_dict_for_homolog_group(
+                    hg, evo_stats["std_prot_identity"]
+                )
+                try:
+                    hg_prot_nuc_ratio = float(hg_avg_prot_id) / float(hg_avg_nuc_id)
+                except Exception as e:
+                    hg_prot_nuc_ratio = "NA"
                 hg_tajd = util.gather_value_from_dict_for_homolog_group(
                     hg, evo_stats["tajimas_d"]
                 )
@@ -4672,6 +4837,10 @@ def consolidate_report(
             hg_vs = type_weights["viral"][hg]
 
             row += [
+                hg_avg_nuc_id,
+                hg_avg_prot_id,
+                hg_std_prot_id,
+                hg_prot_nuc_ratio,
                 hg_tajd,
                 hg_segs,
                 hg_entr,
@@ -4780,6 +4949,10 @@ def consolidate_report(
             "Upstream Region Fixation Index",
             "OG Median Length (bp)",
             "OG Consensus Order",
+            "Average Pairwise Nucleotide Identity",
+            "Average Pairwise Protein Identity",
+            "Std Dev of Pairwise Protein Identity",
+            "Protein to Nucleotide Identity Ratio",
             "Tajima's D",
             "Entropy",
             "Upstream Region Entropy",
@@ -4967,6 +5140,60 @@ def consolidate_report(
                     },
                 )
 
+        # Pairwise nucleotide/protein identity
+        for col in ["Average Pairwise Nucleotide Identity", "Average Pairwise Protein Identity"]:
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#FFFFFF",
+                        "max_color": "#A5D6E3",
+                        "min_value": 40.0,
+                        "max_value": 90.0,
+                        "min_type": "num",
+                        "max_type": "num",
+                    },
+                )
+
+        # Pairwise protein identity standard deviation
+        col = "Std Dev of Pairwise Protein Identity"
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
+                {
+                    "type": "2_color_scale",
+                    "min_color": "#FFFFFF",
+                    "max_color": "#F86B6B",
+                    "min_value": 0.0,
+                    "max_value": 100.0,
+                    "min_type": "num",
+                    "max_type": "num",
+                },
+            )
+
+        # Protein to nucleotide identity ratio
+        col = "Protein to Nucleotide Identity Ratio"
+        if col in col_map:
+            cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+            worksheet.conditional_format(
+                cell_range,
+                {
+                    "type": "3_color_scale",
+                    "min_color": "#E6B0AA",
+                    "mid_color": "#FFFFFF",
+                    "max_color": "#B8CCE4",
+                    "min_value": 0.5,
+                    "mid_value": 1.0,
+                    "max_value": 1.5,
+                    "min_type": "num",
+                    "mid_type": "num",
+                    "max_type": "num",
+                },
+            )
+
         # Tajima's D
         col = "Tajima's D"
         if col in col_map:
@@ -5028,9 +5255,9 @@ def consolidate_report(
                 cell_range,
                 {
                     "type": "3_color_scale",
-                    "min_color": "#F8696B",
-                    "mid_color": "#FFEB84",
-                    "max_color": "#63BE7B",
+                    "min_color": "#FBB4B5",
+                    "mid_color": "#FFF5C1",
+                    "max_color": "#B1DEBD",
                     "min_value": 0.75,
                     "mid_value": 1.0,
                     "max_value": 1.25,
@@ -5577,25 +5804,3 @@ def compute_peptides_stats(
         sys.stderr.write(error_msg + "\\n")
         sys.stderr.write(traceback.format_exc())
         sys.exit(1)
-
-def run_fegenie(
-    input_file,
-    output_file,
-    log_object,
-    threads=1,
-):
-    try:
-        cmd = [
-            "fegenie",
-            "-i",
-            input_file,
-            "-o",
-            output_file,
-            "--threads",
-            str(threads),
-        ]
-        util.run_cmd_via_subprocess(cmd, log_object=log_object, check_files=[output_file])
-        return ('success', None)
-    except Exception as e:
-        error_msg = f"Issues with running fegenie: {str(e)}"
-        return ('error', error_msg)

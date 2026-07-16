@@ -30,7 +30,7 @@ PROGRAM_DESCRIPTIONS = {
     "salt": "Support assessment for lateral transfer of gene clusters (experimental).",
     "regex": "Extract a genomic region (as GenBank) from a genome file (FASTA or GenBank)\n"
             "based on scaffold and coordinate inputs (experimental).",
-    "zol-scape": "Run zol analysis on BiG-SCAPE results."
+    "zol-scape": "Run zol analysis on BiG-SCAPE results.",
 }
 
 
@@ -46,6 +46,18 @@ def get_zol_exec_path() -> Path:
     return exec_path
 
 
+def get_zol_data_path() -> Path:
+    zol_data_path = os.environ.get("ZOL_DATA_PATH")
+    if not zol_data_path:
+        print("Error: The environment variable ZOL_DATA_PATH is not set. Please set it to the directory containing ZOL databases.")
+        sys.exit(1)
+    data_path = Path(zol_data_path)
+    if not data_path.exists() or not data_path.is_dir():
+        print(f"Error: ZOL_DATA_PATH '{zol_data_path}' does not exist or is not a directory.")
+        sys.exit(1)
+    return data_path
+
+
 def get_available_programs() -> List[str]:
     """Get list of available ZOL programs from ZOL_EXEC_PATH directory, limited to those in PROGRAM_DESCRIPTIONS."""
     bin_dir = get_zol_exec_path()
@@ -56,8 +68,17 @@ def get_available_programs() -> List[str]:
     # Force include 'zol' if it's in PROGRAM_DESCRIPTIONS, regardless of file status
     if 'zol' in PROGRAM_DESCRIPTIONS and 'zol' not in programs:
         programs.append('zol')
-    
+
     return sorted(programs)
+
+
+def print_database_info() -> int:
+    data_dir = get_zol_data_path()
+    listing_file = data_dir / "database_location_paths.txt"
+    release_info_dir = data_dir / "release_info"
+    print(f"-----------------\nInformation on annotation files used by zol can be found at:\n{listing_file}\n-----------------")
+    print(f"Information on release/versions/timing can be found at:\n{release_info_dir}")
+    return 0
 
 
 def run_program(program_name: str, args: List[str]) -> int:
@@ -89,6 +110,9 @@ def run_program(program_name: str, args: List[str]) -> int:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == '--database-info':
+        return print_database_info()
+
     programs = get_available_programs()
     parser = argparse.ArgumentParser(
         description="""
@@ -123,6 +147,7 @@ For help with a specific program, use: zol-suite <program> --help
         formatter_class=RawTextRichHelpFormatter,
     )
     parser.add_argument('--list-programs', action='store_true', help='List all available programs and exit')
+    parser.add_argument('--database-info', action='store_true', help='Print paths to database file listings and release information')
     parser.add_argument('--version', action='version', version='ZOL Suite 1.6.0')
     subparsers = parser.add_subparsers(dest='program', metavar='<program>', help='ZOL program to run')
 
@@ -157,6 +182,8 @@ For help with a specific program, use: zol-suite <program> --help
             for program in programs:
                 print(f"  {program}")
             return 0
+        if args.database_info:
+            return print_database_info()
         # If no subcommand or invalid, show help and available programs
         parser.print_help()
         print("\nAvailable ZOL programs:")

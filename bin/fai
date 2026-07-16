@@ -599,10 +599,10 @@ def fai_main():
                     if os.path.isfile(filename) and (filename.endswith(".gbff") or filename.endswith(".gbk") or filename.endswith(".genbank")): 
                         if util.check_valid_genbank(filename, 
                                                     use_either_lt_or_pi = True, 
-                                                    require_translation = True): 
+                                                    require_translation = False): 
                             genbanks.add(filename)
                         else: 
-                            msg = f'Ignoring file {filename} because it doesn\'t have CDS features, translations for all CDS features, or a comma was found in a CDS locus tag.'
+                            msg = f'Ignoring file {filename} because it doesn\'t have CDS features, translations for all CDS features, or a comma or pipe character was found in a CDS locus tag.'
                             sys.stderr.write(msg + '\n')
                             log_object.warning(msg)
             except Exception as e: 

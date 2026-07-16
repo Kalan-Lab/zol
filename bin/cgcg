@@ -104,14 +104,16 @@ def create_parser():
         '--outdir', 
         help = "Output directory.", 
         required = True)
-    parser.add_argument('-c', 
-        '--color-track', 
+    parser.add_argument('-c',
+        '--color-track',
         help = "The track from the zol spreadsheet to use for coloring.\n"
-               "Options include: conservation, tajimas_d, entorpy,\n"
+               "Options include: conservation, tajimas_d, entropy,\n"
                "upstream_entropy, median_beta_rd, max_beta_rd, fst,\n"
                "alternative_conservation, bgc_score, viral_score,\n"
-               "busrted_pval. [Default is conservation].", 
-        required = False, 
+               "busted_pval, avg_nuc_identity, avg_prot_identity,\n"
+               "std_prot_identity, prot_nuc_identity_ratio.\n"
+               "[Default is conservation].",
+        required = False,
         default = "conservation")
     parser.add_argument('-vl', 
         '--low-value', 
@@ -215,14 +217,17 @@ def create_parser():
     args = parser.parse_args()
     return args
 
-track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters with OG', 'tajimas_d': 'Tajima\'s D', 'entropy': 'Entropy', 
-                            'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc', 
-                            'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index', 
-                            'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG', 
-              'bgc_score': 'BGC score (GECCO weights)', 
-
-                            'viral_score': 'Viral score (V-Score)', 
-              'busted_pval': 'P-value for gene-wide episodic selection by BUSTED'}
+track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters with OG', 'tajimas_d': 'Tajima\'s D', 'entropy': 'Entropy',
+                            'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc',
+                            'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index',
+                            'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG',
+                            'bgc_score': 'BGC score (GECCO weights)',
+                            'viral_score': 'Viral score (V-Score)',
+                            'busted_pval': 'P-value for gene-wide episodic selection by BUSTED',
+                            'avg_nuc_identity': 'Average Pairwise Nucleotide Identity',
+                            'avg_prot_identity': 'Average Pairwise Protein Identity',
+                            'std_prot_identity': 'Std Dev of Pairwise Protein Identity',
+                            'prot_nuc_identity_ratio': 'Protein to Nucleotide Identity Ratio'}
 
 track_full_label_to_name = dict((v, k) for k, v in track_name_to_full_label.items())
 

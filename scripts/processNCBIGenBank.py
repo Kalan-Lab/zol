@@ -128,6 +128,7 @@ def processAndReformatNCBIGenbanks():
 	map_outfile = map_outdir + sample_name + '.txt'
 	tot_cds_features = 0
 	accounted_features = 0
+
 	try:
 		gbk_outfile_handle = open(gbk_outfile, 'w')
 		pro_outfile_handle = open(pro_outfile, 'w')
@@ -147,7 +148,7 @@ def processAndReformatNCBIGenbanks():
 			for feature in rec.features:
 				if feature.type == "CDS":
 					tot_cds_features += 1
-					
+
 					start, end, direction, all_coords = util.process_location_string(str(feature.location))	# type: ignore
 
 					old_locus_tag = None
@@ -162,9 +163,15 @@ def processAndReformatNCBIGenbanks():
 							raise RuntimeError(msg)
 						else:
 							if not rename_all_flag:
-								msg = "Warning: A CDS does not have a locus tag. Will give it an arbitary one."
+								msg = "Warning: A CDS does not have a locus tag. Will give it an arbitrary one."
 								sys.stderr.write(msg + '\n')
 
+					# Check for "|" in locus tag and skip the feature if present
+					if old_locus_tag and "|" in old_locus_tag:
+						msg = f'Warning: Locus tag "{old_locus_tag}" contains "|", skipping this feature.'
+						sys.stderr.write(msg + '\n')
+						continue
+					
 					try:
 						prot_seq = str(feature.qualifiers.get('translation')[0]).replace('*', '')
 					except Exception as e:
@@ -179,9 +186,9 @@ def processAndReformatNCBIGenbanks():
 							continue
 
 					new_locus_tag = None
-					if old_locus_tag != None and not rename_all_flag:
+					if old_locus_tag is not None and not rename_all_flag:
 						new_locus_tag = old_locus_tag
-					elif rename_all_flag or old_locus_tag == None:
+					elif rename_all_flag or old_locus_tag is None:
 						new_locus_tag = locus_tag + '_'
 						if locus_tag_iterator < 10:
 							new_locus_tag += '00000' + str(locus_tag_iterator)
@@ -205,7 +212,7 @@ def processAndReformatNCBIGenbanks():
 						raise RuntimeError(msg)
 					
 					pro_outfile_handle.write('>' + str(new_locus_tag) + ' ' + rec.id + ' ' + str(start) + ' ' + str(end) + ' ' + str(direction) + '\n' + prot_seq + '\n')
-					if old_locus_tag == None:
+					if old_locus_tag is None:
 						old_locus_tag = 'NA'
 					map_outfile_handle.write(str(old_locus_tag) + '\t' + str(new_locus_tag) + '\n')
 					accounted_features += 1
@@ -221,7 +228,6 @@ def processAndReformatNCBIGenbanks():
 		map_outfile_handle.close()
 
 	except Exception as e:
-
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
@@ -244,7 +250,7 @@ def processAndReformatNCBIGenbanks():
 			sys.stderr.write(traceback.format_exc() + '\n')
 		raise RuntimeError(msg + '\n')
 
-	if accounted_features/tot_cds_features < 0.9:
+	if accounted_features / tot_cds_features < 0.9:
 		try:
 			os.remove(gbk_outfile)
 		except OSError as error: 
@@ -269,6 +275,7 @@ def processAndReformatNCBIGenbanks():
 		error_outfile_handle.close()
 
 	sys.exit(0)
+
 
 if __name__ == '__main__':
 	processAndReformatNCBIGenbanks()

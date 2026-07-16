@@ -1,4 +1,12 @@
 from collections import defaultdict
+# Suppress ete3's invalid escape sequence warnings
+import warnings
+import re
+warnings.filterwarnings(
+    "ignore",
+    category=SyntaxWarning,
+    module="ete3"
+)
 from ete3 import Tree
 from operator import itemgetter
 from typing import Dict, List, Union, Any, TypedDict, Optional, Set, Tuple
@@ -272,7 +280,7 @@ def gen_consensus_sequences(
             try:
                 prefix = ".".join(gbk.split("/")[-1].split(".")[:-1])
                 proteins, nucleotides, upstream_regions = (
-                    util.parse_genbank_for_cds_proteins_and_dna(gbk, log_object)  # type: ignore
+                    util.parse_genbank_for_cds_proteins_and_dna(gbk, log_object, use_either_lt_or_pi=True)  # type: ignore
                 )
                 protein_outf = prot_dir + f"{prefix}.faa"
                 with open(protein_outf, "w") as protein_handle:

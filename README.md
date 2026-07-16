@@ -83,6 +83,9 @@ Options:
 > [!IMPORTANT]
 > We recently updated zol to v1.6.0 - which introduces several key updates, including a unified interface that can be issued as `zol-suite`, improved PEP8 compliance for backend code, and lighter databases constructed using prepTG.
 
+> [!NOTE]
+> Since v1.6.0, AI has been used in the development of zol. Prior to this version, AI was only knowingly used for helping scaffold documentation for existing code functions. 
+
 ## Main Contents:
 
 1. [Documetation](https://github.com/Kalan-Lab/zol/wiki)
@@ -113,8 +116,6 @@ Note, (for some setups at least) ***it is critical to specify the conda-forge ch
 
 ```bash
 # 1. install and activate zol
-
-# On Linux:
 conda create -n zol_env -c conda-forge -c bioconda zol
 conda activate zol_env
 
@@ -136,6 +137,33 @@ zol-suite [-h]
 
 > [!NOTE]
 > 🍎 For Mac users with Apple Silicon chips, you might need to specify `CONDA_SUBDIR=osx-64` prior to `conda create` as described [here](https://github.com/bioconda/bioconda-recipes/issues/41702#issuecomment-1614173361). So you would issue: `CONDA_SUBDIR=osx-64 conda create -n zol_env -c conda-forge -c bioconda zol`. You might get warnings still related to some Intel related messages - but these should be ok to ignore mostly - if you have concerns - please feel free to just reach out. 
+
+#### Pixi:
+
+To use pixi to setup zol first init a path to where you want to keep the environment and then "add" install zol:
+
+```bash
+# 1. initialize pixi environment and cd into it
+pixi init /path/to/zol_pixi_env/ && cd /path/to/zol_pixi_env/
+
+# 2. "add" install zol
+pixi add zol
+
+# 3. activate the shell
+pixi shell -m /path/to/zol_pixi_env/pixi.toml
+
+# 4. depending on internet speed, this can take 20-30 minutes
+# end product will be ~40 GB! You can also run in minimal mode
+# (which will only download Pfam & PGAP HMM models ~8.5 GB)
+# using the -m argument. 
+setup_annotation_dbs.py [-m]
+
+# 5. run interface program
+zol-suite [-h]
+```
+
+> [!NOTE]
+> `setup_annotation_dbs.py` should work the same. Similar to how for conda the location of dbs will be at: `/path/to/zol_conda_env/share/zol-1.6.19/db/` the location of the dbs for pixi will be under `/path/to/zol_pixi_env/.pixi/envs/default/share/zol-1.6.19/db/`.
 
 #### Docker:
 

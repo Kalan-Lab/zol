@@ -141,7 +141,9 @@ in GTDB to be downloaded.
   Note, by default, if a CDS does not feature a locus tag, it will be given an arbitrary
   one. Also, if a CDS does not feature a translation, the CDS feature will be skipped.
   If >10% of CDS features are skipped for lacking a translation, then the entire genome
-  will be skipped.
+  will be skipped. For downstream processing in fai to work correctly, pipe "|" 
+  characters should be avoided in "locus_tag" names, these will be skipped by default,
+  or the "--rename-locus-tags" option should be specified.
  
 - DIAMOND linclust (on by default) is an approximate clustering, for more information on 
   its impact, please see the prepTG wiki page: 

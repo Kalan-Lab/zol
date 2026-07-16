@@ -74,6 +74,7 @@ Positional Arguments:
 Options:
   -h, --help       show this help message and exit
   --list-programs  List all available programs and exit
+  --database-info  Print paths to database file listings and release information
   --version        show program's version number and exit
   ```
 
@@ -241,7 +242,7 @@ You can now make changes, test them, commit, and finally make a pull request.
 Please also consider downloading the full testing dataset and running more comprehensive testing:
 
 ```bash
-wget https://zenodo.org/records/20292654/files/testing_cases.tar.gz?download=1
+wget https://zenodo.org/records/21318649/files/testing_cases.tar.gz?download=1
 mv testing_cases* testing_cases.tar.gz 
 
 # run comprehensive_tests.sh shell script found in zol's git repo:
@@ -250,7 +251,7 @@ bash comprehensive_tests.sh
 
 To run tests, you will need to have fully downloaded/setup databases. 
 
-Expected results using version 1.6.19 can be found at: https://zenodo.org/records/20292654
+Expected results using version 1.7.0 can be found at: https://zenodo.org/records/21318649
 
 ## License:
 

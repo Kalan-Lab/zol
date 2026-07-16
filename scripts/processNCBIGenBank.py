@@ -166,9 +166,9 @@ def processAndReformatNCBIGenbanks():
 								msg = "Warning: A CDS does not have a locus tag. Will give it an arbitrary one."
 								sys.stderr.write(msg + '\n')
 
-					# Check for "|" in locus tag and skip the feature if present
-					if old_locus_tag and "|" in old_locus_tag:
-						msg = f'Warning: Locus tag "{old_locus_tag}" contains "|", skipping this feature.'
+					# Check for "|" or "," in locus tag and skip the feature if present
+					if old_locus_tag and ("|" in old_locus_tag or "," in old_locus_tag):
+						msg = f'Warning: Locus tag "{old_locus_tag}" contains "|" or ",", skipping this feature.'
 						sys.stderr.write(msg + '\n')
 						continue
 					

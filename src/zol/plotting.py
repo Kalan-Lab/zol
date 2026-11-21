@@ -514,8 +514,7 @@ def plot_phylo_heatmap(tree_file, heatmap_data_file, pdf_file, height=7.0, width
     tax.set_ylim(n - 0.5, -0.5)
     tax.axis("off")
 
-    cmap = _cmap(["#bebebe", "#000000"])
-    cmap.set_bad("#ffffff")
+    cmap = _cmap(["#bebebe", "#000000"]).with_extremes(bad="#ffffff")
     hax.imshow(np.ma.masked_invalid(mat), aspect="auto", cmap=cmap, interpolation="nearest",
                extent=(-0.5, len(ogs) - 0.5, n - 0.5, -0.5))
     if len(ogs) <= 400:

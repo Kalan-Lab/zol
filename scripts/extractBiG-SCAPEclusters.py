@@ -85,15 +85,11 @@ def extractBiGSCAPEclusters():
 	type = myargs.type
 	use_symlink = myargs.use_symlink
 
-	try:
-		assert (os.path.isdir(antismash_dir) and os.path.isdir(bigscape_dir))
-	except Exception as e:
+	if not (os.path.isdir(antismash_dir) and os.path.isdir(bigscape_dir)):
 		sys.stderr.write('Issue with validating that the antismash and bigscape directories provided are valid.\n')
 		sys.exit(1)
 
-	try:
-		assert (util.is_integer(gcf_id))
-	except Exception as e:
+	if not (util.is_integer(gcf_id)):
 		raise RuntimeError('Issue with path to BGC predictions Genbanks listing file.')
 
 	if os.path.isdir(outdir):
@@ -123,24 +119,16 @@ def extractBiGSCAPEclusters():
 	log_object.info("Done saving parameters!")
 
 	# Step 1: Parse BiG-SCAPE Results - Get Relevant BGCs and Samples
+	# Supports both BiG-SCAPE 1.x and 2.x clustering file formats. The class (v1) / bin (v2) is the name of the
+	# folder containing the clustering file.
 	gcf_bgcs = set([])
-	for dirpath, dirnames, files in os.walk(bigscape_dir):
-		for filename in files:
-			if filename.endswith(".tsv") and "clustering" in filename:
-				cluster_tsv = os.path.join(dirpath, filename)
-				cluster_annotation_type = cluster_tsv.split('/')[-2]
-				if type != None and type != cluster_annotation_type: continue
-				with open(cluster_tsv) as oct:
-					for i, line in enumerate(oct):
-						if i == 0: continue
-						line = line.strip()
-						bgc_id, clust_gcf_id = line.split('\t')
-						if not clust_gcf_id == gcf_id: continue
-						gcf_bgcs.add(bgc_id)
+	for cluster_tsv in util.find_bigscape_clustering_files(bigscape_dir):
+		cluster_annotation_type = os.path.basename(os.path.dirname(cluster_tsv))
+		if type is not None and type != cluster_annotation_type: continue
+		_, gcf_to_bgcs = util.parse_bigscape_clustering_file(cluster_tsv)
+		gcf_bgcs.update(gcf_to_bgcs.get(gcf_id, []))
 
-	try:
-		assert (len(gcf_bgcs) >= 1)
-	except Exception as e:
+	if not (len(gcf_bgcs) >= 1):
 		log_object.error('Less than one BGC found to belong to the GCF.')
 		sys.stderr.write('Error: Less than one BGC found to belong to the GCF.\n')
 		sys.exit(1)
@@ -154,9 +142,9 @@ def extractBiGSCAPEclusters():
 					bgc = filename.split('.gbk')[0]
 					if bgc in gcf_bgcs:
 						if use_symlink:
-							os.system(f'ln -s {gbk_file} {gbk_dir}')
+							os.symlink(gbk_file, os.path.join(gbk_dir, filename))
 						else:
-							shutil.copyfile(gbk_file, gbk_dir)
+							shutil.copy2(gbk_file, os.path.join(gbk_dir, filename))
 
 if __name__ == '__main__':
 	extractBiGSCAPEclusters()

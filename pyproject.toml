@@ -1,15 +1,48 @@
 [project]
 name = "zol"
 authors = [{name="Rauf Salamzade", email="salamzader@gmail.com"}]
-version = "1.7.0"
+version = "1.8.0"
 description = "zol suite for detection and evolutionary analysis of gene clusters"
 readme = "README.md"
+license = {text = "BSD-3-Clause"}
+requires-python = ">=3.10"
+# Python dependencies only - zol also requires several non-Python programs (e.g. DIAMOND, HMMER, MUSCLE, FastTree,
+# HyPhy, skani, prodigal), so installing via bioconda / the zol_env.yml conda environment is recommended.
+dependencies = [
+    "biopython>=1.80",
+    "numpy",
+    "scipy",
+    "pandas>=2.0",
+    "xlsxwriter>=3.0.3",
+    "pyhmmer>=0.10.10",
+    "hmmlearn>=0.3.0",
+    "matplotlib>=3.6",
+    "ete3",
+    "legacy-cgi; python_version >= '3.13'",
+    "tqdm",
+    "peptides",
+    "rich-argparse",
+    "colour",
+    # forked gravis v0.1.1 (works with newer Python/setuptools); PyPI only has 0.1.0
+    "gravis @ https://github.com/raufs/gravis/archive/refs/tags/v0.1.1.tar.gz#sha256=d8a8b09a23522ab746eea740adc05f22cb6a1d5190c1b64ee4f304e62b37268b",
+    "aiohttp",
+    "aiofile",
+    # zstd compression of prepTG GenBanks; Python 3.14+ ships compression.zstd in the standard library
+    "zstandard; python_version < '3.14'",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/Kalan-Lab/zol"
+Documentation = "https://github.com/Kalan-Lab/zol/wiki"
 
 [project.scripts]
 zol-suite = "zol.zol_suite:main"
 
 [build-system]
-requires = ['setuptools', 'rich-argparse', 'pandas', 'xlsxwriter', 'biopython']
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -40,3 +73,6 @@ script-files=['docker/ZOL',
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

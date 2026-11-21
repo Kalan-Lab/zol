@@ -10,18 +10,20 @@ warnings.filterwarnings(
 from ete3 import Tree
 from operator import itemgetter
 from typing import Dict, List, Union, Any, TypedDict, Optional, Set, Tuple
-import decimal
-import gzip
+import math
 import multiprocessing
 import os
+import glob
 import pickle
+import resource
 import shutil
 import statistics
+import subprocess
 import sys
 import traceback
+import zlib
 from Bio import SeqIO
-from pomegranate.distributions import Categorical
-from pomegranate.hmm import DenseHMM
+from hmmlearn.base import BaseHMM
 from scipy.stats import pearsonr
 os.environ['KMP_WARNINGS'] = 'off'
 import numpy
@@ -31,23 +33,14 @@ import tqdm
 
 from zol import data_dictionary, util, zol
 
-# code for setup and finding location of programs based on conda vs. bioconda installation
-zol_exec_directory = str(os.getenv("ZOL_EXEC_PATH")).strip()
-split_diamond_results_prog = None
-if zol_exec_directory != "None":
-    try:
-        zol_exec_directory = os.path.abspath(zol_exec_directory) + "/"
-        split_diamond_results_prog = (
-            zol_exec_directory + "splitDiamondResultsForFai"
-        )
-    except Exception as e:
-        pass
-
-if split_diamond_results_prog == None or not os.path.isfile(split_diamond_results_prog):
-    sys.stderr.write(
-        "Issues in setup of the zol suite (in fai.py) - please describe your installation process and post an issue on GitHub!\n" \
-    )
-    sys.exit(1)
+#: Number of target genomes processed together in identify_gc_instances. DIAMOND hit summaries are written as one
+#: (zstd-compressed) file per block of this many genomes (sorted by name), so each block reads only its own hits.
+SAMPLE_BLOCK_SIZE = 1000
+#: Upper bound on files kept open at once when sharding DIAMOND hits or writing per-block hit summaries.
+MAX_OPEN_FILES = 128
+#: DIAMOND blastp output columns used by fai's homology search.
+FAI_DIAMOND_COLUMNS = ["qseqid", "sseqid", "pident", "evalue", "bitscore", "qlen", "slen"]
+DIAMOND_SUMMARY_HEADER = "Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tQuery Length\tSubject Length\n"
 
 
 def subset_genbank_for_query_locus(
@@ -101,8 +94,7 @@ def subset_genbank_for_query_locus(
         log_object.error(
             "Issues subsetting locus-specific GenBank from genome-wide GenBank."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -135,7 +127,7 @@ def parse_homolog_group_matrix(orthogroup_matrix_file, log_object) -> Dict[str, 
     except Exception as e:
         sys.stderr.write("Issues mapping proteins to ortholog groups.\n")
         log_object.error("Issues mapping proteins to ortholog groups.")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return protein_to_hg
 
@@ -201,9 +193,8 @@ def collapse_proteins_using_diamond_cluster(protein_fasta, nr_protein_fasta, log
     except Exception as e:
         msg = f"Issues running diamond cluster or recluster."
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return protein_to_hg
 
@@ -242,8 +233,7 @@ def parse_coords_from_genbank(genbanks, log_object) -> Dict[str, Dict[str, Any]]
         log_object.error(
             "Issues with parsing coordinates of genes in GenBanks!"
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return dict(comp_gene_info)
 
@@ -290,9 +280,8 @@ def gen_consensus_sequences(
             except Exception as e:
                 msg = f"Issues with parsing the GenBank {gbk}\n"
                 sys.stderr.write(msg + "\n")
-                sys.stderr.write(traceback.format_exc() + "\n")
+                util.report_cause(fallback_traceback=True)
                 log_object.error(msg)
-                log_object.error(traceback.format_exc())
                 sys.exit(1)
 
         fo_cmd = [
@@ -306,18 +295,15 @@ def gen_consensus_sequences(
         util.run_cmd_via_subprocess(fo_cmd, log_object=log_object,
                                     check_files = [ortho_matrix_file])
 
-        try:
-            assert util.check_core_homolog_groups_exist(ortho_matrix_file)
-        except AssertionError as e:
+        if not (util.check_core_homolog_groups_exist(ortho_matrix_file)):
             log_object.error(f"Issue validating core ortholog group(s) exist: {ortho_matrix_file}")
             sys.stderr.write(traceback.format_exc())
             sys.exit(1)
 
     except Exception as e:
         sys.stderr.write("Issues with determining ortholog / ortholog groups!\n")
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         log_object.error("Issues with determining ortholog / ortholog groups!")
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
     proc_dir = outdir + "Homolog_Group_Processing/"
@@ -409,7 +395,8 @@ def load_target_genome_info(
             sample_info_pkl_file = target_genomes_pkl_dir + sample + ".pkl"
             genbank_info = None
             try:
-                assert os.path.isfile(sample_info_pkl_file)
+                if not (os.path.isfile(sample_info_pkl_file)):
+                    raise AssertionError()
                 with open(sample_info_pkl_file, "rb") as handle:
                     genbank_info = pickle.load(handle)
             except Exception as e:
@@ -419,7 +406,7 @@ def load_target_genome_info(
                 log_object.error(
                     f"Could not find pickle file with CDS coordinate information for sample {sample}"
                 )
-                sys.stderr.write(traceback.format_exc())
+                util.report_cause(fallback_traceback=True)
                 sys.exit(1)
 
             gene_locs = genbank_info[0]
@@ -465,8 +452,7 @@ def load_target_genome_info(
         sys.stderr.write(
             "Issues with parsing CDS location information from genes of target genomes.\n"
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     target_genome_gene_info = {
@@ -568,21 +554,11 @@ def run_diamond_blastp(
     except Exception as e:
         msg = "Issues with running DIAMOND blastp."
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     return diamond_results_file
-
-# TypedDict to define the exact structure of best_hit_per_lt
-class BestHitInfo(TypedDict):
-    hg_list: List[str]
-    best_bitscore: float
-    eval_list: List[decimal.Decimal]
-    identity_list: List[float]
-    sql_ratio_list: List[float]
-    sample: str
 
 # TypedDict for kq_top_hits structure
 class KqTopHitInfo(TypedDict):
@@ -613,21 +589,139 @@ def parse_tg_faa_file(tg_faa_file, log_object):
         msg = f"Issues parsing target genome FASTA file:\n{tg_faa_file}.\n"
         sys.stderr.write(msg + "\n")
         log_object.info(msg)
+        util.report_cause()
         sys.exit(1)
 
-def process_diamond_blastp(
-    target_annot_information, rep_prot_to_nonreps, diamond_results_file, diamond_results_summary_file, work_dir, log_object
+def sample_blocks(samples, block_size=SAMPLE_BLOCK_SIZE) -> List[List[str]]:
+    """ Split target genome sample names (sorted) into the blocks processed together by identify_gc_instances. """
+    return [list(block) for block in util.chunks(sorted(samples), block_size)]
+
+
+def block_summary_file(summary_dir, block_index) -> str:
+    """ Path of the (zstd-compressed) DIAMOND hit summary for one block of target genomes. """
+    return f"{summary_dir}Block_{block_index}.tsv.zst"
+
+
+def max_open_files() -> int:
+    """
+    Number of files fai may keep open at once when sharding DIAMOND hits or writing block summaries: at most
+    MAX_OPEN_FILES, and comfortably below the process's open-file limit (e.g. 256 by default on macOS).
+    """
+    soft_limit = 256
+    try:
+        soft_limit, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if soft_limit == resource.RLIM_INFINITY or soft_limit <= 0:
+            soft_limit = 1024
+    except Exception:
+        pass
+    return max(1, min(MAX_OPEN_FILES, (soft_limit - 64) // 2))
+
+
+def run_diamond_blastp_into_shards(
+    target_concat_genome_db,
+    query_fasta,
+    diamond_work_dir,
+    num_shards,
+    log_object,
+    diamond_sensitivity="very-sensitive",
+    diamond_block_size=None,
+    evalue_cutoff=1e-3,
+    threads=1,
+    diamond_index_chunks=None,
+) -> List[str]:
+    """
+    Description:
+    Runs DIAMOND blastp of the query proteins against the target genomes database and streams its output directly
+    into num_shards zstd-compressed shard files, so the full (potentially very large) alignment table is never written
+    to disk uncompressed or held in memory. Hits are assigned to shards by a hash of the subject (representative)
+    protein, so every hit to a given representative - and therefore to every member of its cluster - ends up in the
+    same shard, which lets each shard be reduced independently with bounded memory.
+    ********************************************************************************************************************
+    Parameters:
+    - target_concat_genome_db: The DIAMOND database of target genome proteins (from prepTG).
+    - query_fasta: The path to the query / reference FASTA file.
+    - diamond_work_dir: The workspace directory where shard files and the DIAMOND log are written.
+    - num_shards: The number of shard files to split hits into.
+    - log_object: A logging object.
+    - diamond_sensitivity: The sensitivity mode to run DIAMOND blastp with.
+    - diamond_block_size: DIAMOND block size (optional).
+    - evalue_cutoff: The maximum E-value cutoff to regard an alignment as homologous.
+    - threads: The number of threads to use.
+    - diamond_index_chunks: Number of chunks for DIAMOND's seed index processing (-c; optional).
+    ********************************************************************************************************************
+    Return:
+    - shard_files: Paths to the zstd-compressed shard files (columns as in FAI_DIAMOND_COLUMNS).
+    ********************************************************************************************************************
+    """
+    diamond_cmd = ["diamond", "blastp", "--ignore-warnings", "--threads", str(threads), "--query", query_fasta,
+                   "--db", target_concat_genome_db, "--outfmt", "6"] + FAI_DIAMOND_COLUMNS + \
+                  ["-k0", "--evalue", str(evalue_cutoff)]
+    if diamond_sensitivity != "default":
+        diamond_cmd.append("--" + diamond_sensitivity)
+    if diamond_block_size is not None:
+        diamond_cmd += ["--block-size", str(diamond_block_size)]
+    if diamond_index_chunks is not None:
+        diamond_cmd += ["--index-chunks", str(diamond_index_chunks)]
+
+    shard_files = [f"{diamond_work_dir}DIAMOND_Hits_Shard_{i}.tsv.zst" for i in range(num_shards)]
+    diamond_log_file = diamond_work_dir + "DIAMOND_blastp.log"
+    log_object.info(f"Running DIAMOND blastp, streaming hits into {num_shards} shard(s):\n{' '.join(diamond_cmd)}")
+    try:
+        shard_handles = [util.open_zstd_text_writer(shard_file) for shard_file in shard_files]
+        try:
+            with open(diamond_log_file, "w") as diamond_log_handle:
+                # stderr goes to a file (not a pipe) so DIAMOND can never block on it while we read stdout
+                proc = subprocess.Popen(diamond_cmd, stdout=subprocess.PIPE, stderr=diamond_log_handle,
+                                        text=True, bufsize=1024 * 1024)
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    fields = line.split("\t", 2)
+                    if len(fields) < 3:
+                        continue
+                    shard = zlib.crc32(fields[1].encode()) % num_shards
+                    shard_handles[shard].write(line)
+                return_code = proc.wait()
+        finally:
+            for shard_handle in shard_handles:
+                shard_handle.close()
+
+        if return_code != 0:
+            with open(diamond_log_file) as diamond_log_handle:
+                diamond_stderr = diamond_log_handle.read()[-5000:]
+            raise RuntimeError(f"DIAMOND blastp exited with code {return_code}:\n{diamond_stderr}")
+    except Exception as e:
+        msg = f"Issues with running DIAMOND blastp: {e}"
+        log_object.error(msg)
+        sys.stderr.write(msg + "\n")
+        util.report_cause(fallback_traceback=True)
+        sys.exit(1)
+
+    return shard_files
+
+
+def process_diamond_blastp_shards(
+    shard_files, target_annot_information, rep_prot_to_nonreps, summary_dir, log_object,
+    block_size=SAMPLE_BLOCK_SIZE, delete_shards=True
 ) -> Dict[str, Dict[str, Set[str]]]:
     """
     Description:
-    This functions processes DIAMOND blastp results.
+    Processes sharded DIAMOND blastp results (from run_diamond_blastp_into_shards): finds the best hit(s) - by
+    bitscore, keeping ties - for each target (representative) protein, expands representatives to all members of
+    their cluster (when prepTG clustered the database with DIAMOND linclust), and writes the hits as one
+    zstd-compressed summary per block of target genomes (see sample_blocks / block_summary_file).
+
+    Memory is bounded by one shard at a time, and at most max_open_files() block summaries are open at once; if there
+    are more blocks than that, summaries are written in several passes over the (compressed) shards.
     ********************************************************************************************************************
     Parameters:
-    - target_annot_information: A multi-tiered dictionary with
-    - rep_prot_to_nonreps: A dictionary of members in cluster with key corresponding to the representative protein.
-    - diamond_results_file: The path to the query / reference FASTA file.
-    - work_dir: The workspace directory where DIAMOND blastp alignment and intermediate files should be written.
+    - shard_files: Paths to the zstd-compressed DIAMOND hit shards.
+    - target_annot_information: Dictionary with target genome sample names as keys.
+    - rep_prot_to_nonreps: Dictionary mapping cluster representative proteins to tuples of all cluster members (or
+                           None if the database was not clustered).
+    - summary_dir: Directory where per-block hit summaries are written.
     - log_object: A logging object.
+    - block_size: The number of target genomes per block (must match identify_gc_instances).
+    - delete_shards: Whether to delete the shard files once processed.
     ********************************************************************************************************************
     Return:
     - diamond_results: A dictionary with sample identifiers as keys and values as a dictionary with the following keys:
@@ -637,106 +731,97 @@ def process_diamond_blastp(
     """
     diamond_results: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: {'lts': set(), 'hgs': set()})
     try:
-        work_dir = os.path.abspath(work_dir) + '/'
-        search_res_dir = work_dir + "Alignment_Results/"
-        util.setup_ready_directory([search_res_dir])
+        util.setup_ready_directory([summary_dir], delete_if_exist=True)
+        blocks = sample_blocks(target_annot_information.keys(), block_size)
+        sample_to_block = {sample: i for i, block in enumerate(blocks) for sample in block}
 
-        split_mapping_file = work_dir + "Sample_to_Listing.txt"
-        with open(split_mapping_file, "w") as split_mapping_handle:
-            for sample in target_annot_information:
-                sample_result_file = search_res_dir + (sample + ".txt")
-                split_mapping_handle.write(f"{sample}\t{sample_result_file}\n")
-
-        split_diamond_cmd = [
-            split_diamond_results_prog,
-            diamond_results_file,
-            split_mapping_file,
-        ]
-
-        util.run_cmd_via_subprocess(split_diamond_cmd, log_object=log_object)
-
-        diamond_results_summary_file_handle = open(diamond_results_summary_file, "w")
-        diamond_results_summary_file_handle.write(f"Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tSubject to Query Length Ratio\n") 
-        for sample in target_annot_information:
-            result_file = search_res_dir + (sample + ".txt")
+        for block_group in util.chunks(list(range(len(blocks))), max_open_files()):
+            block_handles = {i: util.open_zstd_text_writer(block_summary_file(summary_dir, i)) for i in block_group}
             try:
-                assert os.path.isfile(result_file)
-                # Use TypedDict for better type safety
-                best_hit_per_lt: Dict[str, BestHitInfo] = defaultdict(
-                    lambda: {
-                        "hg_list": [],
-                        "best_bitscore": 0.0,
-                        "eval_list": [],
-                        "identity_list": [],
-                        "sql_ratio_list": [],
-                        "sample": ""
-                    }
-                )
-                with open(result_file) as orf:
-                    for line in orf:
-                        line = line.strip()
-                        ls = line.split()
-                        hg = ls[0]
-                        rep_lt = ls[1]
-                        identity = float(ls[2])
-                        eval = decimal.Decimal(ls[10])
-                        bitscore = float(ls[11])
-                        qlen = int(ls[12])
-                        slen = int(ls[13])
-                        sql_ratio = float(slen) / float(qlen)
-                        all_hits = [rep_lt]
-                        if rep_prot_to_nonreps is not None:
-                            if rep_lt not in rep_prot_to_nonreps:
-                                all_hits = [rep_lt]
-                            else:
-                                all_hits = rep_prot_to_nonreps[rep_lt]
-                        for lt in all_hits:
-                            lt_sample = lt.split('|')[0]
-                            # Type assertion to ensure we're working with the correct types
-                            current_best = best_hit_per_lt[lt.split('|')[1]]
-                            current_best["sample"] = lt_sample
-                            if bitscore > current_best["best_bitscore"]:
-                                current_best["hg_list"] = [hg]
-                                current_best["best_bitscore"] = bitscore
-                                current_best["eval_list"] = [eval]
-                                current_best["identity_list"] = [identity]
-                                current_best["sql_ratio_list"] = [sql_ratio]
-                            elif bitscore == current_best["best_bitscore"]:
-                                current_best["hg_list"].append(hg)
-                                current_best["eval_list"].append(eval)
-                                current_best["identity_list"].append(identity)
-                                current_best["sql_ratio_list"].append(sql_ratio)
-                            best_hit_per_lt[lt.split('|')[1]] = current_best
+                for block_handle in block_handles.values():
+                    block_handle.write(DIAMOND_SUMMARY_HEADER)
+                for shard_file in shard_files:
+                    # best hit(s) per subject (representative) protein: [best bitscore, [hit fields, ...]]
+                    best_hits: Dict[str, List[Any]] = {}
+                    with util.open_text_file(shard_file) as shard_handle:
+                        for line in shard_handle:
+                            hg, rep_lt, identity, evalue, bitscore, qlen, slen = line.rstrip("\n").split("\t")
+                            bitscore_value = float(bitscore)
+                            hit = (hg, bitscore, evalue, identity, qlen, slen)
+                            current_best = best_hits.get(rep_lt)
+                            if current_best is None or bitscore_value > current_best[0]:
+                                best_hits[rep_lt] = [bitscore_value, [hit]]
+                            elif bitscore_value == current_best[0]:
+                                current_best[1].append(hit)
 
-                for lt in best_hit_per_lt:
-                    current_best = best_hit_per_lt[lt]
-                    sample = current_best["sample"]
-                    diamond_results[sample]['lts'].add(lt)
-                    for i, hg in enumerate(current_best["hg_list"]):
-                        diamond_results[sample]['hgs'].add(hg)
-                        diamond_results_summary_file_handle.write(f"{lt}\t{hg}\t{current_best['sample']}\t{current_best['best_bitscore']}\t{current_best['eval_list'][i]}\t{current_best['identity_list'][i]}\t{current_best['sql_ratio_list'][i]}\n") 
-                   
-            except Exception as e:
-                # raise RuntimeError(traceback.format_exc())
-                sys.stderr.write(
-                    f"Warning: Did not detect homology whatsoever at requested E-value for sample {sample}'s proteome.\n"
-                )
-                log_object.warning(
-                    f"Did not detect homology whatsoever at requested E-value for sample {sample}'s proteome."
-                )
-        diamond_results_summary_file_handle.close()
+                    for rep_lt, (_, hits) in best_hits.items():
+                        members = (rep_lt,)
+                        if rep_prot_to_nonreps is not None and rep_lt in rep_prot_to_nonreps:
+                            members = rep_prot_to_nonreps[rep_lt]
+                        for member in members:
+                            sample, lt = member.split("|", 1)
+                            block_index = sample_to_block.get(sample)
+                            if block_index is None or block_index not in block_handles:
+                                continue
+                            block_handle = block_handles[block_index]
+                            diamond_results[sample]['lts'].add(lt)
+                            for hg, bitscore, evalue, identity, qlen, slen in hits:
+                                diamond_results[sample]['hgs'].add(hg)
+                                block_handle.write(f"{lt}\t{hg}\t{sample}\t{bitscore}\t{evalue}\t{identity}\t{qlen}\t{slen}\n")
+                    del best_hits
+            finally:
+                for block_handle in block_handles.values():
+                    block_handle.close()
+
+        samples_without_hits = sorted(set(target_annot_information.keys()).difference(diamond_results.keys()))
+        if len(samples_without_hits) > 0:
+            msg = (f"Warning: Did not detect homology whatsoever at requested E-value for {len(samples_without_hits)} "
+                   f"target genome(s) - they are listed in the log file.")
+            sys.stderr.write(msg + "\n")
+            log_object.warning(msg + "\n" + "\n".join(samples_without_hits))
+
+        if delete_shards:
+            for shard_file in shard_files:
+                os.remove(shard_file)
     except Exception as e:
-        log_object.error(
-            "Issues with running DIAMOND blastp or processing of results."
-        )
-        sys.stderr.write(
-            "Issues with running DIAMOND blastp or processing of results.\n"
-        )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        log_object.error("Issues with processing of DIAMOND blastp results.")
+        sys.stderr.write("Issues with processing of DIAMOND blastp results.\n")
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     return dict(diamond_results)
+
+
+def run_and_process_diamond_blastp(
+    target_concat_genome_db,
+    query_fasta,
+    target_annot_information,
+    rep_prot_to_nonreps,
+    diamond_work_dir,
+    summary_dir,
+    log_object,
+    diamond_sensitivity="very-sensitive",
+    diamond_block_size=None,
+    evalue_cutoff=1e-3,
+    threads=1,
+    block_size=SAMPLE_BLOCK_SIZE,
+    diamond_index_chunks=None,
+) -> Dict[str, Dict[str, Set[str]]]:
+    """
+    Runs fai's DIAMOND blastp search and processes the results into per-block hit summaries (see
+    run_diamond_blastp_into_shards and process_diamond_blastp_shards). Roughly one shard is used per block of target
+    genomes, capped by max_open_files(). Returns the diamond_results dictionary of process_diamond_blastp_shards.
+    """
+    num_blocks = max(1, math.ceil(len(target_annot_information) / block_size))
+    num_shards = min(max_open_files(), num_blocks)
+    shard_files = run_diamond_blastp_into_shards(
+        target_concat_genome_db, query_fasta, diamond_work_dir, num_shards, log_object,
+        diamond_sensitivity=diamond_sensitivity, diamond_block_size=diamond_block_size,
+        evalue_cutoff=evalue_cutoff, threads=threads, diamond_index_chunks=diamond_index_chunks
+    )
+    return process_diamond_blastp_shards(
+        shard_files, target_annot_information, rep_prot_to_nonreps, summary_dir, log_object, block_size=block_size
+    )
 
 
 def map_key_proteins_to_homolog_groups(
@@ -776,7 +861,7 @@ def map_key_proteins_to_homolog_groups(
                        "blastp", "--ignore-warnings", "--threads", str(threads),
                        "--very-sensitive", "--query", key_protein_queries_fasta,
                        "--db", query_dmnd_db, "--outfmt", 
-                       "6 qseqid sseqid pident bitscore qcovhsp scovhsp", "--out",
+                       "6", "qseqid", "sseqid", "pident", "bitscore", "qcovhsp", "scovhsp", "--out",
                        align_result_file, "--evalue", "1e-5"]
 
         util.run_cmd_via_subprocess(diamond_cmd, log_object=log_object, check_files = [align_result_file])
@@ -805,7 +890,8 @@ def map_key_proteins_to_homolog_groups(
         with open(key_protein_queries_fasta) as okpqf:
             for rec in SeqIO.parse(okpqf, "fasta"):
                 try:
-                    assert len(kq_top_hits[rec.id]["hg_list"]) >= 1
+                    if not (len(kq_top_hits[rec.id]["hg_list"]) >= 1):
+                        raise AssertionError()
                     for hg in kq_top_hits[rec.id]["hg_list"]:
                         key_hgs.add(hg)
                 except Exception as e2:
@@ -861,14 +947,15 @@ def load_target_genome_info_from_pkl(
         sample_info_pkl_file = target_genomes_pkl_dir + sample + ".pkl"
         genbank_info = None
         try:
-            assert os.path.isfile(sample_info_pkl_file)
+            if not (os.path.isfile(sample_info_pkl_file)):
+                raise AssertionError()
             with open(sample_info_pkl_file, "rb") as handle:
                 genbank_info = pickle.load(handle)
         except Exception as e:
             msg = f"Could not find pickle file with CDS coordinate information for sample {sample}"
             sys.stderr.write(msg + "\n")
             log_object.error(msg)
-            sys.stderr.write(traceback.format_exc())
+            util.report_cause(fallback_traceback=True)
             sys.exit(1)
 
         gene_locs = genbank_info[0]
@@ -903,10 +990,95 @@ def load_target_genome_info_from_pkl(
 
     return target_genome_info
 
+GC_STATE = 0
+BG_STATE = 1
+
+
+class GeneClusterHMM(BaseHMM):
+    """
+    Two-state HMM (state 0 = gene cluster, state 1 = background) used by fai to delineate gene clusters.
+
+    Each gene is a symbol: "background" if it lacks a hit to the query gene cluster, otherwise the ortholog group it
+    hit. Every ortholog group gets the same emission probability, and the per-state emission values are used as given
+    (they need not sum to 1 across symbols), matching the earlier pomegranate-based model. hmmlearn does the
+    forward-backward decoding; only the emission log-likelihoods are supplied here.
+
+    Plain numpy/hmmlearn objects, so the model pickles cleanly for multiprocessing.
+    """
+
+    def __init__(self, labels=("background",), emission_logprob=None, startprob=(0.5, 0.5),
+                 transmat=((0.9, 0.1), (0.1, 0.9))):
+        super().__init__(n_components=2, algorithm="map", params="", init_params="")
+        self.labels = list(labels)
+        self.emission_logprob = emission_logprob
+        self.startprob = startprob
+        self.transmat = transmat
+        self.startprob_ = numpy.asarray(startprob, dtype=float)
+        self.transmat_ = numpy.asarray(transmat, dtype=float)
+        self._label_index = {label: i for i, label in enumerate(self.labels)}
+
+    def _compute_log_likelihood(self, X):
+        return self.emission_logprob[numpy.asarray(X, dtype=int)[:, 0]]
+
+    def encode(self, hgs_ordered):
+        """ Convert an ordered list of ortholog group labels (or "background") into the model's symbol matrix. """
+        try:
+            return numpy.array([[self._label_index[hg]] for hg in hgs_ordered], dtype=int)
+        except KeyError as e:
+            raise ValueError(f"Ortholog group {e} is not part of the gene-cluster HMM.") from None
+
+
+def build_gene_cluster_hmm(hgs, gc_emission_prob_with_hit, gc_emission_prob_without_hit,
+                           gc_to_gc_transition_prob, bg_to_bg_transition_prob) -> GeneClusterHMM:
+    """
+    Description:
+    Build the two-state gene cluster / background HMM used by fai's HMM delineation mode.
+    ********************************************************************************************************************
+    Parameters:
+    - hgs: The ortholog groups of the query gene cluster.
+    - gc_emission_prob_with_hit: Emission probability of a gene with a hit, in the gene-cluster state.
+    - gc_emission_prob_without_hit: Emission probability of a gene without a hit, in the gene-cluster state.
+    - gc_to_gc_transition_prob: Probability of staying in the gene-cluster state.
+    - bg_to_bg_transition_prob: Probability of staying in the background state.
+    ********************************************************************************************************************
+    Returns:
+    - A GeneClusterHMM whose labels are ["background"] + hgs.
+    ********************************************************************************************************************
+    """
+    for name, value in [("gc_emission_prob_with_hit", gc_emission_prob_with_hit),
+                        ("gc_emission_prob_without_hit", gc_emission_prob_without_hit),
+                        ("gc_to_gc_transition_prob", gc_to_gc_transition_prob),
+                        ("bg_to_bg_transition_prob", bg_to_bg_transition_prob)]:
+        if not 0.0 <= float(value) <= 1.0:
+            raise ValueError(f"{name} must be between 0.0 and 1.0, got {value}.")
+
+    labels = ["background"] + [hg for hg in hgs if hg != "background"]
+    n_hgs = len(labels) - 1
+    gc_probs = [gc_emission_prob_without_hit] + [gc_emission_prob_with_hit] * n_hgs
+    bg_probs = [1.0 - gc_emission_prob_without_hit] + [1.0 - gc_emission_prob_with_hit] * n_hgs
+    with numpy.errstate(divide="ignore"):
+        emission_logprob = numpy.log(numpy.array([gc_probs, bg_probs], dtype=float).T)
+
+    transmat = [
+        [gc_to_gc_transition_prob, 1.0 - gc_to_gc_transition_prob],
+        [1.0 - bg_to_bg_transition_prob, bg_to_bg_transition_prob],
+    ]
+    # Start probabilities are equal; the previous model's end probabilities were also equal (0.5/0.5), which only
+    # scales every path by the same constant and so does not affect posterior decoding.
+    return GeneClusterHMM(labels=labels, emission_logprob=emission_logprob, startprob=[0.5, 0.5], transmat=transmat)
+
+
+def predict_gene_cluster_states(model: GeneClusterHMM, hgs_ordered) -> List[int]:
+    """ Posterior (forward-backward) decoding of gene-cluster (0) vs background (1) state for each gene in order. """
+    if len(hgs_ordered) == 0:
+        return []
+    return model.predict(model.encode(hgs_ordered)).tolist()
+
+
 def identify_gc_instances(
     query_information,
     target_information,
-    diamond_results_summary_file,
+    diamond_results_summary_dir,
     diamond_results,
     target_genomes_pkl_dir,
     work_dir,
@@ -923,7 +1095,7 @@ def identify_gc_instances(
     kq_evalue_threshold=1e-20,
     flanking_context=1000,
     threads=1,
-    block_size=3000,
+    block_size=SAMPLE_BLOCK_SIZE,
     gc_delineation_mode="GENE-CLUMPER",
     min_distinct_genes=3,
 ) -> None:
@@ -941,7 +1113,8 @@ def identify_gc_instances(
             - query_fasta: The path to a FASTA of query sequences.
         - comp_gene_info: Dictionary linking to query CDS location / syntenic information.
     - target_information: A dictionary where keys are target genome sample identifiers and values are paths to GenBank files.
-    - diamond_results_summary_file: A file path to a TSV with summary information on the DIAMOND blastp results.
+    - diamond_results_summary_dir: Directory with per-block (zstd-compressed) summaries of DIAMOND blastp hits, as
+                                   written by process_diamond_blastp_shards with the same block_size.
     - work_dir: The workspace where to write files to for the analysis / function.
     - log_object: A logging object.
     - min_hits: The minimum number of non-redundant or ortholog group query sequences needed to be hit for gene cluster
@@ -1009,79 +1182,17 @@ def identify_gc_instances(
         all_hgs = set(lt_to_hg.values()) if lt_to_hg else set()
         key_hgs = query_information["key_hgs"]
 
-        hmm_model_safe_or_doesnt_matter = True
         model = None
         model_labels = None
         if gc_delineation_mode == "HMM":
-            # Create DenseHMM - using the pomegrenate library
-            gc_hg_probs = [gc_emission_prob_without_hit]
-            bg_hg_probs = [1.0 - gc_emission_prob_without_hit]
-            model_labels = ["background"]
-            for hg in all_hgs:
-                model_labels.append(hg)
-                gc_hg_probs.append(gc_emission_prob_with_hit)
-                bg_hg_probs.append(1.0 - gc_emission_prob_with_hit)
-
-            gc_cat = Categorical([gc_hg_probs])
-            bg_cat = Categorical([bg_hg_probs])
-
-            model = DenseHMM()
-            model.add_distributions([gc_cat, bg_cat])
-
-            gc_to_gc = gc_to_gc_transition_prob
-            gc_to_bg = 1.0 - gc_to_gc_transition_prob
-            bg_to_bg = bg_to_bg_transition_prob
-            bg_to_gc = 1.0 - bg_to_bg_transition_prob
-
-            start_to_gc = 0.5
-            start_to_bg = 0.5
-            gc_to_end = 0.5
-            bg_to_end = 0.5
-
-            model.add_edge(model.start, gc_cat, start_to_gc)
-            model.add_edge(model.start, bg_cat, start_to_bg)
-            model.add_edge(gc_cat, model.end, gc_to_end)
-            model.add_edge(bg_cat, model.end, bg_to_end)
-            model.add_edge(gc_cat, gc_cat, gc_to_gc)
-            model.add_edge(gc_cat, bg_cat, gc_to_bg)
-            model.add_edge(bg_cat, gc_cat, bg_to_gc)
-            model.add_edge(bg_cat, bg_cat, bg_to_bg)
-
-            # Test HMM model for multiprocessing safety
-            if platform_type in ['linux', 'macos']:
-                try:
-                    import pickle
-                    log_object.info("Testing HMM model for multiprocessing safety...")
-                    
-                    # Test 1: Check if model can be pickled/unpickled
-                    test_model = pickle.dumps(model)
-                    test_model = pickle.loads(test_model)
-                    
-                    # Test 2: Check if model can perform predictions after pickling
-                    test_seq = numpy.array([[[0]]])  # Simple test sequence
-                    test_prediction = test_model.predict(test_seq)
-                    
-                    # Test 3: Check if model works with actual data structure
-                    if len(model_labels) > 1:
-                        test_hg_seq = numpy.array([[[model_labels.index("background")]]])
-                        test_hmm_pred = test_model.predict(test_hg_seq)
-                    
-                    msg = "HMM model passed multiprocessing safety tests"
-                    log_object.info(msg)
-                    sys.stdout.write(msg + '\n')
-                    
-                except Exception as e:
-                    msg = f"HMM model failed multiprocessing safety test: {e}"
-                    log_object.warning(msg)
-                    sys.stdout.write(msg + '\n')
-                    msg = "Falling back to single-threaded processing for HMM operations"
-                    log_object.warning(msg)
-                    sys.stdout.write(msg + '\n')
-                    hmm_model_safe_or_doesnt_matter = False
-            else:
-                # For other platforms, assume not safe
-                hmm_model_safe_or_doesnt_matter = False
-        
+            model = build_gene_cluster_hmm(
+                sorted(all_hgs),
+                gc_emission_prob_with_hit,
+                gc_emission_prob_without_hit,
+                gc_to_gc_transition_prob,
+                bg_to_bg_transition_prob,
+            )
+            model_labels = model.labels
 
         gc_hmm_evalues_file = (
             work_dir + "GeneCluster_NewInstances_HMMEvalues.txt"
@@ -1090,8 +1201,8 @@ def identify_gc_instances(
 
         # open handle to file where expanded GCF listings will be written
         assert target_information is not None
-        considered_samples = sorted(list(target_information.keys()))    
-        for block_samp_list in util.chunks(considered_samples, block_size): # type: ignore
+        # blocks must match those used when writing the per-block DIAMOND hit summaries (process_diamond_blastp_shards)
+        for block_index, block_samp_list in enumerate(sample_blocks(target_information.keys(), block_size)):
             block_samp_set = set(block_samp_list)
             
             # start process of finding new BGCs
@@ -1103,11 +1214,13 @@ def identify_gc_instances(
             sample_lt_to_bitscore = defaultdict(dict)
 
             sample_data = []
-            with open(diamond_results_summary_file) as drsf:
-                # Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tSubject to Query Length Ratio
+            with util.open_text_file(block_summary_file(diamond_results_summary_dir, block_index)) as drsf:
+                # Locus Tag\tHomolog Group\tSample\tBest Bitscore\tE-value\tIdentity\tQuery Length\tSubject Length
+                next(drsf, None)  # header
                 for line in drsf:
                     line = line.strip()
-                    lt, hg, sample, bitscore, evalue, identity, sqlratio = line.split("\t")
+                    lt, hg, sample, bitscore, evalue, identity, qlen, slen = line.split("\t")
+                    sqlratio = float(slen) / float(qlen)
                     if sample in block_samp_set:
                         
                         sample_data.append([lt, hg, sample, float(bitscore), float(evalue), float(identity), float(sqlratio)])
@@ -1146,6 +1259,7 @@ def identify_gc_instances(
                             )
                         except KeyError:
                             log_object.error(f"KeyError: {lt} not found in {sample}")
+                            util.report_cause()
                             sys.exit(1)
                         except Exception as e:
                             log_object.error(f"Error getting start for {lt} in {sample}")
@@ -1201,11 +1315,12 @@ def identify_gc_instances(
             log_object.info(msg)
             sys.stdout.write(msg + '\n')
 
-            # Use multiprocessing for Linux/macOS with safe HMM model, otherwise use single-threaded processing
-            if platform_type in ['linux', 'macos'] and hmm_model_safe_or_doesnt_matter:
+            # Use multiprocessing on Linux/macOS, otherwise single-threaded processing. A worker error stops the run
+            # (WorkerError); only a failure of the pool itself falls back to single-threaded processing.
+            run_serially = platform_type not in ['linux', 'macos']
+            if not run_serially:
                 try:
-                    # Use robust error handling for gene cluster identification
-                    result_summary = util.robust_multiprocess_executor(
+                    util.robust_multiprocess_executor(
                         worker_function=_identify_gc_instances_worker,
                         inputs=identify_gc_segments_input,
                         pool_size=threads,
@@ -1214,30 +1329,37 @@ def identify_gc_instances(
                         description="gene cluster identification"
                     )
                     log_object.info("Successfully completed multiprocessing gene cluster identification")
+                except util.WorkerError:
+                    raise
                 except Exception as e:
                     log_object.error(f"Multiprocessing failed: {e}")
                     log_object.info("Falling back to single-threaded processing")
-                    # Fall back to single-threaded processing
-                    for input_args in tqdm.tqdm(identify_gc_segments_input, total=len(identify_gc_segments_input)):
-                        _identify_gc_instances_worker(input_args)
-            else:
-                # Single-threaded processing
-                for input_args in tqdm.tqdm(identify_gc_segments_input, total=len(identify_gc_segments_input)):
-                    _identify_gc_instances_worker(input_args)
+                    run_serially = True
+            if run_serially:
+                util.robust_serial_executor(
+                    worker_function=_identify_gc_instances_worker,
+                    inputs=identify_gc_segments_input,
+                    error_strategy="report_and_stop",
+                    log_object=log_object,
+                    description="gene cluster identification"
+                )
 
-        os.system(
-            f'find {gc_info_dir} -type f -name "*.bgcs.txt" -exec cat {{}} + >> {gc_list_file}'
+        util.concat_files(
+            sorted(glob.glob(os.path.join(gc_info_dir, "**", "*.bgcs.txt"), recursive=True)),
+            gc_list_file,
+            append=True,
         )
-        os.system(
-            f'find {gc_info_dir} -type f -name "*.hg_evalues.txt" -exec cat {{}} + >> {gc_hmm_evalues_file}'
+        util.concat_files(
+            sorted(glob.glob(os.path.join(gc_info_dir, "**", "*.hg_evalues.txt"), recursive=True)),
+            gc_hmm_evalues_file,
+            append=True,
         )
 
     except Exception as e:
         msg = "Issues with managing algorithm to delineate gene cluster homolog segments."
         log_object.error(msg)
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1293,6 +1415,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
             with open(gc_info_dir + sample + ".bgcs.txt", "w") as gc_sample_listing_handle:
                 with open(gc_info_dir + sample + ".hg_evalues.txt", "w") as gc_hg_evalue_handle:
                     sample_gc_id = 1
+                    # regions are collected and extracted together, reading the genome GenBank only once
+                    regions_to_extract = []
                     for scaffold in hgs_ordered_dict:
                         hgs_ordered = hgs_ordered_dict[scaffold]
                         lts_ordered = lts_ordered_dict[scaffold]
@@ -1315,12 +1439,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                                     gene_locations[lt]["end"] + flanking_context
                                 )
 
-                                util.create_genbank(
-                                    target_annotation_info,
-                                    gc_genbank_file,
-                                    scaffold,
-                                    min_gc_pos,
-                                    max_gc_pos,
+                                regions_to_extract.append(
+                                    (gc_genbank_file, scaffold, min_gc_pos, max_gc_pos)
                                 )
                                 gc_sample_listing_handle.write(
                                     "\t".join([sample, gc_genbank_file]) + "\n"
@@ -1350,6 +1470,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                                     )
                                     + "\n"
                                 )
+
+                    util.create_genbanks(target_annotation_info, regions_to_extract)
 
             return ('success', None)
 
@@ -1503,15 +1625,7 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                 hgs_ordered = hgs_ordered_dict[scaffold]
                 lts_ordered = lts_ordered_dict[scaffold]
 
-                hg_seq = numpy.array(
-                    [[[model_labels.index(hg)] for hg in list(hgs_ordered)]]
-                )
-                hmm_predictions = model.predict(hg_seq)[0]
-
-                """
-                hg_seq = numpy.array(list(hgs_ordered))
-                hmm_predictions = model.predict(hg_seq)
-                """
+                hmm_predictions = predict_gene_cluster_states(model, hgs_ordered)
 
                 int_bg_coords = set([])
                 tmp = [] # type: ignore
@@ -1726,7 +1840,7 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                 # code to determine whether syntenically, the considered segment aligns with what is expected.
                 # (skipped if input mode was 3)
                 input_mode_3 = False
-                if query_gene_info == None:
+                if query_gene_info is None:
                     input_mode_3 = True
 
                 best_corr = "irrelevant"
@@ -1777,7 +1891,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                     best_corr = None
                     for gc in query_gene_info: # type: ignore
                         try:
-                            assert len(segment_hg_order) == len(gc_hg_orders[gc])
+                            if not (len(segment_hg_order) == len(gc_hg_orders[gc])):
+                                raise AssertionError()
                             list1_same_dir = []
                             list2_same_dir = []
                             list1_comp_dir = []
@@ -1786,9 +1901,9 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                                 hgdir1 = segment_hg_direction[iter]
                                 hgval2 = gc_hg_orders[gc][iter]
                                 hgdir2 = gc_hg_directions[gc][iter]
-                                if hgval1 == None or hgval2 == None:
+                                if hgval1 is None or hgval2 is None:
                                     continue
-                                if hgdir1 == None or hgdir2 == None:
+                                if hgdir1 is None or hgdir2 is None:
                                     continue
                                 if hgdir1 == hgdir2:
                                     list1_same_dir.append(hgval1)
@@ -1818,11 +1933,11 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                                 ):
                                     best_corr = corr
                         except Exception as e:
-                            sys.stderr.write(traceback.format_exc())
+                            util.report_cause(fallback_traceback=True)
                             sys.exit(1)
                             # pass
                 if best_corr != "irrelevant" and (
-                    best_corr == None or best_corr < syntenic_correlation_threshold
+                    best_corr is None or best_corr < syntenic_correlation_threshold
                 ):
                     continue
                 if gc_segment[3] >= min_hits and gc_segment[4] >= min_key_hits:
@@ -1884,6 +1999,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
             gc_corr_info_handle = open(gc_info_dir + sample + ".corr_info.txt", "w")
 
             sample_gc_id = 1
+            # regions are collected and extracted together, reading the genome GenBank only once
+            regions_to_extract = []
             for gc_segment in dereplicated_sample_gc_predictions_filtered:
                 gc_genbank_file = (
                     gc_genbanks_dir
@@ -1904,12 +2021,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
                     + flanking_context
                 )
 
-                util.create_genbank(
-                    target_annotation_info,
-                    gc_genbank_file,
-                    gc_segment_scaff,
-                    min_gc_pos,
-                    max_gc_pos,
+                regions_to_extract.append(
+                    (gc_genbank_file, gc_segment_scaff, min_gc_pos, max_gc_pos)
                 )
                 gc_sample_listing_handle.write(
                     "\t".join([sample, gc_genbank_file]) + "\n"
@@ -1947,6 +2060,8 @@ def _identify_gc_instances_worker(input_args) -> Tuple[str, Optional[str]]:
 
             gc_hg_evalue_handle.close()
             gc_corr_info_handle.close()
+
+        util.create_genbanks(target_annotation_info, regions_to_extract)
 
         return ('success', None)
     except Exception as e:
@@ -2046,8 +2161,7 @@ def filter_paralogous_segments_and_concatenate_into_multi_record_genbanks(
     except Exception as e:
         log_object.error("Issues resolving paralogous gene segments.")
         sys.stderr.write("Issues resolving paralogous gene segments.\n")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2128,98 +2242,53 @@ def plot_overviews(
             if not sample in relevant_samples:
                 continue
     
-            if target_annotation_info[sample].endswith(".gz"):
-                with gzip.open(target_annotation_info[sample], 'rt') as osgbk:
-                    for rec in SeqIO.parse(osgbk, "genbank"):
-                        scaff_len = len(str(rec.seq))
-                        scaff_is_relevant = False
-                        for feature in rec.features:
-                            if feature.type != "CDS":
-                                continue
-                            lt = None
-                            try:
-                                lt = feature.qualifiers.get("locus_tag")[0]
-                            except Exception as e:
-                                try:
-                                    lt = feature.qualifiers.get("protein_id")[0]
-                                except Exception as e:
-                                    sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
-                                    )
-                                    sys.exit(1)
-                            if lt in relevant_lts:
-                                scaff_is_relevant = True
-                                break
-                        if not scaff_is_relevant:
+            with util.open_text_file(target_annotation_info[sample]) as osgbk:
+                for rec in SeqIO.parse(osgbk, "genbank"):
+                    scaff_len = len(str(rec.seq))
+                    scaff_is_relevant = False
+                    for feature in rec.features:
+                        if feature.type != "CDS":
                             continue
-                        for feature in rec.features:
-                            if feature.type != "CDS":
-                                continue
-                            lt = None
+                        lt = None
+                        try:
+                            lt = feature.qualifiers.get("locus_tag")[0]
+                        except Exception as e:
                             try:
-                                lt = feature.qualifiers.get("locus_tag")[0]
+                                lt = feature.qualifiers.get("protein_id")[0]
                             except Exception as e:
-                                try:
-                                    lt = feature.qualifiers.get("protein_id")[0]
-                                except Exception as e:
-                                    sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
-                                    )
-                                    sys.exit(1)
-
-                            start, end, direction, all_coords = (
-                                util.process_location_string(str(feature.location)) # type: ignore
-                            )
-
-                            lt_dists_to_scaff_starts[sample][lt] = start
-                            lt_dists_to_scaff_ends[sample][lt] = scaff_len - end
-                            lt_starts[sample][lt] = start
-            else:
-                with open(target_annotation_info[sample]) as osgbk:
-                    for rec in SeqIO.parse(osgbk, "genbank"):
-                        scaff_len = len(str(rec.seq))
-                        scaff_is_relevant = False
-                        for feature in rec.features:
-                            if feature.type != "CDS":
-                                continue
-                            lt = None
-                            try:
-                                lt = feature.qualifiers.get("locus_tag")[0]
-                            except Exception as e:
-                                try:
-                                    lt = feature.qualifiers.get("protein_id")[0]
-                                except Exception as e:
-                                    sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
-                                    )
-                                    sys.exit(1)
-                            if lt in relevant_lts:
-                                scaff_is_relevant = True
-                                break
-                        if not scaff_is_relevant:
+                                sys.stderr.write(
+                                    f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                )
+                                util.report_cause()
+                                sys.exit(1)
+                        if lt in relevant_lts:
+                            scaff_is_relevant = True
+                            break
+                    if not scaff_is_relevant:
+                        continue
+                    for feature in rec.features:
+                        if feature.type != "CDS":
                             continue
-                        for feature in rec.features:
-                            if feature.type != "CDS":
-                                continue
-                            lt = None
+                        lt = None
+                        try:
+                            lt = feature.qualifiers.get("locus_tag")[0]
+                        except Exception as e:
                             try:
-                                lt = feature.qualifiers.get("locus_tag")[0]
+                                lt = feature.qualifiers.get("protein_id")[0]
                             except Exception as e:
-                                try:
-                                    lt = feature.qualifiers.get("protein_id")[0]
-                                except Exception as e:
-                                    sys.stderr.write(
-                                        f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
-                                    )
-                                    sys.exit(1)
+                                sys.stderr.write(
+                                    f"The GenBank {target_annotation_info[sample]}, cataloging a homologous instance to the query gene cluster had at least one CDS without either a locus_tag or protein_id feature.\n"
+                                )
+                                util.report_cause()
+                                sys.exit(1)
 
-                            start, end, direction, all_coords = (
-                                util.process_location_string(str(feature.location)) # type: ignore
-                            )
+                        start, end, direction, all_coords = (
+                            util.process_location_string(str(feature.location)) # type: ignore
+                        )
 
-                            lt_dists_to_scaff_starts[sample][lt] = start
-                            lt_dists_to_scaff_ends[sample][lt] = scaff_len - end
-                            lt_starts[sample][lt] = start
+                        lt_dists_to_scaff_starts[sample][lt] = start
+                        lt_dists_to_scaff_ends[sample][lt] = scaff_len - end
+                        lt_starts[sample][lt] = start
 
         sample_filt_gcs = defaultdict(set)
         if os.path.isdir(gbk_filt_dir):
@@ -2314,26 +2383,15 @@ def plot_overviews(
                         )
 
 
-        rscript_path = plot_work_dir + "plotSegments.R"
-        util.plot_segments_r(
-            que_info_table_file,
-            plot_input_file,
-            plot_result_pdf,
-            plot_naming_pdf,
-            height,
-            width,
-            rscript_path,
-            log_object,
-        )
-        plot_cmd = ["Rscript", rscript_path]
-        util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files = [plot_result_pdf])
+        from zol import plotting
+        plotting.plot_table_pdf(que_info_table_file, plot_naming_pdf)
+        plotting.plot_segments(plot_input_file, plot_result_pdf, height=height, width=width)
 
     except Exception as e:
         msg = "Issues with plotting overviews of homologous gene cluster segments identified."
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2368,8 +2426,7 @@ def plot_tree_heatmap(
         hmm_work_dir = os.path.abspath(hmm_work_dir) + '/'
 
         heatmap_info_file = plot_phylo_dir + "Heatmap_Track.txt"
-        with open(heatmap_info_file, "w") as heatmap_info_file_handle:
-            heatmap_info_file_handle.write("label\tquery_prot_id\tbitscore\n")
+        heatmap_rows = []
 
         sample_final_lts = defaultdict(set)
         for gbk in os.listdir(homologous_gbk_dir):
@@ -2388,6 +2445,7 @@ def plot_tree_heatmap(
                             sys.stderr.write(
                                 f"The GenBank {homologous_gbk_dir + gbk}, cataloging a homologous instance to the query gene cluster had at least one CDS without a locus_tag feature.\n" # type: ignore
                             )
+                            util.report_cause()
                             sys.exit(1)
                         sample_final_lts[sample].add(lt)
         if len(sample_final_lts) == 0:
@@ -2403,7 +2461,7 @@ def plot_tree_heatmap(
         all_samples_in_tree = set([])
         samples_accounted = set([])
         for node in t.traverse("postorder"): # type: ignore
-            if node.is_leaf and node.name != "":
+            if node.is_leaf() and node.name != "":
                 all_samples_in_tree.add(node.name)
 
         if (
@@ -2443,11 +2501,9 @@ def plot_tree_heatmap(
                             continue
                         example_og = og
                         bitscore = float(ls[4])
-                        heatmap_info_file_handle.write(
-                            f"{sample}\t{og}\t{bitscore}\n"
-                        )
+                        heatmap_rows.append(f"{sample}\t{og}\t{bitscore}\n")
 
-        if example_og == None:
+        if example_og is None:
             log_object.warning(
                 "Unable to generate phylogenetic heatmap because no gene cluster instances were detected in target genomes."
             )
@@ -2456,31 +2512,21 @@ def plot_tree_heatmap(
             )
             return
 
-        for sample in all_samples_in_tree:
+        for sample in sorted(all_samples_in_tree):
             if not sample in samples_accounted:
-                heatmap_info_file_handle.write(
-                    sample + f"\t{example_og}\tNA\n"
-                )
+                heatmap_rows.append(sample + f"\t{example_og}\tNA\n")
 
+        with open(heatmap_info_file, "w") as heatmap_info_file_handle:
+            heatmap_info_file_handle.write("label\tquery_prot_id\tbitscore\n")
+            heatmap_info_file_handle.writelines(heatmap_rows)
 
-        rscript_path = plot_phylo_dir + "phyloHeatmap.R"
-        util.phylo_heatmap_r(
-            species_tree,
-            heatmap_info_file,
-            plot_result_pdf,
-            height,
-            width,
-            rscript_path,
-            log_object,
-        )
-        plot_cmd = ["Rscript", rscript_path]
-        util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files = [plot_result_pdf])
+        from zol import plotting
+        plotting.plot_phylo_heatmap(species_tree, heatmap_info_file, plot_result_pdf, height=height, width=width)
 
     except Exception as e:
         log_object.error("Issues with creating phyloheatmap.")
         sys.stderr.write("Issues with creating phyloheatmap.\n")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2757,9 +2803,7 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
                     igc_path = igc
                     if not os.path.isfile(igc):
                         igc_path = homologous_gbk_dir + igc.split("/")[-1]
-                        try:
-                            assert os.path.isfile(igc_path)
-                        except Exception as e:
+                        if not (os.path.isfile(igc_path)):
                             sys.stderr.write(
                                 f"Warning: Gene cluster GenBank file not found / confirmed for: {igc}\n"
                             )
@@ -3190,18 +3234,13 @@ def create_overview_spreadsheet_and_tiny_aai_plot(
 
         # plot tiny AAI figure
 
-        rscript_path = plot_work_dir + "plotTinyAAI.R"
-        util.plot_tiny_aair(
-            tiny_aai_plot_input, tiny_aai_plot_file, rscript_path, log_object
-        )
-        plot_cmd = ["Rscript", rscript_path]
-        util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files = [tiny_aai_plot_file])
+        from zol import plotting
+        plotting.plot_tiny_aai(tiny_aai_plot_input, tiny_aai_plot_file)
 
     except Exception:
         msg = "Issues with producing spreadsheet / AAI plot overviews of homologous gene cluster segments identified."
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 

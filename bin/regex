@@ -131,15 +131,11 @@ def regex():
     meta_mode = myargs.meta_mode
 
     # Validate inputs
-    try: 
-        assert os.path.isfile(input_genome)
-    except Exception as e: 
+    if not (os.path.isfile(input_genome)):
         sys.stderr.write("Input genome file does not exist.\n")
         sys.exit(1)
 
-    try:
-        assert start_coord > 0 and end_coord > 0 and end_coord >= start_coord
-    except Exception as e:
+    if not (start_coord > 0 and end_coord > 0 and end_coord >= start_coord):
         sys.stderr.write("Invalid coordinates. Start and end must be positive, and end must be >= start.\n")
         sys.exit(1)
 
@@ -183,12 +179,12 @@ def regex():
                 try:
                     next(SeqIO.parse(handle, 'genbank'))
                     is_genbank = True
-                except:
+                except Exception:
                     handle.seek(0)
                     try:
                         next(SeqIO.parse(handle, 'fasta'))
                         is_fasta = True
-                    except:
+                    except Exception:
                         raise ValueError("Could not determine file format")
     except Exception as e:
         sys.stderr.write(f"Could not determine input file format: {str(e)}\n")
@@ -240,7 +236,7 @@ def regex():
         sys.stderr.write(msg + '\n')
         log_object.error(msg)
         import traceback
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     msg = f'regex finished successfully!\nExtracted GenBank file: {output_genbank}'

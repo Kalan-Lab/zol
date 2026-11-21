@@ -41,6 +41,7 @@ from collections import defaultdict
 from operator import attrgetter, itemgetter
 import argparse
 import os
+import glob
 from typing import Dict, List, Optional, Union, Any, Tuple
 import shutil
 import sys
@@ -59,8 +60,8 @@ if zol_exec_directory != "None":
     except Exception as e:
         pass
 if (
-    rbh_prog == None
-    or split_diamond_results_prog == None
+    rbh_prog is None
+    or split_diamond_results_prog is None
     or not os.path.isfile(rbh_prog)
     or not os.path.isfile(split_diamond_results_prog)
 ):
@@ -279,8 +280,7 @@ def create_final_results(
         
     except Exception as e:
         log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.write(str(e))
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -344,8 +344,7 @@ def create_final_results_diamond_cluster(
         result_mat_handle.close()
     except Exception as e:
         log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.write(str(e))
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -371,7 +370,7 @@ def find_orthologs() -> None:
     memory = myargs.memory
 
     if not os.path.isdir(outdir):
-        os.system(f"mkdir {outdir}")
+        os.makedirs(outdir, exist_ok=True)
     else:
         sys.stderr.write(
             "Note, output directory exists already, will perform steps that were not successfully completed!\n"
@@ -404,16 +403,16 @@ def find_orthologs() -> None:
 
     checkpoint_dir = outdir + "Checkpoint_Files/"
     if not os.path.isdir(checkpoint_dir):
-        os.system(f"mkdir {checkpoint_dir}")
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
     if not diamond_cluster_orthogroup_flag:
         local_proteome_dir = outdir + "Proteomes/"
         if not os.path.isdir(local_proteome_dir):
-            os.system(f"mkdir {local_proteome_dir}")
+            os.makedirs(local_proteome_dir, exist_ok=True)
 
         proteome_name_dir = outdir + "Original_Naming_of_Proteomes/"
         if not os.path.isdir(proteome_name_dir):
-            os.system(f"mkdir {proteome_name_dir}")
+            os.makedirs(proteome_name_dir, exist_ok=True)
 
         msg = "--------------------\nStep 0\n--------------------\nProcessing proteomes"
         sys.stdout.write(msg + "\n")
@@ -426,7 +425,8 @@ def find_orthologs() -> None:
                 refactor_proteomes = []
                 with open(proteome_listing_file, "w") as proteome_listing_handle:
                     proteome_counter = 0
-                    assert os.path.isdir(proteome_dir)
+                    if not (os.path.isdir(proteome_dir)):
+                        raise AssertionError()
                     for f in sorted(os.listdir(proteome_dir)):
                         suffix = f.split(".")[-1]
                         if not suffix in set(["fa", "faa", "fasta"]):
@@ -479,7 +479,7 @@ def find_orthologs() -> None:
                 )
                 sys.exit(1)
             
-            os.system(f"touch {step0_checkpoint_file}")
+            util.touch_file(step0_checkpoint_file)
 
         """
 		START WORKFLOW
@@ -530,8 +530,10 @@ def find_orthologs() -> None:
                 log_object.error(e)
                 raise RuntimeError(e)
 
+        # defined outside the checkpointed block so later steps can refer to it when resuming after step 2
+        alignment_result_file = outdir + "Reflexive_Alignment.out"
         if not os.path.isfile(step2_checkpoint_file):
-            os.system(f"mkdir {align_res_dir}")
+            os.makedirs(align_res_dir, exist_ok=True)
             db_path = outdir + "All_Proteins.dmnd"
             diamond_makedb_cmd = [
                 "diamond",
@@ -547,12 +549,11 @@ def find_orthologs() -> None:
 
             util.run_cmd_via_subprocess(diamond_makedb_cmd, check_files = [db_path])
 
-            alignment_result_file = outdir + "Reflexive_Alignment.out"
+            # only the columns used by splitDiamondResults / runRBH are reported
             diamond_blastp_cmd = ["diamond", "blastp", "--ignore-warnings", "-d", db_path,
                                   "-q", concat_faa, "-o", alignment_result_file, "--outfmt",
-                                  "6", "qseqid", "sseqid", "pident", "length", "mismatch",
-                                  "gapopen", "qstart", "qend", "sstart", "send", "evalue",
-                                  "bitscore", "qcovhsp", "-k0", "--very-sensitive", "-e",
+                                  "6", "qseqid", "sseqid", "pident", "bitscore", "qcovhsp",
+                                  "-k0", "--very-sensitive", "-e",
                                   str(evalue_cutoff), "--masking", "0", "-p", str(threads)]
             util.run_cmd_via_subprocess(diamond_blastp_cmd, check_files = [alignment_result_file])
 
@@ -563,7 +564,9 @@ def find_orthologs() -> None:
             ]
             
             util.run_cmd_via_subprocess(split_diamond_cmd, check_files = [alignment_result_file])
-            os.system(f"touch {step2_checkpoint_file}")
+            # the per-sample files (with reflexive bitscores carried along) are all that the RBH step needs
+            util.remove_file(alignment_result_file)
+            util.touch_file(step2_checkpoint_file)
 
         msg = "--------------------\nStep 3\n--------------------\nRunning RBH.\n"
         sys.stdout.write(msg + "\n")
@@ -571,7 +574,7 @@ def find_orthologs() -> None:
         scaled_find_orthos_result_file = outdir + "All.normalized.abc-like"
         step3_checkpoint_file = checkpoint_dir + "Step3_Checkpoint.txt"
         if not os.path.isfile(step3_checkpoint_file):
-            os.system(f"mkdir {forth_res_dir}")
+            os.makedirs(forth_res_dir, exist_ok=True)
 
             find_orthos_result_file = outdir + "All.abc-like"
 
@@ -599,8 +602,9 @@ def find_orthologs() -> None:
                 log_object.error(msg)
                 sys.exit(1)
 
-            os.system(
-                f"cat {forth_res_dir}* > {find_orthos_result_file}"
+            util.concat_files(
+                sorted(f for f in glob.glob(forth_res_dir + "*") if os.path.isfile(f)),
+                find_orthos_result_file,
             )
 
             qh_pairs_accounted = set([])
@@ -645,7 +649,9 @@ def find_orthologs() -> None:
                                 scaled_find_orthos_result_handle.write(f"{query}\t{hit}\t{float(bs) / qshs_rbh_avg[sample_pair]}\n") # type: ignore
                             elif mcl_inflation == -1:
                                 scaled_find_orthos_result_handle.write(f"{query}\t{hit}\n")
-            
+            # per-sample alignment files are removed as they are processed, so step 3 can not be redone on resume
+            util.touch_file(step3_checkpoint_file)
+
 
         msg = "--------------------\nStep 4\n--------------------\nRun MCL or single-linkage clustering to determine OrthoGroups.\n"
         sys.stdout.write(msg + "\n")
@@ -700,12 +706,13 @@ def find_orthologs() -> None:
                             result_handle.write(f"OG_{subclust_id}\t{rec.id}\n")
                             subclust_id += 1
             
-            util.remove_file(alignment_result_file)
+            if os.path.isfile(alignment_result_file):  # normally already removed after splitting in step 2
+                util.remove_file(alignment_result_file)
             util.remove_file(cluster_result_file)
             shutil.rmtree(forth_res_dir)
             shutil.rmtree(align_res_dir)
 
-            os.system(f"touch {step4_checkpoint_file}")
+            util.touch_file(step4_checkpoint_file)
 
         step5_checkpoint_file = checkpoint_dir + "Step5_Checkpoint.txt"
         msg = "--------------------\nStep 5\n--------------------\nCreate final result files!\n"
@@ -721,7 +728,7 @@ def find_orthologs() -> None:
                 result_mat_file,
                 log_object,
             )
-            os.system(f"touch {step5_checkpoint_file}")
+            util.touch_file(step5_checkpoint_file)
 
     else:
         """
@@ -756,7 +763,7 @@ def find_orthologs() -> None:
             util.diamond_cluster_and_recluster(concat_faa, diamond_cluster_file, diamond_refined_cluster_file,
                                                log_object, threads=threads, diamond_params=diamond_cluster_params,
                                                mem=memory)
-            os.system(f"touch {step2_checkpoint_file}")
+            util.touch_file(step2_checkpoint_file)
 
         msg = "--------------------\nStep 3\n--------------------\nCreate final result files!\n"
         sys.stdout.write(msg + "\n")
@@ -767,7 +774,7 @@ def find_orthologs() -> None:
             create_final_results_diamond_cluster(
                 diamond_refined_cluster_file, result_tab_file, result_mat_file, log_object
             )
-            os.system(f"touch {step3_checkpoint_file}")
+            util.touch_file(step3_checkpoint_file)
 
     # DONE!
     msg = f"--------------------\nDONE!\n--------------------\nOrthogroup by sample matrix can be found at: {result_mat_file}\n"

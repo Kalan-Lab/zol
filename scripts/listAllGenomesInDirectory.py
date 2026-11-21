@@ -38,6 +38,8 @@ UW Madison, Department of Medical Microbiology and Immunology
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import gzip
+import shutil
 import argparse
 import sys
 
@@ -107,44 +109,28 @@ def siftAndPrint():
 	dryrun_naming_file = myargs.dryrun_naming_file
 
 	genome_id_to_sample_name = {}
-	if dryrun_naming_file != None:
-		try:
-			assert (os.path.isfile(dryrun_naming_file))
-		except Exception as e:
+	if dryrun_naming_file is not None:
+		if not (os.path.isfile(dryrun_naming_file)):
 			raise RuntimeError('Cannot locate the ncbi-genome-download dryrun naming file provided.')
 
-	try:
-		assert (os.path.isdir(input_genomes_dir))
-	except Exception as e:
+	if not (os.path.isdir(input_genomes_dir)):
 		raise RuntimeError('Cannot find input directory of genomes directory.')
 
-	try:
-		assert (os.path.isdir(uncompress_dir))
-	except Exception as e:
-		os.system(f'mkdir {uncompress_dir}')
-		try:
-			assert (os.path.isdir(uncompress_dir))
-		except Exception as e:
+	if not (os.path.isdir(uncompress_dir)):
+		os.makedirs(uncompress_dir, exist_ok=True)
+		if not (os.path.isdir(uncompress_dir)):
 			raise RuntimeError('Cannot find/create directory for uncompressing genomes.')
 
-	try:
-		assert (os.path.isdir(bgc_prediction_dir))
-	except Exception as e:
+	if not (os.path.isdir(bgc_prediction_dir)):
 		if list_cmds_flag:
-			os.system(f'mkdir {bgc_prediction_dir}')
-			try:
-				assert (os.path.isdir(bgc_prediction_dir))
-			except Exception as e:
+			os.makedirs(bgc_prediction_dir, exist_ok=True)
+			if not (os.path.isdir(bgc_prediction_dir)):
 				raise RuntimeError('Cannot find/create output directory for BGC prediction commands.')
 
-	try:
-		assert (bgc_prediction_software in set(['ANTISMASH', 'DEEPBGC', 'GECCO']))
-	except Exception as e:
+	if not (bgc_prediction_software in set(['ANTISMASH', 'DEEPBGC', 'GECCO'])):
 		raise RuntimeError('BGC prediction software option is not a valid option.')
 
-	try:
-		assert (taxon in set(['bacteria', 'fungi']))
-	except Exception as e:
+	if not (taxon in set(['bacteria', 'fungi'])):
 		raise RuntimeError('Taxon is not a valid option.')
 
 	"""
@@ -191,18 +177,16 @@ def siftAndPrint():
 			genome_file = sample_to_genome[sample]
 			if genome_file.endswith('.gz'):
 				uncompressed_genome_file = uncompress_dir + genome_file.split('/')[-1].split('.gz')[0]
-				os.system(f'cp {genome_file} {uncompress_dir}')
-				os.system(f'gunzip {uncompressed_genome_file}.gz')
-				try:
-					assert (os.path.isfile(uncompressed_genome_file))
-				except Exception as e:
+				with gzip.open(genome_file, 'rb') as src, open(uncompressed_genome_file, 'wb') as tgt:
+					shutil.copyfileobj(src, tgt)
+				if not (os.path.isfile(uncompressed_genome_file)):
 					raise RuntimeError(
 						f'Had issues creating uncompressed genome {uncompressed_genome_file} for sample {sample}')
 				sample_to_genome[sample] = uncompressed_genome_file
 
 	for sample in sample_to_genome:
 		genome_file = sample_to_genome[sample]
-		if dryrun_naming_file != None:
+		if dryrun_naming_file is not None:
 			genome_id = '_'.join(genome_file.split('/')[-1].split('_')[:2])
 			sample = genome_id_to_sample_name[genome_id]
 		sample = sample.replace('#', '').replace('*', '_').replace(':', '_').replace(';', '_').replace(' ',

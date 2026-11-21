@@ -44,6 +44,7 @@ from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util, fai
 import argparse
+import shlex
 import math
 import os
 import pandas as pd
@@ -182,7 +183,7 @@ def atpoc():
     else:
         util.setup_ready_directory([outdir], delete_if_exist = False)
 
-    if (vibrant_results_dir == None or not os.path.isdir(vibrant_results_dir)) and (phispy_results_dir == None or not os.path.isdir(phispy_results_dir) and (genomad_results_dir == None or not os.path.isdir(genomad_results_dir))): 
+    if (vibrant_results_dir is None or not os.path.isdir(vibrant_results_dir)) and (phispy_results_dir is None or not os.path.isdir(phispy_results_dir) and (genomad_results_dir is None or not os.path.isdir(genomad_results_dir))): 
         sys.stderr.write("Neither PhiSpy, VIBRANT, nor geNomad sample results directory provided as input or the paths are faulty! \n")
         sys.exit(1)
 
@@ -190,10 +191,12 @@ def atpoc():
         try: 
             sample_genome_fasta = outdir + '.'.join(sample_genome.split('/')[-1].split('.')[: -1]) + '.fna'
             util.convert_genome_genbank_to_fasta([sample_genome, sample_genome_fasta])
-            assert(os.path.isfile(sample_genome_fasta) and util.is_fasta(sample_genome_fasta))
+            if not (os.path.isfile(sample_genome_fasta) and util.is_fasta(sample_genome_fasta)):
+                raise AssertionError()
             sample_genome = sample_genome_fasta
         except Exception as e: 
             sys.stderr.write("Issue converting sample's genome from GenBank to FASTA format.\n")
+            util.report_cause()
             sys.exit(1)
 
     if not util.is_fasta(sample_genome): 
@@ -230,7 +233,7 @@ def atpoc():
         sys.stderr.write(traceback.format_exc() + '\n')
 
     sample_phages = []
-    if vibrant_results_dir != None and os.path.isdir(vibrant_results_dir): 
+    if vibrant_results_dir is not None and os.path.isdir(vibrant_results_dir): 
         for root, dirs, files in os.walk(vibrant_results_dir): 
             for basename in files: 
                 filename = os.path.join(root, basename)
@@ -248,7 +251,7 @@ def atpoc():
                             sample_phages.append(['VIBRANT', 'VB-' + phage_id, 
                                                   scaff, start_coord, end_coord, phage_length, ''])
 
-    if phispy_results_dir != None and os.path.isdir(phispy_results_dir): 
+    if phispy_results_dir is not None and os.path.isdir(phispy_results_dir): 
         for root, dirs, files in os.walk(phispy_results_dir): 
             for basename in files: 
                 filename = os.path.join(root, basename)
@@ -261,7 +264,7 @@ def atpoc():
                             additional_info = '; '.join(['attL_sequence = ', attL_seq, 'attR_sequence = ' + attR_seq, 'att_explanation = ' + att_explanation])
                             sample_phages.append(['PhiSpy', 'PS-' + phage_id, scaff, start_coord, end_coord, str(phage_length), additional_info])
 
-    if genomad_results_dir != None and os.path.isdir(genomad_results_dir): 
+    if genomad_results_dir is not None and os.path.isdir(genomad_results_dir): 
         for root, dirs, files in os.walk(genomad_results_dir): 
             for basename in files: 
                 filename = os.path.join(root, basename)
@@ -348,7 +351,7 @@ def atpoc():
         else: 
             # run fai
             fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord,
-                       '-tg', preptg_db_dir, fai_options, '-o', phage_fai_res_dir, '-c', str(threads)]
+                       '-tg', preptg_db_dir, *shlex.split(fai_options or ''), '-o', phage_fai_res_dir, '-c', str(threads)]
             if not use_pyrodigal_flag: 
                 fai_cmd += ['-rgv']
             util.run_cmd_via_subprocess(fai_cmd, log_object=log_object)

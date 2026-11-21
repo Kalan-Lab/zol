@@ -93,7 +93,8 @@ def processAndReformatNCBIGenbanks():
 	map_outdir = os.path.abspath(myargs.name_mapping_outdir) + '/'
 
 	try:
-		assert (util.is_genbank(input_genbank_file))
+		if not (util.is_genbank(input_genbank_file)):
+			raise AssertionError()
 	except Exception as e:
 		raise RuntimeError('Issue with input Genbank file from NCBI.')
 

@@ -41,7 +41,8 @@ UW Madison, Department of Medical Microbiology and Immunology
 from collections import defaultdict
 from operator import itemgetter
 from rich_argparse import RawTextRichHelpFormatter
-from zol import util
+from zol import util, plotting
+import csv
 import argparse
 import os
 import shutil
@@ -59,7 +60,7 @@ def create_parser():
 
     collapsed gene clusters (cgc; pun: see(ಠಠ)-gc)
 
-    cgc is a visualization tool that takes as input zol results and uses R libraries for
+    cgc is a visualization tool that takes as input zol results and uses matplotlib for
     plotting to generate a customizable figure that collapses information across hundreds
     to thousands of gene cluster instances in a "collapsed" figure.
 
@@ -256,7 +257,7 @@ default_color_schemes = {'white_to_black': ['#ffffff', '#878787', '#000000'],
 track_name_to_full_label = {'conservation': 'Proportion of Total Gene Clusters with OG', 'tajimas_d': 'Tajima\'s D', 'entropy': 'Entropy',
                             'upstream_entropy': 'Upstream Region Entropy', 'median_beta_rd': 'Median Beta-RD-gc', 'max_beta_rd': 'Max Beta-RD-gc',
                             'focal_conservation': 'Proportion of Focal Gene Clusters with OG', 'fst': 'Fixation Index',
-                            'alterante_conservation': 'Proportion of Comparator Gene Clusters with OG',
+                            'alternate_conservation': 'Proportion of Comparator Gene Clusters with OG',
                             'bgc_score': 'BGC score (GECCO weights)', 'viral_score': 'Viral score (V-Score)',
                             'busted_pval': 'P-value for gene-wide episodic selection by BUSTED',
                             'avg_nuc_identity': 'Average Pairwise Nucleotide Identity',
@@ -292,9 +293,7 @@ def cgc():
     legend_title_size = myargs.legend_title_size
     no_legend = myargs.no_legend
 
-    try: 
-        assert (os.path.isdir(zol_results_dir))
-    except Exception as e: 
+    if not (os.path.isdir(zol_results_dir)):
         sys.stderr.write('The zol results directory required as input does not exist.\n')
         sys.exit(1)
     
@@ -333,21 +332,22 @@ def cgc():
 
     zol_spreadsheet_tsv = zol_results_dir + 'Final_Results/Consolidated_Report.tsv'
 
-    try: 
-        assert(os.path.isfile(zol_spreadsheet_tsv))
-    except Exception as e: 
+    if not (os.path.isfile(zol_spreadsheet_tsv)):
         msg = 'The "Final_Results/Consolidated_Report.tsv" table results from zol analysis is not available in the zol directory provided.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
         sys.exit(1)
 
     try: 
-        assert(type(tracks) is list and type(color_schemes) is list and type(relative_heights) is list)
-        assert(len(tracks) == len(color_schemes) and len(tracks) == len(relative_heights))
+        if not (type(tracks) is list and type(color_schemes) is list and type(relative_heights) is list):
+            raise AssertionError()
+        if not (len(tracks) == len(color_schemes) and len(tracks) == len(relative_heights)):
+            raise AssertionError()
     except Exception as e: 
         msg = 'The tracks, color_schemes, and relative_heights arguments values are not\nlists as expected or are not lists of the same length.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
+        util.report_cause()
         sys.exit(1)
 
     try: 
@@ -361,6 +361,7 @@ def cgc():
         msg = 'One or more of the tracks is not an accepted option, please check the --help/usage for cgc.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
+        util.report_cause()
         sys.exit(1)
 
     try: 
@@ -374,10 +375,11 @@ def cgc():
         msg = 'One or more of the default color scheme is not an accepted option, please check the --help/usage for cgc.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
+        util.report_cause()
         sys.exit(1)
 
     color_list = []
-    if custom_color_scheme_file != None: 
+    if custom_color_scheme_file is not None: 
         msg = 'A custom color scheme file is provided, ignoring values provided to the argument --color_schemes if provided.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
@@ -393,7 +395,7 @@ def cgc():
                 cs_info = track_colors[t]
                 color_list.append(cs_info)
         except Exception as e: 
-            sys.stderr.write(traceback.format_exc())
+            util.report_cause(fallback_traceback=True)
             msg = "Issue reading the custom color scheme file or perhaps colors for\nall tracks requested were not provided. This should be a\nheader-less tab-delmited file with four columns, with track\nname as first column andlow, mid, high value colors as second, third, and fourth columns."
             log_object.error(msg)
             sys.stderr.write(msg + '\n')
@@ -405,7 +407,7 @@ def cgc():
 
     # Step 2: Sorting out labels
     og_labels = defaultdict(lambda: '')
-    if show_labels or og_label_file != None or annotation_db_faa != None: 
+    if show_labels or og_label_file is not None or annotation_db_faa is not None: 
         msg = '------------------Step 1.5------------------\nSorting out ortholog labels.'
         log_object.info(msg)   
         sys.stdout.write(msg + '\n')
@@ -418,74 +420,70 @@ def cgc():
                     ls = line.split('\t')
                     og_labels[ls[0]] = ls[1]
         except Exception as e: 
-            sys.stderr.write(traceback.format_exc())
+            util.report_cause(fallback_traceback=True)
             msg = "Issue reading the custom labels for ortholog groups from the provided file."
             log_object.error(msg)
             sys.stderr.write(msg + '\n')
             sys.exit(1)
 
-        if annotation_db_faa:
-            og_consensus_seqs_faa = zol_results_dir + 'OG_Consensus_Seqs.faa'
+    elif annotation_db_faa:
+        og_consensus_seqs_faa = zol_results_dir + 'OG_Consensus_Seqs.faa'
 
-            try: 
-                assert(util.is_fasta(annotation_db_faa))
-            except Exception as e: 
-                msg = "Issue validating the annotation_db_faa file exists or is in FASTA format"
-                log_object.error(msg)
-                sys.stderr.write(msg + '\n')
-                sys.exit(1)
+        if not (util.is_fasta(annotation_db_faa)):
+            msg = "Issue validating the annotation_db_faa file exists or is in FASTA format"
+            log_object.error(msg)
+            sys.stderr.write(msg + '\n')
+            sys.exit(1)
 
-            try: 
-                assert(util.is_fasta(og_consensus_seqs_faa))
-            except Exception as e: 
-                msg = "Issue validating the 'OG_Consensus_Seqs.faa' file exists in the zol results directory or is in FASTA format"
-                log_object.error(msg)
-                sys.stderr.write(msg + '\n')
-                sys.exit(1)
+        if not (util.is_fasta(og_consensus_seqs_faa)):
+            msg = "Issue validating the 'OG_Consensus_Seqs.faa' file exists in the zol results directory or is in FASTA format"
+            log_object.error(msg)
+            sys.stderr.write(msg + '\n')
+            sys.exit(1)
 
-            mapping_dir = outdir + 'Protein_Mapping/'
-            proteomes_dir = mapping_dir + 'Inputs/'
-            util.setup_ready_directory([mapping_dir, proteomes_dir], delete_if_exist = True)
-            try: 
-                shutil.copy(annotation_db_faa, proteomes_dir + '1_queries.faa')
-                shutil.copy(og_consensus_seqs_faa, proteomes_dir + '2_references.faa')
+        mapping_dir = outdir + 'Protein_Mapping/'
+        proteomes_dir = mapping_dir + 'Inputs/'
+        util.setup_ready_directory([mapping_dir, proteomes_dir], delete_if_exist = True)
+        try: 
+            shutil.copy(annotation_db_faa, proteomes_dir + '1_queries.faa')
+            shutil.copy(og_consensus_seqs_faa, proteomes_dir + '2_references.faa')
 
-                mapping_results_dir = mapping_dir + 'Results/'
-                mapping_result_file = mapping_results_dir + 'Orthogroups.tsv'
-                find_ogs_cmd = ['findOrthologs.py', '-p', proteomes_dir, '-o', mapping_results_dir, '-c', '1']
-                util.run_cmd_via_subprocess(find_ogs_cmd, log_object=log_object, 
-                                            check_files = [mapping_result_file])
+            mapping_results_dir = mapping_dir + 'Results/'
+            mapping_result_file = mapping_results_dir + 'Orthogroups.tsv'
+            find_ogs_cmd = ['findOrthologs.py', '-p', proteomes_dir, '-o', mapping_results_dir, '-c', '1']
+            util.run_cmd_via_subprocess(find_ogs_cmd, log_object=log_object, 
+                                        check_files = [mapping_result_file])
 
-                with open(mapping_result_file) as omrf: 
-                    for i, line in enumerate(omrf): 
-                        if i == 0: continue
-                        line = line.strip('\n')
-                        query, og = line.split('\t')[1: ]
-                        # get one to one mappings only!
-                        if og.strip() != '' and len(og.split(', ')) == 1 and query != '' and len(query.split()) == 1: 
-                            og_labels[og.strip()] = query.strip()
+            with open(mapping_result_file) as omrf: 
+                for i, line in enumerate(omrf): 
+                    if i == 0: continue
+                    line = line.strip('\n')
+                    query, og = line.split('\t')[1: ]
+                    # get one to one mappings only!
+                    if og.strip() != '' and len(og.split(', ')) == 1 and query != '' and len(query.split()) == 1: 
+                        og_labels[og.strip()] = query.strip()
 
-            except Exception as e: 
-                sys.stderr.write(traceback.format_exc())
-                msg = "Issue reading the custom labels for ortholog groups from the provided file."
-                log_object.error(msg)
-                sys.stderr.write(msg + '\n')
-                sys.exit(1)
-        else: 
-            try: 
-                with open(zol_spreadsheet_tsv) as ozst: 
-                    for i, line in enumerate(ozst): 
-                        if i == 0: continue
-                        line = line.strip('\n')
-                        ls = line.split('\t')
-                        og = ls[0]
-                        og_labels[og] = og
-            except Exception as e: 
-                sys.stderr.write(traceback.format_exc())
-                msg = f"Issue reading the zol consolidated spreadsheet: {zol_spreadsheet_tsv}"
-                log_object.error(msg)
-                sys.stderr.write(msg + '\n')
-                sys.exit(1)
+        except Exception as e: 
+            util.report_cause(fallback_traceback=True)
+            msg = "Issue reading the custom labels for ortholog groups from the provided file."
+            log_object.error(msg)
+            sys.stderr.write(msg + '\n')
+            sys.exit(1)
+    elif show_labels: 
+        try: 
+            with open(zol_spreadsheet_tsv) as ozst: 
+                for i, line in enumerate(ozst): 
+                    if i == 0: continue
+                    line = line.strip('\n')
+                    ls = line.split('\t')
+                    og = ls[0]
+                    og_labels[og] = og
+        except Exception as e: 
+            util.report_cause(fallback_traceback=True)
+            msg = f"Issue reading the zol consolidated spreadsheet: {zol_spreadsheet_tsv}"
+            log_object.error(msg)
+            sys.stderr.write(msg + '\n')
+            sys.exit(1)
 
     # Step 3: Parsing out data from zol results
     msg = '------------------Step 2------------------\nParsing out data from zol results and creating '
@@ -551,108 +549,48 @@ def cgc():
             previous_end = x_end + INTEROG_DISTANCE
         df_handle.close()
     except Exception as e: 
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         msg = f"Issue reading the zol consolidated spreadsheet: {zol_spreadsheet_tsv}"
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
         sys.exit(1)
 
-    # Step 4: Write R script to generate the final figure
-    msg = '------------------Step 4------------------\nWriting R script for generating figure PDF/PNG.'
+    # Step 4: Generate the final figure
+    msg = '------------------Step 3------------------\nGenerating figure PDF/PNG.'
     log_object.info(msg)
     sys.stdout.write(msg + '\n')
 
-    # flip as if you were writing top to bottom instead.
-    track_list = tracks[::-1]
-    color_list = color_list[::-1]
-    relhei_list = relative_heights[::-1]
-
-    if show_copy_count_status and not_scc_count > 0: 
-        last_rh = float(relhei_list[-1])
-        sc_rh = 0.1*last_rh
-        gg_rh = 0.9*last_rh
-        relhei_list = relhei_list[: -1] + [str(sc_rh), str(gg_rh)]
-
-    relhei_list_updated = []
-    for i, rh in enumerate(relhei_list): 
-        if i == 0: 
-            relhei_list_updated.append(rh)
-        else: 
-            relhei_list_updated.append(str(squish_factor))
-            relhei_list_updated.append(rh)
-
-    # new line character
-    nl = '\n'
-
-    rscript_path = outdir + 'cgc_script.R'
     result_pdf_file = outdir + 'cgc_plot.pdf'
     if png_flag: 
         result_pdf_file = outdir + 'cgc_plot.png'
-    rscript_handle = open(rscript_path, 'w')
+    try: 
+        with open(dataframe) as odf: 
+            plot_rows = list(csv.DictReader(odf, delimiter = '\t'))
+        if len(plot_rows) == 0: 
+            raise RuntimeError(f'No ortholog groups passed the --min-conservation cutoff of {min_conservation}.')
 
-    rscript_handle.write('library(ggplot2)' + nl)
-    rscript_handle.write('library(cowplot)' + nl)
-    rscript_handle.write('library(gggenes)' + nl)
-    rscript_handle.write(nl)
-    rscript_handle.write('dat <- read.table("' + dataframe + '", header = T, sep = "\\t")' + nl)
-    rscript_handle.write(nl)
-
-    ggplot_objects = []
-    for i, t in enumerate(track_list): 
-        cs = color_list[i]
-        gobj_id = 'g' +  str(i+1)
-        if i < len(track_list)-1: 
-            rscript_handle.write('# track for ' + t + nl)
-            rscript_handle.write(gobj_id + ' <- ggplot(dat, aes(xmin = x_start, xmax = x_end, ymin = y_start, ymax = ' + t + ', fill = ' + t + ')) + theme_classic() + ' + nl)
-            rscript_handle.write('geom_rect(color = "black", show.legend = F) + scale_fill_gradient2(low = "' + cs[0] + '", mid = "' + cs[1] + '", high = "' + cs[2] + '", na.value = "grey50") +' + nl)
-            rscript_handle.write('theme(axis.line.x = element_line(colour = "white"), axis.title.x = element_blank(), axis.text.x = element_blank(), axis.ticks.x = element_blank()) +' + nl)
+        # tracks are provided bottom to top - flip so they are listed top to bottom
+        track_list = tracks[::-1]
+        titles = []
+        for t in track_list: 
             if t == 'focal_conservation': 
-                rscript_handle.write('ggtitle("' + focal_set_title + '")' + nl)
+                titles.append(focal_set_title)
             elif t == 'alternate_conservation': 
-                rscript_handle.write('ggtitle("' + comparator_set_title + '")' + nl)
+                titles.append(comparator_set_title)
             else: 
-                rscript_handle.write('ggtitle("' + track_name_to_full_label[t] + '")' + nl)
-            rscript_handle.write(nl)
-        else: 
-            if show_copy_count_status and not_scc_count > 0: 
-                rscript_handle.write('# track for single-copy status' + nl)
-                ggplot_objects.append('gsc')
-                ggplot_objects.append("NULL")
-                rscript_handle.write('xmin <- min(dat$x_start)' + nl)
-                rscript_handle.write('xmax <- max(dat$x_end)' + nl)
-                rscript_handle.write('dat.sc <- dat[dat$single_copy == "False", ]' + nl)
-                rscript_handle.write('gsc <- ggplot(dat.sc, aes(x = x_midpoint, y = 0, color = single_copy)) + theme_void() + geom_point(color = "#a33f37", show.legend = F) + xlim(xmin, xmax)' + nl)
-                rscript_handle.write(nl)
-            rscript_handle.write('# track for ' + t + nl)
-            rscript_handle.write(gobj_id + ' <- ggplot(dat, aes(xmin = x_start, xmax = x_end, y = 1, label = label, forward = direction)) +' + nl)
-            rscript_handle.write('geom_gene_arrow(aes(fill = ' + t + '), color = "black") + theme_void() + scale_fill_gradient2(low = "' + cs[0] + '", mid = "' + cs[1] + '", high = "' + cs[2] + '", na.value = "grey50", guide = "colourbar", aesthetics = "fill") + ' + nl)
-            rscript_handle.write(f'geom_text(aes(x = x_midpoint), angle = 45, y = {1-label_distance}, size = {label_text_size}) +' + nl)
-            if no_legend: 
-                rscript_handle.write('theme(legend.position = "none")' + nl)
-            else: 
-                rscript_handle.write(f'theme(legend.position = "bottom", legend.title = element_text(size = {legend_title_size}), legend.box = "horizontal")' + nl)
-            rscript_handle.write(nl)
-        ggplot_objects.append(gobj_id)
-        ggplot_objects.append("NULL")
-
-    rscript_handle.write(nl)
-    if png_flag: 
-        rscript_handle.write(f'png("{result_pdf_file}", height = {plot_height}, width = {plot_width}, res = 600, units = "in")' + nl)
-    else: 
-        rscript_handle.write(f'pdf("{result_pdf_file}", height = {plot_height}, width = {plot_width})' + nl)
-    rscript_handle.write(f'print(plot_grid({", ".join(ggplot_objects)}, NULL, ncol = 1, axis = "lr", align = "v", rel_heights = c({", ".join(relhei_list_updated)}, {bottom_spacing})))' + nl)
-    rscript_handle.write('dev.off()' + nl)
-
-    rscript_handle.close()
-
-    # Step 5: Running R script to generate the final figure
-    msg = '------------------Step 5------------------\nRunning R script for generating figure PDF/PNG.'
-    log_object.info(msg)
-    sys.stdout.write(msg + '\n')
-
-    plot_cmd = ['Rscript', rscript_path]
-    util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, 
-                                check_files = [result_pdf_file])
+                titles.append(track_name_to_full_label[t])
+        plotting.plot_cgc(plot_rows, track_list, color_list[::-1], relative_heights[::-1], titles, 
+                          result_pdf_file, height = plot_height, width = plot_width, 
+                          squish_factor = squish_factor, bottom_spacing = bottom_spacing, 
+                          show_copy_count_status = show_copy_count_status, label_distance = label_distance, 
+                          label_text_size = label_text_size, legend_title_size = legend_title_size, 
+                          no_legend = no_legend, png = png_flag)
+    except Exception as e: 
+        msg = 'Issue generating the cgc figure.'
+        log_object.error(msg)
+        sys.stderr.write(msg + '\n')
+        util.report_cause(fallback_traceback=True)
+        sys.exit(1)
 
     msg = f'cgc finished successfully!\nResulting PDF can be found at: {result_pdf_file}'
     log_object.info(msg)

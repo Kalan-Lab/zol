@@ -39,13 +39,14 @@ UW Madison, Department of Medical Microbiology and Immunology
  
 
 import os
+import glob
 from re import U
 import sys
 import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.SeqFeature import SeqFeature, FeatureLocation
+from Bio.SeqFeature import SeqFeature, SimpleLocation
 from collections import defaultdict
 from zol import util
 
@@ -81,7 +82,7 @@ def fastgenomicsNeighborhoodToGenBanks():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 
 	if not os.path.isdir(outdir):
-		os.system(f'mkdir {outdir}')
+		os.makedirs(outdir, exist_ok=True)
 	else:
 		sys.stderr.write('Note, output directory exists already! Exiting ...\n')
 		sys.exit(1)
@@ -155,7 +156,9 @@ def fastgenomicsNeighborhoodToGenBanks():
 	ngd_gcf_cmd = ['ncbi-genome-download', '--formats', 'fasta', '--retries', '2', '--section', 'refseq', '-A', gcf_accessions_file, '-o', genome_fasta_dir, '--flat-output',  'all']	
 	util.run_cmd_via_subprocess(ngd_gcf_cmd)
 
-	os.system('gunzip ' + genome_fasta_dir + '*.gz')
+	gz_files = sorted(glob.glob(genome_fasta_dir + '*.gz'))
+	if gz_files:
+		util.run_cmd_simple(['gunzip'] + gz_files)
 
 	# Step 3: Create GenBank files
 	msg = "--------------------\nStep 3\n--------------------\nCreating GenBank files for neighborhoods."
@@ -174,7 +177,8 @@ def fastgenomicsNeighborhoodToGenBanks():
 		acc_fasta_file = None 
 		try:
 			acc_fasta_file = acc_to_genome_fasta[acc]
-			assert(acc_fasta_file)
+			if not (acc_fasta_file):
+				raise AssertionError()
 		except Exception as e:
 			msg = f'Could not download genome for accession: {acc}, skipping it!'
 			log_object.warning(msg)
@@ -218,7 +222,7 @@ def fastgenomicsNeighborhoodToGenBanks():
 					gene_strand_num = -1
 					gene_seq = str(Seq(scaff_seq[gene_start:gene_end]).reverse_complement())
 				prot_seq = str(Seq(gene_seq).translate())
-				feature = SeqFeature(FeatureLocation(start=rel_start-1, end=rel_end, strand=gene_strand_num), type='CDS')
+				feature = SeqFeature(SimpleLocation(start=rel_start-1, end=rel_end, strand=gene_strand_num), type='CDS')
 				feature.qualifiers['locus_tag'] = lt
 				feature.qualifiers['product'] = desc
 				feature.qualifiers['protein_id'] = pid

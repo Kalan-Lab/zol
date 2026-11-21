@@ -95,7 +95,8 @@ def annotate_prot_seqs() -> None:
     threads = myargs.threads # type: ignore
 
     try:
-        assert util.is_fasta(protein_faa)
+        if not (util.is_fasta(protein_faa)):
+            raise AssertionError()
         protein_faa = os.path.abspath(protein_faa)
     except Exception as e:
         sys.stderr.write(f"Could not validate {protein_faa} as a FASTA file")
@@ -121,6 +122,7 @@ def annotate_prot_seqs() -> None:
         "MIBiG Annotation (E-value)",
         "VOG Annotation (E-value)",
         "VFDB Annotation (E-value)",
+        "DefenseFinder Annotation (E-value)",
         "Pfam Domains",
         "Protein Sequence",
     ]
@@ -135,33 +137,34 @@ def annotate_prot_seqs() -> None:
         frt_handle.write("\t".join(header) + "\n")
 
         for prot in seqs:
-            ko_annot = util.gather_annotation_from_dict_for_homolo_group(
+            ko_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "ko", annotations
             )
-            pgap_annot = util.gather_annotation_from_dict_for_homolo_group(
+            pgap_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "pgap", annotations
             )
-            pb_annot = util.gather_annotation_from_dict_for_homolo_group(
+            pb_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "paperblast", annotations
             )
-            card_annot = util.gather_annotation_from_dict_for_homolo_group(
+            card_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "card", annotations
             )
-            isf_annot = util.gather_annotation_from_dict_for_homolo_group(
+            isf_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "isfinder", annotations
             )
-            mibig_annot = util.gather_annotation_from_dict_for_homolo_group(
+            mibig_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "mibig", annotations
             )
-            vog_annot = util.gather_annotation_from_dict_for_homolo_group(
+            vog_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "vog", annotations
             )
-            vfdb_annot = util.gather_annotation_from_dict_for_homolo_group(
+            vfdb_annot = util.gather_annotation_from_dict_for_homolog_group(
                 prot, "vfdb", annotations
             )
-            pfam_annots = "NA"
-            if "pfam" in annotations and prot in annotations["pfam"]: # type: ignore
-                pfam_annots = "; ".join(annotations["pfam"][prot][0]) # type: ignore
+            df_annot = util.gather_annotation_from_dict_for_homolog_group(
+                prot, "defensefinder", annotations
+            )
+            pfam_annots = util.format_pfam_annotations(prot, annotations)
             prot_seq = seqs[prot]
             row = [
                 prot,
@@ -173,6 +176,7 @@ def annotate_prot_seqs() -> None:
                 mibig_annot,
                 vog_annot,
                 vfdb_annot,
+                df_annot,
                 pfam_annots,
                 prot_seq,
             ]

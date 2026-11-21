@@ -87,14 +87,10 @@ def selectGbks():
 	type = myargs.type
 	symlink = myargs.symlink
 
-	try:
-		assert(os.path.isdir(fai_results_dir) and os.path.isfile(selections_file))
-	except Exception as e:
+	if not (os.path.isdir(fai_results_dir) and os.path.isfile(selections_file)):
 		sys.stderr.write('Error validating input directory of homologous gene-clusters or the query fasta exists!\n')
 
-	try:
-		assert(type in set(["instance", "sample"]))
-	except Exception as e:
+	if not (type in set(["instance", "sample"])):
 		sys.stderr.write('Error, the type of listing provided is neither "sample" or "instance"\n')
 	
 	if os.path.isdir(outdir):

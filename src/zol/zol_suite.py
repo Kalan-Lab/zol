@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import List
 from rich_argparse import RawTextRichHelpFormatter, RawDescriptionRichHelpFormatter
+from zol import __version__
 
 
 # Custom descriptions for each program
@@ -148,7 +149,7 @@ For help with a specific program, use: zol-suite <program> --help
     )
     parser.add_argument('--list-programs', action='store_true', help='List all available programs and exit')
     parser.add_argument('--database-info', action='store_true', help='Print paths to database file listings and release information')
-    parser.add_argument('--version', action='version', version='ZOL Suite 1.6.0')
+    parser.add_argument('--version', action='version', version=f'ZOL Suite {__version__}')
     subparsers = parser.add_subparsers(dest='program', metavar='<program>', help='ZOL program to run')
 
     # Only add subparsers for programs in PROGRAM_DESCRIPTIONS

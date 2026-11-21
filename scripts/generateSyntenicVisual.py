@@ -39,11 +39,10 @@ UW Madison, Department of Medical Microbiology and Immunology
  
 import os
 import sys
-from tabnanny import check
 import pandas
 import argparse
 from time import sleep
-from zol import util
+from zol import util, plotting
 import traceback
 
 def create_parser():
@@ -57,8 +56,8 @@ def create_parser():
 	parser.add_argument('-i', '--zol_report_tsv', help='Path to zol tsv report.', required=True)
 	parser.add_argument('-o', '--output_dir', help='Path to output directory.', required=True)
 	parser.add_argument('-m', '--metric', help='Metric to use for coloring in plot. Valid options are headers for evolutionary statistics.\nPlease surround by quotes if there is a space in the header of the column. Default is "Tajima\'s D"', required=False, default="Tajima's D")
-	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the plot. Default is 7.', required=False, default=3)
-	parser.add_argument('-w', '--width', type=int, help='Specify the width of the plot. Default is 10.', required=False, default=7)
+	parser.add_argument('-l', '--length', type=int, help='Specify the height/length of the plot. Default is 3.', required=False, default=3)
+	parser.add_argument('-w', '--width', type=int, help='Specify the width of the plot. Default is 7.', required=False, default=7)
 
 	args = parser.parse_args()
 	return args
@@ -75,9 +74,7 @@ def genSynVis():
 	plot_height = myargs.length
 	plot_width = myargs.width
 
-	try:
-		assert(os.path.isfile(input_zol_report))
-	except Exception as e:
+	if not (os.path.isfile(input_zol_report)):
 		sys.stderr.write(f'Error validating input file {input_zol_report} exists!')
 
 	if os.path.isdir(outdir):
@@ -153,10 +150,12 @@ def genSynVis():
 	pif_handle.close()
 
 	plot_result_pdf = outdir + 'Plot.pdf'
-	rscript_path = outdir + 'generateSyntenicVisual.R'
-	util.generate_syntenic_visual_r(plot_input_file, plot_result_pdf, plot_height, plot_width, rscript_path)
-	plot_cmd = ['Rscript', rscript_path]
-	util.run_cmd_via_subprocess(plot_cmd, check_files = [plot_result_pdf])
+	try:
+		plotting.plot_syntenic_visual(plot_input_file, plot_result_pdf, height=plot_height, width=plot_width)
+	except Exception:
+		sys.stderr.write(f'Issues creating the syntenic visual {plot_result_pdf}.\n')
+		util.report_cause(fallback_traceback=True)
+		sys.exit(1)
 		
 if __name__ == '__main__':
 	genSynVis()

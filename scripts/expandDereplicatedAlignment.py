@@ -52,10 +52,9 @@ def expandOg():
 	aligner_method = myargs.aligner_method
 	run_fasttree = myargs.run_fasttree
 
-	try:
-		assert(os.path.isdir(input_dir) and util.is_fasta(query_fasta))
-	except:
+	if not (os.path.isdir(input_dir) and util.is_fasta(query_fasta)):
 		sys.stderr.write('Error validating input directory of homologous gene-clusters or the query fasta exists!\n')
+		sys.exit(1)
 
 	if os.path.isdir(outdir):
 		sys.stderr.write("Output directory exists. Overwriting in 5 seconds ...\n")

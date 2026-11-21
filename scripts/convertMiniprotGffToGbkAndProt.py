@@ -41,12 +41,16 @@ import os
 import sys
 import argparse
 import re
+import warnings
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.SeqFeature import SeqFeature, FeatureLocation
+from Bio.SeqFeature import SeqFeature, SimpleLocation
 from collections import defaultdict
 from operator import itemgetter
+
+# Long scaffold names lengthen the GenBank LOCUS line; Biopython still parses these correctly.
+warnings.filterwarnings("ignore", message="Increasing length of locus line")
 import gzip
 
 def create_parser():
@@ -75,9 +79,7 @@ def convertMiniProtGFFtoGenbank():
 	output_proteome = myargs.output_proteome
 	locus_tag = myargs.locus_tag
 
-	try:
-		assert (os.path.isfile(genome_fasta) and os.path.isfile(miniprot_gff3))
-	except Exception as e:
+	if not (os.path.isfile(genome_fasta) and os.path.isfile(miniprot_gff3)):
 		raise RuntimeError('Issue with validating inputs for miniprot_gff3 and/or genome_fasta are existing files.')
 
 	# Step 1: Parse GFF3 for PAF CIGAR Strings
@@ -90,7 +92,7 @@ def convertMiniProtGFFtoGenbank():
 			if line.startswith('##PAF'):
 				paf = ls[1:]
 			elif len(ls) >= 6:
-				if ls[2] == 'mRNA' and paf != None:
+				if ls[2] == 'mRNA' and paf is not None:
 					query = line.split('Target=')[1].split(';')[0].split()[0]
 					mrna_start_coord = int(ls[3])
 					mrna_end_coord = int(ls[4])
@@ -104,7 +106,7 @@ def convertMiniProtGFFtoGenbank():
 						for item in paf:
 							if item.startswith('cg:Z:'):
 								paf_cigar = item.split('cg:Z:')[1]
-						if paf_cigar == None: continue
+						if paf_cigar is None: continue
 						paf_matches = re.findall(r'(\d+)([A-Z]{1})', paf_cigar)
 						paf_cigar_parsed = [{'type': m[1].strip(), 'length': int(m[0])} for m in paf_matches]
 						query_mrna_paf_info[tuple([query, mrna_start_coord])] = [scaffold, paf_start_coord, paf_end_coord, paf_cigar_parsed, paf_cigar]
@@ -243,7 +245,7 @@ def convertMiniProtGFFtoGenbank():
 			cds_locs = []
 			#all_coords = []
 			for cds_part in ranges(sorted(cds_positions)):
-				cds_locs.append(FeatureLocation(cds_part[0], cds_part[1]+1, strand=mrna_info[3]))
+				cds_locs.append(SimpleLocation(cds_part[0], cds_part[1]+1, strand=mrna_info[3]))
 				#all_coords.append([cds_part[0]+1, cds_part[1]+1])
 			
 			feature_loc = sum(cds_locs)

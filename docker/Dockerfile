@@ -3,7 +3,7 @@
 # you are interested in clustering diverse gene-clusters based on protein domain simlarity or are interested
 # in investigating the variability of contexts for a single reference gene!
 
-FROM continuumio/miniconda3
+FROM continuumio/miniconda3:26.7.1-1
 LABEL maintainer="Rauf Salamzade - Kalan Lab, UW-Madison"
 
 WORKDIR /usr/src

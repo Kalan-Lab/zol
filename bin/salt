@@ -16,9 +16,9 @@ import argparse
 import multiprocessing
 import os
 import sys
-import gzip
 import traceback
 import pickle
+import shutil
 
 # BSD 3-Clause License
 #
@@ -110,9 +110,7 @@ def salt():
     outdir = os.path.abspath(myargs.outdir) + '/'
     threads = myargs.threads
 
-    try: 
-        assert (os.path.isdir(fai_results_dir) and os.path.isdir(target_genomes_db))
-    except Exception as e: 
+    if not (os.path.isdir(fai_results_dir) and os.path.isdir(target_genomes_db)):
         sys.stderr.write("One or more of the required input directories do not exist.\n")
         sys.exit(1)
 
@@ -165,47 +163,41 @@ def salt():
         msg = 'The "Target_Genomes_DB_clustered.pkl" pickle file does not exist within the prepTG db directory specified.'
         log_object.error(msg)
         sys.stdout.write(msg + '\n')
+        util.report_cause()
         sys.exit(1)
 
     tg_genome_list_file = target_genomes_db + 'Target_Genome_Annotation_Files.txt'
     tg_mge_annot_dir = target_genomes_db + 'MGE_Annotations/Summary_Results/'
     fai_indiv_spreadsheet_tsv = fai_results_dir + 'Spreadsheet_TSVs/individual_gcs.tsv'
 
-    try: 
-        assert(os.path.isfile(tg_concat_dmnd_db))
-    except Exception as e: 
+    if not (os.path.isfile(tg_concat_dmnd_db)):
         msg = 'The "Target_Genomes_DB.dmnd" DIAMOND database file does not exist within the prepTG db directory specified.'
         log_object.error(msg)
         sys.stdout.write(msg + '\n')
         sys.exit(1)
 
-    try: 
-        assert(os.path.isfile(tg_genome_list_file))
-    except Exception as e: 
+    if not (os.path.isfile(tg_genome_list_file)):
         msg = 'The "Target_Genome_Annotation_Files.txt" listing file of target genomes does not exist within the prepTG db directory specified.'
         log_object.warning(msg)
         sys.stdout.write(msg + '\n')
 
     mge_annots_exist = False
     try: 
-        assert(os.path.isdir(tg_mge_annot_dir))
+        if not (os.path.isdir(tg_mge_annot_dir)):
+            raise AssertionError()
         mge_annots_exist = True
     except Exception as e: 
         msg = 'The "MGE_Annotations/Summary_Results/" subdirectory with MGE annotation information per scaffold does not exist within the prepTG db directory specified.\nNote, this is not essential but if you would like this information you will need to rerun prepTG with the "--mge_annotation" argument.'
         log_object.warning(msg)
         sys.stdout.write(msg + '\n')
 
-    try: 
-        assert(os.path.isdir(tg_gbk_dir))
-    except Exception as e: 
+    if not (os.path.isdir(tg_gbk_dir)):
         msg = 'The "Genomic_Genbanks_Additional/" subdirectory does not exist within the prepTG db directory specified.'
         log_object.error(msg)
         sys.stdout.write(msg + '\n')
         sys.exit(1)
 
-    try: 
-        assert(os.path.isfile(fai_indiv_spreadsheet_tsv))
-    except Exception as e: 
+    if not (os.path.isfile(fai_indiv_spreadsheet_tsv)):
         msg = 'The "Spreadsheet_TSVs/individual_gcs.tsv" file does not exist within the fai results directory specified.'
         log_object.error(msg)
         sys.stdout.write(msg + '\n')
@@ -241,12 +233,36 @@ def salt():
     if not os.path.isfile(checkpoint_2_file): 
         util.setup_ready_directory([codoff_res_dir], delete_if_exist = True)
 
+        # codoff reads plain or gzipped GenBanks only, so zstd-compressed prepTG genomes with gene clusters are
+        # temporarily decompressed (and removed once codoff is done).
+        codoff_genome_dir = outdir + 'codoff_Decompressed_Genomes/'
+        util.setup_ready_directory([codoff_genome_dir], delete_if_exist = True)
+        codoff_genome_gbks = {}
+        decompress_inputs = []
+        for genome in set(gc_to_genome.values()):
+            genome_gbk = genome_gbks[genome]
+            if genome_gbk.endswith('.zst'):
+                plain_gbk = codoff_genome_dir + genome + '.gbk'
+                decompress_inputs.append([genome_gbk, plain_gbk])
+                genome_gbk = plain_gbk
+            codoff_genome_gbks[genome] = genome_gbk
+
+        if len(decompress_inputs) > 0:
+            result_summary = util.robust_multiprocess_executor(
+                worker_function=util.decompress_file_to_plain_text,
+                inputs=decompress_inputs,
+                pool_size=threads,
+                error_strategy="report_and_continue",
+                log_object=log_object,
+                description="zstd decompression of genomes for codoff"
+            )
+
         codoff_cmds = []
 
-        for gc in gc_to_genome: 
+        for gc in gc_to_genome:
             outf = codoff_res_dir + gc + '.txt'
             genome = gc_to_genome[gc]
-            genome_gbk = genome_gbks[genome]
+            genome_gbk = codoff_genome_gbks[genome]
             gc_gbk = gc_gbks[gc]
             codoff_cmd = ['codoff', '-g', genome_gbk, '-f', gc_gbk, '-o', outf]
             codoff_cmds.append(codoff_cmd)
@@ -266,7 +282,8 @@ def salt():
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
-        os.system(f'touch {checkpoint_2_file}')
+        shutil.rmtree(codoff_genome_dir, ignore_errors = True)
+        util.touch_file(checkpoint_2_file)
 
     msg = '------------------Step 3------------------\n'
     msg += 'Getting annotation information for plasmid, phage and IS element\n'
@@ -281,7 +298,7 @@ def salt():
         concat_cmd = ['time', 'find', tg_mge_annot_dir, '-maxdepth', '1', '-type', 'f', '|', 'xargs', 'cat', ' >> ', mge_annots_overview_file]
         util.run_cmd_via_subprocess(concat_cmd, log_object=log_object, 
                                     check_files = [mge_annots_overview_file])
-        os.system(f'touch {checkpoint_3_file}')
+        util.touch_file(checkpoint_3_file)
 
     if os.path.isfile(outdir + 'MGE_Annotations_Overview.txt'): 
         mge_annots_overview_file = outdir + 'MGE_Annotations_Overview.txt'
@@ -314,7 +331,7 @@ def salt():
                     best_tg_gc_gbk_file = ls[1]
 
         best_tg_gbk_file = None
-        if best_tg_hit != None: 
+        if best_tg_hit is not None: 
             with open(tg_genome_list_file) as otglf: 
                 for line in otglf: 
                     line = line.strip()
@@ -324,39 +341,33 @@ def salt():
 
         tg_query_prots_file = ribo_norm_dir + 'Reference_Genome_Queries.faa'
         try: 
-            assert(os.path.isfile(best_tg_gc_gbk_file)) # type: ignore
+            if not (os.path.isfile(best_tg_gc_gbk_file)): # type: ignore
+                raise AssertionError()
 
             tg_query_prots_handle = open(tg_query_prots_file, 'w')
-            if best_tg_gc_gbk_file.endswith('.gz'): # type: ignore
-                with gzip.open(best_tg_gc_gbk_file, 'rt') as obtggf: # type: ignore
-                    for rec in SeqIO.parse(obtggf, 'genbank'): 
-                        for feat in rec.features: 
-                            if feat.type == 'CDS': 
-                                lt = feat.qualifiers.get('locus_tag')[0]
-                                prot_seq = feat.qualifiers.get('translation')[0]
-                                tg_query_prots_handle.write('>Gene_Cluster_Protein|' + lt + '\n' + prot_seq + '\n')
-            else:
-                with open(best_tg_gc_gbk_file, 'r') as obtggf: # type: ignore
-                    for rec in SeqIO.parse(obtggf, 'genbank'): 
-                        for feat in rec.features: 
-                            if feat.type == 'CDS': 
-                                lt = feat.qualifiers.get('locus_tag')[0]
-                                prot_seq = feat.qualifiers.get('translation')[0]
-                                tg_query_prots_handle.write('>Gene_Cluster_Protein|' + lt + '\n' + prot_seq + '\n')
+            with util.open_text_file(best_tg_gc_gbk_file) as obtggf: # type: ignore
+                for rec in SeqIO.parse(obtggf, 'genbank'):
+                    for feat in rec.features:
+                        if feat.type == 'CDS':
+                            lt = feat.qualifiers.get('locus_tag')[0]
+                            prot_seq = feat.qualifiers.get('translation')[0]
+                            tg_query_prots_handle.write('>Gene_Cluster_Protein|' + lt + '\n' + prot_seq + '\n')
             tg_query_prots_handle.close()
         except Exception as e: 
             msg = 'Issue processing GenBank file for gene cluster best matching query proteins.'
             log_object.error(msg)
             sys.stderr.write(msg + '\n')
-            sys.stderr.write(traceback.format_exc())
+            util.report_cause(fallback_traceback=True)
             sys.exit(1)
 
         try: 
-            assert(best_tg_hit != None and os.path.isfile(best_tg_gbk_file) and os.path.getsize(tg_query_prots_file) > 100) # type: ignore
+            if not (best_tg_hit is not None and os.path.isfile(best_tg_gbk_file) and os.path.getsize(tg_query_prots_file) > 100): # type: ignore
+                raise AssertionError()
         except Exception as e: 
             msg = 'Issue with finding the best hit target genome in the fai results. Perhaps there was no matching gene clusters identified?'
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
+            util.report_cause()
             sys.exit(1)
 
         util.run_pyhmmer_for_ribo_prots(best_tg_gbk_file, 
@@ -381,18 +392,14 @@ def salt():
                                                 gc_to_ribo_aai_stat_file, 
                                                 log_object)
 
-        rscript_file = outdir + 'generateSaltGCvsRiboAAIPlot.R'
         gc_ribo_aai_plot_pdf_file = outdir + 'GC_to_RiboProt_AAI_Relationships.pdf'
-        util.make_gc_vs_ribo_prot_aai_scatterplot(rscript_file, 
-                                                gc_to_ribo_aai_stat_file, 
+        util.make_gc_vs_ribo_prot_aai_scatterplot(gc_to_ribo_aai_stat_file, 
                                                 gc_ribo_aai_plot_pdf_file, 
                                                 log_object)
 
-        os.system(f'touch {checkpoint_4_file}')
+        util.touch_file(checkpoint_4_file)
 
-    try: 
-        assert(os.path.isfile(gc_to_ribo_aai_stat_file))
-    except Exception as e: 
+    if not (os.path.isfile(gc_to_ribo_aai_stat_file)):
         msg = 'It appears that step 4 did not run properly but the checkpoint was created. This is shouldn\'t happen so please share any info with us on GitHub Issues.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')

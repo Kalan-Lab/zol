@@ -76,7 +76,7 @@ string doubleToString(double val) {
 int main (int argc, char* argv[]) {
     if ( argv[1]==NULL || argv[2]==NULL || argv[3]==NULL || (argv[1][0]=='-' && argv[1][1]=='h') || (argv[1][0]=='-' && argv[1][1]=='-' && argv[1][2]=='h') ) {
 	    cout << "Usage:" << endl;
-	    cout << "runRBH <BLAST/DIAMOND Alignment Results - format 6 with query coverage as an additional final column.> <identity cutoff> <coverage cutoff> <focal sample>" << endl;
+	    cout << "runRBH <Per-sample alignment from splitDiamondResults: qseqid sseqid pident bitscore qcovhsp reflexive_query_bitscore> <identity cutoff> <coverage cutoff> <focal sample>" << endl;
 	    return 0;
     }
     else {
@@ -92,13 +92,23 @@ int main (int argc, char* argv[]) {
         string focal_sample = argv[4];
       
         /*
-        Parse out all hits to perform gene length normalization.
+        Parse hits. Input lines (from splitDiamondResults) have the columns: qseqid sseqid pident bitscore qcovhsp
+        and, appended, the reflexive (self-hit) bitscore of the query used for gene length normalization.
         */
         ifstream input_file;
         input_file.open (argv[1]);
         string query, hit;
-        double bitscore, identity, coverage;
-        map<string, double> reflexive_bitscores;
+        double bitscore, identity, coverage, reflexive_bitscore_factor;
+
+        map<pair<string, string>, double> paired_normalized_bitscores;
+        map<pair<string, string>, double> query_max_bitscore;
+        map<pair<string, string>, set<string>> query_max_hits;
+        set<pair<string, string>>::iterator align_iter;
+        pair<string, string> align, query_hit_sample_pair, qshs_pair;
+        string query_sample, hit_sample;
+        set<string> all_samples;
+        set<pair<string, string>> all_queries;
+        double normalized_bitscore;
         if ( input_file.is_open() ) {
             while ( input_file.good()  ) {
                 getline (input_file,line);
@@ -112,71 +122,25 @@ int main (int argc, char* argv[]) {
                         else if (split_counter == 1) {
                             hit = i;
                         }
-                        else if (split_counter == 11) {
-                            bitscore = stod(i);
-                        }
-                        split_counter++;
-                    }
-                    if (query.compare(hit) == 0) {
-                        reflexive_bitscores[query] = bitscore;
-                    }
-                }
-            }
-        } else {
-  	        cout << "ERROR: Unable to open file " + (string)argv[1] << endl;
-        }
-
-        ifstream input_file_reopen;
-        input_file_reopen.open (argv[1]);
-
-        map<pair<string, string>, double> paired_normalized_bitscores;
-        map<pair<string, string>, double> query_max_bitscore;
-        map<pair<string, string>, set<string>> query_max_hits;
-        set<pair<string, string>>::iterator align_iter;
-        pair<string, string> align, query_hit_sample_pair, qshs_pair;
-        string query_sample, hit_sample;
-        set<string> all_samples;
-        set<pair<string, string>> all_queries;
-        double normalized_bitscore, reflexive_bitscore_factor;
-        if ( input_file_reopen.is_open() ) {
-            while ( input_file_reopen.good()  ) {
-                getline (input_file_reopen,line);
-                if (!line.empty()) {
-                    split_counter = 0;
-                    v = split (line, delim);
-                    for (auto i : v) {
-                        if (split_counter == 0) {
-                            query = i;
-                        }
-                        else if (split_counter == 1) {
-                            hit = i;
-                        }
-                        else if (split_counter == 11) {
-                            bitscore = stod(i);
-                        }
                         else if (split_counter == 2) {
                             identity = stod(i);
                         }
-                        else if (split_counter == 12) {
+                        else if (split_counter == 3) {
+                            bitscore = stod(i);
+                        }
+                        else if (split_counter == 4) {
                             coverage = stod(i);
+                        }
+                        else if (split_counter == 5) {
+                            reflexive_bitscore_factor = stod(i);
                         }
                         split_counter++;
                     }
                     if (query.compare(hit) != 0 && identity >= identity_cutoff && coverage >= coverage_cutoff) {
                         query_sample = query.substr(0, query.find('|'));
                         hit_sample = hit.substr(0, hit.find('|'));
-                        reflexive_bitscore_factor = reflexive_bitscores[query];
                         qshs_pair = make_pair(query_sample, hit_sample);
                         normalized_bitscore = (bitscore)/(reflexive_bitscore_factor);
-
-                        /*
-                        cout << query << endl;
-                        cout << hit_sample << endl;
-                        cout << query_sample << endl;
-                        cout << reflexive_bitscore_factor << endl;
-                        cout << normalized_bitscore << endl;
-                        cout << "--------------------" << endl;
-                        */
 
                         query_hit_sample_pair = make_pair(query, hit_sample);
                         if (query_sample.compare(hit_sample) != 0) {

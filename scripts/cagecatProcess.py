@@ -84,7 +84,7 @@ def cagecatProcess():
 	outdir = os.path.abspath(myargs.output_dir) + '/'
 
 	if not os.path.isdir(outdir):
-		os.system(f'mkdir {outdir}')
+		os.makedirs(outdir, exist_ok=True)
 	else:
 		sys.stderr.write('Note, output directory exists already! Exiting ...\n')
 		sys.exit(1)

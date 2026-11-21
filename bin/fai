@@ -69,19 +69,21 @@ def create_parser():
     MODES OF INPUT: 
     *********************************************************************************
 
-    Type 1: Directory of Homologous Gene-Cluster GenBanks
+    Type 1: One or More Query Gene-Cluster GenBanks
     (GenBanks must have CDS features with locus_tag or protein_id names)
+    (multiple GenBanks are merged into ONE joint query, so they should be closely
+     related instances, e.g. of the same GCF - see -i for details)
     -----------------------------------------------------
     $ fai -i Known_GeneCluster.gbk -tg prepTG_Database/ -o fai_Results/
 
     Type 2: Reference Genome with Gene-Cluster/Locus Coordinates
-    (proteins are collapsed for high-similarity using diamond linclust)
+    (proteins are collapsed for high-similarity using diamond cluster)
     -----------------------------------------------------
     $ fai -r Reference.fasta -rc scaffold01 -rs 40201 -re 45043 \\
           -tg prepTG_Database/ -o fai_Results/
 
     Type 3: Set of Query Proteins (not compatible with the syntenic similarity cutoff)
-    (proteins are collapsed for high-similarity using diamond linclust)
+    (proteins are collapsed for high-similarity using diamond cluster)
     Similar to input for cblaster
     -----------------------------------------------------
     $ fai -pq Gene-Cluster_Query_Proteins.faa -tg prepTG_Database/ -o fai_Results/
@@ -104,11 +106,18 @@ def create_parser():
     parser.add_argument('-i', 
         '--query-inputs', 
         nargs = '+', 
-        help = "Paths to locus-specific GenBank(s) [could be multiple but\n"
-               "should be highly related instances (e.g. part of the same\n"
-               "GCF)] to use as queries for searching for\n"
-               "homologous/orthologous instances in target genomes.\n"
-               "Files must end with \".gbk\", \".gbff\", or \".genbank\".", 
+        help = "Paths to locus-specific GenBank(s) to use as queries for\n"
+               "searching for homologous/orthologous instances in target\n"
+               "genomes. Files must end with \".gbk\", \".gbff\", or\n"
+               "\".genbank\".\n"
+               "Multiple GenBanks are NOT searched independently: they are\n"
+               "merged into one joint query. Ortholog groups are inferred\n"
+               "across them (as in zol), a consensus protein per ortholog\n"
+               "group is searched, and thresholds such as -m/--min-prop are\n"
+               "applied to the full set of ortholog groups across all\n"
+               "queries. Provide only highly related instances (e.g. members\n"
+               "of the same GCF); to search for different gene clusters, run\n"
+               "fai separately for each.", 
         required = False, 
         default = None)
     parser.add_argument('-r', 
@@ -317,6 +326,16 @@ def create_parser():
                "default is for the sensitivity mode selected.]",
         required = False,
         default = None)
+    parser.add_argument('-dic',
+        '--diamond-index-chunks',
+        type = int,
+        help = "Number of chunks DIAMOND processes the seed index in. Setting\n"
+               "this to 1 avoids repeated passes over each database block and\n"
+               "can be substantially faster for large target genome databases,\n"
+               "but uses more memory. Check out the DIAMOND wiki for more\n"
+               "details. [Default is None, use the DIAMOND default.]",
+        required = False,
+        default = None)
     parser.add_argument('-st', 
         '--species-tree', 
         help = "Phylogeny in Newick format - with names matching\n"
@@ -415,6 +434,7 @@ def fai_main():
     plotting_flag = myargs.generate_plots
     diamond_sensitivity = myargs.diamond_sensitivity.lower()
     diamond_block_size = myargs.diamond_block_size
+    diamond_index_chunks = myargs.diamond_index_chunks
     phyloheatmap_length = myargs.phyloheatmap_length
     phyloheatmap_width = myargs.phyloheatmap_width
     delineation_mode = myargs.gc_delineation_mode.upper()
@@ -422,21 +442,15 @@ def fai_main():
     max_memory = myargs.max_memory
     clean_up = myargs.clean_up
 
-    try: 
-        assert(delineation_mode in set(['GENE-CLUMPER', 'HMM']))
-    except Exception as e: 
+    if not (delineation_mode in set(['GENE-CLUMPER', 'HMM'])):
         sys.stderr.write("Delineation mode is not valid. Must be either 'Gene-Clumper' or 'HMM'.\n")
         sys.exit(1)
 
-    try:
-        assert(min_prop >= 0.0 and min_prop <= 1.0)
-    except Exception as e:
+    if not (min_prop >= 0.0 and min_prop <= 1.0):
         sys.stderr.write("Minimum proportion must be between 0.0 and 1.0.\n")
         sys.exit(1)
 
-    try:
-        assert(key_protein_min_prop >= 0.0 and key_protein_min_prop <= 1.0)
-    except Exception as e:
+    if not (key_protein_min_prop >= 0.0 and key_protein_min_prop <= 1.0):
         sys.stderr.write("Minimum proportion of key proteins must be between 0.0 and 1.0.\n")
         sys.exit(1)
 
@@ -464,20 +478,24 @@ def fai_main():
         util.setup_ready_directory([check_dir], delete_if_exist = True)
 
     try: 
-        assert(os.path.isdir(target_genomes) and os.path.isfile(target_genomes + '/Target_Genomes_DB.dmnd') and os.path.getsize(target_genomes + '/Target_Genomes_DB.dmnd') > 0)
+        if not (os.path.isdir(target_genomes) and os.path.isfile(target_genomes + '/Target_Genomes_DB.dmnd') and os.path.getsize(target_genomes + '/Target_Genomes_DB.dmnd') > 0):
+            raise AssertionError()
     except Exception as e: 
         sys.stderr.write('Something is wrong with the target genomes database (result directory from prepTG). Please check path provided.\n')
+        util.report_cause()
         sys.exit(1)
 
-    try: 
-        assert(diamond_sensitivity in set(['default',
+    if not (diamond_sensitivity in set(['default',
                                         'fast', 
                                         'very-sensitive', 
                                         'ultra-sensitive', 
                                         'mid-sensitive', 
-                                        'more-sensitive']))
-    except Exception as e: 
+                                        'more-sensitive'])):
         sys.stderr.write('Invalid value provided for --diamond-sensitivity option.\n')
+        sys.exit(1)
+
+    if diamond_index_chunks is not None and diamond_index_chunks < 1:
+        sys.stderr.write('Invalid value provided for --diamond-index-chunks option, it must be at least 1.\n')
         sys.exit(1)
 
     # create logging object
@@ -497,7 +515,7 @@ def fai_main():
                         max_genes_disconnect, flanking_context, ge_emission, 
                         be_emission, gc_transition, bg_transition, 
                         min_distinct_genes, plotting_flag, diamond_sensitivity, 
-                        diamond_block_size, delineation_mode, phyloheatmap_length, 
+                        diamond_block_size, diamond_index_chunks, delineation_mode, phyloheatmap_length, 
                         phyloheatmap_width, threads, max_memory, clean_up]
     parameter_names = ["Query gene-cluster GenBanks", "Reference genome for gene cluster", 
                        "Reference scaffold for gene cluster", "Reference start coordinate of gene cluster", 
@@ -519,7 +537,7 @@ def fai_main():
                        "Probability for gene-cluster to gene-cluster transition in HMM", 
                        "Probability for background to background transition in HMM", 
                        "Minimum number of distinct genes per scaffold/genome required", 
-                       "Perform plotting?", "DIAMOND sensitivity", "DIAMOND block size", 
+                       "Perform plotting?", "DIAMOND sensitivity", "DIAMOND block size", "DIAMOND index chunks", 
                        "Delineation mode", "Phylo-heatmap PDF length", 
                        "Phylo-heatmap PDF width", "Number of threads requested", 
                        "Maximum memory in GB", "Clean Up Heavy Files?"]
@@ -527,7 +545,7 @@ def fai_main():
     log_object.info("Done saving parameters!")
 
     # set max memory limit
-    if max_memory != None: 
+    if max_memory is not None: 
         log_object.info(f"Setting maximum memory usage to: {max_memory}GB")
         sys.stdout.write(f"Setting maximum memory usage to: {max_memory}GB\n")
         try: 
@@ -540,13 +558,13 @@ def fai_main():
     input_type_2_observed = False
     input_type_3_observed = False
     input_type_4_observed = False
-    if query_inputs != None and [os.path.isfile(qif) for qif in query_inputs]: 
+    if query_inputs is not None and [os.path.isfile(qif) for qif in query_inputs]: 
         input_type_1_observed = True
-    if reference_genome != None and os.path.isfile(reference_genome) and reference_contig != None and reference_start != None and reference_end != None: 
+    if reference_genome is not None and os.path.isfile(reference_genome) and reference_contig is not None and reference_start is not None and reference_end is not None: 
         input_type_2_observed = True
-    if protein_queries_fasta != None and os.path.isfile(protein_queries_fasta): 
+    if protein_queries_fasta is not None and os.path.isfile(protein_queries_fasta): 
         input_type_3_observed = True
-    if single_query_fasta != None and os.path.isfile(single_query_fasta): 
+    if single_query_fasta is not None and os.path.isfile(single_query_fasta): 
         input_type_4_observed = True
 
     if input_type_1_observed and not (input_type_2_observed or input_type_3_observed or input_type_4_observed): 
@@ -608,7 +626,7 @@ def fai_main():
             except Exception as e: 
                 sys.stderr.write('Issues with parsing query GenBanks!\n')
                 log_object.error('Issues with parsing query GenBanks!')
-                sys.stderr.write(traceback.format_exc())
+                util.report_cause(fallback_traceback=True)
                 sys.exit(1)
 
             num_gbk = len(genbanks)
@@ -673,7 +691,7 @@ def fai_main():
                 sys.exit(1)
 
         key_hgs = set([])
-        if key_protein_queries_fasta != None: 
+        if key_protein_queries_fasta is not None: 
             key_hgs = fai.map_key_proteins_to_homolog_groups(query_fasta, 
                                                             key_protein_queries_fasta, 
                                                             work_dir, 
@@ -685,13 +703,14 @@ def fai_main():
                              'single_query_mode': single_query_mode}
         with open(query_info_pickle_file, 'wb') as pickle_file: 
             pickle.dump(query_information, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
-        os.system(f'touch {step1_check_file}')
+        util.touch_file(step1_check_file)
 
-    if query_information == None: 
+    if query_information is None: 
         try: 
             with open(query_info_pickle_file, 'rb') as handle: 
                 query_information = pickle.load(handle)
-            assert(os.path.isfile(query_information['query_fasta']))
+            if not (os.path.isfile(query_information['query_fasta'])):
+                raise AssertionError()
         except Exception as e: 
             sys.stderr.write('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
             log_object.error('Issues with reading in query information from pickle file (might not exist). Please rerun annotations after deleting checkpoint file Step1.txt.!\n')
@@ -709,7 +728,8 @@ def fai_main():
         target_genome_faa_file = preptg_dir + 'Target_Genomes_DB.faa'
         tg_diamond_linclust_cluster_pickle_file = preptg_dir + 'Target_Genomes_DB_clustered.pkl'
         try: 
-            assert(os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
+            if not (os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db)):
+                raise AssertionError()
         except Exception as e: 
             sys.stderr.write('Issues finding expected files within prepTG output directory provided to --target-genomes argument.\n')
             log_object.error('Issues finding expected files within prepTG output directory provided to --target-genomes argument.\n')
@@ -747,6 +767,7 @@ def fai_main():
                 msg = 'The "Target_Genomes_DB_clustered.pkl" pickle file does not exist within the prepTG db directory specified.'
                 log_object.error(msg)
                 sys.stdout.write(msg + '\n')
+                util.report_cause()
                 sys.exit(1)
         elif os.path.isfile(target_genome_faa_file):
             msg = 'You are using a database created prior to v1.6.0, attempting to process assuming this is the case...'
@@ -758,6 +779,7 @@ def fai_main():
                 msg = 'Issues also attempting to process the prepTG database assuming it was created prior to v1.6.0'
                 sys.stderr.write(msg + "\n")
                 log_object.error(msg)
+                util.report_cause()
                 sys.exit(1)
         else:
             msg = 'No target genome FASTA file or DIAMOND linclust cluster file found in prepTG output directory provided to --target-genomes argument.'
@@ -774,32 +796,29 @@ def fai_main():
     diamond_work_dir = outdir + 'DIAMOND_Analysis/'
     diamond_results = None
     diamond_results_pickle_file = outdir + 'DIAMOND_Results.pkl'
-    diamond_results_summary_file = diamond_work_dir + 'diamond_results_summary.txt'
-    if not os.path.isfile(step2_check_file): 
+    diamond_results_summary_dir = diamond_work_dir + 'Hit_Summaries_per_Genome_Block/'
+    if not os.path.isfile(step2_check_file):
         util.setup_ready_directory([diamond_work_dir], delete_if_exist = True)
-        diamond_results_file = fai.run_diamond_blastp(target_genome_dmnd_db, 
-                                                    query_information['query_fasta'], 
-                                                    diamond_work_dir, 
-                                                    log_object, 
-                                                    diamond_sensitivity = diamond_sensitivity, 
+        diamond_results = fai.run_and_process_diamond_blastp(target_genome_dmnd_db,
+                                                    query_information['query_fasta'],
+                                                    target_annotation_information,
+                                                    rep_prot_to_nonreps,
+                                                    diamond_work_dir,
+                                                    diamond_results_summary_dir,
+                                                    log_object,
+                                                    diamond_sensitivity = diamond_sensitivity,
                                                     diamond_block_size = diamond_block_size,
-                                                    evalue_cutoff = evalue_cutoff, 
-                                                    threads = threads)
-
-                                
-        diamond_results = fai.process_diamond_blastp(target_annotation_information, 
-                                                        rep_prot_to_nonreps,
-                                                        diamond_results_file, 
-                                                        diamond_results_summary_file,
-                                                        diamond_work_dir, 
-                                                        log_object)
+                                                    diamond_index_chunks = diamond_index_chunks,
+                                                    evalue_cutoff = evalue_cutoff,
+                                                    threads = threads,
+                                                    block_size = fai.SAMPLE_BLOCK_SIZE)
         del rep_prot_to_nonreps
         
         with open(diamond_results_pickle_file, 'wb') as pickle_file: 
             pickle.dump(diamond_results, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
-        os.system(f'touch {step2_check_file}')
+        util.touch_file(step2_check_file)
 
-    if diamond_results == None: 
+    if diamond_results is None: 
         try: 
             with open(diamond_results_pickle_file, 'rb') as handle: 
                 diamond_results = pickle.load(handle)
@@ -819,9 +838,7 @@ def fai_main():
         min_distinct_genes = 1
         min_key_distinct_genes_per_genome = 0
     else:  
-        try:
-            assert(min_distinct_genes >= 3)
-        except Exception as e: 
+        if not (min_distinct_genes >= 3):
             msg = 'Minimum number of genes per scaffold/genome must be at least 3, using 3 instead.'
             sys.stderr.write(msg + '\n')
             log_object.warning(msg)
@@ -839,7 +856,8 @@ def fai_main():
             target_genome_dmnd_db = preptg_dir + 'Target_Genomes_DB.dmnd'
 
             try: 
-                assert(os.path.isdir(target_genomes_pkl_dir) and os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db))
+                if not (os.path.isdir(target_genomes_pkl_dir) and os.path.isfile(target_annot_listing_file) and os.path.isfile(target_genome_dmnd_db)):
+                    raise AssertionError()
             except Exception as e: 
                 msg = 'Issues finding expected files within prepTG output directory provided to --target-genomes argument.'
                 sys.stderr.write(msg + "\n")
@@ -876,9 +894,9 @@ def fai_main():
 
             with open(target_info_pickle_file, 'wb') as pickle_file: 
                 pickle.dump(target_annotation_information, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
-        os.system(f'touch {step3_check_file}')
+        util.touch_file(step3_check_file)
 
-    if target_annotation_information == None: 
+    if target_annotation_information is None: 
         try: 
             with open(target_info_pickle_file, 'rb') as handle: 
                 target_annotation_information = pickle.load(handle)
@@ -903,7 +921,7 @@ def fai_main():
         min_hits = min_prop*len(set(query_information['protein_to_hg'].values()))
         key_protein_min_hits = key_protein_min_prop*len(query_information['key_hgs'])
 
-        fai.identify_gc_instances(query_information, target_annotation_information, diamond_results_summary_file,
+        fai.identify_gc_instances(query_information, target_annotation_information, diamond_results_summary_dir,
                                  diamond_results, target_genomes_pkl_dir, hmm_work_dir, log_object, 
                                  min_hits = min_hits, 
                                  min_key_hits = key_protein_min_hits, 
@@ -914,7 +932,7 @@ def fai_main():
                                  syntenic_correlation_threshold = syntenic_correlation_threshold, 
                                  kq_evalue_threshold = key_protein_evalue_cutoff, 
                                  max_int_genes_for_merge = max_genes_disconnect, flanking_context = flanking_context, 
-                                 threads = threads, block_size = 1000, gc_delineation_mode = delineation_mode)
+                                 threads = threads, block_size = fai.SAMPLE_BLOCK_SIZE, gc_delineation_mode = delineation_mode)
         if draft_mode or filter_paralogs: 
             fai.filter_paralogous_segments_and_concatenate_into_multi_record_genbanks(hmm_work_dir, homologous_gbk_dir, 
                                                                               query_information["single_query_mode"], 
@@ -922,7 +940,7 @@ def fai_main():
         else: 
             for f in os.listdir(hmm_work_dir + 'GeneCluster_Genbanks/'): 
                 shutil.move(hmm_work_dir + 'GeneCluster_Genbanks/' + f, homologous_gbk_dir)
-        os.system(f'touch {step4_check_file}')
+        util.touch_file(step4_check_file)
 
     msg = '--------------------\nStep 5\n--------------------\nCreate overview plots + spreadsheets showing homology of candidate gene clusters to queries.'
     log_object.info(msg)
@@ -945,7 +963,7 @@ def fai_main():
          plot_dir, 
          tiny_aai_plot_file, 
          log_object)
-        os.system(f'touch {step5_check_file}')
+        util.touch_file(step5_check_file)
 
     step6_check_file = check_dir + 'step6.txt'
     plot_dir = outdir + 'Plotting_Files/'
@@ -959,12 +977,12 @@ def fai_main():
             util.setup_ready_directory([plot_dir])
         fai.plot_overviews(target_annotation_information, hmm_work_dir, 
                           query_information['protein_to_hg'], plot_dir, plot_result_pdf, plot_naming_pdf, log_object, height = 5, width = 15)
-        os.system(f'touch {step6_check_file}')
+        util.touch_file(step6_check_file)
 
     step7_check_file = check_dir + 'step7.txt'
     plot_phylo_dir = final_results_dir + 'Phylogeny_Plotting_Files/'
     plot_result_pdf = final_results_dir + 'Phylogenetic_Perspective.pdf'
-    if not os.path.isfile(step7_check_file) and species_tree != None: 
+    if not os.path.isfile(step7_check_file) and species_tree is not None: 
         msg = '--------------------\nStep 7\n--------------------\nCreating tree-heatmap visual showing gene presence across a species.' 
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
@@ -977,14 +995,14 @@ def fai_main():
          log_object, 
          height = phyloheatmap_length, 
          width = phyloheatmap_width)
-        os.system(f'touch {step7_check_file}')
+        util.touch_file(step7_check_file)
 
     # Perform clean-up of disk-heavy intermediate files if requested.
     # TODO: Add at least some files here.
     if clean_up: 
         clean_up_dirs_and_files = [outdir + 'DIAMOND_Analysis/']
         util.clean_up(clean_up_dirs_and_files, log_object)
-        os.system(f'touch {clean_up_checkpoint_file}')
+        util.touch_file(clean_up_checkpoint_file)
 
     msg = f'Done running fai!\nFinal results can be found at: \n{final_results_dir}'
     sys.stdout.write(msg + '\n')

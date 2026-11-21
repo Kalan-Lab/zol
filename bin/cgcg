@@ -41,7 +41,7 @@ UW Madison, Department of Medical Microbiology and Immunology
 
 from colour import Color
 from rich_argparse import RawTextRichHelpFormatter
-from zol import util
+from zol import util, plotting
 import argparse
 import gravis as gv
 import json
@@ -254,24 +254,26 @@ def cgcg():
     show_consensus_flag = myargs.show_major_path
     background_color = myargs.background_color
 
-    try: 
-        assert (os.path.isdir(zol_results_dir))
-    except Exception as e: 
+    if not (os.path.isdir(zol_results_dir)):
         sys.stderr.write('The zol results directory required as input does not exist.\n')
         sys.exit(1)
 
     try: 
-        if custom_labels_file != None: 
-            assert (os.path.isfile(custom_labels_file))
+        if custom_labels_file is not None: 
+            if not (os.path.isfile(custom_labels_file)):
+                raise AssertionError()
     except Exception as e: 
         sys.stderr.write('A custom labels file was provided but the path could not be validated to exist.\n')
+        util.report_cause()
         sys.exit(1)
 
     try: 
-        if custom_colors_file != None: 
-            assert (os.path.isfile(custom_colors_file))
+        if custom_colors_file is not None: 
+            if not (os.path.isfile(custom_colors_file)):
+                raise AssertionError()
     except Exception as e: 
         sys.stderr.write('A custom colors file was provided but the path could not be validated to exist.\n')
+        util.report_cause()
         sys.exit(1)
 
     # create output directory if needed, or warn of over-writing
@@ -307,7 +309,7 @@ def cgcg():
 
     # Step 0: Parse custom colors/labels files
     og_to_color = None
-    if custom_colors_file != None: 
+    if custom_colors_file is not None: 
         og_to_color = {}
         with open(custom_colors_file) as occf: 
             for line in occf: 
@@ -316,7 +318,7 @@ def cgcg():
                 og_to_color[ls[0]] = ls[1]
 
     og_to_label = None
-    if custom_labels_file != None: 
+    if custom_labels_file is not None: 
         og_to_label = {}
         with open(custom_labels_file) as oclf: 
             for line in oclf: 
@@ -332,25 +334,19 @@ def cgcg():
     zol_spreadsheet_tsv = zol_results_dir + 'Final_Results/Consolidated_Report.tsv'
     order_information_tsv = zol_results_dir + 'Markovian_Order_Information.txt'
     consensus_path_tsv = zol_results_dir + 'Consensus_Path_Information.txt'
-    try: 
-        assert(os.path.isfile(zol_spreadsheet_tsv))
-    except Exception as e: 
+    if not (os.path.isfile(zol_spreadsheet_tsv)):
         msg = 'The "Final_Results/Consolidated_Report.tsv" table results from zol analysis is not available in the zol directory provided.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
         sys.exit(1)
 
-    try: 
-        assert(os.path.isfile(order_information_tsv))
-    except Exception as e: 
+    if not (os.path.isfile(order_information_tsv)):
         msg = 'The "Markovian_Order_Information.txt" table results from zol analysis is not available in the zol directory provided.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
         sys.exit(1)
 
-    try: 
-        assert(os.path.isfile(consensus_path_tsv))
-    except Exception as e: 
+    if not (os.path.isfile(consensus_path_tsv)):
         msg = 'The "Consensus_Path_Information.txt" table results from zol analysis is not available in the zol directory provided.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
@@ -367,18 +363,18 @@ def cgcg():
         low_color_obj = Color(low_value_color)
         color_list = list(low_color_obj.range_to(high_value_color, 100))
         range_length = high_value - low_value
-        assert(range_length > 0)
+        if not (range_length > 0):
+            raise AssertionError()
         for i, val in enumerate(numpy.linspace(low_value, high_value, num = 100)): 
             color_map[float(val)] = color_list[i].hex
     except Exception as e: 
         msg = 'Issue creating color palette using the python colour package.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
-    if custom_colors_file == None: 
+    if custom_colors_file is None: 
         create_color_legend(low_value, 
          high_value, 
          low_value_color, 
@@ -393,12 +389,14 @@ def cgcg():
     sys.stdout.write(msg + '\n')
 
     try: 
-        assert(background_color.startswith('#') and len(background_color) == 7)
+        if not (background_color.startswith('#') and len(background_color) == 7):
+            raise AssertionError()
     except Exception as e: 
         msg = 'background color provided is not valid - either does not start with\n'
         msg += '"#" or length != 7.'
         sys.stderr.write(msg + '\n')
         log_object.error(msg)
+        util.report_cause()
         sys.exit(1)
 
     metadata = {'background_color': background_color, 'node_border_size': node_border_size, 
@@ -428,7 +426,7 @@ def cgcg():
                     conservation = float(ls[2])
                     if conservation < min_conservation: continue
                     og_metadata = {'label': og}
-                    if og_to_label != None: 
+                    if og_to_label is not None: 
                         if og in og_to_label: 
                             og_metadata['label'] = og_to_label[og]
                         else: 
@@ -453,7 +451,7 @@ def cgcg():
                                     if dist < min_dist: 
                                         closest_color_val = color_map[increment]
                                         min_dist = dist
-                                assert(closest_color_val != None)
+                                assert(closest_color_val is not None)
                                 og_metadata['color'] = closest_color_val
                                 og_metadata['hover'] = str(val)
                             except Exception as e: 
@@ -484,7 +482,7 @@ def cgcg():
 
                     og_metadata['border_color'] = og_con_color
                     median_length = str(median_length)
-                    if og_to_color != None: 
+                    if og_to_color is not None: 
                         if og in og_to_color: 
                             og_metadata['color'] = og_to_color[og]
                         else: 
@@ -538,8 +536,7 @@ def cgcg():
         msg = 'Issue appending node information to gJCF.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     consensus_og_pairs = set([])
@@ -558,8 +555,7 @@ def cgcg():
         msg = 'Issue reading in consensus path information.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     try: 
@@ -616,8 +612,7 @@ def cgcg():
         msg = 'Issue appending edge information to gJCF.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     try: 
@@ -628,8 +623,7 @@ def cgcg():
         msg = 'Issue saving gJCF graph object (input for gravis) to json file.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     # Step 4: Run gravis for plot generation and save to HTML report
@@ -651,8 +645,7 @@ def cgcg():
         msg = 'Issue running gravis or saving to HTML.'
         log_object.error(msg)
         sys.stderr.write(msg + '\n')
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc() + '\n')
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     msg = f'------------------DONE!------------------\ncgcg finished successfully!\nResulting files can be found at: {findir}'
@@ -667,31 +660,14 @@ def create_color_legend(low_value,
     workspace, 
     findir, 
     log_object): 
-    rscript_path = workspace + 'plot_legend.R'
+    legend_png_file = findir + 'plot_legend.png'
     try: 
-        legend_png_file = findir + 'plot_legend.png'
-        rout = open(rscript_path, 'w')
-        rout.write('library(ggplot2)\n')
-        rout.write('library(grid)\n')
-        rout.write('library(cowplot)\n\n')
-        rout.write('png("' + legend_png_file + '", height = 10, width = 5, units = "in", res = 600)\n')
-        rout.write('V1 <- c(' + str(low_value) + ', ' + str(high_value) + ')\n')
-        rout.write('V2 <- c("low_value", "high_value")\n')
-        rout.write('dat <- data.frame(V1, V2)\n')
-        rout.write('my_hist <- ggplot(dat, aes(x = V1, y = 1, fill = V1)) + geom_bar(stat = "identity") + theme(legend.title = element_blank()) +\n')
-        rout.write('scale_fill_gradient(low = "' + low_value_color + '", high = "' + high_value_color + '", limits = c(' + str(low_value) + ', ' + str(high_value) + '))\n')
-        rout.write('legend <- cowplot::get_legend(my_hist)\n')
-        rout.write('grid.newpage()\n')
-        rout.write('grid.draw(legend)\n')
-        rout.write('dev.off()\n\n')
-        rout.close()
-        rscript_cmd = ['Rscript', rscript_path]
-        util.run_cmd_via_subprocess(rscript_cmd, log_object=log_object, 
-                                    check_files = [legend_png_file])
+        plotting.plot_color_legend(low_value, high_value, low_value_color, high_value_color, legend_png_file)
     except Exception as e: 
-        msg = f'Issues creating legend for coloring - check out the Rscript for creating it for more details: {rscript_path}'
+        msg = 'Issues creating legend for coloring.'
         sys.stderr.write(msg + '\n')
         log_object.error(msg)
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 if __name__ == '__main__': 

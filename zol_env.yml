@@ -3,18 +3,17 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - "python=3.10"
+  - "python>=3.10"
   - setuptools
   - pip
   - curl
-  - setuptools
-  - biopython
+  - "biopython>=1.80"
   - conda-forge::cxx-compiler
   - bioconda::mcl
   - "pal2nal>=14.1"
   - "hmmer>=3.0.0"
   - "fasttree>=2.0.0"
-  - "bioconda::diamond=2.1.11"
+  - "bioconda::diamond=2.1.11"  # recluster was removed in v2.1.25; keep pinned
   - prodigal
   - prodigal-gv
   - pyrodigal
@@ -22,29 +21,26 @@ dependencies:
   - "xlsxwriter>=3.0.3"
   - scikit-learn
   - "hyphy>=2.5.14"
-  - "pomegranate>=1.0.0"
-  - conda-forge::r-base
-  - conda-forge::r-ggplot2
-  - conda-forge::r-cowplot
-  - conda-forge::r-gggenes
-  - conda-forge::r-gridextra
+  - "hmmlearn>=0.3.0"
+  - "matplotlib-base>=3.6"  # all static figures (replaces the former R / ggplot2 dependencies)
+  - "scipy"
   - bioconda::skani
   - bioconda::slclust
   - bioconda::trimal
-  - bioconda::pyhmmer
+  - bioconda::pyhmmer>=0.10.10
   - "bioconda::miniprot>=0.13"
-  - conda-forge::r-ape
-  - bioconda::bioconductor-ggtree
-  - conda-forge::r-dplyr
-  - conda-forge::r-aplot
   - ete3
+  - legacy-cgi
   - "codoff>=1.2.3"
-  - gravis
   - colour
   - rich-argparse
   - tqdm
   - peptides
   - aiofile
+  - zstandard
   - aiohttp
   - "bioconda::muscle=5.1"
   - "bioconda::famsa"
+  - pip:
+    # forked gravis v0.1.1 (works with newer Python/setuptools), same as the bioconda recipe
+    - "gravis @ https://github.com/raufs/gravis/archive/refs/tags/v0.1.1.tar.gz#sha256=d8a8b09a23522ab746eea740adc05f22cb6a1d5190c1b64ee4f304e62b37268b"

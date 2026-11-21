@@ -344,9 +344,7 @@ def prep_tg():
         sys.exit(1)
 
     if download_premade is not None: 
-        try: 
-            assert download_premade in PREMADE_DB_SET
-        except AssertionError: 
+        if not (download_premade in PREMADE_DB_SET):
             sys.stderr.write("Non-valid genus specified for downloading a premade database.\n")
             sys.stderr.write(f"Valid options include: \n{', '.join(sorted(PREMADE_DB_SET))}\n")
             sys.exit(1)
@@ -363,10 +361,12 @@ def prep_tg():
 
     if target_genomes_dir is not None: 
         try: 
-            assert os.path.isdir(target_genomes_dir)
+            if not (os.path.isdir(target_genomes_dir)):
+                raise AssertionError()
             target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
         except AssertionError: 
             sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+            util.report_cause()
             sys.exit(1)
 
     # Start workflow
@@ -407,9 +407,7 @@ def prep_tg():
         # Step 0: Download GTDB listing file from a git repo, parse GTDB information
         # file, and download the genomes.
         gtdb_release = gtdb_release.upper()
-        try: 
-            assert gtdb_release in VALID_GTDB_RELEASES
-        except AssertionError: 
+        if not (gtdb_release in VALID_GTDB_RELEASES):
             sys.stderr.write('GTDB release specified is not valid, options include: ' +
                            ', '.join(VALID_GTDB_RELEASES))
             sys.exit(1)
@@ -422,14 +420,17 @@ def prep_tg():
             )
         except Exception: 
             sys.stderr.write('Had an issue downloading GTDB genomes.\n')
+            util.report_cause()
             sys.exit(1)
 
     if target_genomes_dir is not None: 
         try: 
-            assert os.path.isdir(target_genomes_dir)
+            if not (os.path.isdir(target_genomes_dir)):
+                raise AssertionError()
             target_genomes_dir = os.path.abspath(target_genomes_dir) + '/'
         except AssertionError: 
             sys.stderr.write('Issue with validating directory with target genomes exists.\n')
+            util.report_cause()
             sys.exit(1)
 
     # Set max memory limit
@@ -453,14 +454,16 @@ def prep_tg():
         rm_cmd = ['rm', '-f', dl_base]
         try: 
             os.chdir(outdir)
-            os.system(' '.join(curl_download_dbs_cmd))
-            os.system(' '.join(extract_cmd))
-            assert os.path.isdir(download_premade)
-            os.system(' '.join(reorganize_cmd))
+            util.run_cmd_simple(curl_download_dbs_cmd)
+            util.run_cmd_simple(extract_cmd)
+            if not (os.path.isdir(download_premade)):
+                raise AssertionError()
+            util.run_cmd_simple(reorganize_cmd)
             shutil.rmtree(download_premade)
-            assert (os.path.isdir(outdir) and
-                   os.path.isfile(outdir + 'Target_Genomes_DB.dmnd'))
-            os.system(' '.join(rm_cmd))
+            if not (os.path.isdir(outdir) and
+                   os.path.isfile(outdir + 'Target_Genomes_DB.dmnd')):
+                raise AssertionError()
+            util.run_cmd_simple(rm_cmd)
             os.chdir(curr_workspace_dir)
         except Exception as e: 
             print(f"Error: {e}")
@@ -577,7 +580,7 @@ def prep_tg():
         for f in os.listdir(additional_proteomes_directory): 
             sample = f.split('.faa')[0]
             target_genome_annotation_listing_handle.write(
-                sample + '\t' + additional_genbanks_directory_local + sample + '.gbk.gz\n'
+                sample + '\t' + additional_genbanks_directory_local + sample + util.TG_GENBANK_SUFFIX + '\n'
             )
             try: 
                 with open(additional_proteomes_directory + sample + '.faa') as ospf: 
@@ -600,7 +603,7 @@ def prep_tg():
             log_object.info(msg)
 
             max_memory_for_diamond = max_memory
-            if max_memory == None:
+            if max_memory is None:
                 max_memory_for_diamond = 16
             util.diamond_cluster_and_recluster(target_genomes_concat_db_faa, diamond_cluster_file, 
                                                diamond_refined_cluster_file, log_object, threads=threads, 
@@ -664,7 +667,7 @@ def prep_tg():
             for f in os.listdir(additional_proteomes_directory): 
                 sample = f.split('.faa')[0]
                 faa_file = additional_proteomes_directory + f
-                gbk_file = additional_genbanks_directory + sample + '.gbk.gz'
+                gbk_file = additional_genbanks_directory + sample + util.TG_GENBANK_SUFFIX
                 vog_annot_file = mge_annot_search_dir + sample + '.vog.txt'
                 mobsuite_annot_file = mge_annot_search_dir + sample + '.mobsuite.txt'
                 is_annot_file = mge_annot_search_dir + sample + '.isfinder.txt'

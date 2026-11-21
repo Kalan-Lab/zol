@@ -38,6 +38,7 @@ UW Madison, Department of Medical Microbiology and Immunology
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import subprocess
 import sys
 from zol import util
 
@@ -73,4 +74,4 @@ if __name__ == '__main__':
 		./run_ZOL.sh cgcg -i zol_Results/ -o cgcg_Results/
 		""")
 	else:
-		os.system(' '.join([x.replace('"', '\\"').replace("'", "\\'") for x in args]))
+		sys.exit(subprocess.call(args))

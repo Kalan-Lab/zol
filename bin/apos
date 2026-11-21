@@ -43,6 +43,7 @@ from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
 from zol import util, fai
 import argparse
+import shlex
 import os
 import pandas as pd
 import sys
@@ -163,7 +164,7 @@ def apos():
     else:
         util.setup_ready_directory([outdir], delete_if_exist = False)
 
-    if (mobsuite_results_dir == None or not os.path.isdir(mobsuite_results_dir)) and (genomad_results_dir == None or not os.path.isdir(genomad_results_dir)): 
+    if (mobsuite_results_dir is None or not os.path.isdir(mobsuite_results_dir)) and (genomad_results_dir is None or not os.path.isdir(genomad_results_dir)): 
         sys.stderr.write("Neither MOB-suite nor geNomad sample results directory provided as input or the paths are faulty! \n")
         sys.exit(1)
 
@@ -171,10 +172,12 @@ def apos():
         try: 
             sample_genome_fasta = outdir + '.'.join(sample_genome.split('/')[-1].split('.')[: -1]) + '.fna'
             util.convert_genome_genbank_to_fasta([sample_genome, sample_genome_fasta])
-            assert(os.path.isfile(sample_genome_fasta) and util.is_fasta(sample_genome_fasta))
+            if not (os.path.isfile(sample_genome_fasta) and util.is_fasta(sample_genome_fasta)):
+                raise AssertionError()
             sample_genome = sample_genome_fasta
         except Exception as e: 
             sys.stderr.write("Issue converting sample's genome from GenBank to FASTA format.\n")
+            util.report_cause()
             sys.exit(1)
 
     if not util.is_fasta(sample_genome): 
@@ -200,7 +203,7 @@ def apos():
     log_object.info(msg)
 
     sample_plasmids = []
-    if mobsuite_results_dir != None and os.path.isdir(mobsuite_results_dir): 
+    if mobsuite_results_dir is not None and os.path.isdir(mobsuite_results_dir): 
         scaffold_ids = set([])
         with open(sample_genome) as osg: 
             for rec in SeqIO.parse(osg, 'fasta'): 
@@ -229,9 +232,7 @@ def apos():
                                 if plasmid_id.startswith(scaff_id): 
                                     scaff = scaff_id
                                     possible_matches += 1
-                            try: 
-                                assert(possible_matches == 1)
-                            except Exception as e: 
+                            if not (possible_matches == 1):
                                 sys.stderr.write(f'Issues with matching MOB-suite contig_id {plasmid_id} to a single record in the sample\'s genome.\n')
                                 log_object.error(f'Issues with matching MOB-suite contig_id {plasmid_id} to a single record in the sample\'s genome.')
                                 sys.exit(1)
@@ -253,7 +254,7 @@ def apos():
               plasmid_length, 
               additional_info])
 
-    if genomad_results_dir != None and os.path.isdir(genomad_results_dir): 
+    if genomad_results_dir is not None and os.path.isdir(genomad_results_dir): 
         for root, dirs, files in os.walk(genomad_results_dir): 
             for basename in files: 
                 filename = os.path.join(root, basename)
@@ -341,7 +342,7 @@ def apos():
             fai_cmd = ['fai', '-r', sample_genome, '-rc', scaff, '-rs', start_coord, '-re', end_coord, 
                        '-tg', 
                         preptg_db_dir, 
-                        fai_options, 
+                        *shlex.split(fai_options or ''), 
                         '-o', 
                         plasmid_fai_res_dir, 
                         '-c', 

@@ -42,8 +42,9 @@ from collections import defaultdict
 from zol.util import get_excel_columns
 from rich_argparse import RawTextRichHelpFormatter
 from time import sleep
-from zol import util
+from zol import util, data_dictionary
 import argparse
+import shlex
 import multiprocessing
 import os
 import pandas as pd
@@ -88,7 +89,7 @@ def create_parser():
         required = True)
     parser.add_argument('-r', 
         '--big-scape-results', 
-        help = "Path to BiG-SCAPE results directory - will be searched recursively for 'clustering' files.", 
+        help = "Path to BiG-SCAPE results directory (BiG-SCAPE v1 or v2) - will be searched\nrecursively for '*_clustering_*.tsv' files.", 
         required = True)
     parser.add_argument('-o', '--outdir', help = "Output directory.", required = True)
     parser.add_argument('-z', 
@@ -142,9 +143,7 @@ def zolscape():
     else:
         util.setup_ready_directory([outdir], delete_if_exist = False)
 
-    try: 
-        assert(os.path.isdir(bigscape_input_dir) and os.path.isdir(bigscape_results_dir))
-    except Exception as e: 
+    if not (os.path.isdir(bigscape_input_dir) and os.path.isdir(bigscape_results_dir)):
         msg = 'Either the BiG-SCAPE input directory or results directory could not be validated as a directory - please check the paths provided!'
         sys.stderr.write(msg + '\n')
         sys.exit(1)
@@ -177,17 +176,29 @@ def zolscape():
     # Step 2: Parse GCFs from results dir
     msg = '--------------------\nStep 2: Parse GCF clustering info from BiG-SCAPE results directory\n--------------------'
 
+    # Supports both BiG-SCAPE 1.x and 2.x clustering file formats.
     cluster_gcf_bgcs = defaultdict(lambda: defaultdict(list))
-    for currentpath, folders, files in os.walk(bigscape_results_dir): 
-        for file in files: 
-            if '_clustering_' in file and file.endswith('.tsv'): 
-                cluster_file = currentpath + '/' + file
-                with open(cluster_file) as ocf: 
-                    for line in ocf: 
-                        if line.startswith('#'): continue
-                        line = line.strip()
-                        bgc_id, gcf_id = line.split('\t')
-                        cluster_gcf_bgcs[cluster_file][gcf_id].append(bgc_id)
+    bigscape_formats = set([])
+    for cluster_file in util.find_bigscape_clustering_files(bigscape_results_dir): 
+        bigscape_format, gcf_to_bgcs = util.parse_bigscape_clustering_file(cluster_file)
+        if bigscape_format == 'unknown': 
+            msg = f'Warning: unable to determine the format of the BiG-SCAPE clustering file {cluster_file} - skipping it.'
+            sys.stderr.write(msg + '\n')
+            log_object.warning(msg)
+            continue
+        bigscape_formats.add(bigscape_format)
+        for gcf_id, bgc_ids in gcf_to_bgcs.items(): 
+            cluster_gcf_bgcs[cluster_file][gcf_id].extend(bgc_ids)
+
+    if len(cluster_gcf_bgcs) == 0: 
+        msg = f'Error: no BiG-SCAPE clustering files with GCF assignments were found in {bigscape_results_dir}'
+        sys.stderr.write(msg + '\n')
+        log_object.error(msg)
+        sys.exit(1)
+
+    msg = f'Parsed GCF assignments from {len(cluster_gcf_bgcs)} BiG-SCAPE clustering file(s) (BiG-SCAPE format(s): {", ".join(sorted(bigscape_formats))}).'
+    sys.stdout.write(msg + '\n')
+    log_object.info(msg)
 
     # Step 3: Run zol or create zol task file
     zol_results_dir = outdir + 'zol_Results/'
@@ -227,8 +238,7 @@ def zolscape():
                 if len(input_gbks) > 0: 
                     zol_cmd = ['zol', 
                                 '-c', 
-                                str(threads), 
-                                zol_parameters, 
+                                str(threads)] + shlex.split(zol_parameters or '') + [
                                 '-o', 
                                 output_dir, 
                                 '-i'] + input_gbks
@@ -239,9 +249,8 @@ def zolscape():
                     log_object.warning(msg)
 
         if print_mode: 
-            outf = open(outdir + 'zol.cmds')
-            outf.write('\n'.join([' '.join(cmd) for cmd in zol_cmd]) + '\n')
-            outf.close()
+            with open(outdir + 'zol.cmds', 'w') as outf:
+                outf.write('\n'.join([util.cmd_to_shell_str(cmd) for cmd in zol_cmds]) + '\n')
             msg = f'Wrote zol commands for individual GCFs to {outdir + "zol.cmds"}'
             log_object.info(msg)
             sys.stderr.write(msg + '\n')
@@ -270,8 +279,9 @@ def zolscape():
     consolidated_table_file = outdir + 'zol-scape_Results.tsv'
     zctf_handle = open(consolidated_table_file, 'w')
  
+    zol_parameter_tokens = set(shlex.split(zol_parameters or ''))
     domain_mode = False
-    if ' -dom ' in zol_parameters or ' --domain-mode ' in zol_parameters: 
+    if '-dom' in zol_parameter_tokens or '--domain-mode' in zol_parameter_tokens: 
         domain_mode = True
 
     header = [
@@ -315,16 +325,18 @@ def zolscape():
                              'm/z Mean', 'm/z Std Dev']
  
     hyphy_header = []
-    if '-s' in zol_parameters or '--selection-analysis' in zol_parameters: 
+    if '-s' in zol_parameter_tokens or '--selection-analysis' in zol_parameter_tokens: 
         hyphy_header = ['GARD Partitions Based on Recombination Breakpoints',
+                             'Gene-wide dN/dS by MG94',
                              'Number of Sites Identified as Under Positive or Negative Selection by FUBAR', 
                              'Average delta(Beta, Alpha) by FUBAR across sites', 
+                             'Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)',
                              'Proportion of Sites Under Selection which are Positive',
                              'P-value for gene-wide episodic selection by BUSTED']
  
     annotation_header = ['KO Annotation (E-value)', 'PaperBLAST Annotation (E-value)', 'CARD Annotation (E-value)',
                          'IS Finder (E-value)', 'MIBiG Annotation (E-value)', 'VOG Annotation (E-value)',
-                         'VFDB Annotation (E-value)']
+                         'VFDB Annotation (E-value)', 'DefenseFinder Annotation (E-value)']
  
     zol_sheet_header = header + evolutionary_stats_header + peptide_header + hyphy_header + annotation_header + \
                        ['CDS Locus Tags', 'OG Consensus Sequence']
@@ -357,6 +369,8 @@ def zolscape():
                               'GARD Partitions Based on Recombination Breakpoints',
                               'Number of Sites Identified as Under Positive or Negative Selection by FUBAR', 
                               'Average delta(Beta, Alpha) by FUBAR across sites', 
+                              'Gene-wide dN/dS by MG94', 'Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)', 
+                              'P-value for gene-wide episodic selection by BUSTED', 
                               'Proportion of Sites Under Selection which are Positive', 
                               'Proportion of Filtered Codon Alignment is Segregating Sites', 
                               'Entropy', 'Upstream Region Entropy', 'Median Beta-RD-gc', 'Max Beta-RD-gc', 
@@ -613,7 +627,7 @@ def zolscape():
             },
         )
 
-    if '-s' in zol_parameters or '--selection-analysis' in zol_parameters:
+    if '-s' in zol_parameter_tokens or '--selection-analysis' in zol_parameter_tokens:
         # GARD Partitions
         col = 'GARD Partitions Based on Recombination Breakpoints'
         if col in col_map:
@@ -646,6 +660,25 @@ def zolscape():
                     "max_type": "num",
                 },
             )
+        # Gene-wide dN/dS (MG94 and FUBAR)
+        for col in ["Gene-wide dN/dS by MG94", "Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)"]:
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                zr_sheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#E6B0AA",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#B8D4B8",
+                        "min_value": 0,
+                        "mid_value": 1,
+                        "max_value": 2,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
         # FUBAR dba
         col = 'Average delta(Beta, Alpha) by FUBAR across sites'
         if col in col_map:
@@ -832,7 +865,7 @@ def zolscape():
             {
                 "type": "2_color_scale",
                 "min_color": "#FFFFFF",
-                "max_color": "#F8696B",
+                "max_color": "#63BE7B",
                 "min_value": 0,
                 "max_value": 30,
                 "min_type": "num",
@@ -876,6 +909,28 @@ def zolscape():
 
     # Freeze the first row of both sheets
     zr_sheet.freeze_panes(1, 0)
+
+    # Data dictionary sheet describing the columns present in the results sheet (in the same order)
+    dd_sheet = workbook.add_worksheet('Data Dictionary')
+    dd_sheet.write(0, 0, 'Data Dictionary describing columns of the "zol-scape Results" spreadsheet can be found below. Columns are shared with zol reports, more info on zol\'s Wiki page at:')
+    dd_sheet.write(1, 0, 'https://github.com/Kalan-Lab/zol/wiki/3.-more-info-on-zol#explanation-of-report')
+    dd_wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'border': 1})
+    dd_header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#FFFFFF',
+                                            'border': 1, 'border_color': '#000000'})
+    dd_df = util.load_table_in_panda_data_frame_from_string(data_dictionary.zol_scape_dd())
+    dd_info = {row['Column']: row for _, row in dd_df.iterrows()}
+    dd_colnames = ['Column', 'Description', 'Notes']
+    dd_sheet.set_column(1, 3, 50)
+    for col_ind, value in enumerate(dd_colnames):
+        dd_sheet.write(3, col_ind + 1, value, dd_header_format)
+    row_ind = 4
+    for col in zr_data.columns:
+        if col not in dd_info:
+            continue
+        for col_ind, dd_col in enumerate(dd_colnames):
+            value = dd_info[col][dd_col]
+            dd_sheet.write(row_ind, col_ind + 1, '' if pd.isna(value) else value, dd_wrap_format)
+        row_ind += 1
 
     # close workbook
     workbook.close()

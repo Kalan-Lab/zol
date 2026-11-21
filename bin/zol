@@ -314,9 +314,10 @@ def create_parser():
     parser.add_argument('-s', 
         '--selection-analysis', 
         action = 'store_true', 
-        help = "Run selection analysis using HyPhy's GARD\n"
-               "BUSTED, and FUBAR methods. Warning, can take a while\n"
-               "to run.", 
+        help = "Run selection analysis using HyPhy's GARD,\n"
+               "BUSTED, and FUBAR methods, and estimate gene-wide\n"
+               "dN/dS by fitting the MG94xREV codon model. Warning,\n"
+               "can take a while to run.", 
         required = False, 
         default = False)
     parser.add_argument('-sg', 
@@ -351,7 +352,9 @@ def create_parser():
     parser.add_argument('-f', 
         '--focal-genbanks', 
         help = "File with focal gene clusters listed by GenBank\n"
-               "file name (one per line).", 
+               "file name (one per line). Triggers comparative analyses\n"
+               "between focal and comparator gene clusters (conservation,\n"
+               "FST, and the McDonald-Kreitman test).",
         required = False, 
         default = None)
     parser.add_argument('-fc', 
@@ -407,21 +410,20 @@ def create_parser():
     parser.add_argument('-l', 
         '--length', 
         type = int, 
-        help = "Specify the height/length of the heatmap plot [Default\n"
-               "is 7; experimental].", 
+        help = argparse.SUPPRESS,  # deprecated: only sized the removed PDF heatmap; accepted and ignored
         required = False, 
         default = 7)
     parser.add_argument('-w', 
         '--width', 
         type = int, 
-        help = 'Specify the width of the heatmap plot [Default is 14].', 
+        help = argparse.SUPPRESS,  # deprecated: only sized the removed PDF heatmap; accepted and ignored
         required = False, 
         default = 14)
     parser.add_argument('-fgl', 
         '--full-genbank-labels', 
         action = 'store_true', 
         help = "Use full GenBank labels instead of just the first 20\n"
-               "characters for heatmap plot.", 
+               "characters for the interactive heatmap.", 
         required = False, 
         default = False)
     parser.add_argument('-v', 
@@ -497,7 +499,8 @@ def zol_main():
 
     input_files = []
     try: 
-        assert(len(input_arg) > 0)
+        if not (len(input_arg) > 0):
+            raise AssertionError()
         for inp in input_arg: 
             if os.path.isfile(inp): 
                 input_files.append(os.path.abspath(inp))
@@ -507,6 +510,7 @@ def zol_main():
                     input_files.append(inp_dir + f)
     except Exception as e: 
         sys.stderr.write('One or more of the input directories or files do not exist.\n')
+        util.report_cause()
         sys.exit(1)
 
     if os.path.isdir(outdir):
@@ -592,7 +596,7 @@ def zol_main():
     log_object.info("Done saving parameters!")
 
     # set max memory limit
-    if max_memory != None: 
+    if max_memory is not None: 
         log_object.info(f"Setting maximum memory usage to: {max_memory}GB")
         sys.stdout.write(f"Setting maximum memory usage to: {max_memory}GB\n")
         try: 
@@ -698,9 +702,9 @@ def zol_main():
                 pickle.dump(representative_associated_members, 
            pickle_file, 
            protocol = pickle.HIGHEST_PROTOCOL)
-            os.system(f'touch {step1_check_file}')
+            util.touch_file(step1_check_file)
 
-    if (representative_associated_members == None or drep_genbanks == None) and dereplicate_flag: 
+    if (representative_associated_members is None or drep_genbanks is None) and dereplicate_flag: 
         try: 
             with open(rep_gbk_weights_pickle_file, 'rb') as handle: 
                 representative_associated_members = pickle.load(handle)
@@ -756,9 +760,9 @@ def zol_main():
                                                                     threads = threads)
             with open(chopped_genbanks_pickle_file, 'wb') as pickle_file: 
                 pickle.dump(chopped_genbanks, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
-            os.system(f'touch {step15_check_file}')
+            util.touch_file(step15_check_file)
 
-        if chopped_genbanks == None: 
+        if chopped_genbanks is None: 
             try: 
                 with open(chopped_genbanks_pickle_file, 'rb') as handle: 
                     chopped_genbanks = pickle.load(handle)
@@ -785,9 +789,9 @@ def zol_main():
         util.setup_ready_directory([prot_dir, fo_prot_dir, nucl_dir, nucl_upstream_dir], delete_if_exist = True)
         try: 
             gset = genbanks
-            if chopped_genbanks != None: 
+            if chopped_genbanks is not None: 
                 gset = chopped_genbanks
-            elif drep_genbanks != None and not reinflate_flag: 
+            elif drep_genbanks is not None and not reinflate_flag: 
                 gset = drep_genbanks
             for gbk in gset: 
                 try: 
@@ -814,7 +818,7 @@ def zol_main():
                     nucleotide_handle.close()
                     upstream_handle.close()
 
-                    if drep_genbanks_prefices == None or (drep_genbanks_prefices != None and prefix in drep_genbanks_prefices): 
+                    if drep_genbanks_prefices is None or (drep_genbanks_prefices is not None and prefix in drep_genbanks_prefices): 
                         shutil.copy(protein_outf, fo_prot_dir)
 
 
@@ -824,7 +828,7 @@ def zol_main():
                     sys.stderr.write(str(e) + '\n')
                     sys.exit(1)
 
-            if precomputed_orthogroups_file != None: 
+            if precomputed_orthogroups_file is not None: 
                 util.setup_ready_directory([og_dir], delete_if_exist = True)
                 zol.create_ortho_group_matrix_from_precomputed_file(precomputed_orthogroups_file, 
            fo_prot_dir, 
@@ -839,10 +843,10 @@ def zol_main():
                           '-c', str(threads)]
                 if dc_orthogroup_flag: 
                     max_memory_for_diamond = max_memory
-                    if  max_memory == None:
+                    if  max_memory is None:
                         max_memory_for_diamond = 4
                     fo_cmd = ['findOrthologs.py', '-p', fo_prot_dir, '-o', og_dir, '-dco', 
-                              '-dcp', '"' + dc_orthogroup_params + '"', '-c', str(threads), 
+                              '-dcp', dc_orthogroup_params, '-c', str(threads), 
                               '-m', str(max_memory_for_diamond)]
 
                 util.run_cmd_via_subprocess(fo_cmd, log_object=log_object, 
@@ -856,10 +860,9 @@ def zol_main():
             msg = 'Issues with determining ortholog groups!\nThis is likely because no core ortholog groups were identified, please consider filtering\nlow gene-cluster instances or adjusting clustering parameters!\n'
             sys.stderr.write(msg + "\n")
             log_object.error(msg)
-            sys.stderr.write(traceback.format_exc() + '\n')
-            sys.stderr.write(str(e) + '\n')
+            util.report_cause(fallback_traceback=True)
             sys.exit(1)
-        os.system(f'touch {step2_check_file}')
+        util.touch_file(step2_check_file)
 
     if not skip_cleanup_flag: 
         # Remove temporary files
@@ -973,7 +976,7 @@ def zol_main():
                 for rec in SeqIO.parse(ocf, 'fasta'): 
                     consensus_prot_seqs_handle.write('>' + f.split('.cons.faa')[0] + '\n' + str(rec.seq) + '\n')
         consensus_prot_seqs_handle.close()
-        os.system(f'touch {step3_check_file}')
+        util.touch_file(step3_check_file)
 
     # Step 4: Perform annotations
     msg = '--------------------\nStep 4\n--------------------\nAttempting to perform annotations (unless skipped)'
@@ -990,14 +993,14 @@ def zol_main():
                                                         log_object, 
                                                         pfam_params = pfam_params, 
                                                         threads = threads)
-        if custom_database != None: 
+        if custom_database is not None: 
             custom_annots = zol.annotate_custom_database(consensus_prot_seqs_faa, custom_database, annotation_dir, log_object, threads = threads)
             annotations['custom'] = custom_annots # type: ignore
         with open(annotations_pickle_file, 'wb') as pickle_file: 
             pickle.dump(annotations, pickle_file, protocol = pickle.HIGHEST_PROTOCOL)
-        os.system(f'touch {step4_check_file}')
+        util.touch_file(step4_check_file)
 
-    if annotations == None: 
+    if annotations is None: 
         if skip_annotations_flag: 
             annotations = defaultdict(lambda: defaultdict(lambda: ['NA', 'NA']))
         else: 
@@ -1044,9 +1047,9 @@ def zol_main():
                     'hg_peptides_stats': hg_peptides_stats}
         with open(hg_stats_pickle_file, 'wb') as pickle_file: 
             pickle.dump(hg_stats, pickle_file)
-        os.system(f'touch {step5_check_file}')
+        util.touch_file(step5_check_file)
 
-    if hg_stats == None: 
+    if hg_stats is None: 
         try: 
             with open(hg_stats_pickle_file, 'rb') as handle: 
                 hg_stats = pickle.load(handle)
@@ -1068,6 +1071,7 @@ def zol_main():
     gard_results_dir = evo_results_dir + 'GARD_Results/'
     fubar_results_dir = evo_results_dir + 'FUBAR_Results/'
     busted_results_dir = evo_results_dir + 'BUSTED_Results/'
+    mg94_results_dir = evo_results_dir + 'MG94_Results/'
     if not os.path.isfile(step6_check_file): 
         util.setup_ready_directory([evo_results_dir], delete_if_exist = True)
         tajimas_d, segregating_sites_prop, avg_nuc_identity = zol.run_tajimas_d_analysis(codo_algn_trim_dir, evo_results_dir,
@@ -1079,15 +1083,19 @@ def zol_main():
         fubar_sel_sites = {}
         fubar_dBa = {}
         busted_pval = {}
+        fubar_dnds = {}
+        mg94_omega = {}
         if fubar_selection: 
             util.setup_ready_directory([gard_results_dir, 
           fubar_results_dir, 
-          busted_results_dir], 
+          busted_results_dir, 
+          mg94_results_dir], 
           delete_if_exist = True)
-            gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa, busted_pval = zol.run_hyphy_analyses(codo_algn_dir, tree_dir, 
+            gard_partitions, fubar_sel_props, fubar_sel_sites, fubar_dBa, busted_pval, fubar_dnds, mg94_omega = zol.run_hyphy_analyses(codo_algn_dir, tree_dir, 
                                                                                      gard_results_dir, 
                                                                                      fubar_results_dir, busted_results_dir, 
                                                                                      log_object, 
+                                                                                     mg94_results_dir = mg94_results_dir, 
                                                                                      gard_mode = 'Faster', 
                                                                                      skip_gard = skip_gard, skip_busted = skip_busted, 
                                                                                      gard_timeout = gard_timeout, threads = threads)
@@ -1102,13 +1110,14 @@ def zol_main():
                      'std_prot_identity': hg_std_prot_identity,
                      'gard_partitions': gard_partitions, 'fubar_sel_props': fubar_sel_props,
                      'fubar_sel_sites': fubar_sel_sites, 'fubar_dba': fubar_dBa, 'busted_pvals': busted_pval,
+                     'fubar_dnds': fubar_dnds, 'mg94_omega': mg94_omega,
                      'median_beta_rd_gc': hg_med_beta_rd,
                      'max_beta_rd_gc': hg_max_beta_rd, 'entropy': hg_entropy, 'entropy_upst': hg_upst_entropy}
         with open(evo_stats_pickle_file, 'wb') as pickle_file: 
             pickle.dump(evo_stats, pickle_file)
-        os.system(f'touch {step6_check_file}')
+        util.touch_file(step6_check_file)
 
-    if evo_stats == None: 
+    if evo_stats is None: 
         try: 
             with open(evo_stats_pickle_file, 'rb') as handle: 
                 evo_stats = pickle.load(handle)
@@ -1121,7 +1130,7 @@ def zol_main():
 
     # Step 7: Perform comparative investigations between provided gene-cluster sets (things are rerun every time after this step)
     comp_stats = None
-    if focal_genbanks_listing_file != None and os.path.isfile(focal_genbanks_listing_file): 
+    if focal_genbanks_listing_file is not None and os.path.isfile(focal_genbanks_listing_file): 
         msg = '--------------------\nStep 7\n--------------------\nPerforming comparative investigations between provided gene-cluster sets'
         log_object.info(msg)
         sys.stdout.write(msg + '\n')
@@ -1147,7 +1156,7 @@ def zol_main():
                 else: 
                     log_object.warning(f'Could not match focal gene cluster {line} to available GenBanks in analysis.\n')
 
-        if comparator_genbanks_listing_file != None and os.path.isfile(comparator_genbanks_listing_file): 
+        if comparator_genbanks_listing_file is not None and os.path.isfile(comparator_genbanks_listing_file): 
             with open(comparator_genbanks_listing_file) as ocglf: 
                 for line in ocglf: 
                     line = line.strip()
@@ -1161,16 +1170,14 @@ def zol_main():
         else: 
             comparator_genbank_ids = all_genbank_ids.difference(focal_genbank_ids)
 
-        try: 
-            assert(len(focal_genbank_ids) > 0 and len(comparator_genbank_ids) > 0)
-        except Exception as e: 
+        if not (len(focal_genbank_ids) > 0 and len(comparator_genbank_ids) > 0):
             msg = 'Either no focal GenBanks or no comparator GenBanks. If confused, you can always run without the focal GenBank listing argument or this might be because of dereplication if requested.\n'
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
             sys.exit(1)
 
         # run comparative analyses
-        comp_stats = zol.compare_focal_and_comparator_gene_clusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, log_object, representative_associated_members = representative_associated_members, impute_broad_conservation = ibc_flag)
+        comp_stats = zol.compare_focal_and_comparator_gene_clusters(focal_genbank_ids, comparator_genbank_ids, codo_algn_trim_dir, upst_algn_dir, log_object, representative_associated_members = representative_associated_members, impute_broad_conservation = ibc_flag, codo_algn_dir = codo_algn_dir)
 
     # Step 8: Put together report
     msg = '--------------------\nStep 8\n--------------------\nPutting together final report'
@@ -1183,20 +1190,16 @@ def zol_main():
                             final_report_tsv, full_protein_clusters, log_object, 
                             ces = ces_flag, run_hyphy = fubar_selection, domain_mode = domain_mode)
 
-    # Step 9: Create quick heatmap overview of representative instances (selected using Treemmer)
-    msg = '--------------------\nStep 9\n--------------------\nCreating heatmap visualization of gene cluster representative instances'
+    # Step 9: Create interactive heatmap overview of gene clusters (with a tree based on shared ortholog content)
+    msg = '--------------------\nStep 9\n--------------------\nCreating interactive heatmap visualization of gene clusters'
     log_object.info(msg)
     sys.stdout.write(msg + '\n')
-    plot_result_pdf = fin_outdir + 'Heatmap_Overview.pdf'
-    plot_workspace_dir = outdir + 'Plot_Workspace/'
-    util.setup_ready_directory([plot_workspace_dir], delete_if_exist = True)
-    zol.plot_heatmap(hg_stats, 
-        genbanks, 
-        plot_result_pdf, 
-        plot_workspace_dir, 
-        log_object, 
-        height = length, 
-        width = width, 
+    plot_result_html = fin_outdir + 'Heatmap_Overview.html'
+    zol.plot_interactive_heatmap(hg_stats,
+        genbanks,
+        plot_result_html,
+        log_object,
+        final_report_tsv = final_report_tsv,
         full_genbank_labels = full_genbank_labels)
 
     # Close logging object and exit

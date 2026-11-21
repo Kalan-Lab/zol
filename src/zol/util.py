@@ -1,4 +1,4 @@
-from Bio.SeqFeature import FeatureLocation
+from Bio.SeqFeature import SimpleLocation
 from collections import defaultdict
 import warnings
 import re
@@ -11,6 +11,7 @@ warnings.filterwarnings(
 from ete3 import Tree
 from operator import itemgetter
 import asyncio
+import contextlib
 import decimal
 import gzip
 import itertools
@@ -21,6 +22,7 @@ import os
 from typing import Dict, List, Optional, Union, Any, Tuple, Generator, TypedDict
 import pickle
 import resource
+import shlex
 import shutil
 import statistics
 import sys
@@ -35,7 +37,6 @@ from scipy import stats
 import aiofile
 import aiohttp
 import copy
-import importlib.metadata
 import re
 from functools import lru_cache
 os.environ['KMP_WARNINGS'] = 'off'
@@ -45,6 +46,103 @@ import pyhmmer
 import tqdm
 from zol import fai, zol
 import hashlib
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# pyhmmer compatibility helpers (supports pyhmmer >= 0.10.10, including the >= 0.11 API changes)
+#
+# Notable API differences handled here:
+#   - pyhmmer 0.10.x: the query of a `TopHits` is exposed through `TopHits.query_name` / `TopHits.query_accession`
+#     (`TopHits.query` does not exist).
+#   - pyhmmer >= 0.11: `TopHits.query_name` / `query_accession` were removed in favor of `TopHits.query`, which
+#     returns the query object (e.g. HMM) itself.
+#   - names / accessions may be `bytes` or `str` depending on the version, so they are always normalized to `str`.
+# ----------------------------------------------------------------------------------------------------------------------
+def pyhmmer_to_str(obj: Any, default: str = "NA") -> str:
+    """Convert a pyhmmer name / accession (bytes in 0.10.x, str in >= 0.11) to str; None -> default."""
+    if obj is None:
+        return default
+    if isinstance(obj, (bytes, bytearray)):
+        return bytes(obj).decode(errors="replace")
+    return str(obj)
+
+
+def _pyhmmer_query_attr(hits: Any, attr: str) -> Any:
+    """Get an attribute (e.g. 'name' or 'accession') of the query of a pyhmmer TopHits object."""
+    query = getattr(hits, "query", None)
+    if query is not None:
+        value = getattr(query, attr, None)
+        if value is not None:
+            return value
+    # pyhmmer 0.10.x
+    return getattr(hits, "query_" + attr, None)
+
+
+def pyhmmer_query_name(hits: Any) -> str:
+    """Name of the query (HMM) of a pyhmmer TopHits object, independent of pyhmmer version."""
+    return pyhmmer_to_str(_pyhmmer_query_attr(hits, "name"))
+
+
+def pyhmmer_query_accession(hits: Any) -> str:
+    """Accession of the query (HMM) of a pyhmmer TopHits object or 'NA' if unavailable."""
+    try:
+        return pyhmmer_to_str(_pyhmmer_query_attr(hits, "accession"))
+    except Exception:
+        return "NA"
+
+
+def pyhmmer_hmm_coverage(alignment: Any) -> float:
+    """
+    Fraction of the HMM covered by a domain alignment. Equivalent to the approach suggested in
+    https://github.com/althonos/pyhmmer/issues/27 (non-'.' positions of the HMM alignment line), computed
+    from coordinates available across pyhmmer versions.
+    """
+    hmm_length = alignment.hmm_length
+    if not hmm_length:
+        return 0.0
+    return (alignment.hmm_to - alignment.hmm_from + 1) / float(hmm_length)
+
+
+def pyhmmer_hit_span(hit: Any) -> Tuple[str, str]:
+    """
+    Envelope span (start, end) of a pyhmmer Hit across its included domains (falling back to all domains if none
+    are included), as strings ('NA' if the hit has no domains).
+    """
+    try:
+        domains = list(hit.domains.included) or list(hit.domains)
+    except Exception:
+        domains = []
+    if not domains:
+        return "NA", "NA"
+    return str(min(d.env_from for d in domains)), str(max(d.env_to for d in domains))
+
+
+def pyhmmer_load_sequences(protein_faa: str) -> Any:
+    """Load a protein FASTA file as a digital sequence block for pyhmmer searches."""
+    alphabet = pyhmmer.easel.Alphabet.amino()
+    if os.path.getsize(protein_faa) == 0:
+        # Easel can not guess the format of an empty file
+        return pyhmmer.easel.DigitalSequenceBlock(alphabet)
+    with pyhmmer.easel.SequenceFile(protein_faa, format="fasta", digital=True, alphabet=alphabet) as seq_file:
+        return seq_file.read_block()
+
+
+@contextlib.contextmanager
+def open_hmm_profiles(hmm_db_file: str) -> Generator[Any, None, None]:
+    """
+    Open an HMM database for pyhmmer.hmmsearch. If the database was pressed with hmmpress (as setup_annotation_dbs.py
+    does), the pre-built optimized profiles (.h3p) are used, which skips configuring each HMM at search time;
+    otherwise the HMM file itself is used. Search results are identical either way.
+    """
+    with pyhmmer.plan7.HMMFile(hmm_db_file) as hmm_file:
+        if hmm_file.is_pressed():
+            profiles = hmm_file.optimized_profiles()
+            try:
+                yield profiles
+            finally:
+                profiles.close()
+        else:
+            yield hmm_file
 
 # TypedDict definitions for better type safety
 class BestHitInfo(TypedDict):
@@ -78,11 +176,7 @@ class GciDataInfo(TypedDict):
     ribo_prot_prop: float
     gc_prot_prop: float
 
-try:
-    package_name = "zol"
-    package_version = str(importlib.metadata.version(package_name))
-except importlib.metadata.PackageNotFoundError:
-    package_version = "NA"
+from zol import __version__ as package_version
 
 valid_alleles = set(["A", "C", "G", "T"])
 
@@ -130,7 +224,7 @@ def diamond_cluster_and_recluster(dimaond_database_file, diamond_cluster_file,
     ********************************************************************************************************************
     """
     try:
-        if mem == None:
+        if mem is None:
             mem = 4
 
         cluster_cmd = [
@@ -164,14 +258,24 @@ def diamond_cluster_and_recluster(dimaond_database_file, diamond_cluster_file,
                 str(mem) + "G",
             ] + diamond_params.split()
 
-            run_cmd_via_subprocess(recluster_cmd, log_object=log_object, check_files=[refined_cluster_file])
+            run_cmd_via_subprocess(recluster_cmd, log_object=log_object)
+            if not os.path.isfile(refined_cluster_file):
+                # Some DIAMOND releases (e.g. v2.2.x) ship recluster as a no-op: it prints "Recluster has been
+                # temporarily removed ... No action was taken." and exits successfully without writing --out.
+                # Recluster only re-checks cluster assignments and writes the same two-column format, so fall back
+                # to the clustering results.
+                msg = ("Warning: diamond recluster did not produce output (not available in this DIAMOND version); "
+                       "using the diamond cluster results without reclustering.")
+                if log_object:
+                    log_object.warning(msg)
+                sys.stderr.write(msg + "\n")
+                shutil.copyfile(diamond_cluster_file, refined_cluster_file)
 
     except Exception as e:
         msg = f"Issues running diamond linclust or recluster for the input file {dimaond_database_file}.\n"
         log_object.info(msg)
-        log_object.error(traceback.format_exc())
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 def process_location_string(location_string) -> None:
@@ -216,7 +320,8 @@ def process_location_string(location_string) -> None:
                 all_coords.append([start, end, direction])
             start = min(all_starts)
             end = max(all_ends)
-            assert len(set(all_directions)) == 1
+            if not (len(set(all_directions)) == 1):
+                raise AssertionError()
             direction = all_directions[0]
         elif "join" in location_string:
             all_directions = []
@@ -243,7 +348,8 @@ def process_location_string(location_string) -> None:
                 all_coords.append([start, end, direction])
             start = min(all_starts)
             end = max(all_ends)
-            assert len(set(all_directions)) == 1
+            if not (len(set(all_directions)) == 1):
+                raise AssertionError()
             direction = all_directions[0]
         elif "{" not in location_string:
             start = (
@@ -300,9 +406,7 @@ def _download_files(urls, resdir):
         try:
             async with sema:
                 async with session.get(url) as resp:
-                    try:
-                        assert resp.status == 200
-                    except Exception as e:
+                    if not (resp.status == 200):
                         sys.stderr.write(f'Issue downloading {url}\n')
                     data = await resp.read()
 
@@ -412,8 +516,8 @@ def download_gtdb_genomes(
                     f"Will be downloading {genome_count} genomes for the taxon {taxa_name}. Note, each\ngenome in compressed FASTA formatting is approximately 1 - 2 MB.\nIf downloading thousands of genomes, this can lead to significant disk space being\nused. Do you wish to continue? (yes / no): "
                 )
                 if response.lower() != "yes":
-                    os.system(
-                        "User does NOT want to download genomes for taxa from NCBI. Exiting ..."
+                    sys.stderr.write(
+                        "User does NOT want to download genomes for taxa from NCBI. Exiting ...\n"
                     )
                     sys.exit(1)
             except Exception as e:
@@ -421,6 +525,7 @@ def download_gtdb_genomes(
      "Error: user did not respond to download genomes for taxa from NCBI. Exiting ..."
                 sys.stderr.write(msg + "\n")
                 log_object.info(msg)
+                report_cause()
                 sys.exit(1)
         try:
             _download_files(genome_url_paths, gtdb_dir)
@@ -428,6 +533,7 @@ def download_gtdb_genomes(
             msg = "Error downloading genomes from NCBI. Exiting ..."
             sys.stderr.write(msg + "\n")
             log_object.info(msg)
+            report_cause()
             sys.exit(1)
 
         final_genome_count = 0
@@ -446,7 +552,8 @@ def download_gtdb_genomes(
                     continue
             if sanity_check:
                 try:
-                    assert is_fasta(genome_file)
+                    if not (is_fasta(genome_file)):
+                        raise AssertionError()
                     final_genome_count += 1
                 except AssertionError as e:
                     msg = (
@@ -561,6 +668,7 @@ def process_diamond_linclust_cluster_file(diamond_linclust_cluster_file, pickle_
         msg = f"Issues parsing DIAMOND linclust cluster file:\n{diamond_linclust_cluster_file}.\n"
         sys.stderr.write(msg + "\n")
         log_object.info(msg)
+        report_cause()
         sys.exit(1)
 
 
@@ -631,6 +739,90 @@ def memory_limit(mem: int) -> None:
         sys.stderr.write(f"Error setting memory limit: {str(e)}\n")
 
 
+# Tokens which are passed to the shell verbatim when a command is provided as a list (all other list elements are
+# quoted, so that paths with spaces / special characters are handled safely).
+SHELL_OPERATORS = frozenset(
+    [";", "|", ">", ">>", "<", "&&", "||", "&", "2>", "2>>", "2>&1", "&>", "&>>", "1>", "1>>"]
+)
+
+
+def cmd_to_shell_str(cmd: Union[str, List[Any]]) -> str:
+    """
+    Description:
+    Convert a command to a string which can be safely run through bash.
+    ********************************************************************************************************************
+    Parameters:
+    - cmd: The command either as a list or as a string. If a string, it is returned unchanged (and assumed to already
+           be properly quoted). If a list, each element is treated as a single argument and quoted, except for
+           standalone shell operator tokens (e.g. ";", "|", ">", ">>", "<", "&&" - surrounding whitespace is ignored)
+           which are kept verbatim, and empty / whitespace-only elements which are dropped.
+    ********************************************************************************************************************
+    Returns:
+    - The command as a string.
+    ********************************************************************************************************************
+    """
+    if isinstance(cmd, str):
+        return cmd
+    parts = []
+    for token in cmd:
+        token = str(token)
+        stripped = token.strip()
+        if stripped in SHELL_OPERATORS:
+            parts.append(stripped)
+        elif stripped == "":
+            continue
+        else:
+            parts.append(shlex.quote(token))
+    return " ".join(parts)
+
+
+def touch_file(path: str) -> None:
+    """Create an (empty) file or update its modification time - replacement for `touch`."""
+    with open(path, "a"):
+        os.utime(path, None)
+
+
+def concat_files(source_files: List[str], target_file: str, append: bool = False) -> None:
+    """Concatenate files into target_file (replacement for `cat files > target` / `cat files >> target`)."""
+    with open(target_file, "ab" if append else "wb") as tgt:
+        for source_file in source_files:
+            with open(source_file, "rb") as src:
+                shutil.copyfileobj(src, tgt)
+
+
+def gunzip_file(gz_file: str, output_file: str) -> None:
+    """Decompress a gzipped file to output_file, leaving the original in place."""
+    with gzip.open(gz_file, "rb") as src, open(output_file, "wb") as tgt:
+        shutil.copyfileobj(src, tgt)
+
+
+def run_cmd_simple(cmd: Union[str, List[Any]], log_object=None) -> bool:
+    """
+    Description:
+    Run a command, without exiting on failure. A warning is written (and logged) if the command fails.
+    ********************************************************************************************************************
+    Parameters:
+    - cmd: The command as a list (preferred; see cmd_to_shell_str for how it is handled) or a string.
+    - log_object: A logging object.
+    ********************************************************************************************************************
+    Returns:
+    - True if the command succeeded (exit code 0), False otherwise.
+    ********************************************************************************************************************
+    """
+    cmd_str = cmd_to_shell_str(cmd)
+    try:
+        result = subprocess.run(cmd_str, shell=True, executable="/bin/bash")
+        success = result.returncode == 0
+    except Exception:
+        success = False
+    if not success:
+        msg = f"Warning: issue running: {cmd_str}"
+        sys.stderr.write(msg + "\n")
+        if log_object is not None:
+            log_object.warning(msg)
+    return success
+
+
 def run_cmd_via_subprocess(
     cmd,
     log_object=None,
@@ -646,157 +838,180 @@ def run_cmd_via_subprocess(
     Function to run some command via subprocess.
     ********************************************************************************************************************
     Parameters:
-    - cmd: The command as a list.
+    - cmd: The command as a list (each element is a single argument and is quoted, except standalone shell operators
+           such as ";", "|", ">", ">>", "<" and "&&", which are kept as is) or as an already quoted string.
     - log_object: A logging object.
     - check_files: Files to check the existence of assuming successful run of the command.
     - check_directories: Directories to check the existence of assuming successful run of the command.
-    - stdout: Where to have subprocess direct standard output.
-    - stderr: Where to have subprocess direct standard errorr.
+    - stdout: Where to have subprocess direct standard output (subprocess.DEVNULL or a file path). If DEVNULL, output is
+              captured and reported if the command fails.
+    - stderr: Where to have subprocess direct standard error (subprocess.DEVNULL or a file path). If DEVNULL, output is
+              captured and reported if the command fails.
     - verbose: Whether to print verbose output.
-    - exit_on_error: Whether to exit the program if there is an error.
+    - exit_on_error: Whether to exit the program if there is an error (otherwise a RuntimeError is raised).
     ********************************************************************************************************************
     """
+    cmd_str = cmd_to_shell_str(cmd)
+
+    def _report(msg: str) -> None:
+        sys.stderr.write(msg + "\n")
+        if log_object is not None:
+            log_object.error(msg)
+
+    def _fail(msg: str) -> None:
+        _report(msg)
+        if exit_on_error:
+            sys.exit(1)
+        raise RuntimeError(msg)
+
     if verbose:
-        msg = f"Running {' '.join(cmd)}"
+        msg = f"Running {cmd_str}"
         if log_object is not None:
             log_object.info(msg)
         sys.stdout.write(msg + "\n")
 
-    try:
-        if stdout == subprocess.DEVNULL:
-            assert stderr == subprocess.DEVNULL
-        if stderr == subprocess.DEVNULL:
-            assert stdout == subprocess.DEVNULL
-    except AssertionError as e:
-        sys.stderr.write(f"If stdout is DEVNULL, then stderr must also be DEVNULL and vice versa for function run_cmd_via_subprocess!\n")
-        if exit_on_error:
-            sys.exit(1)
-        else:
-            raise RuntimeError()
+    for stream_name, stream in (("stdout", stdout), ("stderr", stderr)):
+        if stream == subprocess.DEVNULL:
+            continue
+        stream_dir = os.path.dirname(os.path.abspath(str(stream)))
+        if not os.path.isdir(stream_dir):
+            _fail(
+                f"The directory for the {stream_name} file {stream} does not exist for function run_cmd_via_subprocess!"
+            )
 
     try:
-        if stdout != subprocess.DEVNULL:
-            assert os.path.isdir(os.path.dirname(stdout))
-        if stderr != subprocess.DEVNULL:
-            assert os.path.isdir(os.path.dirname(stderr))
-    except AssertionError as e:
-        sys.stderr.write(f"If stdout/stderr are not DEVNULL, then it must be a file for function run_cmd_via_subprocess!\n")
-        if exit_on_error:
-            sys.exit(1)
-        else:
-            raise RuntimeError()
+        with contextlib.ExitStack() as stack:
+            stdout_target = (
+                subprocess.PIPE if stdout == subprocess.DEVNULL
+                else stack.enter_context(open(stdout, "w"))
+            )
+            stderr_target = (
+                subprocess.PIPE if stderr == subprocess.DEVNULL
+                else stack.enter_context(open(stderr, "w"))
+            )
+            result = subprocess.run(
+                cmd_str,
+                shell=True,
+                stdout=stdout_target,
+                stderr=stderr_target,
+                text=True,
+                executable="/bin/bash",
+            )
+    except Exception as e:
+        _fail(f"Had an issue running: {cmd_str}\n{e}")
+        return
 
-    result = None
-    try:
-        if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
-            result = subprocess.run(" ".join(cmd), shell=True, 
-                                    capture_output=True, text=True, 
-                                    executable='/bin/bash')
-        else:
-            # Run the command, redirecting stdout and stderr to files
-            result = subprocess.run(" ".join(cmd),
-                                    stdout=open(stdout, 'w'),
-                                    stderr=open(stderr, 'w'),
-                                    text=True, shell=True, executable='/bin/bash')                   
-        if result.returncode != 0:
-            msg = f"Had an issue running: {' '.join(cmd)}"
-            sys.stderr.write(msg + "\n")
-            if log_object is not None:
-                log_object.error(msg)
-
-            if verbose:
-                if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
-                    msg = f"Return code: {result.returncode}"
-                    if result.stdout:
-                        msg += f"\nStdout:\n{result.stdout}"
-                    if result.stderr:
-                        msg += f"\nStderr:\n{result.stderr}"
-                    sys.stderr.write(msg + "\n")
-                    if log_object is not None:
-                        log_object.error(msg)
-                        log_object.error(traceback.format_exc())
-                else:
-                    msg = f"Standard error was redirected to the file: {stderr}"
-                    sys.stderr.write(msg + "\n")
-                    if log_object is not None:
-                        log_object.error(msg)
-    
-                    msg = f"Standard output was redirected to the file: {stdout}"
-                    sys.stderr.write(msg + "\n")
-                    if log_object is not None:
-                        log_object.error(msg)
-
-            if exit_on_error:
-                sys.exit(1)
-            else:
-                raise RuntimeError()
-        else:
-            if verbose:
-                msg = f"Successfully ran: {' '.join(cmd)}"
-                if log_object is not None:
-                    log_object.info(msg)
-                sys.stdout.write(msg + "\n")
-        
-        for f in check_files:
-            try:
-                assert os.path.isfile(f)
-            except AssertionError:
-                msg = f"File {f} does not exist after running: {' '.join(cmd)}"
-                sys.stderr.write(msg + "\n")
-                if log_object is not None:
-                    log_object.error(msg)
-                if exit_on_error:
-                    sys.exit(1)
-                else:
-                    raise RuntimeError()
-
-        for d in check_directories:
-            try:
-                assert os.path.isdir(d)
-            except AssertionError:
-                msg = f"Directory {d} does not exist after running: {' '.join(cmd)}"
-                sys.stderr.write(msg + "\n")
-                if log_object is not None:
-                    log_object.error(msg)
-                if exit_on_error:
-                    sys.exit(1)
-                else:
-                    raise RuntimeError()
-
-    except Exception:
-        msg = f"Had an issue running: {' '.join(cmd)}"
-        if log_object is not None:
-            log_object.error(msg)
-        sys.stderr.write(msg + "\n")
+    if result.returncode != 0:
+        msg = f"Had an issue running: {cmd_str}"
         if verbose:
-            sys.stderr.write(traceback.format_exc() + "\n")
-            if log_object != None:
-                log_object.error(traceback.format_exc())
+            msg += f"\nReturn code: {result.returncode}"
+            if result.stdout:
+                msg += f"\nStdout:\n{result.stdout}"
+            elif stdout != subprocess.DEVNULL:
+                msg += f"\nStandard output was redirected to the file: {stdout}"
+            if result.stderr:
+                msg += f"\nStderr:\n{result.stderr}"
+            elif stderr != subprocess.DEVNULL:
+                msg += f"\nStandard error was redirected to the file: {stderr}"
+        _fail(msg)
 
-            if stdout == subprocess.DEVNULL and stderr == subprocess.DEVNULL:
-                msg = f"Return code: {result.returncode}"
-                if result.stdout:
-                    msg += f"\nStdout:\n{result.stdout}"
-                if result.stderr:
-                    msg += f"\nStderr:\n{result.stderr}"
-                sys.stderr.write(msg + "\n")
-                if log_object is not None:
-                    log_object.error(msg)
-            else:
-                msg = f"Standard error was redirected to the file: {stderr}"
-                sys.stderr.write(msg + "\n")
-                if log_object is not None:
-                    log_object.error(msg)
+    if verbose:
+        msg = f"Successfully ran: {cmd_str}"
+        if log_object is not None:
+            log_object.info(msg)
+        sys.stdout.write(msg + "\n")
 
-                msg = f"Standard output was redirected to the file: {stdout}"
-                sys.stderr.write(msg + "\n")
-                if log_object is not None:
-                    log_object.error(msg)
-            
-        if exit_on_error:
-            sys.exit(1)
-        else:
-            raise RuntimeError()
+    for f in check_files:
+        if not os.path.isfile(f):
+            _fail(f"File {f} does not exist after running: {cmd_str}")
+
+    for d in check_directories:
+        if not os.path.isdir(d):
+            _fail(f"Directory {d} does not exist after running: {cmd_str}")
+
+
+def parse_bigscape_clustering_file(clustering_file: str) -> Tuple[str, Dict[str, List[str]]]:
+    """
+    Description:
+    Parse a BiG-SCAPE clustering file (BGC to GCF / family assignments) produced by either BiG-SCAPE 1.x or 2.x.
+    ********************************************************************************************************************
+    Supported formats:
+    - BiG-SCAPE 1.x (network_files/<run>/<class>/<class>_clustering_c0.30.tsv): a header line "#BGC Name\tFamily
+      Number" followed by two columns - the BGC name (GenBank file name without .gbk) and the family number.
+    - BiG-SCAPE 2.x (output_files/<run>_c0.3/<bin>/<bin>_clustering_c0.3.tsv): a header line "Record\tGBK\t
+      Record_Type\tRecord_Number\tCC\tFamily" (no leading "#") followed by rows with these columns. The "GBK" column
+      is the GenBank file name without .gbk. Columns are located by header name, which also supports the pre-release
+      2.0 betas (header "GBK\tRecord_Type\tRecord_Number\tCC\tFamily\tFull_Name"). Note that with non-region record
+      types (e.g. protocluster) multiple records can stem from the same GenBank file - each GenBank is only listed
+      once per family.
+    ********************************************************************************************************************
+    Parameters:
+    - clustering_file: Path to the clustering TSV file.
+    ********************************************************************************************************************
+    Returns:
+    - A tuple of (format, gcf_to_bgcs) where format is "v1", "v2" or "unknown" (in which case gcf_to_bgcs is empty)
+      and gcf_to_bgcs maps each GCF / family ID to the ordered list of BGC IDs (GenBank file names without .gbk).
+    ********************************************************************************************************************
+    """
+    gcf_to_bgcs: Dict[str, List[str]] = defaultdict(list)
+    seen_pairs: set = set()
+    bigscape_format = "unknown"
+    bgc_index, gcf_index = 0, 1
+
+    with open(clustering_file) as ocf:
+        lines = [line.rstrip("\r\n") for line in ocf if line.strip()]
+    if not lines:
+        return bigscape_format, dict(gcf_to_bgcs)
+
+    header = lines[0].lstrip("#").strip().split("\t")
+    data_lines = lines[1:]
+    if "GBK" in header and "Family" in header:
+        bigscape_format = "v2"
+        bgc_index, gcf_index = header.index("GBK"), header.index("Family")
+    elif lines[0].startswith("#") or (header and header[0] == "BGC Name"):
+        bigscape_format = "v1"
+    elif len(lines[0].split("\t")) == 2:
+        # header-less two column file - assume BiG-SCAPE 1.x style
+        bigscape_format = "v1"
+        data_lines = lines
+    else:
+        return bigscape_format, dict(gcf_to_bgcs)
+
+    for line in data_lines:
+        if line.startswith("#"):
+            continue
+        ls = line.split("\t")
+        if len(ls) <= max(bgc_index, gcf_index):
+            continue
+        bgc_id, gcf_id = ls[bgc_index].strip(), ls[gcf_index].strip()
+        if bgc_id.endswith(".gbk"):
+            bgc_id = bgc_id[:-4]
+        if not bgc_id or not gcf_id or (gcf_id, bgc_id) in seen_pairs:
+            continue
+        seen_pairs.add((gcf_id, bgc_id))
+        gcf_to_bgcs[gcf_id].append(bgc_id)
+
+    return bigscape_format, dict(gcf_to_bgcs)
+
+
+def find_bigscape_clustering_files(bigscape_results_dir: str) -> List[str]:
+    """
+    Description:
+    Recursively find BiG-SCAPE (1.x or 2.x) clustering files (BGC to GCF assignments) in a BiG-SCAPE results directory.
+    ********************************************************************************************************************
+    Parameters:
+    - bigscape_results_dir: Path to the BiG-SCAPE results directory.
+    ********************************************************************************************************************
+    Returns:
+    - Sorted list of paths to clustering files.
+    ********************************************************************************************************************
+    """
+    clustering_files = []
+    for currentpath, _, files in os.walk(bigscape_results_dir):
+        for file in files:
+            if "_clustering_" in file and file.endswith(".tsv"):
+                clustering_files.append(os.path.join(currentpath, file))
+    return sorted(clustering_files)
 
 
 def clean_up_sample_name(original_name) -> None:
@@ -858,7 +1073,8 @@ def read_in_annotation_files_for_expanded_sample_set(
                 genbank = full_dir + genbank.split("/")[-1]
                 sample = clean_up_sample_name(sample)
                 try:
-                    assert os.path.isfile(genbank) and os.path.isfile(genbank)
+                    if not (os.path.isfile(genbank) and os.path.isfile(genbank)):
+                        raise AssertionError()
                     sample_annotation_data[sample]["genbank"] = genbank
                 except Exception as e:
                     if log_object:
@@ -869,7 +1085,8 @@ def read_in_annotation_files_for_expanded_sample_set(
                         sys.stderr.write(
                             f"Ignoring sample {sample}, because at least one of two annotation files does not seem to exist.\n"
                         )
-        assert len(sample_annotation_data) >= 1
+        if not (len(sample_annotation_data) >= 1):
+            raise AssertionError()
         return sample_annotation_data
     except Exception as e:
         if log_object:
@@ -877,7 +1094,7 @@ def read_in_annotation_files_for_expanded_sample_set(
                 "Input file listing the location of annotation files for samples leads to incorrect paths or something else went wrong with processing of it. Exiting now ..."
             )
             log_object.error(traceback.format_exc()) # type: ignore
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -895,20 +1112,233 @@ def extract_scaffold_from_gzipped_genbank(filename, scaffold_name) -> Optional[S
         Bio.SeqRecord.SeqRecord or None: The SeqRecord object if found, otherwise None.
     """
     try:
-        if filename.endswith(".gz"):
-            with gzip.open(filename, "rt") as handle:  # Open the gzipped file in text mode
-                for record in SeqIO.parse(handle, "genbank"):
-                    if record.id == scaffold_name:
-                        return record
-        else:
-            with open(filename) as handle:  # Open the gzipped file in text mode
-                for record in SeqIO.parse(handle, "genbank"):
-                    if record.id == scaffold_name:
-                        return record
+        with open_text_file(filename) as handle:
+            for record in SeqIO.parse(handle, "genbank"):
+                if record.id == scaffold_name:
+                    return record
         return None  # Scaffold not found
     except Exception as e:
         sys.stderr.write(f"Error: {e}\n")
         return None
+
+
+#: Suffix of the full-genome GenBank files written by prepTG (zstd-compressed). Older prepTG databases used
+#: ".gbk.gz"; readers go through open_text_file(), which handles either.
+TG_GENBANK_SUFFIX = ".gbk.zst"
+#: zstd compression level used for prepTG GenBanks (1-22; 19 is the highest level without --ultra memory use).
+ZSTD_COMPRESSION_LEVEL = 19
+
+
+def _zstd_module():
+    """ Return a module providing zstd open()/compression: stdlib compression.zstd (Python 3.14+) or zstandard. """
+    try:
+        from compression import zstd  # type: ignore
+        return zstd
+    except ImportError:
+        import zstandard  # type: ignore
+        return zstandard
+
+
+def open_text_file(path):
+    """
+    Open a (optionally gzip- or zstd-compressed) text file for reading in text mode, based on its extension
+    (".gz" or ".zst"; anything else is opened as plain text).
+    """
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt")
+    if path.endswith(".zst"):
+        return _zstd_module().open(path, "rt")
+    return open(path)
+
+
+def open_zstd_text_writer(path, level=3):
+    """
+    Open path for writing zstd-compressed text. The default level (3) is fast and suited to large, transient
+    intermediate files; prepTG's long-lived GenBanks use ZSTD_COMPRESSION_LEVEL instead.
+    """
+    zstd = _zstd_module()
+    if hasattr(zstd, "ZstdCompressor") and hasattr(zstd.ZstdCompressor, "copy_stream"):
+        # zstandard package
+        return zstd.open(path, "wt", cctx=zstd.ZstdCompressor(level=level))
+    # stdlib compression.zstd (Python 3.14+)
+    return zstd.open(path, "wt", level=level)
+
+
+def strip_genbank_compression_suffix(filename) -> str:
+    """ Return the sample name for a prepTG full-genome GenBank filename (".gbk.zst" or legacy ".gbk.gz"). """
+    for suffix in (TG_GENBANK_SUFFIX, ".gbk.gz"):
+        if filename.endswith(suffix):
+            return filename[: -len(suffix)]
+    return filename
+
+
+def compress_file_with_zstd(input_file) -> Tuple[str, Optional[str]]:
+    """
+    Compress input_file to input_file + ".zst" at ZSTD_COMPRESSION_LEVEL and remove the original (like `zstd --rm`).
+    Returns ('success', None) or ('error', message), for use with robust_multiprocess_executor.
+    """
+    output_file = input_file + ".zst"
+    try:
+        zstd = _zstd_module()
+        if hasattr(zstd, "ZstdCompressor") and hasattr(zstd.ZstdCompressor, "copy_stream"):
+            # zstandard package: stream so large metagenome GenBanks are never held in memory
+            cctx = zstd.ZstdCompressor(level=ZSTD_COMPRESSION_LEVEL)
+            with open(input_file, "rb") as ifh, open(output_file, "wb") as ofh:
+                cctx.copy_stream(ifh, ofh)
+        else:
+            # stdlib compression.zstd (Python 3.14+)
+            with open(input_file, "rb") as ifh, zstd.open(output_file, "wb", level=ZSTD_COMPRESSION_LEVEL) as ofh:
+                shutil.copyfileobj(ifh, ofh, 1024 * 1024)
+        os.remove(input_file)
+        return ('success', None)
+    except Exception as e:
+        if os.path.isfile(output_file):
+            os.remove(output_file)
+        return ('error', f"Issue compressing {input_file} with zstd: {e}")
+
+
+def decompress_file_to_plain_text(inputs) -> Tuple[str, Optional[str]]:
+    """
+    Decompress a (gzip- or zstd-compressed) file to a plain file, leaving the original in place. inputs is
+    [compressed_file, output_file]. Returns ('success', None) or ('error', message), for robust_multiprocess_executor.
+    """
+    compressed_file, output_file = inputs
+    try:
+        with open_text_file(compressed_file) as ifh, open(output_file, "w") as ofh:
+            shutil.copyfileobj(ifh, ofh, 1024 * 1024)
+        return ('success', None)
+    except Exception as e:
+        return ('error', f"Issue decompressing {compressed_file}: {e}")
+
+
+def _iter_genbank_records(genbank_file):
+    """ Yield SeqRecords one at a time from a (optionally gzip- or zstd-compressed) GenBank file. """
+    with open_text_file(genbank_file) as handle:
+        yield from SeqIO.parse(handle, "genbank")
+
+
+def _write_region_genbank(rec, new_genbank_file, scaffold, start_coord, end_coord) -> None:
+    """
+    Write the region start_coord..end_coord (1-based, inclusive) of scaffold record rec to new_genbank_file, keeping
+    only features fully contained in the region. rec is not modified, so it can be reused for further regions.
+    """
+    pruned_coords = set(range(start_coord, end_coord + 1))
+    original_seq = str(rec.seq)
+    start_coord = max(start_coord, 1)
+    if end_coord >= len(original_seq):
+        filtered_seq = original_seq[start_coord - 1 :]
+    else:
+        filtered_seq = original_seq[start_coord - 1 : end_coord]
+
+    # Build the output record from the scaffold's header information only (rather than deep-copying the whole
+    # scaffold with all of its features), so extracting a region needs little memory beyond the scaffold itself.
+    updated_rec = SeqRecord(
+        Seq(filtered_seq),
+        id=rec.id,
+        name=rec.name,
+        description=rec.description,
+        dbxrefs=list(rec.dbxrefs),
+        annotations=copy.deepcopy(rec.annotations),
+    )
+
+    # Add coordinate information and fai citation to the GenBank header via annotations
+    coord_info = f"Extracted region: {scaffold}:{start_coord}..{end_coord}"
+    fai_citation = (
+        "This GenBank file was created using the zol-suite.\n"
+        "Citation: zol & fai: large-scale targeted detection and evolutionary\n"
+        "investigation of gene clusters. Nucleic Acids Research 2025.\n"
+        "https://academic.oup.com/nar/article/53/3/gkaf045/8001966"
+    )
+    full_comment = f"{coord_info}\n{fai_citation}"
+
+    if 'comment' in updated_rec.annotations:
+        updated_rec.annotations['comment'] = f"{updated_rec.annotations['comment']}\n{full_comment}"
+    else:
+        updated_rec.annotations['comment'] = full_comment
+
+    updated_features = []
+    for feature in rec.features:
+        start, end, direction, all_coords = process_location_string(str(feature.location))
+
+        feature_coords = set(range(start, end + 1))
+        edgy_feat = "False"
+        if (start <= 2000) or (end + 1 >= len(original_seq) - 2000):
+            edgy_feat = "True"
+        part_of_cds_hanging = False
+        if len(feature_coords.intersection(pruned_coords)) > 0:
+            fls = []
+            for sc, ec, dc in all_coords:
+                exon_coord = set(range(sc, ec + 1))
+                if len(exon_coord.intersection(pruned_coords)) == 0:
+                    part_of_cds_hanging = True
+                    continue
+                updated_start = sc - start_coord + 1
+                updated_end = ec - start_coord + 1
+                # Exclude any feature that extends beyond the boundaries
+                if ec > end_coord:
+                    part_of_cds_hanging = True
+                    continue
+                if sc < start_coord:
+                    part_of_cds_hanging = True
+                    continue
+                strand = 1
+                if dc == "-":
+                    strand = -1
+                fls.append(SimpleLocation(updated_start - 1, updated_end, strand=strand))
+            if len(fls) > 0 and not part_of_cds_hanging:
+                updated_location = fls[0]
+                if len(fls) > 1:
+                    updated_location = sum(fls)
+                # copy, so the scaffold's own feature is left unchanged for other regions
+                new_feature = copy.deepcopy(feature)
+                new_feature.location = updated_location
+                new_feature.qualifiers["near_scaffold_edge"] = edgy_feat
+                updated_features.append(new_feature)
+    updated_rec.features = updated_features
+    with open(new_genbank_file, "w") as ngf_handle:
+        SeqIO.write(updated_rec, ngf_handle, "genbank")
+
+
+def create_genbanks(full_genbank_file, regions) -> None:
+    """
+    Description:
+    Extract several regions from one full genome GenBank in a single pass over the file. Each requested scaffold is
+    parsed once and all of its regions are written while it is loaded; it is then discarded, so memory use stays at
+    about one scaffold at a time. Reading stops once every requested scaffold has been handled. If a scaffold ID
+    occurs more than once in the file, the first record is used.
+    Note: Features that overlap or extend beyond a region's boundary coordinates are excluded from its output. Only
+    features that are completely contained within the extracted region are retained.
+    ********************************************************************************************************************
+    Parameters:
+    - full_genbank_file: GenBank file for full genome (optionally gzipped).
+    - regions: Iterable of (new_genbank_file, scaffold, start_coord, end_coord) tuples.
+    ********************************************************************************************************************
+    """
+    try:
+        regions_by_scaffold = defaultdict(list)
+        for new_genbank_file, scaffold, start_coord, end_coord in regions:
+            regions_by_scaffold[scaffold].append((new_genbank_file, start_coord, end_coord))
+        if not regions_by_scaffold:
+            return
+
+        remaining = set(regions_by_scaffold)
+        for rec in _iter_genbank_records(full_genbank_file):
+            if rec.id not in remaining:
+                continue
+            for new_genbank_file, start_coord, end_coord in regions_by_scaffold[rec.id]:
+                _write_region_genbank(rec, new_genbank_file, rec.id, start_coord, end_coord)
+            remaining.discard(rec.id)
+            if not remaining:
+                break
+
+        if remaining:
+            raise RuntimeError(
+                f"Scaffold(s) {', '.join(sorted(remaining))} not found in {full_genbank_file}"
+            )
+
+    except Exception as e:
+        report_cause(fallback_traceback=True)
+        sys.exit(1)
 
 
 def create_genbank(
@@ -916,7 +1346,8 @@ def create_genbank(
 ) -> None:
     """
     Description:
-    Function to prune full genome-sized GenBank for only features in BGC of interest.
+    Function to prune full genome-sized GenBank for only features in BGC of interest. To extract several regions from
+    the same genome, use create_genbanks(), which reads the genome file only once.
     Note: Features that overlap or extend beyond the specified boundary coordinates (start_coord, end_coord) are 
     excluded from the output. Only features that are completely contained within the extracted region are retained.
     ********************************************************************************************************************
@@ -928,87 +1359,66 @@ def create_genbank(
     - end_coord: End coordinate.
     ********************************************************************************************************************
     """
-    try:
-        with open(new_genbank_file, "w") as ngf_handle:
-            pruned_coords = set(range(start_coord, end_coord + 1))
-            rec = extract_scaffold_from_gzipped_genbank(full_genbank_file, scaffold)
-            if rec is None:
-                raise RuntimeError(f"Scaffold {scaffold} not found in {full_genbank_file}")
-            original_seq = str(rec.seq) # type: ignore
-            filtered_seq = ""
-            start_coord = max(start_coord, 1)
-            if end_coord >= len(original_seq):
-                filtered_seq = original_seq[start_coord - 1 :]
-            else:
-                filtered_seq = original_seq[start_coord - 1 : end_coord]
+    create_genbanks(full_genbank_file, [(new_genbank_file, scaffold, start_coord, end_coord)])
 
-            new_seq_object = Seq(filtered_seq)
-            updated_rec = copy.deepcopy(rec)
-            updated_rec.seq = new_seq_object # type: ignore
-            
-            # Add coordinate information and fai citation to the GenBank header via annotations
-            coord_info = f"Extracted region: {scaffold}:{start_coord}..{end_coord}"
-            fai_citation = (
-                "This GenBank file was created using the zol-suite.\n"
-                "Citation: zol & fai: large-scale targeted detection and evolutionary\n"
-                "investigation of gene clusters. Nucleic Acids Research 2025.\n"
-                "https://academic.oup.com/nar/article/53/3/gkaf045/8001966"
-            )
-            full_comment = f"{coord_info}\n{fai_citation}"
-            
-            if 'comment' in updated_rec.annotations: # type: ignore
-                updated_rec.annotations['comment'] = f"{updated_rec.annotations['comment']}\n{full_comment}" # type: ignore
-            else:
-                updated_rec.annotations['comment'] = full_comment # type: ignore
 
-            updated_features = []
-            for feature in rec.features: # type: ignore
-                start, end, direction, all_coords = process_location_string(
-                    str(feature.location) # type: ignore
-                )
-
-                feature_coords = set(range(start, end + 1))
-                edgy_feat = "False"
-                if (start <= 2000) or (end + 1 >= len(original_seq) - 2000):
-                    edgy_feat = "True"
-                part_of_cds_hanging = False
-                if len(feature_coords.intersection(pruned_coords)) > 0:
-                    fls = []
-                    for sc, ec, dc in all_coords:
-                        exon_coord = set(range(sc, ec + 1))
-                        if len(exon_coord.intersection(pruned_coords)) == 0:
-                            part_of_cds_hanging = True
-                            continue
-                        updated_start = sc - start_coord + 1
-                        updated_end = ec - start_coord + 1
-                        # Exclude any feature that extends beyond the boundaries
-                        if ec > end_coord:
-                            part_of_cds_hanging = True
-                            continue
-                        if sc < start_coord:
-                            part_of_cds_hanging = True
-                            continue
-                        strand = 1
-                        if dc == "-":
-                            strand = -1
-                        fls.append(
-                            FeatureLocation(
-                                updated_start - 1, updated_end, strand=strand
-                            )
-                        )
-                    if len(fls) > 0 and not part_of_cds_hanging:
-                        updated_location = fls[0]
-                        if len(fls) > 1:
-                            updated_location = sum(fls)
-                        feature.location = updated_location # type: ignore
-                        feature.qualifiers["near_scaffold_edge"] = edgy_feat
-                        updated_features.append(feature)
-            updated_rec.features = updated_features # type: ignore
-            SeqIO.write(updated_rec, ngf_handle, "genbank") # type: ignore
-
-    except Exception as e:
+def report_cause(log_object=None, fallback_traceback=False) -> None:
+    """
+    Description:
+    Call from inside an except block, after writing the short user-facing message. Writes one line naming the
+    exception being handled to stderr, and the full traceback to the log (log_object, or zol's "task_logger" if it
+    has been set up). With fallback_traceback=True and no log available, the traceback is written to stderr instead.
+    ********************************************************************************************************************
+    """
+    exc_type, exc, _ = sys.exc_info()
+    if exc is None:
+        return
+    if isinstance(exc, AssertionError) and not str(exc):
+        # A failed validation check; the caller's message already says what was wrong.
+        return
+    cause =first_line(f"{exc_type.__name__}: {exc}" if str(exc) else exc_type.__name__)
+    sys.stderr.write(f"  Cause: {cause}\n")
+    logger = log_object if log_object is not None else logging.getLogger("task_logger")
+    if getattr(logger, "handlers", None):
+        logger.error(f"Cause: {cause}\n{traceback.format_exc()}")
+    elif fallback_traceback:
         sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+
+
+class WorkerError(RuntimeError):
+    """ Raised by robust_multiprocess_executor when a worker fails under the "report_and_stop" strategy. """
+
+
+def first_line(text, max_len=300) -> str:
+    """ Return the first non-empty line of text (truncated), for concise terminal messages. """
+    for line in str(text).splitlines():
+        line = line.strip()
+        if line:
+            return line if len(line) <= max_len else line[:max_len - 3] + "..."
+    return ""
+
+
+class _SafeWorker:
+    """
+    Picklable wrapper used by robust_multiprocess_executor so that a worker never takes down (or hangs) the pool:
+    - exceptions become ('error', "<Type>: <message>\n<traceback>")
+    - sys.exit() inside a worker (or a helper it calls) becomes ('error', ...). Left alone, SystemExit kills the pool
+      process, its result is never returned, and the parent waits forever.
+    """
+
+    def __init__(self, worker_function):
+        self.worker_function = worker_function
+
+    def __call__(self, item):
+        try:
+            return self.worker_function(item)
+        except SystemExit as e:
+            code = e.code if e.code is not None else 0
+            if code == 0:
+                return ("success", None)
+            return ("error", f"Worker exited with status {code} (see messages above or the log for details).")
+        except Exception as e:
+            return ("error", f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
 
 
 def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strategy="report_and_continue", 
@@ -1017,22 +1427,27 @@ def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strat
     Robust parallel processing executor with configurable error handling.
     
     Parameters:
-    - worker_function: The function to execute in parallel
+    - worker_function: The function to execute in parallel. It should return None, ('success', value) or
+                       ('error', message). Exceptions and sys.exit() calls inside it are caught and treated as errors.
     - inputs: List of inputs for the worker function
     - pool_size: Number of processes in the pool
     - error_strategy: Strategy for handling errors:
         - "report_and_continue": Log errors but continue processing (default)
-        - "report_and_stop": Log errors and stop on first error
+        - "report_and_stop": Log errors and stop on first error (raises WorkerError)
         - "ignore_and_continue": Silently ignore errors and continue
         - "collect_errors": Collect all errors and return them
     - log_object: Logger object for error reporting
     - description: Description of the operation for logging
     
+    Terminal output stays short (one line per failed item, plus a summary line); full error messages and tracebacks
+    go to the log.
+
     Returns:
-    - Dictionary with 'success_count', 'error_count', 'errors' (if collect_errors strategy)
+    - Dictionary with 'success_count', 'error_count', 'total_processed' and 'errors' (if collect_errors strategy)
     """
     import tqdm
-    
+
+    inputs = list(inputs)
     success_count = 0
     error_count = 0
     errors = []
@@ -1041,52 +1456,53 @@ def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strat
         msg = f"Starting {description} for {len(inputs)} items using {pool_size} processes"
         log_object.info(msg)
         sys.stdout.write(msg + "\n")
-    
-    actual_worker = worker_function
-    
-    p = multiprocessing.Pool(pool_size)
-    try:
-        with tqdm.tqdm(p.imap_unordered(actual_worker, inputs), total=len(inputs), desc=description) as pbar:
-            for result in pbar:
-                if result is None or (isinstance(result, tuple) and result[0] == "success"):
-                    success_count += 1
-                elif isinstance(result, tuple) and result[0] == "error":
-                    error_count += 1
-                    error_info = result[1]
-                    
-                    if "report" in error_strategy:
-                        error_msg = f"Error in {description}: {error_info}"
-                        if log_object:
-                            log_object.warning(error_msg)
-                        sys.stderr.write(f"Warning - {error_msg}\n")
 
+    def _report(pbar, error_info):
+        if log_object:
+            log_object.warning(f"Error in {description}: {error_info}")
+        pbar.write(f"Warning - error in {description}: {first_line(error_info)}", file=sys.stderr)
+
+    stop_error = None
+    pool = multiprocessing.Pool(max(1, int(pool_size)))
+    try:
+        with tqdm.tqdm(pool.imap_unordered(_SafeWorker(worker_function), inputs), total=len(inputs),
+                       desc=description) as pbar:
+            for result in pbar:
+                if isinstance(result, tuple) and len(result) >= 1 and result[0] == "error":
+                    error_count += 1
+                    error_info = result[1] if len(result) > 1 else "unknown error"
+                    if "report" in error_strategy:
+                        _report(pbar, error_info)
                     if error_strategy == "collect_errors":
                         errors.append(error_info)
                     elif error_strategy == "report_and_stop":
-                        # Ensure the pool is terminated to avoid hanging workers
-                        p.terminate()
-                        p.join()
-                        raise RuntimeError(f"Stopping due to worker error: {error_info}")
+                        stop_error = error_info
+                        break
                 else:
                     success_count += 1
-                
     except Exception as e:
-        error_msg = f"Critical error in {description}: {str(e)}"
+        # Pool-level failure (e.g. an input or result that cannot be pickled); items not returned count as errors.
+        error_info = f"{type(e).__name__}: {e}"
         if log_object:
-            log_object.error(error_msg)
-        sys.stderr.write(f"Error: {error_msg}\n")
-        if error_strategy in ["report_and_stop"]:
-            raise
-    finally:
-        try:
-            p.close()
-        except Exception:
-            pass
-        try:
-            p.join()
-        except Exception:
-            pass
-    
+            log_object.error(f"Critical error in {description}: {error_info}\n{traceback.format_exc()}")
+        sys.stderr.write(f"Error: critical error in {description}: {first_line(error_info)}\n")
+        pool.terminate()
+        pool.join()
+        if error_strategy == "report_and_stop":
+            raise WorkerError(f"{description} failed: {first_line(error_info)}") from e
+        error_count = len(inputs) - success_count
+        if error_strategy == "collect_errors":
+            errors.append(error_info)
+    else:
+        if stop_error is not None:
+            pool.terminate()
+        else:
+            pool.close()
+        pool.join()
+
+    if stop_error is not None:
+        raise WorkerError(f"Stopping {description} due to worker error: {first_line(stop_error)}")
+
     result_summary = {
         'success_count': success_count,
         'error_count': error_count,
@@ -1095,10 +1511,63 @@ def robust_multiprocess_executor(worker_function, inputs, pool_size, error_strat
     
     if error_strategy == "collect_errors":
         result_summary['errors'] = errors
+
+    if error_count and error_strategy != "ignore_and_continue":
+        sys.stderr.write(
+            f"Warning - {error_count} of {len(inputs)} items failed during {description}"
+            + ("; see the log for details.\n" if log_object else ".\n")
+        )
     
     if log_object:
         log_object.info(f"Completed {description}: {success_count} successful, {error_count} errors")
     
+    return result_summary
+
+
+def robust_serial_executor(worker_function, inputs, error_strategy="report_and_continue", log_object=None,
+                           description="processing") -> Dict[str, Any]:
+    """
+    Single-process counterpart of robust_multiprocess_executor with the same worker contract, error strategies and
+    return value. Used where multiprocessing is unavailable or as a fallback when the pool itself fails.
+    """
+    import tqdm
+
+    safe_worker = _SafeWorker(worker_function)
+    success_count = 0
+    error_count = 0
+    errors = []
+    inputs = list(inputs)
+    with tqdm.tqdm(inputs, total=len(inputs), desc=description) as pbar:
+        for item in pbar:
+            result = safe_worker(item)
+            if isinstance(result, tuple) and len(result) >= 1 and result[0] == "error":
+                error_count += 1
+                error_info = result[1] if len(result) > 1 else "unknown error"
+                if "report" in error_strategy:
+                    if log_object:
+                        log_object.warning(f"Error in {description}: {error_info}")
+                    pbar.write(f"Warning - error in {description}: {first_line(error_info)}", file=sys.stderr)
+                if error_strategy == "collect_errors":
+                    errors.append(error_info)
+                elif error_strategy == "report_and_stop":
+                    raise WorkerError(f"Stopping {description} due to worker error: {first_line(error_info)}")
+            else:
+                success_count += 1
+
+    result_summary = {
+        'success_count': success_count,
+        'error_count': error_count,
+        'total_processed': success_count + error_count
+    }
+    if error_strategy == "collect_errors":
+        result_summary['errors'] = errors
+    if error_count and error_strategy != "ignore_and_continue":
+        sys.stderr.write(
+            f"Warning - {error_count} of {len(inputs)} items failed during {description}"
+            + ("; see the log for details.\n" if log_object else ".\n")
+        )
+    if log_object:
+        log_object.info(f"Completed {description}: {success_count} successful, {error_count} errors")
     return result_summary
 
 
@@ -1108,10 +1577,11 @@ def multi_process_safe(input_cmd: List[str]) -> Tuple[str, Union[str, None]]:
     Returns ('success', None) on success or ('error', error_message) on failure.
     """
     try:
-        result = subprocess.run(" ".join(input_cmd), shell=True, stderr=subprocess.PIPE,
+        cmd_str = cmd_to_shell_str(input_cmd)
+        result = subprocess.run(cmd_str, shell=True, stderr=subprocess.PIPE,
                                 stdout=subprocess.PIPE, text=True, executable='/bin/bash')
         if result.returncode != 0:
-            msg = f"Command failed with exit code {result.returncode}: {' '.join(input_cmd)}"
+            msg = f"Command failed with exit code {result.returncode}: {cmd_str}"
             if result.stderr:
                 msg += f"\nSTDERR:\n{result.stderr}"
             if result.stdout:
@@ -1121,7 +1591,7 @@ def multi_process_safe(input_cmd: List[str]) -> Tuple[str, Union[str, None]]:
     except FileNotFoundError:
         return ('error', f"Command not found: {input_cmd[0]}")
     except Exception as e:
-        return ('error', f"An unexpected error occurred while running {' '.join(input_cmd)}: {e}")
+        return ('error', f"An unexpected error occurred while running {cmd_to_shell_str(input_cmd)}: {e}")
 
 
 def setup_ready_directory(directories, delete_if_exist=False) -> None:
@@ -1134,7 +1604,8 @@ def setup_ready_directory(directories, delete_if_exist=False) -> None:
     ********************************************************************************************************************
     """
     try:
-        assert type(directories) is list
+        if not (type(directories) is list):
+            raise AssertionError()
         for d in directories:
             if os.path.isdir(d):
                 if delete_if_exist:
@@ -1148,9 +1619,7 @@ def setup_ready_directory(directories, delete_if_exist=False) -> None:
                         sys.exit(0)
                     
                     shutil.rmtree(d)
-                    try:
-                        assert not os.path.isdir(d)
-                    except AssertionError:
+                    if not (not os.path.isdir(d)):
                         msg = f"Directory {d} still exists after deletion attempt!"
                         sys.stderr.write(msg + "\n")
                         sys.exit(1)
@@ -1168,7 +1637,7 @@ def setup_ready_directory(directories, delete_if_exist=False) -> None:
     except Exception:
         msg = "Issues with creating up or recreating directories."
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1222,16 +1691,15 @@ def is_genbank(gbk, check_for_cds=False) -> bool:
     try:
         recs = 0
         cds_flag = False
-        assert (
-            gbk.endswith(".gbk")
+        if not (gbk.endswith(".gbk")
             or gbk.endswith(".gbff")
             or gbk.endswith(".gbk.gz")
             or gbk.endswith(".gbff.gz")
             or gbk.endswith(".gb")
             or gbk.endswith(".gb.gz")
             or gbk.endswith("genbank")
-            or gbk.endswith(".genbank.gz")
-        )
+            or gbk.endswith(".genbank.gz")):
+            raise AssertionError()
         if gbk.endswith(".gz"):
             with gzip.open(gbk, "rt") as ogf:
                 for rec in SeqIO.parse(ogf, "genbank"):
@@ -1305,9 +1773,9 @@ def check_valid_genbank(
                         except Exception as e:
                             pass
                         if use_either_lt_or_pi:
-                            if lt == None and pi != None:
+                            if lt is None and pi is not None:
                                 lt = pi
-                        if lt == None:
+                        if lt is None:
                             lt_is_none = True
                         if lt and ("," in lt or "|" in lt):
                             lt_has_comma_or_pipe = True
@@ -1377,7 +1845,7 @@ def convert_genbank_to_cds_prots_fasta(
                         except Exception as e:
                             pass
                         if use_either_lt_or_pi:
-                            if lt == None and pi != None:
+                            if lt is None and pi is not None:
                                 lt = pi
                         try:
                             prot_seq = feature.qualifiers.get("translation")[0]
@@ -1392,7 +1860,7 @@ def convert_genbank_to_cds_prots_fasta(
         log_object.error( #
             "Difficulties in processing input GenBank and converting to protein fasta. Please make sure translation and locus_tag fields are available for GenBank!"
         )
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1421,7 +1889,7 @@ def prodigal_and_reformat_core(
     ********************************************************************************************************************
     """
     try:
-        from Bio.SeqFeature import SeqFeature, FeatureLocation
+        from Bio.SeqFeature import SeqFeature, SimpleLocation
         
         # Ensure output directory exists
         if not os.path.isdir(outdir):
@@ -1429,9 +1897,8 @@ def prodigal_and_reformat_core(
         
         # Check if uncompression needed
         if input_genomic_fasta_file.endswith('.gz'):
-            os.system(f'cp {input_genomic_fasta_file} {outdir}')
             updated_genomic_fasta_file = outdir + input_genomic_fasta_file.split('/')[-1].split('.gz')[0]
-            os.system(f'gunzip {updated_genomic_fasta_file}.gz')
+            gunzip_file(input_genomic_fasta_file, updated_genomic_fasta_file)
             input_genomic_fasta_file = updated_genomic_fasta_file
         
         if not is_fasta(input_genomic_fasta_file):
@@ -1511,7 +1978,7 @@ def prodigal_and_reformat_core(
                     pstrand = prot_locations[prot[0]][3]
                     
                     feature = SeqFeature(
-                        FeatureLocation(start=pstart-1, end=pend, strand=pstrand),
+                        SimpleLocation(start=pstart-1, end=pend, strand=pstrand),
                         type='CDS'
                     )
                     feature.qualifiers['locus_tag'] = prot[0]
@@ -1644,15 +2111,14 @@ def parse_genbank_for_cds_proteins_and_dna(
                     if allow_edge_cds or not edgy_cds:
                         proteins[lt] = final_prot_seq
                         nucleotides[lt] = final_nucl_seq
-                        if upstream_region != None:
+                        if upstream_region is not None:
                             upstream_regions[lt] = final_upstream_region
 
         return [proteins, nucleotides, upstream_regions]
     except Exception as e:
         sys.stderr.write(f"Issues with parsing the GenBank {gbk}\n")
         log_object.error(f"Issues with parsing the GenBank {gbk}")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1831,7 +2297,8 @@ def check_core_homolog_groups_exist(ortho_matrix_file) -> bool:
                         sample_count += 1
                 if sample_count / float(len(ls[1:])) == 1.0:
                     core_hgs.add(hg)
-        assert len(core_hgs) != 0
+        if not (len(core_hgs) != 0):
+            raise AssertionError()
         return True
     except Exception as e:
         return False
@@ -1947,35 +2414,36 @@ def process_genomes_using_miniprot(
             log_object.error(msg)
             sys.exit(1)
 
-        gzip_cmds = []
+        compress_inputs = []
         for sample in sample_genomes:
             try:
                 sample_mp_gbk = additional_genbanks_directory + sample + ".gbk"
-                gzip_cmds.append(['gzip', sample_mp_gbk])
+                compress_inputs.append(sample_mp_gbk)
                 sample_mp_faa = (
                     additional_proteomes_directory + sample + ".faa"
                 )
-                assert os.path.isfile(sample_mp_gbk) and os.path.isfile(sample_mp_faa)
+                if not (os.path.isfile(sample_mp_gbk) and os.path.isfile(sample_mp_faa)):
+                    raise AssertionError()
             except Exception as e:
                 sys.stderr.write(
                     f"Unable to validate successful GenBank/predicted-proteome creation for sample {sample}"
                 )
-                sys.stderr.write(traceback.format_exc())
+                report_cause(fallback_traceback=True)
                 sys.exit(1)
    
-        # Use robust error handling for gzip compression after miniprot
+        # Use robust error handling for zstd compression after miniprot
         result_summary = robust_multiprocess_executor(
-            worker_function=multi_process_safe,
-            inputs=gzip_cmds,
+            worker_function=compress_file_with_zstd,
+            inputs=compress_inputs,
             pool_size=threads,
             error_strategy="report_and_stop", 
             log_object=log_object,
-            description="gzip compression (post-miniprot)"
+            description="zstd compression (post-miniprot)"
         )
    
         success_prop = result_summary['success_count'] / result_summary['total_processed']
         if success_prop != 1.0:
-            msg = f"Issues with gzip compression of miniprot-based GenBanks for at least one sample. Exiting now ..."
+            msg = f"Issues with zstd compression of miniprot-based GenBanks for at least one sample. Exiting now ..."
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
             sys.exit(1)
@@ -1984,8 +2452,7 @@ def process_genomes_using_miniprot(
         log_object.error(
             "Problem with creating commands for running miniprot or convertMiniprotGffToGbkAndProt.py. Exiting now ..."
         )
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 def process_genomes_using_prodigal(
@@ -2071,44 +2538,39 @@ def process_genomes_using_prodigal(
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
-        gzip_cmds = []
+        compress_inputs = []
         for sample in sample_genomes:
             try:
-                assert os.path.isfile(prodigal_outdir + sample + ".faa") and os.path.isfile(prodigal_outdir + sample + ".gbk")
-                os.system(
-                    f"mv {prodigal_outdir + sample + '.gbk'} {prodigal_genbanks}"
-                )
-                gzip_cmds.append(['gzip', prodigal_genbanks + sample + '.gbk'])
-                os.system(
-                    f"mv {prodigal_outdir + sample + '.faa'} {prodigal_proteomes}"
-                )
+                if not (os.path.isfile(prodigal_outdir + sample + ".faa") and os.path.isfile(prodigal_outdir + sample + ".gbk")):
+                    raise AssertionError()
+                shutil.move(prodigal_outdir + sample + '.gbk', prodigal_genbanks + sample + '.gbk')
+                compress_inputs.append(prodigal_genbanks + sample + '.gbk')
+                shutil.move(prodigal_outdir + sample + '.faa', prodigal_proteomes + sample + '.faa')
             except Exception as e:
                 sys.stderr.write(
                     f"Unable to validate successful GenBank/predicted-proteome creation for sample {sample}\n"
                 )
                 sys.stderr.write(traceback.format_exc())
 
-        try:
-            assert(len(gzip_cmds) >= 1)
-        except Exception as e:
+        if not (len(compress_inputs) >= 1):
             msg = f"Unable to validate successful GenBank/predicted-proteome creation for at least one sample. Exiting now ..."
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
             sys.exit(1)
 
-        # Use robust error handling for gzip compression after prodigal
+        # Use robust error handling for zstd compression after prodigal
         result_summary = robust_multiprocess_executor(
-            worker_function=multi_process_safe,
-            inputs=gzip_cmds,
+            worker_function=compress_file_with_zstd,
+            inputs=compress_inputs,
             pool_size=threads,
             error_strategy="report_and_stop",
             log_object=log_object,
-            description="gzip compression (post-prodigal)"
+            description="zstd compression (post-prodigal)"
         )
 
         success_prop = result_summary['success_count'] / result_summary['total_processed']
         if success_prop != 1.0:
-            msg = f"Issues with gzip compression of prodigal-based GenBanks for at least one sample. Exiting now ..."
+            msg = f"Issues with zstd compression of prodigal-based GenBanks for at least one sample. Exiting now ..."
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
             sys.exit(1)
@@ -2117,8 +2579,7 @@ def process_genomes_using_prodigal(
         log_object.error(
             "Problem with creating commands for running prodigal via script runProdigalAndMakeProperGenbank.py. Exiting now ..."
         )
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2243,26 +2704,24 @@ def process_genomes_as_genbanks(
                     error_summary_file_handle.write(sample_err_msg) # type: ignore
 
         successfully_processed = 0
-        gzip_cmds = []
+        compress_inputs = []
         for sample in sample_genomes:
             faa_file = proteomes_directory + sample + ".faa"
             gbk_file = genbanks_directory + sample + ".gbk"
             map_file = gene_name_mapping_outdir + sample + ".txt"
             try:
-                assert (
-                    os.path.isfile(faa_file)
+                if not (os.path.isfile(faa_file)
                     and os.path.isfile(gbk_file)
-                    and os.path.isfile(map_file)
-                )
-                assert (
-                    os.path.getsize(faa_file) > 0
+                    and os.path.isfile(map_file)):
+                    raise AssertionError()
+                if not (os.path.getsize(faa_file) > 0
                     and os.path.getsize(gbk_file) > 0
-                    and os.path.getsize(map_file) > 0
-                )
+                    and os.path.getsize(map_file) > 0):
+                    raise AssertionError()
                 sample_genomes_updated[sample] = (
                     genbanks_directory + sample + ".gbk"
                 )
-                gzip_cmds.append(["gzip", gbk_file])
+                compress_inputs.append(gbk_file)
                 successfully_processed += 1
             except AssertionError:
                 if os.path.isfile(faa_file):
@@ -2286,19 +2745,19 @@ def process_genomes_as_genbanks(
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
-        # Use robust error handling for gzip compression after GenBank processing
+        # Use robust error handling for zstd compression after GenBank processing
         result_summary = robust_multiprocess_executor(
-            worker_function=multi_process_safe,
-            inputs=gzip_cmds,
+            worker_function=compress_file_with_zstd,
+            inputs=compress_inputs,
             pool_size=threads,
             error_strategy="report_and_stop",
             log_object=log_object,
-            description="gzip compression (post-GenBank processing)"
+            description="zstd compression (post-GenBank processing)"
         )
 
         success_prop = result_summary['success_count'] / result_summary['total_processed']
         if success_prop != 1.0:
-            msg = f"Issues with gzip compression of GenBanks for at least one sample. Exiting now ..."
+            msg = f"Issues with zstd compression of GenBanks for at least one sample. Exiting now ..."
             sys.stderr.write(msg + '\n')
             log_object.error(msg)
             sys.exit(1)
@@ -2307,8 +2766,7 @@ def process_genomes_as_genbanks(
         log_object.error(
             "Problem with processing existing Genbanks to (re)create genbanks/proteomes. Exiting now ..." \
         )
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
     return sample_genomes_updated
 
@@ -2384,9 +2842,7 @@ def parse_sample_genomes(
                 assess_inputs.append(
                     [sample, genome_file, format_assess_dir]
                 )
-                try:
-                    assert os.path.isfile(genome_file)
-                except Exception as e:
+                if not (os.path.isfile(genome_file)):
                     log_object.warning(
                         f"Problem with finding genome file {genome_file} for sample {sample}, skipping"
                     )
@@ -2418,8 +2874,13 @@ def parse_sample_genomes(
         sys.stdout.write(msg + '\n')
         log_object.info(msg)
 
-        os.system(
-            f"find {format_assess_dir} -maxdepth 1 -type f | xargs cat >> {format_predictions_file}"
+        concat_files(
+            sorted(
+                os.path.join(format_assess_dir, f) for f in os.listdir(format_assess_dir)
+                if os.path.isfile(os.path.join(format_assess_dir, f))
+            ),
+            format_predictions_file,
+            append=True,
         )
 
         format_prediction = "mixed"
@@ -2448,8 +2909,7 @@ def parse_sample_genomes(
         log_object.error(
             "Problem with creating commands for running Prodigal. Exiting now ..."
         )
-        log_object.error(traceback.format_exc())
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2516,8 +2976,7 @@ def filter_records_near_scaffold_edge(
         log_object.error(
             f"Issue parsing GenBank {gbk} and CDS locus tag renaming."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2609,8 +3068,7 @@ def rename_cds_locus_tag(
         log_object.error(
             f"Issue parsing GenBank {gbk} and CDS locus tag renaming."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2650,7 +3108,7 @@ def parse_gbk(
                     except Exception as e:
                         pass
                     if use_either_lt_or_pi:
-                        if lt == None and pi != None:
+                        if lt is None and pi is not None:
                             lt = pi
 
                     start, end, direction, all_coords = process_location_string(
@@ -2668,8 +3126,7 @@ def parse_gbk(
     except Exception as e:
         sys.stderr.write(f"Issue parsing GenBank {gbk}\n")
         log_object.error(f"Issue parsing GenBank {gbk}") # type: ignore
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2707,8 +3164,10 @@ def gather_annotation_from_dict_for_homolog_group(hg, db, annot_dict) -> str:
     ********************************************************************************************************************
     """
     try:
-        assert db in annot_dict
-        assert hg in annot_dict[db]
+        if not (db in annot_dict):
+            raise AssertionError()
+        if not (hg in annot_dict[db]):
+            raise AssertionError()
         
         # Handle new data structure with "descriptions", "evalues", and "hits" keys
         if "descriptions" in annot_dict[db][hg] and "evalues" in annot_dict[db][hg]:
@@ -2723,6 +3182,40 @@ def gather_annotation_from_dict_for_homolog_group(hg, db, annot_dict) -> str:
                 )
 
         return "NA"
+    except Exception as e:
+        return "NA"
+
+
+def format_pfam_annotations(hg, annot_dict) -> str:
+    """
+    Description:
+    This function formats Pfam domain annotations for an ortholog group as "PF00109: description; PF02801: description"
+    (accession version suffixes are dropped), preserving the order in which domains were reported.
+    ********************************************************************************************************************
+    Parameters:
+    - hg: The ortholog group identifier.
+    - annot_dict: The dictionary with annotation information (from zol.annotate_consensus_sequences).
+    ********************************************************************************************************************
+    Returns:
+    - A string with the Pfam domain accessions and descriptions or "NA" if no Pfam domains were found.
+    ********************************************************************************************************************
+    """
+    try:
+        if "pfam" not in annot_dict or hg not in annot_dict["pfam"]:
+            return "NA"
+        descriptions = annot_dict["pfam"][hg]["descriptions"]
+        accessions = annot_dict["pfam"][hg].get("hits", [])
+        formatted = []
+        for i, desc in enumerate(descriptions):
+            acc = accessions[i] if i < len(accessions) else "NA"
+            acc = str(acc).strip().split(".")[0]
+            if acc in ("", "NA"):
+                formatted.append(desc)
+            else:
+                formatted.append(f"{acc}: {desc}")
+        if len(formatted) == 0:
+            return "NA"
+        return "; ".join(formatted)
     except Exception as e:
         return "NA"
 
@@ -2777,7 +3270,7 @@ def load_table_in_panda_data_frame_from_string(input_string) -> pd.DataFrame:
         panda_df = pd.DataFrame(panda_dict)
 
     except Exception as e:
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
     return panda_df
 
@@ -2816,7 +3309,7 @@ def load_table_in_panda_data_frame(input_file, numeric_columns) -> pd.DataFrame:
         panda_df = pd.DataFrame(panda_dict)
 
     except Exception as e:
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
     return panda_df
 
@@ -2862,11 +3355,7 @@ def parse_genbank_and_find_boundary_genes(inputs) -> Tuple[str, Optional[str]]:
         gene_order_to_id = defaultdict(dict)
 
         sample, sample_genbank, pkl_result_file = inputs
-        osg = None
-        if sample_genbank.endswith(".gz"):
-            osg = gzip.open(sample_genbank, "rt")
-        else:
-            osg = open(sample_genbank)
+        osg = open_text_file(sample_genbank)
 
         for rec in SeqIO.parse(osg, "genbank"):
             scaffold = rec.id
@@ -2930,16 +3419,10 @@ def parse_genbank_and_find_boundary_genes(inputs) -> Tuple[str, Optional[str]]:
 def convert_genome_genbank_to_fasta(inputs) -> Tuple[str, Optional[str]]:
     try:
         input_gbk, output_fasta = inputs
-        if input_gbk.endswith(".gz"):
-            with open(output_fasta, "w") as output_fasta_handle:
-                with gzip.open(input_gbk, "rt") as oig:
-                    for rec in SeqIO.parse(oig, "genbank"):
-                        output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
-        else:
-            with open(output_fasta, "w") as output_fasta_handle:
-                with open(input_gbk) as oig:
-                    for rec in SeqIO.parse(oig, "genbank"):
-                        output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
+        with open(output_fasta, "w") as output_fasta_handle:
+            with open_text_file(input_gbk) as oig:
+                for rec in SeqIO.parse(oig, "genbank"):
+                    output_fasta_handle.write(f">{rec.id}\n{str(rec.seq)}\n")
         return ('success', None)
     except Exception as e:
         error_msg = f"Error converting GenBank to FASTA for {inputs[0]}: {str(e)}"
@@ -2974,10 +3457,10 @@ def create_nj_tree(
             conversion_inputs = []
             all_samples = set([])
             for f in os.listdir(additional_genbanks_directory):
-                if not f.endswith(".gbk.gz"):
+                if not (f.endswith(TG_GENBANK_SUFFIX) or f.endswith(".gbk.gz")):
                     continue
                 input_gbk = additional_genbanks_directory + f
-                sample = ".gbk.gz".join(f.split(".gbk.gz")[:-1])
+                sample = strip_genbank_compression_suffix(f)
                 output_fasta = tmp_genome_fasta_dir + (sample + ".fasta") 
                 all_samples.add(sample)
                 conversion_inputs.append([input_gbk, output_fasta])
@@ -3044,25 +3527,18 @@ def create_nj_tree(
                 dist_matrix_handle.write("\t".join(printlist) + "\n")
             
 
-        rscript_path = workspace_dir + "generateNjTree.R"
         unrooted_tree_file = workspace_dir + "Unrooted_Species_Tree.nwk"
-        generate_nj_tree(
-            rscript_path, dist_matrix_file, unrooted_tree_file, log_object
-        )
-        nj_tree_cmd = ["Rscript", rscript_path]
-        run_cmd_via_subprocess(nj_tree_cmd, log_object=log_object, check_files=[unrooted_tree_file])
+        from zol import plotting
+        plotting.write_nj_tree_from_distance_file(dist_matrix_file, unrooted_tree_file)
 
-        # Midpoint the tree using ete3
-        t = Tree(unrooted_tree_file)
-        R = t.get_midpoint_outgroup()
-        t.set_outgroup(R)
+        # Midpoint root the tree
+        t = plotting.midpoint_root(Tree(unrooted_tree_file))
         t.write(outfile=species_tree, format=1)
 
     except Exception as e:
         sys.stderr.write("Issues with creating species tree.\n")
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         log_object.error("Issues with creating species tree.")
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
@@ -3100,9 +3576,8 @@ def clean_up(clean_up_dirs_and_files, log_object) -> None:
     except Exception as e:
         msg = "Issues with cleaning up files / directories."
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        report_cause(fallback_traceback=True)
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 def diamond_blast_and_get_best_hits(
@@ -3271,29 +3746,22 @@ def diamond_blast_and_get_best_hits(
         sys.stderr.write(
             "Issues with running simple BLASTp for abon, atpoc, or apos.\n"
         )
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         log_object.error(
             "Issues with running simple BLASTp for abon, atpoc, or apos.\n"
         )
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
 def diamond_blast(inputs) -> Tuple[str, Optional[str]]:
+    """
+    All-vs-all DIAMOND blastp of one ortholog group's proteins (for determine_fai_param_recommendations). The FASTA
+    file is used directly as the database (no makedb step), all hits are reported (-k0, so ortholog groups with many
+    members are not truncated at DIAMOND's default of 25 hits per query), and the sensitivity matches fai's default
+    (very-sensitive) so the recommended E-value reflects how fai will search. inputs is [og_prot_file, og_blast_file].
+    """
     try:
-        og_prot_file, og_prot_dmnd_db, og_blast_file = inputs
-
-        makedb_cmd = [
-            "diamond",
-            "makedb",
-            "--ignore-warnings",
-            "--in",
-            og_prot_file,
-            "-d",
-            og_prot_dmnd_db,
-            "--threads",
-            "1"
-        ]
+        og_prot_file, og_blast_file = inputs
         search_cmd = [
             "diamond",
             "blastp",
@@ -3301,20 +3769,19 @@ def diamond_blast(inputs) -> Tuple[str, Optional[str]]:
             "-p",
             "1",
             "-d",
-            og_prot_dmnd_db,
+            og_prot_file,
             "-q",
             og_prot_file,
             "-o",
             og_blast_file,
+            "-k0",
+            "--very-sensitive",
         ]
 
         # Do not exit from inside worker; propagate failure via return value
-        run_cmd_via_subprocess(makedb_cmd, check_files=[og_prot_dmnd_db], verbose=False, exit_on_error=False)
-            
         run_cmd_via_subprocess(search_cmd, check_files=[og_blast_file], verbose=False, exit_on_error=False)
-        # Check outputs; if missing, treat as error
-        if not os.path.isfile(og_prot_dmnd_db) or not os.path.isfile(og_blast_file):
-            return ('error', f"Missing expected output files for {og_prot_file}")
+        if not os.path.isfile(og_blast_file):
+            return ('error', f"Missing expected output file for {og_prot_file}")
         return ('success', None)
     except Exception as e:
         error_msg = f"Error in diamond_blast for {inputs[0]}: {str(e)}"
@@ -3366,13 +3833,12 @@ def determine_fai_param_recommendations(
 
         diamond_self_blasting_inputs = []
         for f in os.listdir(hg_prot_dir):
+            if not f.endswith(".faa"):
+                continue
             og = f.split(".faa")[0]
             og_prot_file = hg_prot_dir + f
             og_blast_file = self_blast_dir + og + ".txt"
-            og_prot_dmnd_db = hg_prot_dir + f
-            diamond_self_blasting_inputs.append(
-                [og_prot_file, og_prot_dmnd_db, og_blast_file]
-            )
+            diamond_self_blasting_inputs.append([og_prot_file, og_blast_file])
 
         # Use robust error handling for DIAMOND blast processing
         result_summary = robust_multiprocess_executor(
@@ -3477,7 +3943,7 @@ def determine_fai_param_recommendations(
             ):
                 is_nc = lt_info[3]
                 if is_nc:
-                    if last_nc != None:
+                    if last_nc is not None:
                         cbn = i - last_nc
                         cds_between_ncs.append(cbn)
                     last_nc = i
@@ -3640,17 +4106,17 @@ def determine_fai_param_recommendations(
                 "fai",
                 "--threads",
                 "4",
-                "--output - dir",
+                "--output-dir",
                 "fai_Search_Results/",
-                "--draft - mode",
-                "--filter - paralogs",
+                "--draft-mode",
+                "--filter-paralogs",
             ]
 
             if maximum_of_maximum_evalues != "NA":
-                fai_cmd += ["--evalue - cutoff", str(maximum_of_maximum_evalues)]
+                fai_cmd += ["--evalue-cutoff", str(maximum_of_maximum_evalues)]
 
             if prop_ref_cds_nc != "NA":
-                fai_cmd += ["--min - prop", str(max(prop_ref_cds_nc, 0.25))]
+                fai_cmd += ["--min-prop", str(max(prop_ref_cds_nc, 0.25))]
 
             if max_distance_between_ncs != "NA":
                 fai_cmd += [
@@ -3659,7 +4125,7 @@ def determine_fai_param_recommendations(
                 ]
 
             fai_cmd += [
-                "key-protein-queries",
+                "--key-protein-queries",
                 near_core_prots_faa_file,
                 "--key-protein-min-prop",
                 "0.5",
@@ -3676,17 +4142,17 @@ def determine_fai_param_recommendations(
             )
         
 
-        os.system(f"cat {parameter_recommendations_file}")
+        with open(parameter_recommendations_file) as prf_handle:
+            sys.stdout.write(prf_handle.read())
 
     except Exception as e:
         sys.stderr.write(
             "Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n"
         )
-        sys.stderr.write(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         log_object.error(
             "Issue with determining parameter recommendations for running fai based on quick zol analysis of known gene cluster instances.\n"
         )
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
@@ -3721,7 +4187,7 @@ def run_pyhmmer_for_ribo_prots(
                 except Exception as e:
                     pass
 
-            if db_locations == None or not os.path.exists(db_locations):
+            if db_locations is None or not os.path.exists(db_locations):
                 sys.stderr.write(
                     "Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n"
                 )
@@ -3736,7 +4202,8 @@ def run_pyhmmer_for_ribo_prots(
                         if name == "riboprots":
                             rp_db_file = db_file
 
-            assert rp_db_file != None and os.path.exists(rp_db_file)
+            if not (rp_db_file is not None and os.path.exists(rp_db_file)):
+                raise AssertionError()
         except Exception as e:
             msg = \
      "Issues validating that the ribosomal proteins file is available. Downloading from Zenodo to output directory."
@@ -3753,6 +4220,7 @@ def run_pyhmmer_for_ribo_prots(
                 msg = "Unable to download ribosomal proteins file from Zenodo."
                 log_object.error(msg)
                 sys.stderr.write(msg + "\n")
+                report_cause()
                 sys.exit(1)
 
             # Download
@@ -3767,83 +4235,57 @@ def run_pyhmmer_for_ribo_prots(
                         "-o",
                         rp_db_file,
                     ]
-                    os.system(" ".join(curl_download_dbs_cmd))
-                    assert os.path.exists(rp_db_file)
-                    os.system(" ".join(["hmmpress", rp_db_file]))
+                    run_cmd_simple(curl_download_dbs_cmd)
+                    if not (os.path.exists(rp_db_file)):
+                        raise AssertionError()
+                    run_cmd_simple(["hmmpress", rp_db_file])
             except Exception as e:
                 sys.stderr.write("Error occurred during downloading!\n")
                 log_object.error(
                     "Error occurred during downloading with curl.\n"
                 )
+                report_cause()
                 sys.exit(1)
             os.chdir(curr_path)
 
-        def _name_str(obj: Any) -> str:
-            """pyhmmer may return name as bytes or str depending on version."""
-            if isinstance(obj, bytes):
-                return obj.decode()
-            return str(obj)
-
-        hmm_lengths: Dict[str, Any] = {}
         z = 0
         try:
             with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
-                for hmm in hmm_file:
-                    hmm_lengths[_name_str(hmm.name)] = len(hmm.consensus) # type: ignore
+                for _ in hmm_file:
                     z += 1
         except Exception as e:
-            raise RuntimeError("Problem getting HMM consensus lengths!")
+            raise RuntimeError(f"Problem reading ribosomal protein HMM database! {e}")
 
         best_tg_faa_file = ribo_norm_dir + "Reference_Genome_All_Proteins.faa"
         with open(best_tg_faa_file, "w") as best_tg_faa_handle:
             try:
-                if best_tg_gbk_file.endswith('.gz'):
-                    with gzip.open(best_tg_gbk_file, 'rt') as obtgf:
-                        for rec in SeqIO.parse(obtgf, 'genbank'):
-                            for feat in rec.features:
-                                if feat.type == 'CDS':
-                                    lt = feat.qualifiers.get('locus_tag')[0]
-                                    prot_seq = feat.qualifiers.get('translation')[0]
-                                    best_tg_faa_handle.write(f">{lt}\n{prot_seq}\n")
-                else: 
-                    with open(best_tg_gbk_file) as obtgf:   
-                        for rec in SeqIO.parse(obtgf, "genbank"):
-                            for feat in rec.features:
-                                if feat.type == "CDS":
-                                    lt = feat.qualifiers.get("locus_tag")[0]
-                                    prot_seq = feat.qualifiers.get("translation")[0]
-                                    best_tg_faa_handle.write(f">{lt}\n{prot_seq}\n")
+                with open_text_file(best_tg_gbk_file) as obtgf:
+                    for rec in SeqIO.parse(obtgf, "genbank"):
+                        for feat in rec.features:
+                            if feat.type == "CDS":
+                                lt = feat.qualifiers.get("locus_tag")[0]
+                                prot_seq = feat.qualifiers.get("translation")[0]
+                                best_tg_faa_handle.write(f">{lt}\n{prot_seq}\n")
             except Exception as e:
                 raise RuntimeError("Problem processing full genome GenBank file.")
         
 
-        alphabet = pyhmmer.easel.Alphabet.amino()
-        sequences = []
-        with pyhmmer.easel.SequenceFile(
-            best_tg_faa_file, digital=True, alphabet=alphabet
-        ) as seq_file:
-            sequences = list(seq_file)
+        sequences = pyhmmer_load_sequences(best_tg_faa_file)
 
         reference_ribo_prots = set([])
-        with pyhmmer.plan7.HMMFile(rp_db_file) as hmm_file:
-            for hits in pyhmmer.hmmsearch(
-                hmm_file,
-                sequences,
-                bit_cutoffs="trusted",
-                Z=int(z),
-                cpus=threads,
-            ):
-                for hit in hits:
-                    # solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com / althonos / pyhmmer / issues / 27
-                    n_aligned_positions = len(
-                        hit.best_domain.alignment.hmm_sequence
-                    ) - hit.best_domain.alignment.hmm_sequence.count(".")
-                    hmm_coverage = (
-                        n_aligned_positions
-                        / hmm_lengths[_name_str(hit.best_domain.alignment.hmm_name)]
-                    )
-                    if hmm_coverage >= 0.25:
-                        reference_ribo_prots.add(_name_str(hit.name))
+        if len(sequences) > 0:
+            with open_hmm_profiles(rp_db_file) as hmm_file:
+                for hits in pyhmmer.hmmsearch(
+                    hmm_file,
+                    sequences,
+                    bit_cutoffs="trusted",
+                    Z=int(z),
+                    cpus=threads,
+                ):
+                    for hit in hits:
+                        hmm_coverage = pyhmmer_hmm_coverage(hit.best_domain.alignment)
+                        if hmm_coverage >= 0.25:
+                            reference_ribo_prots.add(pyhmmer_to_str(hit.name))
 
         with open(tg_query_prots_file, "a+") as tg_query_prots_handle:
             with open(best_tg_faa_file) as obtff:
@@ -3856,7 +4298,7 @@ def run_pyhmmer_for_ribo_prots(
 
     except Exception as e:
         raise RuntimeError(
-            "Problem with running pyhmmer for finding ribosomal proteins in reference genome!"
+            f"Problem with running pyhmmer for finding ribosomal proteins in reference genome! {e}"
         )
 
 
@@ -3874,49 +4316,26 @@ def run_pyhmmer_for_vo_gfor_salt(inputs) -> None:
             - threads: number of threads to use for search.
     ********************************************************************************************************************
     """
-    def _name_str(obj: Any) -> str:
-        """pyhmmer may return name as bytes or str depending on version."""
-        if isinstance(obj, bytes):
-            return obj.decode()
-        return str(obj)
-
     db_file, z, protein_faa, annotation_result_file, threads = inputs
     try:
-        hmm_lengths: Dict[str, Any] = {}
-        try:
-            with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-                for hmm in hmm_file:
-                    hmm_lengths[_name_str(hmm.name)] = len(hmm.consensus) # type: ignore
-        except Exception as e:
-            raise RuntimeError("Problem getting HMM consensus lengths!")
-
-        alphabet = pyhmmer.easel.Alphabet.amino()
-        sequences = []
-        with pyhmmer.easel.SequenceFile(
-            protein_faa, digital=True, alphabet=alphabet
-        ) as seq_file:
-            sequences = list(seq_file)
+        sequences = pyhmmer_load_sequences(protein_faa)
 
         with open(annotation_result_file, "w") as outf:
-            with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+            if len(sequences) == 0:
+                return
+            with open_hmm_profiles(db_file) as hmm_file:
                 for hits in pyhmmer.hmmsearch(
                     hmm_file, sequences, Z=int(z), cpus=threads
                 ):
+                    query_name = pyhmmer_query_name(hits)
                     for hit in hits:
-                        # solution for calcualting coverage taken from pcamargo's answer in a pyhmmer ticket on Github: https://github.com/althonos/pyhmmer/issues/27
-                        n_aligned_positions = len(
-                            hit.best_domain.alignment.hmm_sequence
-                        ) - hit.best_domain.alignment.hmm_sequence.count(".")
-                        hmm_coverage = (
-                            n_aligned_positions
-                            / hmm_lengths[_name_str(hit.best_domain.alignment.hmm_name)] # type: ignore
-                        )
+                        hmm_coverage = pyhmmer_hmm_coverage(hit.best_domain.alignment)
                         outf.write(
                             "\t".join(
                                 [
-                                    _name_str(hits.query.name),
+                                    query_name,
                                     "NA",
-                                    _name_str(hit.name),
+                                    pyhmmer_to_str(hit.name),
                                     "NA",
                                     str(hit.evalue),
                                     str(hit.score),
@@ -3969,7 +4388,7 @@ def annotate_mges(inputs) -> Tuple[str, Optional[str]]:
             except Exception as e:
                 pass
 
-        if db_locations == None or not os.path.exists(db_locations):
+        if db_locations is None or not os.path.exists(db_locations):
             sys.stderr.write(
                 "Warning: databases do not appear to be setup or setup properly - so unable to annotate!\n"
             )
@@ -4054,13 +4473,9 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
             is_annot_file,
         ) = inputs
 
-        try:
-            assert (
-                os.path.isfile(vog_annot_file)
+        if not (os.path.isfile(vog_annot_file)
                 and os.path.isfile(mobsuite_annot_file)
-                and os.path.isfile(is_annot_file)
-            )
-        except Exception as e:
+                and os.path.isfile(is_annot_file)):
             sys.stderr.write(
                 f"Issue validating the existence of one or more of the annotation files for sample: {sample}\n"
             )
@@ -4131,7 +4546,7 @@ def process_mge_annotations(inputs) -> Tuple[str, Optional[str]]:
                 )
                 + "\n"
             )
-            with gzip.open(gbk_file, "rt") as ogbf:
+            with open_text_file(gbk_file) as ogbf:
                 for rec in SeqIO.parse(ogbf, "genbank"):
                     scaffold_id = rec.id
                     scaffold_is_boundary_coords = set([])
@@ -4247,22 +4662,13 @@ def process_diamond_for_gc_to_ribo_ratio(
                 if "_fai-gene-cluster" in genome:
                     genome = genome.split("_fai-gene-cluster")[0]
                 genome_gcis[genome].add(gci)
-                if gc_gbk.endswith('.gz'):
-                    with gzip.open(gc_gbk, 'rt') as ogg:
-                        for rec in SeqIO.parse(ogg, "genbank"):
-                            for feat in rec.features:
-                                if feat.type == "CDS":
-                                    lt = feat.qualifiers.get("locus_tag")[0]
-                                    gc_prots[genome].add(lt)
-                                    lt_to_gci[genome + "|" + lt] = gci
-                else:
-                    with open(gc_gbk) as ogg:
-                        for rec in SeqIO.parse(ogg, "genbank"):
-                            for feat in rec.features:
-                                if feat.type == "CDS":
-                                    lt = feat.qualifiers.get("locus_tag")[0]
-                                    gc_prots[genome].add(lt)
-                                    lt_to_gci[genome + "|" + lt] = gci
+                with open_text_file(gc_gbk) as ogg:
+                    for rec in SeqIO.parse(ogg, "genbank"):
+                        for feat in rec.features:
+                            if feat.type == "CDS":
+                                lt = feat.qualifiers.get("locus_tag")[0]
+                                gc_prots[genome].add(lt)
+                                lt_to_gci[genome + "|" + lt] = gci
         # Use TypedDict for better type safety
         gci_query_top_hits: Dict[str, Dict[str, GciQueryTopHitInfo]] = defaultdict(
             lambda: defaultdict(
@@ -4281,7 +4687,7 @@ def process_diamond_for_gc_to_ribo_ratio(
                 query_class = query.split("|")[0]
                 rep_hit_id = ls[1]
                 all_hits = [rep_hit_id]
-                if rep_prot_to_nonreps != None:
+                if rep_prot_to_nonreps is not None:
                     if rep_hit_id in rep_prot_to_nonreps:
                         all_hits = rep_prot_to_nonreps[rep_hit_id]
                     else:
@@ -4412,13 +4818,11 @@ def process_diamond_for_gc_to_ribo_ratio(
         log_object.error(
             "Issues with processing DIAMOND results for aligning ribosomal and gene cluster proteins from the reference to the remainder of the target genomes."
         )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
 def make_gc_vs_ribo_prot_aai_scatterplot(
-    rscript_file,
     gc_to_ribo_aai_stat_file,
     gc_ribo_aai_plot_pdf_file,
     log_object,
@@ -4435,15 +4839,8 @@ def make_gc_vs_ribo_prot_aai_scatterplot(
     ********************************************************************************************************************
     """
     try:
-        generate_salt_gc_vs_ribo_aai_plot( # type: ignore
-            rscript_file,
-            gc_to_ribo_aai_stat_file,
-            gc_ribo_aai_plot_pdf_file,
-            log_object,
-        )
-        plot_cmd = ["Rscript", rscript_file]
-        run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files=[gc_ribo_aai_plot_pdf_file])
- 
+        from zol import plotting
+        plotting.plot_gc_vs_ribo_aai(gc_to_ribo_aai_stat_file, gc_ribo_aai_plot_pdf_file)
     except Exception as e:
         sys.stderr.write(
             "Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs.\n"
@@ -4451,8 +4848,7 @@ def make_gc_vs_ribo_prot_aai_scatterplot(
         log_object.error(
             "Issues with creating a scatterplot of gene cluster vs. ribosomal protein AAIs."
         )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -4517,7 +4913,7 @@ def consolidate_salty_spreadsheet(
         genome_scaffold_annot_info = defaultdict(
             lambda: defaultdict(lambda: ["NA"] * 8)
         )
-        if mge_annot_result_file != None and os.path.isfile(mge_annot_result_file):
+        if mge_annot_result_file is not None and os.path.isfile(mge_annot_result_file):
             with open(mge_annot_result_file) as omarf:
                 for i, line in enumerate(omarf):
                     if i == 0:
@@ -4589,26 +4985,15 @@ def consolidate_salty_spreadsheet(
 
                     cds_coords: Dict[str, Any] = {}
                     scaffold_lens: Dict[str, Any] = {}
-                    if genome_gbks[genome].endswith('.gz'):
-                        with gzip.open(genome_gbks[genome], 'rt') as ogg:
-                            for rec in SeqIO.parse(ogg, "genbank"):
-                                scaffold_lens[rec.id] = len(str(rec.seq))
-                                for feat in rec.features:
-                                    if feat.type == "CDS":
-                                        lt = feat.qualifiers.get("locus_tag")[0]
-                                        loc_str = str(feat.location)
-                                        start, end, direction, all_coords = process_location_string(loc_str) # type: ignore
-                                        cds_coords[lt] = [start, end]
-                    else:
-                        with open(genome_gbks[genome]) as ogg:
-                            for rec in SeqIO.parse(ogg, "genbank"):
-                                scaffold_lens[rec.id] = len(str(rec.seq))
-                                for feat in rec.features:
-                                    if feat.type == "CDS":
-                                        lt = feat.qualifiers.get("locus_tag")[0]
-                                        loc_str = str(feat.location)
-                                        start, end, direction, all_coords = process_location_string(loc_str) # type: ignore
-                                        cds_coords[lt] = [start, end]
+                    with open_text_file(genome_gbks[genome]) as ogg:
+                        for rec in SeqIO.parse(ogg, "genbank"):
+                            scaffold_lens[rec.id] = len(str(rec.seq))
+                            for feat in rec.features:
+                                if feat.type == "CDS":
+                                    lt = feat.qualifiers.get("locus_tag")[0]
+                                    loc_str = str(feat.location)
+                                    start, end, direction, all_coords = process_location_string(loc_str) # type: ignore
+                                    cds_coords[lt] = [start, end]
 
                     min_gc_coord = 1e100
                     max_gc_coord = 0
@@ -4900,348 +5285,9 @@ def consolidate_salty_spreadsheet(
         log_object.error(
             "Issues with creating the final salt XLSX spreadsheet."
         )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
+        report_cause(fallback_traceback=True)
         sys.exit(1)
 
-
-# R functions
-def cluster_heatmap_r(
-    medlen_data_file,
-    heatmap_data_file,
-    pdf_file,
-    height,
-    width,
-    rscript_path,
-    log_object,
-) -> None:
-    try:
-
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggplot2)\n")
-            rph.write("library(cowplot)\n\n")
-
-            rph.write('medlen.data_file <- "' + medlen_data_file + '"\n')
-            rph.write('heatmap.data_file <- "' + heatmap_data_file + '"\n')
-            rph.write('pdf_file <- "' + pdf_file + '"\n')
-            rph.write("height <- as.numeric(" + str(height) + ")\n")
-            rph.write("width <- as.numeric(" + str(width) + ")\n\n")
-
-            rph.write(
-                'medlen.data <- read.table(medlen.data_file, header=T, sep="\\t")\n'
-            )
-            rph.write(
-                'heatmap.data <- read.table(heatmap.data_file, header=T, sep="\\t")\n\n'
-            )
-
-            rph.write(
-                'gg_ml <- ggplot(medlen.data, aes(x = \
-        reorder(og, og_order), y = med_length)) + theme_classic() + xlab("") + \n'
-            )
-            rph.write(
-                'ylab("Median Length\n(kbp)") + geom_bar(stat= \
-        "identity", fill="black") + \n'
-            )
-            rph.write(
-                "theme(axis.title.x= \
-        element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())\n\n"
-            )
-
-            rph.write(
-                "gg_hm <- ggplot(heatmap.data, aes(x = \
-        reorder(og, og_order), y = genbank, fill=as.factor(og_presence), label=copy_count)) + \n"
-            )
-            rph.write(
-                'theme_classic() + xlab("ortholog group IDs in Consensus Order") + ylab("") + geom_tile(color= \
-        "white", show.legend=F) + geom_text() + \n'
-            )
-            rph.write(
-                "theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + \n"
-            )
-            rph.write('scale_fill_manual(values=c("#FFFFFF", "#889cbd"))\n\n')
-
-            rph.write("pdf(pdf_file, height=height, width=width)\n")
-            rph.write(
-                'print(plot_grid(gg_ml, gg_hm, ncol= \
-        1, axis="l", align="v", rel_heights=c(1, 4)))\n'
-            )
-            rph.write("dev.off()\n")
-            
-    except Exception as e:
-        sys.stderr.write("Issues with creating Rscript clusterHeatmap.R.\n")
-        log_object.error("Issues with creating Rscript clusterHeatmap.R.")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def phylo_heatmap_r(
-    phylo_tree_file,
-    heatmap_data_file,
-    pdf_file,
-    height,
-    width,
-    rscript_path,
-    log_object,
-) -> None:
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggtree)\n")
-            rph.write("library(ggplot2)\n")
-            rph.write("library(ape)\n")
-            rph.write("library(dplyr)\n")
-            rph.write("library(aplot)\n\n")
-
-            rph.write('phylo.tree_file <- "' + phylo_tree_file + '"\n')
-            rph.write('heatmap.data_file <- "' + heatmap_data_file + '"\n')
-            rph.write('pdf_file <- "' + pdf_file + '"\n')
-            rph.write("pdf.height <- as.numeric(" + str(height) + ")\n")
-            rph.write("pdf.width <- as.numeric(" + str(width) + ")\n\n")
-
-            rph.write("phylo.tree <- read.tree(phylo.tree_file)\n")
-            rph.write(
-                'heatmap.data <- read.table(heatmap.data_file, header=T, sep="\\t")\n\n'
-            )
-
-            rph.write("pdf(pdf_file, height=pdf.height, width=pdf.width)\n")
-            rph.write("gg_tr <- ggtree(phylo.tree)\n")
-            rph.write(
-                "gg_hm <- ggplot(heatmap.data, aes(x= \
-        query_prot_id, y=label, fill=bitscore)) + \n"
-            )
-            rph.write(
-                'theme_classic() + scale_fill_gradient(low= \
-        "grey", high="black", na.value="white") + \n'
-            )
-            rph.write(
-                'xlab("Query proteins / Homolog groups") + ylab("") + geom_tile(color= \
-        "white", show.legend=F) + \n'
-            )
-            rph.write(
-                "theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))\n"
-            )
-            rph.write("gg_hm %>% insert_left(gg_tr, width=0.4)\n")
-            rph.write("dev.off()\n")
-            
-    except Exception as e:
-        sys.stderr.write("Issues with creating Rscript phyloHeatmap.R.\n")
-        log_object.error("Issues with creating Rscript phyloHeatmap.R.")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def plot_segments_r(
-    que_info_file,
-    seq_data_file,
-    pdf_file,
-    pdf_file2,
-    height,
-    width,
-    rscript_path,
-    log_object,
-) -> None:
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggplot2)\n")
-            rph.write("library(gridExtra)\n\n")
-
-            rph.write('que.info.file <- "' + que_info_file + '"\n')
-            rph.write('seg.data.file <- "' + seq_data_file + '"\n')
-            rph.write('pdf_file <- "' + pdf_file + '"\n')
-            rph.write('pdf_file2 <- "' + pdf_file2 + '"\n')
-            rph.write("height <- as.numeric(" + str(height) + ")\n")
-            rph.write("width <- as.numeric(" + str(width) + ")\n\n")
-
-            rph.write(
-                'naming.data <- read.table(que.info.file, header=T, sep="\\t")\n'
-            )
-            rph.write("pdf(pdf_file2, height=30, width=10)\n")
-            rph.write("grid.table(naming.data)\n")
-            rph.write("dev.off()\n\n")
-
-            rph.write(
-                'segment.data <- read.table(seg.data.file, header=T, sep="\\t")\n'
-            )
-            rph.write('colors <- c("#000000", "#FFFFFF")\n')
-            rph.write('names(colors) <- c("True", "False")\n\n')
-
-            rph.write("samples <- unique(segment.data$sample)\n")
-            rph.write("pdf(pdf_file, height=height, width=width)\n")
-            rph.write("for (s in samples) {\n")
-            rph.write(
-                "sample.segment.data <- segment.data[segment.data$sample==s,]\n"
-            )
-            rph.write("print(unique(sample.segment.data$segment_title))\n")
-            rph.write(
-                "g<-ggplot(sample.segment.data, aes(x= \
-        reorder(gene, gene_order), y=sql_ratio, fill=identity, color=key)) + \n"
-            )
-            rph.write(
-                'geom_bar(stat= \
-        "identity", position="dodge", size=1.5) + geom_hline(yintercept=1.0, color="blue", linetype=2) + \n'
-            )
-            rph.write(
-                'ylab("CDS to Query Length Ratio") + facet_grid(.~segment_title, space= \
-        "free", scales="free",  labeller = label_wrap_gen(width = 50, multi_line = TRUE)) + \n'
-            )
-            rph.write(
-                'xlab("CDS Classifications") + theme_bw() + theme(legend.position= \
-        "bottom", axis.text.x = element_text(angle = 45, vjust=1, hjust=1)) + \n'
-            )
-            rph.write(
-                'scale_color_manual(values= \
-        colors) + scale_fill_gradient(limits=c(0.0, 100.0), breaks=c(0.0, 50.0, 100.0), low="grey", high="red")\n'
-            )
-            rph.write("print(g)\n")
-            rph.write("}\n")
-            rph.write("dev.off()\n\n")
-
-        
-    except Exception as e:
-        sys.stderr.write("Issues with creating Rscript plotSegments.R.\n")
-        log_object.error("Issues with creating Rscript plotSegments.R.")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def plot_tiny_aair(info_file, pdf_file, rscript_path, log_object) -> None:
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggplot2)\n")
-            rph.write("library(gridExtra)\n")
-
-            rph.write('info.file <- "' + info_file + '"\n')
-            rph.write('pdf_file <- "' + pdf_file + '"\n\n')
-
-            rph.write('info.dat <- read.table(info.file, header=T, sep="\\t")\n\n')
-
-            rph.write("pdf(pdf_file, height=10, width=10)\n")
-            rph.write(
-                "ggplot(info.dat, aes(x= \
-        AAI, y=Prop_Genes_Found, color=Mean_Syntenic_Correlation)) + \n"
-            )
-            rph.write(
-                'geom_point(alpha= \
-        0.7) + theme_bw() + scale_color_gradient(low="#e6ffbd", high="#1754b0") + \n'
-            )
-            rph.write(
-                'guides(color=guide_legend("Syntenic Correlation to Query")) + \n'
-            )
-            rph.write(
-                'xlab("Average amino acid identity") + ylab("Proportion of query proteins with match")\n' \
-            )
-            rph.write("dev.off()\n")
-
-        
-    except Exception as e:
-        sys.stderr.write("Issues with creating Rscript plotTinyAAI.R.\n")
-        log_object.error("Issues with creating Rscript plotTinyAAI.R.")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def generate_syntenic_visual_r(input_file, pdf_file, height, width, rscript_path) -> None: 
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggplot2)\n")
-            rph.write("library(gggenes)\n")
-
-            rph.write('input.file <- "' + input_file + '"\n')
-            rph.write('pdf.file <- "' + pdf_file + '"\n')
-            rph.write("height <- as.numeric(" + str(height) + ")\n")
-            rph.write("width <- as.numeric(" + str(width) + ")\n\n")
-
-            rph.write(
-                'input.data <- read.table(file=input.file, sep="\\t", header=T)\n\n'
-            )
-
-            rph.write("pdf(pdf.file, height=height, width=width)\n")
-            rph.write(
-                'ggplot(input.data, aes(xmin= \
-        Start, xmax = End, y = "", forward = Direction, label=SC)) + \n'
-            )
-            rph.write("geom_gene_arrow(aes(fill=Metric)) + theme_classic() + \n")
-            rph.write(
-                'scale_fill_gradient2(low= \
-        "#e05c74", mid="#f2f2f2", high="#2087b3", breaks =c(-3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0),\n'
-            )
-            rph.write(
-                'labels= \
-        c("", "-2", "", "0", "", "2", ""), limits=c(-3, 3), na.value="grey50", guide="colourbar", aesthetics="fill") + \n'
-            )
-            rph.write(
-                'geom_gene_label(align= \
-        "centre", min.size=5) + theme(legend.position="bottom")\n'
-            )
-            rph.write("dev.off()\n")
-
-        
-    except Exception as e:
-        sys.stderr.write(
-            f"Issues with creating / running Rscript {rscript_path}.\n"
-        )
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
-
-
-def generate_salt_gc_vs_ribo_aai_plot(
-    rscript_path, input_data_file, pdf_file, log_object
-) -> None:
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ggplot2)\n\n")
-
-            rph.write('input.data_file <- "' + input_data_file + '"\n')
-            rph.write('pdf_file <- "' + pdf_file + '"\n\n')
-
-            rph.write('dat <- read.table(input.data_file, header=T, sep="\\t")\n')
-            rph.write("pdf(pdf_file, height=5, width=5)\n")
-            rph.write(
-                "ggplot(dat, aes(x=ribo_aai, y=gc_aai)) + geom_point(alpha=0.7) +\n"
-            )
-            rph.write(
-                'geom_smooth(method="lm", formula= y~x, linetype=2, color="red") +\n'
-            )
-            rph.write(
-                'geom_abline(slope= \
-        1, yintercept=0, linetype=2, color="grey") + theme_bw() +\n'
-            )
-            rph.write('xlab("Ribosomal Protein AAI") + ylab("Gene Cluster AAI")\n')
-            rph.write("dev.off()\n")
-    except Exception as e:
-        sys.stderr.write(
-            "Issues with creating Rscript generateSaltGCVsRiboAAIPlot.R.\n"
-        )
-        log_object.error(
-            "Issues with creating Rscript generateSaltGCVsRiboAAIPlot.R.\n"
-        )
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
-
-
-def generate_nj_tree(rscript_path, input_dist_file, output_tree_file, log_object) -> None: 
-    try:
-        with open(rscript_path, "w") as rph:
-            rph.write("library(ape)\n\n")
-            rph.write(f'input.dist.file <- "{input_dist_file}"\n')
-            rph.write(f'output.nwk.file <- "{output_tree_file}"\n\n')
-            rph.write(
-                'dat <- read.table(input.dist.file, header=T, sep="\\t", row.names=1)\n'
-            )
-            rph.write("d <- as.dist(as.matrix(dat))\n")
-            rph.write("njt <- nj(d)\n")
-            rph.write("write.tree(njt, file=output.nwk.file)\n")
-
-    except Exception as e:
-        sys.stderr.write("Issues with creating Rscript generateNjTree.R.\n")
-        log_object.error("Issues with creating Rscript generateNjTree.R.")
-        sys.stderr.write(traceback.format_exc())
-        log_object.error(traceback.format_exc())
-        sys.exit(1)
 
 def create_fake_diamond_linclust_file(fasta_file: str, diamond_linclust_cluster_file: str, log_object) -> None:
     """

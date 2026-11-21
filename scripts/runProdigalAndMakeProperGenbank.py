@@ -80,9 +80,7 @@ def prodigalAndReformat():
 	gene_calling_method = (myargs.gene_calling_method).lower()
 	meta_mode = myargs.meta_mode
 
-	try:
-		assert(os.path.isfile(input_genomic_fasta_file))
-	except Exception as e:
+	if not (os.path.isfile(input_genomic_fasta_file)):
 		raise RuntimeError('Issue with input genomic assembly file path.')
 
 	if not os.path.isdir(outdir):

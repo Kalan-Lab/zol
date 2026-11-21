@@ -47,6 +47,7 @@ from time import sleep
 from zol import util
 import _pickle as cPickle
 import argparse
+import shlex
 import math
 import os
 import pandas as pd
@@ -170,7 +171,7 @@ def abon():
     else:
         util.setup_ready_directory([outdir], delete_if_exist = False)
 
-    if (antismash_results_dir == None or not os.path.isdir(antismash_results_dir)) and (gecco_results_dir == None or not os.path.isdir(gecco_results_dir)): 
+    if (antismash_results_dir is None or not os.path.isdir(antismash_results_dir)) and (gecco_results_dir is None or not os.path.isdir(gecco_results_dir)): 
         sys.stderr.write("Neither anitSMASH nor GECCO sample results directory provided as input or the paths are faulty!\n")
         sys.exit(1)
 
@@ -199,7 +200,7 @@ def abon():
     sys.stdout.write(msg + '\n')
     log_object.info(msg)
     bgc_genbank_paths = []
-    if antismash_results_dir != None and os.path.isdir(antismash_results_dir): 
+    if antismash_results_dir is not None and os.path.isdir(antismash_results_dir): 
         antismash_results_dir = os.path.abspath(antismash_results_dir) + '/'
         for f in os.listdir(antismash_results_dir): 
             if f.endswith('.gbk') and '.region' in f: 
@@ -207,7 +208,7 @@ def abon():
            'antismash'])
 
     bgc_coords = {}
-    if gecco_results_dir != None and os.path.isdir(gecco_results_dir): 
+    if gecco_results_dir is not None and os.path.isdir(gecco_results_dir): 
         gecco_results_dir = os.path.abspath(gecco_results_dir) + '/'
         for f in os.listdir(gecco_results_dir): 
             if f.endswith('.gbk') and '_cluster_' in f: 
@@ -299,7 +300,7 @@ def abon():
         else: 
             # run fai
             fai_cmd = ['fai', '-i', bgc_path, '-tg', preptg_db_dir, '-kpq', key_prot_file, 
-                        fai_options, '-o', bgc_fai_res_dir, '-c', str(threads)]
+                        *shlex.split(fai_options or ''), '-o', bgc_fai_res_dir, '-c', str(threads)]
             util.run_cmd_via_subprocess(fai_cmd, log_object=log_object)
     bgc_info_handle.close()
 
@@ -544,7 +545,7 @@ def identify_key_proteins_in_antismash_bgc(bgc_path,
                             gpf_handle.write('>' + lt + '\n' + prot_seq + '\n') # type: ignore
         kpf_handle.close()
 
-        if gpf_handle != None: 
+        if gpf_handle is not None: 
             gpf_handle.close()
 
         bgc_scaffold, bgc_start, bgc_end = ['NA']*3
@@ -586,7 +587,7 @@ def identify_key_proteins_in_antismash_bgc(bgc_path,
         log_object.error(f'Had an issue parsing antiSMASH BGC: {bgc_path}')
         sys.stderr.write(f'Had an issue parsing antiSMASH BGC: {bgc_path}')
         log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 def identify_key_proteins_in_gecco_bgc(dom_weights_file, 
@@ -674,7 +675,7 @@ def identify_key_proteins_in_gecco_bgc(dom_weights_file,
                             gpf_handle.write(f">{lt}\n{prot_seq}\n") # type: ignore
         kpf_handle.close()
 
-        if gpf_handle != None: 
+        if gpf_handle is not None: 
             gpf_handle.close()
 
         return([bgc_type, cds_count, key_cds_count, bp_length])
@@ -683,7 +684,7 @@ def identify_key_proteins_in_gecco_bgc(dom_weights_file,
         log_object.error(f'Had an issue parsing GECCO BGC: {bgc_path}')
         sys.stderr.write(f'Had an issue parsing GECCO BGC: {bgc_path}')
         log_object.error(e)
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 if __name__ == '__main__': 

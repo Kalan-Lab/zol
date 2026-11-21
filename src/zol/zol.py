@@ -1,8 +1,9 @@
-from Bio.SeqFeature import FeatureLocation, SeqFeature
+from Bio.SeqFeature import SimpleLocation, SeqFeature
 from collections import defaultdict
 from operator import itemgetter
 import csv
 import decimal
+import functools
 import itertools
 import json
 import math
@@ -16,6 +17,7 @@ import subprocess
 import sys
 import traceback
 from Bio import SeqIO
+from Bio.Data import CodonTable
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from scipy import stats
@@ -28,6 +30,11 @@ import peptides
 
 
 AMBIGUOUS_AMINO_ACIDS = set(["B", "J", "Z", "X"])
+
+# Passed to all HyPhy commands. Without it, HyPhy aborts an analysis entirely when its cached and directly computed
+# likelihoods differ by tiny amounts due to floating point instability (observed for most GARD runs on the test case,
+# e.g. -150.74148 vs. -150.74153), rather than issuing a warning.
+HYPHY_NUMERICAL_TOLERANCE_ENV = "ENV=TOLERATE_NUMERICAL_ERRORS=1;"
 
 def _search_pfam_domains(
     protein_faa: str,
@@ -52,23 +59,11 @@ def _search_pfam_domains(
     - If return_coordinates=True: Dict mapping hit names to list of [query_name, target_from, target_to, score, i_evalue]
     - If return_coordinates=False: List of tuples (hits, hit, domain, use_domain_filtering) for annotation writing
     """
-    # Helper for handling bytes/str names from pyhmmer
-    def _name_str(obj: Any) -> str:
-        """pyhmmer may return name/accession as bytes or str depending on version."""
-        if isinstance(obj, bytes):
-            return obj.decode()
-        return str(obj)
-
     # Parse Pfam parameters
     use_domain_filtering, bit_cutoffs, evalue_threshold = parse_pfam_params(pfam_params)
     
     # Load protein sequences
-    alphabet = pyhmmer.easel.Alphabet.amino()
-    sequences = []
-    with pyhmmer.easel.SequenceFile(
-        protein_faa, digital=True, alphabet=alphabet
-    ) as seq_file:
-        sequences = list(seq_file)
+    sequences = util.pyhmmer_load_sequences(protein_faa)
     
     # Build hmmsearch parameters, only include bit_cutoffs if not None
     search_params = {
@@ -82,15 +77,18 @@ def _search_pfam_domains(
         # For domain mode chopping: ALWAYS use domain-level filtering (.included) regardless of pfam_params
         # because we're physically chopping proteins by domains
         target_dom_hits: Dict[str, List[List[Any]]] = defaultdict(list)
-        with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+        if len(sequences) == 0:
+            return target_dom_hits
+        with util.open_hmm_profiles(db_file) as hmm_file:
             for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
+                query_name = util.pyhmmer_query_name(hits)
                 for hit in hits:
                     # Always use .included for chopping - user's Domain/Full choice only affects annotations
                     for domain in hit.domains.included:
                         if domain.i_evalue <= evalue_threshold:
-                            target_dom_hits[_name_str(hit.name)].append(
+                            target_dom_hits[util.pyhmmer_to_str(hit.name)].append(
                                 [
-                                    _name_str(hits.query.name),
+                                    query_name,
                                     domain.alignment.target_from,
                                     domain.alignment.target_to,
                                     domain.score,
@@ -101,7 +99,9 @@ def _search_pfam_domains(
     else:
         # For annotation mode: check if Domain or Full reporting
         results = []
-        with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
+        if len(sequences) == 0:
+            return results
+        with util.open_hmm_profiles(db_file) as hmm_file:
             for hits in pyhmmer.hmmsearch(hmm_file, sequences, **search_params):
                 for hit in hits:
                     if use_domain_filtering:
@@ -255,8 +255,7 @@ def perform_sl_full_protein_clustering(
                     cluster_id += 1
 
     except Exception as e:
-        sys.stderr.write(traceback.format_exc() + "\n")
-        log_object.error(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -356,9 +355,7 @@ def map_chunk_protein_coords_to_feature_coords(
                 msg = "Warning: changing starting protein residue from V or L to M to match expected translation. This is expected for bacteria, but if you are seeing this with running a eukaryotic dataset - it indicates an issue!"
                 sys.stderr.write(msg + "\n")
 
-        try:
-            assert translated_prot_seq == tg_seq_chunk
-        except:
+        if translated_prot_seq != tg_seq_chunk:
             # further check if the translated sequence is just the 
             # result of imputation of an amino acid with an ambiguuous
             # base at the wobble position.
@@ -387,7 +384,7 @@ def map_chunk_protein_coords_to_feature_coords(
 
         for rc in range_coords:
             coord_feat_locs.append(
-                FeatureLocation(rc[0], rc[1], strand=fstrand)
+                SimpleLocation(rc[0], rc[1], strand=fstrand)
             )
 
         summed_coord_feat_locs = sum(coord_feat_locs)
@@ -760,7 +757,7 @@ def batch_create_chopped_genbanks(genbanks,
                     log_object.warning(msg)
                     sys.stderr.write(msg + "\n")
 
-            if db_locations == None or not os.path.isfile(db_locations):
+            if db_locations is None or not os.path.isfile(db_locations):
                 msg = f"ERROR: Database location file not found at: {db_locations}\n"
                 msg += "  Databases do not appear to be setup or setup properly!\n"
                 msg += "  Please run setup_annotation_dbs.py to setup databases.\n"
@@ -778,11 +775,10 @@ def batch_create_chopped_genbanks(genbanks,
                             pfam_db_file = db_file
                             pfam_z = int(z)
 
-            assert (
-                pfam_db_file != None
+            if not (pfam_db_file is not None
                 and os.path.isfile(pfam_db_file)
-                and pfam_z != None
-            )
+                and pfam_z is not None):
+                raise AssertionError()
             
             msg = f"  Found Pfam database at: {pfam_db_file}"
             log_object.info(msg)
@@ -915,7 +911,7 @@ def batch_create_chopped_genbanks(genbanks,
     except Exception as e:
         msg = "Issue regenerating GenBank files with CDS features chopped up."
         log_object.warning(msg)
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.stderr.write(msg + "\n")
         sys.exit(1)
 
@@ -1011,9 +1007,7 @@ def reinflate_orthogroups(
         )
         
         diamond_results_file = rog_dir + "DIAMOND_Results.txt"
-        try:
-            assert os.path.isfile(diamond_results_file)
-        except AssertionError as e:
+        if not (os.path.isfile(diamond_results_file)):
             msg = f"Issues with running diamond blastp during reinflation of orthogroups."
             log_object.error(msg)
             sys.stderr.write(msg + "\n")
@@ -1064,6 +1058,7 @@ def reinflate_orthogroups(
             msg = f"Issues with removing temporary files during reinflation of orthogroups."
             log_object.error(msg)
             sys.stderr.write(msg + "\n")
+            util.report_cause()
             sys.exit(1)
 
         msg = f"{len(proteins_with_possible_issues_during_reinflation)} proteins that did not match any ortholog group or matched multiple ortholog groups equally well. You can get details at:\n{protein_issues_file}"
@@ -1094,8 +1089,7 @@ def reinflate_orthogroups(
         log_object.error(
             "Issues with reinflation of orthogroups to full gene cluster set."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1158,7 +1152,7 @@ def dereplicate_using_skani(
                     or gbk.endswith(".genbank")
                 ):
                     gbk_prefix = ".".join(gbk.split("/")[-1].split(".")[:-1])
-                assert gbk_prefix != None
+                assert gbk_prefix is not None
                 gbk_fasta_file = full_nucl_seq_dir + (gbk_prefix + ".fasta")
                 flf_handle.write(str(gbk_fasta_file) + "\n")
                 gbk_fasta_handle = open(gbk_fasta_file, "w")
@@ -1227,7 +1221,7 @@ def dereplicate_using_skani(
                     if float(ani) >= skani_identiy_threshold:
                         pair_tup = sorted([s1, s2])
                         if not tuple(pair_tup) in visited:
-                            if mcl_inflation == None:
+                            if mcl_inflation is None:
                                 similar_pairs_handle.write(
                                     pair_tup[0] + "\t" + pair_tup[1] + "\n"
                                 )
@@ -1249,7 +1243,7 @@ def dereplicate_using_skani(
         
 
         focal = None
-        if focal_genbanks != None and os.path.isfile(focal_genbanks):
+        if focal_genbanks is not None and os.path.isfile(focal_genbanks):
             focal = set([])
             with open(focal_genbanks) as ofgf:
                 for line in ofgf:
@@ -1263,11 +1257,11 @@ def dereplicate_using_skani(
                         gbk_prefix = ".".join(
                             gbk.split("/")[-1].split(".")[:-1]
                         )
-                    assert gbk_prefix != None
+                    assert gbk_prefix is not None
                     focal.add(gbk_prefix)
 
         clusters_file = derep_dir + "Cluster_Families.txt"
-        if mcl_inflation == None:
+        if mcl_inflation is None:
             clust_cmd = [
                 "slclust",
                 "<",
@@ -1302,7 +1296,7 @@ def dereplicate_using_skani(
                     cluster_gc_stats.append([gc, longest_seq[gc], tot_seq[gc]])
                     gcs.add(gc)
                 focal_not_relevant = False
-                if focal == None or len(gcs.intersection(focal)) == 0:
+                if focal is None or len(gcs.intersection(focal)) == 0:
                     focal_not_relevant = True
                 rep = [
                     x[0]
@@ -1326,7 +1320,7 @@ def dereplicate_using_skani(
                 or gbk.endswith(".genbank")
             ):
                 gbk_prefix = ".".join(gbk.split("/")[-1].split(".")[:-1])
-            assert gbk_prefix != None
+            assert gbk_prefix is not None
             if not gbk_prefix in representatives:
                 continue
             shutil.copy(gbk, kept_dir)
@@ -1355,8 +1349,7 @@ def dereplicate_using_skani(
         log_object.error(
             "Issues with run skani based dereplication of input GenBanks."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
     return derep_genbanks, rep_genbank_members
@@ -1419,8 +1412,7 @@ def partition_sequences_by_homolog_groups(
         log_object.error(
             "Issues with partitioning sequences to ortholog groups."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1515,9 +1507,8 @@ def partition_and_create_upstream_nucl_alignments(
     except Exception:
         msg = "Issues with partitioning / aligning upstream sequences."
         sys.stderr.write(msg + "\n")
-        sys.stderr.write(traceback.format_exc() + "\n")
+        util.report_cause(fallback_traceback=True)
         log_object.error(msg)
-        log_object.error(traceback.format_exc())
         sys.exit(1)
 
 
@@ -1622,8 +1613,7 @@ def create_protein_alignments(
         msg = "Issues with creating protein alignments."
         sys.stderr.write(msg + "\n")
         log_object.error(msg)
-        sys.stderr.write(traceback.format_exc() + "\n")
-        log_object.error(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 """
@@ -1728,8 +1718,7 @@ def create_codon_alignments(
     except Exception as e:
         sys.stderr.write("Issues with creating codon alignments.\n")
         log_object.error("Issues with creating codon alignments.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1827,8 +1816,7 @@ def trim_alignments(
     except Exception as e:
         sys.stderr.write("Issues with trimming protein / codon alignments.\n")
         log_object.error("Issues with trimming protein / codon alignments.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -1917,8 +1905,7 @@ def create_gene_trees(
     except Exception as e:
         sys.stderr.write("Issues with creating gene trees.\n")
         log_object.error("Issues with creating gene trees.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2022,8 +2009,7 @@ def create_profile_hmms_and_consensus_seqs(
         log_object.error(
             "Issues with creating profile HMMs and consensus sequences."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 # TypedDict for best hits structure in annotate_custom_database
@@ -2147,18 +2133,11 @@ def annotate_custom_database(
     except Exception as e:
         sys.stderr.write("Issues with annotating using custom database.\n")
         log_object.error("Issues with annotating using custom database.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return custom_annotations
 
 def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
-    def _name_str(obj: Any) -> str:
-        """pyhmmer may return name/accession as bytes or str depending on version."""
-        if isinstance(obj, bytes):
-            return obj.decode()
-        return str(obj)
-
     name, db_file, z, protein_faa, annotation_result_file, threads, pfam_params = inputs
     try:
         with open(annotation_result_file, "w") as outf:
@@ -2178,14 +2157,9 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                 
                 # Write results to annotation file
                 for hits, hit, domain, is_domain_level in results:
-                    hmm_accession = "NA"
-                    try:
-                        if hits.query.accession is not None:
-                            hmm_accession = _name_str(hits.query.accession)
-                    except Exception:
-                        hmm_accession = "NA"
-                    hmm_profile = _name_str(hits.query.name)  # HMM is the query
-                    target_protein = _name_str(hit.name)  # Protein is the target
+                    hmm_accession = util.pyhmmer_query_accession(hits)
+                    hmm_profile = util.pyhmmer_query_name(hits)  # HMM is the query
+                    target_protein = util.pyhmmer_to_str(hit.name)  # Protein is the target
                     
                     if is_domain_level:
                         # Domain mode: report individual domain coordinates
@@ -2196,13 +2170,7 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                     else:
                         # Full mode: report hit-level, get envelope coords from best domain
                         # Note: Hit objects don't have target_from/target_to, must get from domains
-                        if hit.domains and len(hit.domains) > 0:
-                            # Get envelope coordinates spanning all domains
-                            target_start = str(min(d.env_from for d in hit.domains))
-                            target_end = str(max(d.env_to for d in hit.domains))
-                        else:
-                            target_start = "NA"
-                            target_end = "NA"
+                        target_start, target_end = util.pyhmmer_hit_span(hit)
                         evalue = str(hit.evalue)
                         score = str(hit.score)
                     
@@ -2223,36 +2191,34 @@ def run_pyhmmer(inputs) -> Tuple[str, Optional[str]]:
                         
             else:
                 # For non-Pfam HMM databases
-                alphabet = pyhmmer.easel.Alphabet.amino()
-                sequences = []
-                with pyhmmer.easel.SequenceFile(
-                    protein_faa, digital=True, alphabet=alphabet
-                ) as seq_file:
-                    sequences = list(seq_file)
-                
-                with pyhmmer.plan7.HMMFile(db_file) as hmm_file:
-                    for hits in pyhmmer.hmmsearch(
+                sequences = util.pyhmmer_load_sequences(protein_faa)
+
+                search_params = {"Z": int(z), "cpus": threads}
+                # DefenseFinder profiles each carry a curated gathering (GA) threshold, which DefenseFinder
+                # itself relies on - so use them here too (in addition to the E-value filter applied later).
+                use_ga = (name == "defensefinder")
+                if use_ga:
+                    search_params["bit_cutoffs"] = "gathering"
+
+                with util.open_hmm_profiles(db_file) as hmm_file:
+                    hits_iter = pyhmmer.hmmsearch(
                         hmm_file,
                         sequences,
-                        Z=int(z),
-                        cpus=threads,
-                    ):
+                        **search_params,
+                    ) if len(sequences) > 0 else []
+                    for hits in hits_iter:
+                        hmm_accession = util.pyhmmer_query_accession(hits)
+                        hmm_profile = util.pyhmmer_query_name(hits)  # HMM is the query
                         for hit in hits:
-                            hmm_accession = "NA"
-                            try:
-                                if hits.query.accession is not None:
-                                    hmm_accession = _name_str(hits.query.accession)
-                            except Exception:
-                                hmm_accession = "NA"
-                            hmm_profile = _name_str(hits.query.name)  # HMM is the query
-                            target_protein = _name_str(hit.name)  # Protein is the target
+                            if use_ga and not hit.included:
+                                continue
+                            target_protein = util.pyhmmer_to_str(hit.name)  # Protein is the target
                             evalue = str(hit.evalue)
                             score = str(hit.score)
                             
-                            # For non-Pfam, use hit-level alignment coordinates (spans all domains)
-                            # TopHit.target_from and TopHit.target_to give full alignment span
-                            target_start = str(hit.target_from) if hasattr(hit, 'target_from') else "NA"
-                            target_end = str(hit.target_to) if hasattr(hit, 'target_to') else (str(hit.length) if hasattr(hit, 'length') else "NA")
+                            # For non-Pfam, use the envelope span across all domains of the hit
+                            # (pyhmmer Hit objects do not have target_from / target_to attributes)
+                            target_start, target_end = util.pyhmmer_hit_span(hit)
                             
                             outf.write(
                                 "\t".join(
@@ -2323,7 +2289,7 @@ def annotate_consensus_sequences(
             db_locations = zol_data_directory + "database_location_paths.txt"
         except Exception as e:
             pass
-    if db_locations == None or not os.path.isfile(db_locations):
+    if db_locations is None or not os.path.isfile(db_locations):
         sys.stderr.write(
             "Warning: databases do not appear to be setup or setup properly!\n"
         )
@@ -2331,19 +2297,17 @@ def annotate_consensus_sequences(
         return empty_annotations
 
     try:
-        dmnd_individual_threads = 1
-        dmnd_pool_size = threads
-        if threads > 5:
-            dmnd_individual_threads = math.floor(threads / 5)
-            dmnd_pool_size = 5
+        # Databases differ greatly in size (e.g. Pfam / KOfam vs. small ones), so splitting threads across several
+        # concurrent searches leaves most workers idle while the largest database runs on a fraction of the threads.
+        # pyhmmer and DIAMOND both parallelize well internally, so each database is searched in turn with all threads.
+        dmnd_individual_threads = threads
+        dmnd_pool_size = 1
 
-        hmm_individual_threads = 1
-        hmm_pool_size = threads
-        if threads > 4:
-            hmm_individual_threads = math.floor(threads / 4)
-            hmm_pool_size = 4
+        hmm_individual_threads = threads
+        hmm_pool_size = 1
 
-        assert os.path.isfile(db_locations)
+        if not (os.path.isfile(db_locations)):
+            raise AssertionError()
         dmnd_search_cmds = []
         hmm_search_cmds = []
         name_to_info_file: Dict[str, str] = {}
@@ -2538,8 +2502,7 @@ def annotate_consensus_sequences(
     except Exception as e:
         sys.stderr.write("Issues with annotating consensus sequences.\n")
         log_object.error("Issues with annotating consensus sequences.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2555,7 +2518,7 @@ def default_to_regular(d) -> Dict[str, Any]:
             d = {k: default_to_regular(v) for k, v in d.items()}
         return d
     except Exception as e:
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -2780,7 +2743,7 @@ def determine_consensus_order_of_ogs(
                 ):
                     anchor_edge = hps[0]
                     break
-        if len(core_hgs) > 0 and anchor_edge == None:
+        if len(core_hgs) > 0 and anchor_edge is None:
             # looks like that failed, now lets use any available core ortholog groups (not necessarily single copy) if any exist \
             for hps in sorted(
                 hg_pair_score.items(), key=itemgetter(1), reverse=True
@@ -2788,9 +2751,7 @@ def determine_consensus_order_of_ogs(
                 if hps[0][0] in core_hgs and hps[0][1] in core_hgs:
                     anchor_edge = hps[0]
                     break
-            try:
-                assert anchor_edge != None
-            except Exception as e:
+            if not (anchor_edge is not None):
                 for hps in sorted(
                     hg_pair_score.items(), key=itemgetter(1), reverse=True
                 ):
@@ -2798,7 +2759,7 @@ def determine_consensus_order_of_ogs(
                         anchor_edge = hps[0]
                         break
 
-        if anchor_edge == None:
+        if anchor_edge is None:
             # ahh, that also failed welp - lets use the most conserved gene available and write a warning to the log file and console
             stars = "*" * 34 + "\n"
             sys.stderr.write(f"{stars}WARNING!!! No core ortholog groups were detected across homologous gene cluster\ninstances - the consensus order and direction predictions will likely be lower quality.{stars}")
@@ -2815,9 +2776,7 @@ def determine_consensus_order_of_ogs(
                     ):
                         anchor_edge = hps[0]
                         break
-                try:
-                    assert anchor_edge != None
-                except Exception as e:
+                if not (anchor_edge is not None):
                     for hps in sorted(
                         hg_pair_score.items(), key=itemgetter(1), reverse=True
                     ):
@@ -2827,9 +2786,9 @@ def determine_consensus_order_of_ogs(
                         ):
                             anchor_edge = hps[0]
                             break
-                assert anchor_edge != None
+                assert anchor_edge is not None
             except Exception as e:
-                sys.stderr.write(traceback.format_exc())
+                util.report_cause(fallback_traceback=True)
                 sys.stderr.write(
                     "\nUnexpected error, no anchor edge found, could be because no protocore ortholog group exists, which shouldn't be the case!\n"
                 )
@@ -2855,7 +2814,7 @@ def determine_consensus_order_of_ogs(
                     left_expansion = [new_hg] + left_expansion
                     accounted_hgs.add(new_hg)
                     break
-            if new_hg != None:
+            if new_hg is not None:
                 curr_hg = new_hg
             else:
                 # shouldn't ever be the case, but breaking just in case
@@ -2878,7 +2837,7 @@ def determine_consensus_order_of_ogs(
                     right_expansion.append(new_hg)
                     accounted_hgs.add(new_hg)
                     break
-            if new_hg != None:
+            if new_hg is not None:
                 curr_hg = new_hg
             else:
                 # shouldn't ever be the case, but breaking just in case
@@ -2952,8 +2911,7 @@ def determine_consensus_order_of_ogs(
         msg = "Issues in attempting to calculate order score for each ortholog group."
         sys.stderr.write(msg + "\n")
         log_object.error(msg)
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -3001,7 +2959,7 @@ def determine_og_stats(
                 for j, lts in enumerate(ls[1:]):
                     samp = samples[j]
                     if (
-                        representative_associated_members != None
+                        representative_associated_members is not None
                         and impute_broad_conservation
                     ):
                         total_weighted_count += len(
@@ -3012,7 +2970,7 @@ def determine_og_stats(
                     if lts.strip() != "":
                         sample_count += 1
                         if (
-                            representative_associated_members != None
+                            representative_associated_members is not None
                             and impute_broad_conservation
                         ):
                             weighted_count += len(
@@ -3024,7 +2982,7 @@ def determine_og_stats(
                         hg_lts[hg].add(lt)
                 hg_single_copy_status[hg] = is_single_copy
                 if (
-                    representative_associated_members != None
+                    representative_associated_members is not None
                     and impute_broad_conservation
                 ):
                     hg_prop_samples[hg] = weighted_count / float(
@@ -3072,15 +3030,58 @@ def determine_og_stats(
         sys.stderr.write(
             "Issues with determining basic stats for ortholog groups.\n"
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
+
+
+def run_hyphy_selection_analysis(analysis, alignment_file, tree_file, outdir) -> Tuple[bool, Optional[str]]:
+    """
+    Description:
+    Runs a single HyPhy selection analysis (FUBAR, BUSTED, or a single omega MG94xREV model fit) for an ortholog group
+    without exiting the process on failure.
+    *******************************************************************************************************************
+    Parameters:
+    - analysis: one of "FUBAR", "BUSTED", or "MG94".
+    - alignment_file: codon alignment file (FASTA) or GARD-partitioned NEXUS file.
+    - tree_file: phylogeny in Newick format to use (None if trees are embedded in a GARD NEXUS file).
+    - outdir: results directory where the resulting JSON should be saved.
+    *******************************************************************************************************************
+    Returns:
+    - A tuple of (whether the analysis succeeded, error message if not).
+    *******************************************************************************************************************
+    """
+    result_json = os.path.join(outdir, os.path.basename(alignment_file) + "." + analysis + ".json")
+    cmd = ["hyphy", "CPU=1", HYPHY_NUMERICAL_TOLERANCE_ENV]
+    if analysis == "MG94":
+        # MG94xREV (Muse and Gaut 1994 crossed with a GTR nucleotide model) with a single alignment-wide omega.
+        cmd += ["fitmodel", "--alignment", alignment_file, "--model", "MG_REV", "--output", result_json]
+        produced_json = result_json
+    elif analysis in ("FUBAR", "BUSTED"):
+        # FUBAR and BUSTED write their JSON next to the input alignment, it is moved to outdir afterwards.
+        cmd += [analysis.lower(), "--alignment", alignment_file]
+        produced_json = alignment_file + "." + analysis + ".json"
+    else:
+        return False, f"Unknown HyPhy analysis requested: {analysis}"
+    if tree_file is not None:
+        cmd += ["--tree", tree_file]
+    # some analyses offer optional follow-up prompts (e.g. LRTs in fitmodel) - make sure HyPhy never waits on input.
+    cmd += ["<", "/dev/null"]
+    try:
+        util.run_cmd_via_subprocess(cmd,
+                                    check_files=[produced_json],
+                                    verbose=False,
+                                    exit_on_error=False)
+        if produced_json != result_json:
+            shutil.move(produced_json, result_json)
+    except Exception as e:
+        return False, f"{analysis} failed on {os.path.basename(alignment_file)}: {str(e).splitlines()[0] if str(e) else type(e).__name__}"
+    return True, None
 
 
 def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
     """
     Description:
-    This functions run HyPhy based analyses (GARD + FUBAR) for a single ortholog group.
+    This functions run HyPhy based analyses (GARD + FUBAR + BUSTED + MG94) for a single ortholog group.
     *******************************************************************************************************************
     Parameters:
     - inputs: a list which can be expanded to the following items:
@@ -3090,6 +3091,8 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
             - gard_output: output *.json file from GARD analysis.
             - best_gard_output: output *.best file from GARD analysis.
             - fubar_outdir: results directory for FUBAR analysis.
+            - busted_outdir: results directory for BUSTED analysis.
+            - mg94_outdir: results directory for MG94 (single omega) analysis.
             - skip_gard: boolean flag for whether to skip GARD analysis.
             - skip_busted: boolean flag for whether to skip BUSTED analysis.
             - gard_mode: analysis mode for GARD - either "Faster" or "Normal".
@@ -3104,6 +3107,7 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
         best_gard_output,
         fubar_outdir,
         busted_outdir,
+        mg94_outdir,
         skip_gard,
         skip_busted,
         gard_mode,
@@ -3131,42 +3135,15 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
         if align_len <= 30:
             return ('success', 'skipped_short_alignment')
 
-        if skip_gard:
-            fubar_cmd = [
-                "hyphy",
-                "CPU=1",
-                "fubar",
-                "--alignment",
-                hg_codo_algn_file,
-                "--tree",
-                hg_full_codo_tree_file,
-            ]
-            util.run_cmd_via_subprocess(fubar_cmd, 
-                                        check_files=[hg_codo_algn_file + ".FUBAR.json"],
-                                        verbose=False)
-            os.system(f"mv {hg_codo_algn_file}.FUBAR.json {fubar_outdir}")
-            
-            if not skip_busted:
-                busted_cmd = [
-                    "hyphy",
-                    "CPU=1",
-                    "busted",
-                    "--alignment",
-                    hg_codo_algn_file,
-                    "--tree",
-                    hg_full_codo_tree_file,
-                ]
-                util.run_cmd_via_subprocess(busted_cmd, 
-                                            check_files=[hg_codo_algn_file + ".BUSTED.json"],
-                                            verbose=False)
-                os.system(f"mv {hg_codo_algn_file}.BUSTED.json {busted_outdir}")
-            
-            return ('success', None)
-
-        else:
+        # By default, selection analyses use the original alignment and the gene tree. If GARD is run successfully,
+        # they instead use its recombination-aware partitions (and partition-specific trees).
+        selection_input = hg_codo_algn_file
+        selection_tree = hg_full_codo_tree_file
+        if not skip_gard:
             gard_cmd = [
                 "hyphy",
                 "CPU=1",
+                HYPHY_NUMERICAL_TOLERANCE_ENV,
                 "gard",
                 "--mode",
                 gard_mode,
@@ -3177,65 +3154,43 @@ def individual_hyphy_run(inputs) -> Tuple[str, Optional[str]]:
                 "--output-lf",
                 best_gard_output,
             ]
-            add_tree = False
-
             try:
                 subprocess.run(
-                    " ".join(gard_cmd),
-                    shell=True,
+                    [str(x) for x in gard_cmd],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    executable="/bin/bash",
                     timeout=(60 * gard_timeout),
                 )
+                if os.path.isfile(best_gard_output) and os.path.getsize(best_gard_output) >= 100:
+                    selection_input = best_gard_output
+                    selection_tree = None
+                else:
+                    msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
+                    sys.stderr.write(msg + "\n")
             except subprocess.TimeoutExpired as e:
                 msg = f"Timed out running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
                 sys.stderr.write(msg + "\n")
-                best_gard_output = hg_codo_algn_file
-                add_tree = True
 
-            if not add_tree:
-                try:
-                    assert (
-                        os.path.isfile(best_gard_output)
-                        and os.path.getsize(best_gard_output) >= 100
-                    )
-                except Exception as e:
-                    msg = f"Had an issue running GARD: {' '.join(gard_cmd)}, defaulting to using original alignment in downstream selection analyses."
-                    sys.stderr.write(msg + "\n")      
-                    best_gard_output = hg_codo_algn_file
-                    add_tree = True
+        analyses = [("FUBAR", fubar_outdir)]
+        if not skip_busted:
+            analyses.append(("BUSTED", busted_outdir))
+        analyses.append(("MG94", mg94_outdir))
 
-            fubar_cmd = [
-                "hyphy",
-                "CPU=1",
-                "fubar",
-                "--alignment",
-                best_gard_output,
-            ]
-            if add_tree:
-                fubar_cmd += ["--tree", hg_full_codo_tree_file]
+        # Each analysis is run independently, so a failure in one does not prevent the others from being run. If an
+        # analysis fails on the GARD partitioned input, it is retried on the unpartitioned alignment with the gene tree.
+        failures = []
+        for analysis, analysis_outdir in analyses:
+            succeeded, error = run_hyphy_selection_analysis(analysis, selection_input, selection_tree, analysis_outdir)
+            if not succeeded and selection_input != hg_codo_algn_file:
+                succeeded, retry_error = run_hyphy_selection_analysis(analysis, hg_codo_algn_file, hg_full_codo_tree_file, analysis_outdir)
+                if not succeeded:
+                    error = f"{error}; retry on unpartitioned alignment also failed"
+            if not succeeded:
+                failures.append(error)
 
-            util.run_cmd_via_subprocess(fubar_cmd, 
-                                        check_files=[best_gard_output + ".FUBAR.json"],
-                                        verbose=False)
-            os.system(f"mv {best_gard_output}.FUBAR.json {fubar_outdir}")
-
-            if not skip_busted:
-                busted_cmd = [
-                    "hyphy",
-                    "CPU=1",
-                    "busted",
-                    "--alignment",
-                    best_gard_output,
-                ]
-                if add_tree:
-                    busted_cmd += ["--tree", hg_full_codo_tree_file]
-                util.run_cmd_via_subprocess(busted_cmd, 
-                                            check_files=[best_gard_output + ".BUSTED.json"],
-                                            verbose=False)
-                os.system(f"mv {best_gard_output}.BUSTED.json {busted_outdir}")
-        
+        if failures:
+            completed = len(analyses) - len(failures)
+            return ('error', f"HyPhy analyses for ortholog group {hg} partially failed ({completed} of {len(analyses)} completed): " + " | ".join(failures))
         return ('success', None)
 
     except Exception as e:
@@ -3250,6 +3205,7 @@ def run_hyphy_analyses(
     fubar_results_dir,
     busted_results_dir,
     log_object,
+    mg94_results_dir=None,
     skip_gard=False,
     skip_busted=False,
     gard_mode="Faster",
@@ -3258,7 +3214,7 @@ def run_hyphy_analyses(
 ) -> List[Any]:
     """f
     Description:
-    This function oversees running of HyPhy based analyses (GARD + FUBAR) for ortholog groups and parses resulting \
+    This function oversees running of HyPhy based analyses (GARD + FUBAR + BUSTED + MG94) for ortholog groups and parses resulting \
     statistics from resulting JSON files to include in the consolidated report created at the end of zol.
     *******************************************************************************************************************
     Parameters:
@@ -3269,6 +3225,8 @@ def run_hyphy_analyses(
     - fubar_results_dir: The directory where FUBAR result files should be saved.
     - busted_results_dir: The directory where BUSTED result files should be saved.
     - log_object: A logging object.
+    - mg94_results_dir: The directory where MG94 (single omega) result files should be saved. Defaults to an
+                        "MG94_Results/" directory next to the FUBAR results directory.
     - skip_gard: Boolean indicating whether user has requested to skip GARD analsyis.
     - skip_busted: Boolean indicating whether user has requested to skip BUSTED analysis.
     - gard_mode: Which mode to run GARD analysis using, can either be "Faster" or "Normal".
@@ -3277,6 +3235,10 @@ def run_hyphy_analyses(
     *******************************************************************************************************************
     """
     try:
+        if mg94_results_dir is None:
+            mg94_results_dir = os.path.join(os.path.dirname(os.path.normpath(fubar_results_dir)), "MG94_Results") + "/"
+        os.makedirs(mg94_results_dir, exist_ok=True)
+
         hyphy_inputs = []
         for caf in os.listdir(codo_algn_dir):
             if not caf.endswith(".msa.fna"):
@@ -3295,6 +3257,7 @@ def run_hyphy_analyses(
                     best_gard_output,
                     fubar_results_dir,
                     busted_results_dir,
+                    mg94_results_dir,
                     skip_gard,
                     skip_busted,
                     gard_mode,
@@ -3343,6 +3306,7 @@ def run_hyphy_analyses(
         fubar_sel_props: Dict[str, Any] = {}
         fubar_sel_sites: Dict[str, Any] = {}
         fubar_deba: Dict[str, Any] = {}
+        fubar_dnds: Dict[str, Any] = {}
         for f in os.listdir(fubar_results_dir):
             if f.endswith(".json"):
                 hg = f.split(".msa.fna.FUBAR.json")[0]
@@ -3355,6 +3319,8 @@ def run_hyphy_analyses(
                     pos_selected_sites = 0
                     neg_selected_sites = 0
                     sum_deba = 0
+                    sum_alpha = 0.0
+                    sum_beta = 0.0
                     tot_sites = 0
                     for partition in fubar_results["MLE"]["content"]:
                         for site_mle_info in fubar_results["MLE"]["content"][
@@ -3372,6 +3338,8 @@ def run_hyphy_analyses(
                                 _,
                             ) = site_mle_info
                             sum_deba += beta - alpha
+                            sum_alpha += alpha
+                            sum_beta += beta
                             if prob_agb >= 0.9:
                                 neg_selected_sites += 1
                             if prob_alb >= 0.9:
@@ -3392,11 +3360,15 @@ def run_hyphy_analyses(
                     if tot_sites > 0:
                         avg_deba = sum_deba / float(tot_sites)
                     fubar_deba[hg] = avg_deba
-                    # TODO: process "grid" field in FUBAR results to get most probable dN / dS ratio
+                    # gene-wide dN/dS as the ratio of the summed site-level posterior mean rates (sum beta / sum alpha)
+                    fubar_dnds[hg] = "NA"
+                    if sum_alpha > 0:
+                        fubar_dnds[hg] = sum_beta / sum_alpha
                 except Exception as e:
                     fubar_sel_props[hg] = "NA"
                     fubar_sel_sites[hg] = "NA"
                     fubar_deba[hg] = "NA"
+                    fubar_dnds[hg] = "NA"
 
         busted_pval: Dict[str, Any] = {}
         for f in os.listdir(busted_results_dir):
@@ -3413,22 +3385,43 @@ def run_hyphy_analyses(
                 except Exception as e:
                     busted_pval[hg] = "NA"
 
+        mg94_omega: Dict[str, Any] = {}
+        for f in os.listdir(mg94_results_dir):
+            if not f.endswith(".MG94.json"):
+                continue
+            hg = f.split(".msa.fna.MG94.json")[0]
+            if f.endswith(".best.MG94.json"):
+                hg = f.split(".best.MG94.json")[0]
+            try:
+                with open(mg94_results_dir + f) as omjf:
+                    mg94_results = json.load(omjf)
+                rate_dists = mg94_results["fits"]["Codon model"]["Rate Distributions"]
+                omega = "NA"
+                for param, value in rate_dists.items():
+                    if "non-synonymous/synonymous rate ratio" in param:
+                        omega = float(value)
+                        break
+                mg94_omega[hg] = omega
+            except Exception as e:
+                mg94_omega[hg] = "NA"
+
         return [
             gard_partitions,
             fubar_sel_props,
             fubar_sel_sites,
             fubar_deba,
             busted_pval,
+            fubar_dnds,
+            mg94_omega,
         ]
     except Exception as e:
         sys.stderr.write(
-            "Issues with running HyPhy GARD, BUSTED, or FUBAR analyses.\n"
+            "Issues with running HyPhy GARD, BUSTED, FUBAR, or MG94 analyses.\n"
         )
         log_object.error(
-            "Issues with running HyPhy GARD, BUSTED, or FUBAR analyses."
+            "Issues with running HyPhy GARD, BUSTED, FUBAR, or MG94 analyses."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -3613,8 +3606,7 @@ def run_pairwise_protein_identity_analysis(prot_algn_dir, evo_dir, log_object, t
     except Exception as e:
         sys.stderr.write("Issues with calculating pairwise protein identity for ortholog groups.\n")
         log_object.error("Issues with calculating pairwise protein identity for ortholog groups.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -3706,8 +3698,7 @@ def compute_beta_rd_gc(prot_algn_dir, evo_dir, log_object, threads=1) -> Tuple[D
         log_object.error(
             "Issues with calculating Beta-RD gene cluster for ortholog groups."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return hg_med_beta_rd, hg_max_beta_rd
 
@@ -3842,8 +3833,7 @@ def run_entropy_analysis(
         log_object.error(
             "Issues with calculating entropy for ortholog groups or their upstream regions."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -3925,8 +3915,7 @@ def calculate_ambiguity(codo_algn_dir, codo_algn_trim_dir, log_object) -> Tuple[
         log_object.error(
             "Issues with calculating ambiguity for full or trimmed codon alignments."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return full_amb_prop, trim_amb_prop
 
@@ -4014,9 +4003,9 @@ def determine_bgc_and_viral_scores(pfam_annotations, log_object) -> Tuple[Dict[s
         except Exception as e:
             pass
     if (
-        gecco_weights_file == None
+        gecco_weights_file is None
         or not os.path.isfile(gecco_weights_file)
-        or vscore_file == None
+        or vscore_file is None
         or not os.path.isfile(vscore_file)
     ):
         sys.stderr.write(
@@ -4075,8 +4064,7 @@ def determine_bgc_and_viral_scores(pfam_annotations, log_object) -> Tuple[Dict[s
             log_object.error(
                 "Issues with calculating Tajima's D for ortholog groups."
             )
-            sys.stderr.write(str(e) + "\n")
-            sys.stderr.write(traceback.format_exc())
+            util.report_cause(fallback_traceback=True)
             sys.exit(1)
 
 
@@ -4156,8 +4144,7 @@ def run_tajimas_d_analysis(codo_algn_trim_dir, evo_dir, log_object, threads=1) -
         log_object.error(
             "Issues with calculating Tajima's D for ortholog groups."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -4232,6 +4219,239 @@ def calculate_tajimas_d(sequences) -> Tuple[Any, int]:
         return "< 3 segregating sites!", S
 
 
+# Codon table used for the McDonald-Kreitman test (NCBI translation table 11 - bacterial, archaeal and plant plastid;
+# sense codon assignments are identical to the standard code).
+_MK_CODON_TABLE = CodonTable.unambiguous_dna_by_id[11].forward_table
+_MK_VALID_NUCLEOTIDES = set(["A", "C", "G", "T"])
+
+
+@functools.lru_cache(maxsize=None)
+def _mk_codon_pair_changes(codon_a, codon_b) -> Tuple[float, float]:
+    """
+    Description:
+    Determines the number of synonymous and non-synonymous changes between two sense codons. When codons differ at
+    more than one position, changes are averaged over all possible mutational pathways between them, excluding
+    pathways that pass through a stop codon (Nei and Gojobori 1986).
+    ********************************************************************************************************************
+    Parameters:
+    - codon_a: A sense codon (uppercase, ACGT only).
+    - codon_b: A sense codon (uppercase, ACGT only).
+    ********************************************************************************************************************
+    Returns:
+    - A tuple of (synonymous changes, non-synonymous changes).
+    ********************************************************************************************************************
+    """
+    diff_positions = [i for i in range(3) if codon_a[i] != codon_b[i]]
+    if not diff_positions:
+        return 0.0, 0.0
+    syn_total = 0.0
+    non_total = 0.0
+    valid_paths = 0
+    for order in itertools.permutations(diff_positions):
+        current = codon_a
+        syn = 0
+        non = 0
+        valid = True
+        for pos in order:
+            following = current[:pos] + codon_b[pos] + current[pos + 1:]
+            following_aa = _MK_CODON_TABLE.get(following)
+            if following_aa is None:
+                valid = False
+                break
+            if _MK_CODON_TABLE[current] == following_aa:
+                syn += 1
+            else:
+                non += 1
+            current = following
+        if valid:
+            syn_total += syn
+            non_total += non
+            valid_paths += 1
+    if valid_paths == 0:
+        # should not happen for sense codons, but regard all changes as non-synonymous if it does.
+        return 0.0, float(len(diff_positions))
+    return syn_total / valid_paths, non_total / valid_paths
+
+
+def _mk_polymorphic_changes(codons) -> Tuple[float, float]:
+    """
+    Description:
+    Estimates the number of synonymous and non-synonymous polymorphic changes among a set of distinct sense codons
+    observed at a single codon site using the minimum spanning tree (most parsimonious network) connecting them, where
+    edge weights correspond to the number of nucleotide differences between codons.
+    ********************************************************************************************************************
+    Parameters:
+    - codons: A list of distinct sense codons.
+    ********************************************************************************************************************
+    Returns:
+    - A tuple of (synonymous changes, non-synonymous changes).
+    ********************************************************************************************************************
+    """
+    codons = sorted(codons)
+    if len(codons) < 2:
+        return 0.0, 0.0
+    in_tree = [codons[0]]
+    remaining = codons[1:]
+    syn = 0.0
+    non = 0.0
+    while remaining:
+        best = None
+        for c_in in in_tree:
+            for c_out in remaining:
+                dist = sum(1 for a, b in zip(c_in, c_out) if a != b)
+                if best is None or dist < best[0]:
+                    best = (dist, c_in, c_out)
+        _, c_in, c_out = best # type: ignore
+        s, n = _mk_codon_pair_changes(c_in, c_out)
+        syn += s
+        non += n
+        in_tree.append(c_out)
+        remaining.remove(c_out)
+    return syn, non
+
+
+def mcdonald_kreitman_test(focal_seqs, compa_seqs, max_missing=0.1) -> Dict[str, Any]:
+    """
+    Description:
+    Performs the McDonald-Kreitman test (McDonald and Kreitman 1991) for an ortholog group between focal and
+    comparator gene clusters using an in-frame (untrimmed) codon alignment. Each codon site is assessed for:
+        - Fixed differences (D): nucleotide positions within the codon that are monomorphic within both the focal and
+          the comparator sets but differ between them.
+        - Polymorphisms (P): changes segregating within the focal and/or comparator sets (after masking fixed
+          differences), counted along the minimum spanning tree connecting the distinct codons observed.
+    Changes are classified as synonymous or non-synonymous by averaging over mutational pathways between codons (Nei
+    and Gojobori 1986). Codons with gaps, ambiguous nucleotides or stop codons are ignored, and codon sites with more
+    than max_missing of sequences missing a valid codon are skipped.
+    ********************************************************************************************************************
+    Parameters:
+    - focal_seqs: A list of aligned, in-frame, coding sequences from the focal gene clusters.
+    - compa_seqs: A list of aligned, in-frame, coding sequences from the comparator gene clusters.
+    - max_missing: The maximum proportion of sequences that can lack a valid codon at a codon site for it to be used.
+    ********************************************************************************************************************
+    Returns:
+    - A dictionary with keys: dn, ds, pn, ps, ni (neutrality index), alpha, dos (direction of selection;
+      Stoletzki and Eyre-Walker 2011), pval (two-sided Fisher's exact test p-value on counts rounded to integers), and
+      codon_sites (number of codon sites assessed). Statistics which cannot be computed are reported as "NA".
+    ********************************************************************************************************************
+    """
+    result: Dict[str, Any] = {
+        "dn": "NA", "ds": "NA", "pn": "NA", "ps": "NA",
+        "ni": "NA", "alpha": "NA", "dos": "NA", "pval": "NA",
+        "codon_sites": 0,
+    }
+    if len(focal_seqs) == 0 or len(compa_seqs) == 0:
+        return result
+
+    total_seqs = len(focal_seqs) + len(compa_seqs)
+    min_valid = (1.0 - max_missing) * total_seqs
+    algn_len = min(len(s) for s in focal_seqs + compa_seqs)
+    focal_seqs = [s.upper() for s in focal_seqs]
+    compa_seqs = [s.upper() for s in compa_seqs]
+
+    def valid_codons(seqs, start):
+        codons = []
+        for s in seqs:
+            codon = s[start:start + 3]
+            if (
+                len(codon) == 3
+                and set(codon).issubset(_MK_VALID_NUCLEOTIDES)
+                and codon in _MK_CODON_TABLE
+            ):
+                codons.append(codon)
+        return codons
+
+    dn = ds = pn = ps = 0.0
+    codon_sites = 0
+    for start in range(0, algn_len - algn_len % 3, 3):
+        foc_codons = valid_codons(focal_seqs, start)
+        com_codons = valid_codons(compa_seqs, start)
+        if not foc_codons or not com_codons:
+            continue
+        if (len(foc_codons) + len(com_codons)) < min_valid:
+            continue
+        codon_sites += 1
+
+        fixed_positions = []
+        for p in range(3):
+            foc_alleles = set(c[p] for c in foc_codons)
+            com_alleles = set(c[p] for c in com_codons)
+            if (
+                len(foc_alleles) == 1
+                and len(com_alleles) == 1
+                and foc_alleles != com_alleles
+            ):
+                fixed_positions.append(p)
+
+        foc_counts = defaultdict(int)
+        for c in foc_codons:
+            foc_counts[c] += 1
+        foc_major = sorted(foc_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+
+        masked_com_codons = com_codons
+        if fixed_positions:
+            com_counts = defaultdict(int)
+            for c in com_codons:
+                com_counts[c] += 1
+            com_major = sorted(com_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+
+            # comparator codon in the background of the focal major codon, differing only at fixed positions.
+            com_fixed = "".join(
+                com_major[p] if p in fixed_positions else foc_major[p]
+                for p in range(3)
+            )
+            if com_fixed in _MK_CODON_TABLE:
+                s, n = _mk_codon_pair_changes(foc_major, com_fixed)
+            else:
+                # background would produce a stop codon - use the observed major codons and scale to the number of
+                # fixed positions.
+                s, n = _mk_codon_pair_changes(foc_major, com_major)
+                tot = s + n
+                scale = len(fixed_positions) / tot if tot > 0 else 0.0
+                s, n = s * scale, n * scale
+            ds += s
+            dn += n
+
+            # mask fixed differences so they are not regarded as polymorphisms.
+            masked_com_codons = []
+            for c in com_codons:
+                mc = "".join(
+                    foc_major[p] if p in fixed_positions else c[p]
+                    for p in range(3)
+                )
+                if mc in _MK_CODON_TABLE:
+                    masked_com_codons.append(mc)
+
+        distinct_codons = set(foc_codons).union(set(masked_com_codons))
+        if len(distinct_codons) > 1:
+            s, n = _mk_polymorphic_changes(list(distinct_codons))
+            ps += s
+            pn += n
+
+    result["codon_sites"] = codon_sites
+    if codon_sites == 0:
+        return result
+
+    result["dn"] = round(dn, 3)
+    result["ds"] = round(ds, 3)
+    result["pn"] = round(pn, 3)
+    result["ps"] = round(ps, 3)
+
+    if ps > 0 and dn > 0:
+        ni = (pn * ds) / (ps * dn)
+        result["ni"] = ni
+        result["alpha"] = 1.0 - ni
+    if (dn + ds) > 0 and (pn + ps) > 0:
+        result["dos"] = (dn / (dn + ds)) - (pn / (pn + ps))
+        table = [
+            [int(round(dn)), int(round(ds))],
+            [int(round(pn)), int(round(ps))],
+        ]
+        if sum(table[0]) > 0 and sum(table[1]) > 0:
+            _, pval = stats.fisher_exact(table, alternative="two-sided")
+            result["pval"] = float(pval)
+    return result
+
+
 def compare_focal_and_comparator_gene_clusters(
     focal_genbank_ids,
     comparator_genbank_ids,
@@ -4240,12 +4460,14 @@ def compare_focal_and_comparator_gene_clusters(
     log_object,
     representative_associated_members=None,
     impute_broad_conservation=False,
+    codo_algn_dir=None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Description:
     This function performs comparative analyses between focal and comparator / complementary gene clusters if requested by
     the user. Will compute conservation percentages between the two sets and also FST for each ortholog group for the
-    focal gene cluster and upstream regions.
+    focal gene cluster and upstream regions. If the directory with untrimmed (in-frame) codon alignments is provided, the
+    McDonald-Kreitman test will also be performed between focal and comparator sets for each ortholog group.
     *******************************************************************************************************************
     Parameters:
     - focal_genbank_ids: A set of gene cluster identifiers which correspond to the focal set delineated by the user.
@@ -4259,6 +4481,8 @@ def compare_focal_and_comparator_gene_clusters(
     - impute_broad_conservation: Whether to impute conservation comprehensively, regarding members of a set of
                                  similar gene clusters as featuring an ortholog group if their respetive representative
                                  gene cluster had the ortholog group.
+    - codo_algn_dir: The directory where the untrimmed codon alignments for ortholog groups are stored. Used for the
+                     McDonald-Kreitman test, which requires alignments to be in-frame.
     *******************************************************************************************************************
     Returns:
     - comp_stats: A dictionary which contains four dictionaries:
@@ -4267,7 +4491,8 @@ def compare_focal_and_comparator_gene_clusters(
             - fst: A dictionary which maps ortholog groups to the FST for the focal gene clusters.
             - upst_fst:
     comp_stats[hg] = \
-     {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst, 'fst_upst': upst_fst}
+     {'prop_foc_with': prop_foc_with, 'prop_com_with': prop_com_with, 'fst': fst, 'fst_upst': upst_fst,
+      'mk': mk_results} where mk_results is the dictionary returned by mcdonald_kreitman_test().
     *******************************************************************************************************************
     """
     comp_stats: Dict[str, Any] = {}
@@ -4276,7 +4501,7 @@ def compare_focal_and_comparator_gene_clusters(
         total_com_broad = set([])
         if (
             impute_broad_conservation
-            and representative_associated_members != None
+            and representative_associated_members is not None
         ):
             for gc in focal_genbank_ids:
                 total_foc_broad.add(gc)
@@ -4304,7 +4529,7 @@ def compare_focal_and_comparator_gene_clusters(
                         focal_samps_with_hg_broad.add(sample)
                         if (
                             impute_broad_conservation
-                            and representative_associated_members != None
+                            and representative_associated_members is not None
                         ):
                             for orthogc in representative_associated_members[
                                 sample
@@ -4316,7 +4541,7 @@ def compare_focal_and_comparator_gene_clusters(
                         compa_samps_with_hg_broad.add(sample)
                         if (
                             impute_broad_conservation
-                            and representative_associated_members != None
+                            and representative_associated_members is not None
                         ):
                             for orthogc in representative_associated_members[
                                 sample
@@ -4365,7 +4590,7 @@ def compare_focal_and_comparator_gene_clusters(
 
             if (
                 impute_broad_conservation
-                and representative_associated_members != None
+                and representative_associated_members is not None
             ):
                 prop_foc_with = len(focal_samps_with_hg_broad) / float(
                     len(total_foc_broad)
@@ -4446,11 +4671,32 @@ def compare_focal_and_comparator_gene_clusters(
                     if pi_between > 0:
                         upst_fst = 1.0 - (float(pi_within) / float(pi_between))
 
+            # McDonald-Kreitman test - performed on untrimmed codon alignments because trimming of codon
+            # alignments is done at the nucleotide level and does not preserve the reading frame.
+            mk_results = mcdonald_kreitman_test([], [])
+            if codo_algn_dir is not None:
+                codo_algn_file = codo_algn_dir + hg + ".msa.fna"
+                if (
+                    os.path.isfile(codo_algn_file)
+                    and os.path.getsize(codo_algn_file) > 0
+                ):
+                    mk_focal_seqs = []
+                    mk_compa_seqs = []
+                    with open(codo_algn_file) as ocaf:
+                        for rec in SeqIO.parse(ocaf, "fasta"):
+                            sample = rec.id.split("|")[0]
+                            if sample in focal_genbank_ids:
+                                mk_focal_seqs.append(str(rec.seq))
+                            elif sample in comparator_genbank_ids:
+                                mk_compa_seqs.append(str(rec.seq))
+                    mk_results = mcdonald_kreitman_test(mk_focal_seqs, mk_compa_seqs)
+
             comp_stats[hg] = {
                 "prop_foc_with": prop_foc_with,
                 "prop_com_with": prop_com_with,
                 "fst": fst,
                 "fst_upst": upst_fst,
+                "mk": mk_results,
             }
 
     except Exception as e:
@@ -4460,8 +4706,7 @@ def compare_focal_and_comparator_gene_clusters(
         log_object.error(
             "Issues with performing comparative analyses between user - defined Gene Cluster groups."
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
     return comp_stats
 
@@ -4505,7 +4750,8 @@ def create_ortho_group_matrix_from_precomputed_file(
             all_gcs.add(gc)
             with open(prot_faa_file) as opff:
                 for rec in SeqIO.parse(opff, "fasta"):
-                    assert rec.id.startswith(gc + "|")
+                    if not (rec.id.startswith(gc + "|")):
+                        raise AssertionError()
                     lt = rec.id.split(gc + "|")[1]
                     og = None
                     try:
@@ -4536,8 +4782,7 @@ def create_ortho_group_matrix_from_precomputed_file(
         log_object.error(
             "Issues with creating a sample vs. ortholog group matrix file from pre-computed locus tag to orthogroup designations"
         )
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)
 
 
@@ -4605,12 +4850,19 @@ def consolidate_report(
                 "PGAP Annotation (E-value)",
                 "Pfam Domains",
             ]
-        if comp_stats != None:
+        if comp_stats is not None:
             header += [
                 "Proportion of Focal Gene Clusters with OG",
                 "Proportion of Comparator Gene Clusters with OG",
                 "Fixation Index",
                 "Upstream Region Fixation Index",
+                "McDonald-Kreitman Dn",
+                "McDonald-Kreitman Ds",
+                "McDonald-Kreitman Pn",
+                "McDonald-Kreitman Ps",
+                "McDonald-Kreitman Neutrality Index",
+                "McDonald-Kreitman Direction of Selection",
+                "McDonald-Kreitman Fisher's Exact P-value",
             ]
         header += [
             "Average Pairwise Nucleotide Identity",
@@ -4639,8 +4891,10 @@ def consolidate_report(
         if run_hyphy:
             header += [
                 "GARD Partitions Based on Recombination Breakpoints",
+                "Gene-wide dN/dS by MG94",
                 "Number of Sites Identified as Under Positive or Negative Selection by FUBAR",
                 "Average delta(Beta, Alpha) by FUBAR across sites",
+                "Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)",
                 "Proportion of Sites Under Selection which are Positive",
                 "P-value for gene-wide episodic selection by BUSTED",
             ]
@@ -4652,6 +4906,7 @@ def consolidate_report(
             "MIBiG Annotation (E-value)",
             "VOG Annotation (E-value)",
             "VFDB Annotation (E-value)",
+            "DefenseFinder Annotation (E-value)",
             "CDS Locus Tags",
             "OG Consensus Sequence",
         ]
@@ -4717,7 +4972,10 @@ def consolidate_report(
                 hg_max_brdgc,
                 fst,
                 fst_upst,
-            ) = ["NA"] * 16
+                hg_fdnds,
+                hg_mg94,
+            ) = ["NA"] * 18
+            mk_vals = ["NA"] * 7
 
             if hg_scs == True or ces:
                 hg_avg_nuc_id = util.gather_value_from_dict_for_homolog_group(
@@ -4760,6 +5018,13 @@ def consolidate_report(
                 hg_bpva = util.gather_value_from_dict_for_homolog_group(
                     hg, evo_stats["busted_pvals"]
                 )
+                # .get() for compatibility with evolutionary statistics pickles from earlier zol versions
+                hg_fdnds = util.gather_value_from_dict_for_homolog_group(
+                    hg, evo_stats.get("fubar_dnds", {})
+                )
+                hg_mg94 = util.gather_value_from_dict_for_homolog_group(
+                    hg, evo_stats.get("mg94_omega", {})
+                )
                 hg_med_brdgc = util.gather_value_from_dict_for_homolog_group(
                     hg, evo_stats["median_beta_rd_gc"]
                 )
@@ -4793,9 +5058,10 @@ def consolidate_report(
             vfdb_annot = util.gather_annotation_from_dict_for_homolog_group(
                 hg, "vfdb", annotations
             )
-            pfam_annots = "NA"
-            if "pfam" in annotations and hg in annotations["pfam"]:
-                pfam_annots = "; ".join(annotations["pfam"][hg]["descriptions"])
+            df_annot = util.gather_annotation_from_dict_for_homolog_group(
+                hg, "defensefinder", annotations
+            )
+            pfam_annots = util.format_pfam_annotations(hg, annotations)
             con_seq = seqs[hg]
             row = [hg, hg_scs, hg_cons, hg_mlen, hg_ordr, hg_dire, cust_annot, pgap_annot, pfam_annots]
             if domain_mode:
@@ -4804,9 +5070,7 @@ def consolidate_report(
                     fp = "|".join(dog.split("|")[:-2])
                     fpc = full_prot_clusters[fp]
                     fp_clusters.add(fpc)
-                try:
-                    assert len(fp_clusters) == 1
-                except Exception as e:
+                if not (len(fp_clusters) == 1):
                     msg = \
      "Issue with validating all domain instances belong to one full protein cluster - shouldn't happen - please report on Github issues!"
                     sys.stderr.write(msg + "\n")
@@ -4825,13 +5089,16 @@ def consolidate_report(
                     pgap_annot,
                     pfam_annots,
                 ]
-            if comp_stats != None:
+            if comp_stats is not None:
                 fp = comp_stats[hg]["prop_foc_with"]
                 cp = comp_stats[hg]["prop_com_with"]
                 if hg_scs == True or ces:
                     fst = comp_stats[hg]["fst"]
                     fst_upst = comp_stats[hg]["fst_upst"]
-                row += [fp, cp, fst, fst_upst]
+                    mk = comp_stats[hg].get("mk")
+                    if mk is not None:
+                        mk_vals = [mk[k] for k in ["dn", "ds", "pn", "ps", "ni", "dos", "pval"]]
+                row += [fp, cp, fst, fst_upst] + mk_vals
 
             hg_gw = type_weights["bgc"][hg]
             hg_vs = type_weights["viral"][hg]
@@ -4861,7 +5128,7 @@ def consolidate_report(
                 hg_peptides_stats['mz_std'],
             ]
             if run_hyphy:
-                row += [hg_gpar, hg_ssit, hg_deba, hg_spro, hg_bpva]
+                row += [hg_gpar, hg_mg94, hg_ssit, hg_deba, hg_fdnds, hg_spro, hg_bpva]
 
             row += [
                 ko_annot,
@@ -4871,6 +5138,7 @@ def consolidate_report(
                 mibig_annot,
                 vog_annot,
                 vfdb_annot,
+                df_annot,
                 hg_lts,
                 con_seq,
             ]
@@ -4947,6 +5215,13 @@ def consolidate_report(
             "Proportion of Comparator Gene Clusters with OG",
             "Fixation Index",
             "Upstream Region Fixation Index",
+            "McDonald-Kreitman Dn",
+            "McDonald-Kreitman Ds",
+            "McDonald-Kreitman Pn",
+            "McDonald-Kreitman Ps",
+            "McDonald-Kreitman Neutrality Index",
+            "McDonald-Kreitman Direction of Selection",
+            "McDonald-Kreitman Fisher's Exact P-value",
             "OG Median Length (bp)",
             "OG Consensus Order",
             "Average Pairwise Nucleotide Identity",
@@ -4966,6 +5241,8 @@ def consolidate_report(
             "Proportion of sites which are highly ambiguous in codon alignment",
             "Proportion of sites which are highly ambiguous in trimmed codon alignment",
             "Average delta(Beta, Alpha) by FUBAR across sites",
+            "Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)",
+            "Gene-wide dN/dS by MG94",
             "Median GC",
             "Median GC Skew",
             "BGC score (GECCO weights)",
@@ -5136,6 +5413,41 @@ def consolidate_report(
                         "max_value": 1.0,
                         "min_type": "num",
                         "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # McDonald-Kreitman Direction of Selection (positive values suggest adaptive evolution)
+            col = 'McDonald-Kreitman Direction of Selection'
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "3_color_scale",
+                        "min_color": "#A9CCE3",
+                        "mid_color": "#FFFFFF",
+                        "max_color": "#E6B0AA",
+                        "min_value": -1.0,
+                        "mid_value": 0.0,
+                        "max_value": 1.0,
+                        "min_type": "num",
+                        "mid_type": "num",
+                        "max_type": "num",
+                    },
+                )
+            # McDonald-Kreitman Fisher's exact test P-value
+            col = "McDonald-Kreitman Fisher's Exact P-value"
+            if col in col_map:
+                cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                worksheet.conditional_format(
+                    cell_range,
+                    {
+                        "type": "2_color_scale",
+                        "min_color": "#63BE7B",
+                        "max_color": "#FFFFFF",
+                        "min_value": 0,
+                        "max_value": 0.05,
+                        "min_type": "num",
                         "max_type": "num",
                     },
                 )
@@ -5317,6 +5629,25 @@ def consolidate_report(
                         "max_type": "num",
                     },
                 )
+            # Gene-wide dN/dS (MG94 and FUBAR)
+            for col in ["Gene-wide dN/dS by MG94", "Gene-wide dN/dS by FUBAR (Sum of Beta / Sum of Alpha)"]:
+                if col in col_map:
+                    cell_range = f"{col_map[col]}2:{col_map[col]}{num_rows}"
+                    worksheet.conditional_format(
+                        cell_range,
+                        {
+                            "type": "3_color_scale",
+                            "min_color": "#E6B0AA",
+                            "mid_color": "#FFFFFF",
+                            "max_color": "#B8D4B8",
+                            "min_value": 0,
+                            "mid_value": 1,
+                            "max_value": 2,
+                            "min_type": "num",
+                            "mid_type": "num",
+                            "max_type": "num",
+                        },
+                    )
             # FUBAR dba
             col = 'Average delta(Beta, Alpha) by FUBAR across sites'
             if col in col_map:
@@ -5549,127 +5880,203 @@ def consolidate_report(
         sys.exit(1)
 
 
-def plot_heatmap(
+TREE_ORDER_NAME = "Tree of shared OG content"
+
+
+def plot_interactive_heatmap(
     hg_stats,
     genbanks,
-    plot_result_pdf,
-    work_dir,
+    html_file,
     log_object,
-    height=7,
-    width=10,
+    final_report_tsv=None,
     full_genbank_labels=False,
 ) -> None:
     """
     Description:
-    This function create a heatmap figure showing the presence of ortholog groups across gene clusters.
+    Create an interactive (D3-based) HTML heatmap showing the presence and copy-count of ortholog groups across gene
+    clusters, with a selectable top track of per-OG statistics, hover tooltips with OG annotations / locus tags, and
+    a tree (dendrogram) of the gene clusters based on shared ortholog group content shown to the left of the heatmap
+    (average-linkage / UPGMA clustering of Jaccard distances; see plotting.og_content_tree). Failures are reported as
+    warnings since the consolidated report is the primary output.
     ********************************************************************************************************************
     Parameters:
-    - hg_stats: A dictionary containing general statistics for each ortholog group (including which gene clusters have
-                them).
+    - hg_stats: A dictionary containing general statistics for each ortholog group.
     - genbanks: The set of gene clusters to account for in the heatmap.
-    - plot_result_pdf: The resulting heatmap plot PDF path.
-    - work_dir: The workspace / directory where to store intermediate files for plotting.
+    - html_file: The resulting HTML file path.
     - log_object: A logging object.
-    - height: The height of the plot in inches.
-    - width: The width of the plot in inches.
-    - full_genbank_labels: Whether to use the full gene cluster identifiers as labels.
+    - final_report_tsv: The consolidated report TSV (optional) - used for annotations and statistics in the plot.
+    - full_genbank_labels: Whether to use the full gene cluster identifiers as row labels.
     ********************************************************************************************************************
     """
     try:
-        representative_genbanks = set([])
+        from zol import heatmap_html
+
+        gbk_prefixes = []
         for gbk in genbanks:
-            gbk_prefix = None
-            if (
-                gbk.endswith(".gbk")
-                or gbk.endswith(".gbff")
-                or gbk.endswith(".genbank")
-            ):
-                gbk_prefix = ".".join(gbk.split("/")[-1].split(".")[:-1])
-            assert gbk_prefix != None
-            representative_genbanks.add(gbk_prefix)
+            if gbk.endswith(".gbk") or gbk.endswith(".gbff") or gbk.endswith(".genbank"):
+                gbk_prefixes.append(".".join(gbk.split("/")[-1].split(".")[:-1]))
+        gbk_prefixes = sorted(set(gbk_prefixes))
+        cluster_index = {gn: i for i, gn in enumerate(gbk_prefixes)}
 
-        # create input tracks
-        ml_track_file = work_dir + "OG_Median_Length_Info.txt"
-        hm_track_file = work_dir + "OG_Heatmap_Info.txt"
-        ml_track_handle = open(ml_track_file, "w")
-        hm_track_handle = open(hm_track_file, "w")
-        ml_track_handle.write("og\tog_order\tmed_length\n")
-        hm_track_handle.write(
-            "og\tog_order\tgenbank\tog_presence\tcopy_count\n"
-        )
-        gn_lab_keys = set([])
-        gn_labs = set([])
-        for hg_tup in sorted(
-            hg_stats["hg_order_scores"].items(), key=lambda e: e[1][0]
-        ):
+        # load per-OG information from the consolidated report
+        report_rows: Dict[str, Dict[str, str]] = {}
+        report_header: List[str] = []
+        if final_report_tsv is not None and os.path.isfile(final_report_tsv):
+            with open(final_report_tsv) as ofrt:
+                for i, line in enumerate(ofrt):
+                    ls = line.rstrip("\n").split("\t")
+                    if i == 0:
+                        report_header = ls
+                        continue
+                    row = dict(zip(report_header, ls))
+                    og_id = row.get("Ortholog Group (OG) ID", "")
+                    report_rows[og_id] = row
+                    # domain mode prefixes OG IDs with "D" in the report
+                    if og_id.startswith("D") and og_id[1:] in hg_stats["hg_median_lengths"]:
+                        report_rows[og_id[1:]] = row
+
+        summary_cols = [
+            "OG is Single Copy?",
+            "Proportion of Total Gene Clusters with OG",
+            "OG Median Length (bp)",
+            "OG Consensus Direction",
+        ]
+        annotation_cols = [
+            c for c in report_header if "Annotation" in c or c in ("Pfam Domains", "IS Finder (E-value)")
+        ]
+        non_metric_cols = set(["OG Consensus Order", "Single-Linkage Full Protein Cluster"])
+
+        def _is_na(v):
+            return v is None or str(v).strip() in ("", "NA", "nan", "None")
+
+        def _to_float(v):
+            try:
+                f = float(v)
+                return f if math.isfinite(f) else None
+            except Exception:
+                return None
+
+        ogs = []
+        cells = []
+        for hg_tup in sorted(hg_stats["hg_order_scores"].items(), key=lambda e: e[1][0]):
             hg = hg_tup[0]
-            if not hg in hg_stats["hg_median_lengths"]:
+            if hg not in hg_stats["hg_median_lengths"]:
                 continue
-            hg_mlen = hg_stats["hg_median_lengths"][hg]
-            hg_lts = hg_stats["hg_locus_tags"][hg]
-            hg_ordr = hg_tup[1][0]
-            sample_copy_counts = defaultdict(int)
-            for lt in hg_lts:
+            copy_lts = defaultdict(list)
+            for lt in hg_stats["hg_locus_tags"][hg]:
                 gn = lt.split("|")[0]
-                if not gn in representative_genbanks:
-                    continue
-                sample_copy_counts[gn] += 1
-            if sum(sample_copy_counts.values()) == 0:
+                if gn in cluster_index:
+                    copy_lts[gn].append(lt.split("|", 1)[1] if "|" in lt else lt)
+            if len(copy_lts) == 0:
                 continue
-            ml_track_handle.write(
-                f"{hg}\t{hg_ordr}\t{float(hg_mlen) / 1000.0}\n"
-            )
-            for gn in representative_genbanks:
-                pres = "0"
-                copy_count = ""
-                if sample_copy_counts[gn] > 0:
-                    pres = "1"
-                    if sample_copy_counts[gn] > 1:
-                        copy_count = str(sample_copy_counts[gn])
-                gn_label = gn
-                if not full_genbank_labels:
-                    gn_label = gn
-                    if len(gn) >= 21:
-                        gn_label = gn[:20]
-                gn_lab_keys.add(tuple([gn, gn_label]))
-                gn_labs.add(gn_label)
-                hm_track_handle.write(
-                    f"{hg}\t{hg_ordr}\t{gn_label}\t{pres}\t{copy_count}\n"
-                )
-        
-        hm_track_handle.close()
-        ml_track_handle.close()
+            o = len(ogs)
+            for gn, lts in copy_lts.items():
+                cells.append([o, cluster_index[gn], len(lts), sorted(lts)])
 
-        try:
-            assert len(gn_labs) == len(gn_lab_keys)
-        except Exception as e:
-            log_object.info(
-                'Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.'
-            )
-            sys.stderr.write(
-                'Non-unique labels resulted from truncating GenBank names. Please rerun zol with the "--full_genbank_labels" argument.\n'
-            )
-            sys.exit(1)
+            row = report_rows.get(hg)
+            if row is not None:
+                label = row.get("Ortholog Group (OG) ID", hg)
+                info = []
+                for col in summary_cols + annotation_cols:
+                    val = row.get(col)
+                    if _is_na(val):
+                        continue
+                    val = val.strip().strip('"')
+                    if col == "Proportion of Total Gene Clusters with OG" and _to_float(val) is not None:
+                        val = f"{float(val):.3f}"
+                    info.append([col, val])
+                metrics = {}
+                for col in report_header:
+                    if col in non_metric_cols:
+                        continue
+                    val = row.get(col)
+                    if col.endswith("ID") or col in annotation_cols or col in ("CDS Locus Tags", "OG Consensus Sequence"):
+                        continue
+                    metrics[col] = None if _is_na(val) else _to_float(val)
+            else:
+                label = hg
+                mlen = _to_float(hg_stats["hg_median_lengths"][hg])
+                prop = _to_float(hg_stats["hg_prop_samples"].get(hg)) if "hg_prop_samples" in hg_stats else None
+                info = [["OG Median Length (bp)", str(mlen)]]
+                if prop is not None:
+                    info.append(["Proportion of Total Gene Clusters with OG", f"{prop:.3f}"])
+                metrics = {"OG Median Length (bp)": mlen, "Proportion of Total Gene Clusters with OG": prop}
+            ogs.append({"id": hg, "label": label, "info": info, "metrics": metrics})
 
-        rscript_path = work_dir + "clusterHeatmap.R"
-        util.cluster_heatmap_r(
-            ml_track_file,
-            hm_track_file,
-            plot_result_pdf,
-            height,
-            width,
-            rscript_path,
-            log_object,
-        )
-        plot_cmd = ["Rscript", rscript_path]
-        util.run_cmd_via_subprocess(plot_cmd, log_object=log_object, check_files=[plot_result_pdf])
+        # numeric metrics = columns with at least one numeric value and no non-numeric (non-NA) values
+        metric_names = []
+        candidate_cols = report_header if report_rows else list(ogs[0]["metrics"].keys()) if ogs else []
+        for col in candidate_cols:
+            if not any(col in og["metrics"] for og in ogs):
+                continue
+            has_value = False
+            numeric = True
+            for og in ogs:
+                if col not in og["metrics"]:
+                    continue
+                if og["metrics"][col] is not None:
+                    has_value = True
+                elif report_rows and not _is_na(report_rows.get(og["id"], {}).get(col)):
+                    numeric = False
+                    break
+            if has_value and numeric:
+                metric_names.append(col)
+        for og in ogs:
+            og["metrics"] = {k: v for k, v in og["metrics"].items() if k in metric_names}
+        default_metric = "OG Median Length (bp)" if "OG Median Length (bp)" in metric_names else (
+            metric_names[0] if metric_names else "")
 
+        labels = []
+        for gn in gbk_prefixes:
+            labels.append(gn if (full_genbank_labels or len(gn) < 21) else gn[:20])
+        if len(set(labels)) != len(labels):
+            # keep labels unique if truncation produced collisions - full names are shown in tooltips anyway
+            labels = list(gbk_prefixes)
+        clusters = [{"id": gn, "label": labels[i]} for i, gn in enumerate(gbk_prefixes)]
+
+        # gene cluster orderings
+        n_c = len(clusters)
+        presence = [[0] * len(ogs) for _ in range(n_c)]
+        for o, c, _, _ in cells:
+            presence[c][o] = 1
+        row_orders = {}
+        tree = None
+        if n_c > 2 and len(ogs) > 1:
+            try:
+                from zol import plotting
+
+                tree_info = plotting.og_content_tree(presence)
+                if tree_info is None:
+                    log_object.warning(
+                        "Too many gene clusters with distinct ortholog group content to build a tree for the "
+                        "interactive heatmap; gene clusters are listed without a tree."
+                    )
+                else:
+                    tree = {"merges": tree_info["merges"], "metric": "Jaccard distance of ortholog group content",
+                            "method": "average linkage (UPGMA)", "unique_profiles": tree_info["unique_profiles"]}
+                    row_orders[TREE_ORDER_NAME] = tree_info["order"]
+            except Exception as e:
+                log_object.warning(f"Unable to cluster gene clusters for interactive heatmap: {e}")
+        row_orders["Alphabetical"] = list(range(n_c))
+        row_orders["Number of OGs (descending)"] = sorted(range(n_c), key=lambda c: (-sum(presence[c]), c))
+
+        data = {
+            "title": "zol heatmap overview",
+            "ogs": ogs,
+            "clusters": clusters,
+            "cells": cells,
+            "metrics": metric_names,
+            "default_metric": default_metric,
+            "row_orders": row_orders,
+            "default_order": list(row_orders.keys())[0],
+            "tree": tree,
+            "tree_order": TREE_ORDER_NAME,
+        }
+        heatmap_html.write_heatmap_html(data, html_file)
     except Exception as e:
-        sys.stderr.write("Issues creating heatmap visualization in zol.\n")
-        log_object.error("Issues creating heatmap visualization in zol.")
-        sys.stderr.write(str(e) + "\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.exit(1)
+        msg = f"Warning: issues creating interactive HTML heatmap in zol ({e}) - this is not critical."
+        sys.stderr.write(msg + "\n")
+        log_object.warning(msg)
 
 
 def compute_peptides_stats(
@@ -5797,10 +6204,11 @@ def compute_peptides_stats(
     except ImportError:
         log_object.error("peptides.py library not found. Please install it with: pip install peptides")
         sys.stderr.write("peptides.py library not found. Please install it with: pip install peptides\\n")
+        util.report_cause()
         sys.exit(1)
     except (IOError, ValueError, statistics.StatisticsError) as e:
         error_msg = f"Issues with computing peptides.py statistics for ortholog groups. Error: {e}"
         log_object.error(error_msg)
         sys.stderr.write(error_msg + "\\n")
-        sys.stderr.write(traceback.format_exc())
+        util.report_cause(fallback_traceback=True)
         sys.exit(1)

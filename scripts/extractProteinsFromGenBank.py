@@ -67,15 +67,15 @@ with open(gbk_file) as ogbf:
             protein_id = None
             try:
                 protein_id = feat.qualifiers.get('locus_tag')[0]
-            except:
+            except (TypeError, IndexError):
                 pass
             
-            if protein_id == None:
+            if protein_id is None:
                 try:
                     protein_id = feat.qualifiers.get('protein_id')[0]
-                except:
+                except (TypeError, IndexError):
                     pass
-            if protein_id == None:
+            if protein_id is None:
                 protein_id = 'CDS_' + str(counter)
                 counter += 1
             print('>' + protein_id + '\n' + str(feat.qualifiers.get('translation')[0]))

@@ -407,18 +407,6 @@ def create_parser():
                "[Default is None].", 
         required = False, 
         default = None)
-    parser.add_argument('-l', 
-        '--length', 
-        type = int, 
-        help = argparse.SUPPRESS,  # deprecated: only sized the removed PDF heatmap; accepted and ignored
-        required = False, 
-        default = 7)
-    parser.add_argument('-w', 
-        '--width', 
-        type = int, 
-        help = argparse.SUPPRESS,  # deprecated: only sized the removed PDF heatmap; accepted and ignored
-        required = False, 
-        default = 14)
     parser.add_argument('-fgl', 
         '--full-genbank-labels', 
         action = 'store_true', 
@@ -465,8 +453,6 @@ def zol_main():
     skip_gard = myargs.skip_gard
     skip_busted = myargs.skip_busted
     betard_analysis = myargs.betard_analysis
-    length = myargs.length
-    width = myargs.width
     identity_threshold = myargs.identity_threshold
     coverage_threshold = myargs.coverage_threshold
     evalue_threshold = myargs.evalue_threshold
@@ -566,7 +552,7 @@ def zol_main():
                         focal_genbanks_listing_file, comparator_genbanks_listing_file, filter_lq_flag, filter_dq_flag, 
                         only_orthogroups_flag, precomputed_orthogroups_file, ibc_flag, ces_flag, rename_lt_flag, 
                         allow_edge_cds_flag, dereplicate_flag, reinflate_flag, reinflate_params, derep_identity, derep_coverage, 
-                        derep_inflation, derep_small_genomes, custom_database, length, width, 
+                        derep_inflation, derep_small_genomes, custom_database, 
                         full_genbank_labels, threads, max_memory, skip_cleanup_flag, skip_annotations_flag]
     parameter_names = ["Input directory / GenBank files", "Output directory", "Domain mode specified?", 
                        "Minimum length of chopped CDS features for inclusion", "Pfam annotation parameters", 
@@ -589,7 +575,7 @@ def zol_main():
                        "Dereplication identity threshold", "Dereplication coverage threshold", 
                        "Dereplication clustering method / MCL inflation parameter", 
                        "Dereplication using skani with --small-genomes preset", 
-                       "Custom annotation database", "Plot height", "Plot width", 
+                       "Custom annotation database", 
                        "Use full GenBank labels?", "Number of threads requested", 
                        "Maximum memory in GB", "Skip Cleanup?", "Skip Annotations?"]
     util.log_parameters_to_file(parameters_file, parameter_names, parameter_values)

@@ -251,7 +251,7 @@ bash comprehensive_tests.sh
 
 To run tests, you will need to have fully downloaded/setup databases. 
 
-Expected results using version 1.7.0 can be found at: https://zenodo.org/records/21318649
+Expected results using version 1.8.0 can be found at: https://zenodo.org/records/24447273
 
 ## License:
 

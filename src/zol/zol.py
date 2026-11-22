@@ -1185,16 +1185,31 @@ def dereplicate_using_skani(
         
         util.run_cmd_via_subprocess(skani_sketch_cmd, log_object=log_object, check_directories=[skani_sketch_db])
         
+        # Arguments are passed to the shell quoted, so a "*" glob would not be expanded.
+        # Instead, list the sketch files explicitly and hand skani a listing file.
+        sketch_files = sorted(
+            os.path.join(skani_sketch_db, f)
+            for f in os.listdir(skani_sketch_db)
+            if f.endswith(".sketch")
+        )
+        if len(sketch_files) == 0:
+            msg = f"No skani sketch files were found in {skani_sketch_db}"
+            log_object.error(msg)
+            raise RuntimeError(msg)
+        sketch_listing_file = derep_dir + "skani_sketch_listing.txt"
+        with open(sketch_listing_file, "w") as sketch_listing_handle:
+            sketch_listing_handle.write("\n".join(sketch_files) + "\n")
+
         skani_result_file = derep_dir + "skani_results.tsv"
         skani_dist_cmd = [
             "skani",
             "dist",
             "-t",
             str(threads),
-            "-q",
-            str(skani_sketch_db) + "*",
-            "-r",
-            str(skani_sketch_db) + "*",
+            "--ql",
+            sketch_listing_file,
+            "--rl",
+            sketch_listing_file,
             "--min-af",
             str(skani_coverage_threshold),
             "-o",
